@@ -1,0 +1,3060 @@
+" ============================================================================
+" XSA vs SEGW functional JSON parity test - paged low-memory implementation
+"
+" Memory strategy:
+" - XSA fixture is indexed once with PO/item and object character offsets only.
+" - Raw SEGW JSON is fetched one SKIP/TOP page at a time.
+" - JSON properties are read directly from both raw payloads for each matched row.
+" - Comparison is strict except for documented, field-specific SEGW mappings of
+"   XSA SQL NULL values and a temporary unordered-aggregate compatibility rule.
+" - No complete XSA row table, no complete property tree, and no copied JSON
+"   objects are held in memory.
+"
+" Paging relies on the stable ORDER BY implemented by all dashboard flows.
+" ============================================================================
+
+CLASS ltc_fi_das_gateway_parity DEFINITION
+  FINAL
+  FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION LONG.
+
+  PRIVATE SECTION.
+
+    TYPES:
+      BEGIN OF ts_case,
+        fixture  TYPE string,
+        email    TYPE zif_fi_das_dashboard=>t_email,
+        poowner  TYPE zif_fi_das_dashboard=>t_poowner,
+        flow     TYPE zif_fi_das_dashboard=>t_operation,
+        pstype   TYPE zif_fi_das_dashboard=>t_pstype,
+        ponumber TYPE zif_fi_das_dashboard=>tr_ponumber,
+        itemno   TYPE zif_fi_das_dashboard=>tr_itemno,
+        supplier TYPE zif_fi_das_dashboard=>tt_supplier_filter,
+      END OF ts_case,
+
+      BEGIN OF ts_expected_index,
+        ponumber    TYPE string,
+        itemno      TYPE string,
+        object_from TYPE i,
+        object_to   TYPE i,
+        matched     TYPE abap_bool,
+      END OF ts_expected_index,
+
+      tt_expected_index TYPE HASHED TABLE OF ts_expected_index
+        WITH UNIQUE KEY ponumber itemno,
+
+      BEGIN OF ts_property_name,
+        name TYPE string,
+      END OF ts_property_name,
+
+      tt_property_name TYPE HASHED TABLE OF ts_property_name
+        WITH UNIQUE KEY name,
+
+      tt_string TYPE STANDARD TABLE OF string
+        WITH EMPTY KEY,
+
+      BEGIN OF ts_json_property,
+        name  TYPE string,
+        token TYPE string,
+      END OF ts_json_property,
+
+      tt_json_property TYPE HASHED TABLE OF ts_json_property
+        WITH UNIQUE KEY name.
+
+    CONSTANTS:
+      mc_mime_root TYPE string VALUE '/SAP/PUBLIC/DAS/',
+      mc_max_log   TYPE i VALUE 500,
+
+*     Single paging limit for Over, Under and Exclude.
+*     Reduce this value when the productive system has a smaller heap.
+      mc_page_size TYPE i VALUE 40000.
+
+    DATA:
+      mt_differences       TYPE stringtab,
+      mv_difference_count  TYPE i,
+      mv_unused TYPE abap_bool.
+
+    METHODS setup.
+
+    METHODS test_over_material
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_over_service
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_under_material
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_under_service
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_exclude
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_over_material_owner
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_over_service_owner
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_under_material_owner
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_under_service_owner
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_exclude_owner
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_filter
+              FOR TESTING
+      RAISING cx_static_check.
+
+
+    METHODS test_selection
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_y_format
+   FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_x_format
+   FOR TESTING
+      RAISING cx_static_check.
+
+     METHODS test_empty_format
+   FOR TESTING
+      RAISING cx_static_check.
+
+
+    METHODS run_paged_case
+      IMPORTING
+        is_case TYPE ts_case
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS fetch_gateway_page
+      IMPORTING
+        is_case           TYPE ts_case
+        i_skip            TYPE i
+      EXPORTING
+        e_json            TYPE string
+        e_total_count     TYPE int8
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS build_resource_path
+      IMPORTING
+        is_case        TYPE ts_case
+        i_skip         TYPE i
+      RETURNING
+        VALUE(rv_path) TYPE string.
+
+    METHODS append_filter
+      IMPORTING
+        is_case TYPE ts_case
+      CHANGING
+        cv_path TYPE string.
+
+    METHODS odata_quote
+      IMPORTING
+        i_value         TYPE any
+      RETURNING
+        VALUE(rv_value) TYPE string.
+
+    METHODS execute_gateway_get
+      IMPORTING
+        i_resource_path TYPE string
+      RETURNING
+        VALUE(rv_json)  TYPE string
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS read_inline_count
+      IMPORTING
+        i_json          TYPE string
+      RETURNING
+        VALUE(rv_count) TYPE int8.
+
+    METHODS read_mime_fixture
+      IMPORTING
+                i_fixture      TYPE string
+      RETURNING
+                VALUE(rv_json) TYPE string
+      RAISING   zcx_fi_das_error.
+
+    METHODS build_expected_index
+      IMPORTING
+                i_json          TYPE string
+      RETURNING
+                VALUE(rt_index) TYPE tt_expected_index
+      RAISING   zcx_fi_das_error.
+
+    METHODS find_results_array_bounds
+      IMPORTING
+                i_json       TYPE string
+      EXPORTING
+                e_array_from TYPE i
+                e_array_to   TYPE i
+      RAISING   zcx_fi_das_error.
+
+    METHODS read_json_row_key
+      IMPORTING
+                i_json        TYPE string
+                i_object_from TYPE i
+                i_object_to   TYPE i
+      EXPORTING
+                e_ponumber    TYPE string
+                e_itemno      TYPE string
+      RAISING   zcx_fi_das_error.
+
+    METHODS compare_actual_page
+      IMPORTING
+        i_fixture          TYPE string
+        i_expected_json    TYPE string
+        i_actual_json      TYPE string
+        it_actual_index    TYPE tt_expected_index
+      CHANGING
+        ct_expected_index  TYPE tt_expected_index
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS compare_raw_object
+      IMPORTING
+        i_fixture          TYPE string
+        i_ponumber         TYPE string
+        i_itemno           TYPE string
+        i_expected_json    TYPE string
+        i_expected_from    TYPE i
+        i_expected_to      TYPE i
+        i_actual_json      TYPE string
+        i_actual_from      TYPE i
+        i_actual_to        TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS read_object_properties
+      IMPORTING
+        i_json              TYPE string
+        i_object_from       TYPE i
+        i_object_to         TYPE i
+      RETURNING
+        VALUE(rt_properties) TYPE tt_json_property
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS compare_raw_property
+      IMPORTING
+        i_fixture       TYPE string
+        i_ponumber      TYPE string
+        i_itemno        TYPE string
+        i_name          TYPE string
+        i_expected_token TYPE string
+        i_actual_token   TYPE string.
+
+    METHODS is_equivalent_null
+      IMPORTING
+        i_name           TYPE string
+        i_expected_token TYPE string
+        i_actual_token   TYPE string
+      RETURNING
+        VALUE(rv_result) TYPE abap_bool.
+
+    METHODS normalize_odata_time
+      IMPORTING
+        i_token         TYPE string
+      RETURNING
+        VALUE(rv_token) TYPE string.
+
+    METHODS ignore_missing_property
+      IMPORTING
+        i_name           TYPE string
+      RETURNING
+        VALUE(rv_result) TYPE abap_bool.
+
+    METHODS is_unordered_aggregate_field
+      IMPORTING
+        i_name           TYPE string
+      RETURNING
+        VALUE(rv_result) TYPE abap_bool.
+
+    METHODS equal_aggregate_content
+      IMPORTING
+        i_expected      TYPE string
+        i_actual        TYPE string
+      RETURNING
+        VALUE(rv_equal) TYPE abap_bool.
+
+    METHODS split_aggregate_empty
+      IMPORTING
+        i_value          TYPE string
+      RETURNING
+        VALUE(rt_tokens) TYPE tt_string.
+
+    METHODS read_json_string_end
+      IMPORTING
+                i_text        TYPE string
+                i_start       TYPE i
+      RETURNING
+                VALUE(rv_end) TYPE i
+      RAISING   zcx_fi_das_error.
+
+    METHODS read_json_value_end
+      IMPORTING
+                i_text        TYPE string
+                i_start       TYPE i
+      RETURNING
+                VALUE(rv_end) TYPE i
+      RAISING   zcx_fi_das_error.
+
+    METHODS find_matching_end
+      IMPORTING
+                i_text        TYPE string
+                i_start       TYPE i
+                i_open        TYPE char1
+                i_close       TYPE char1
+      RETURNING
+                VALUE(rv_end) TYPE i
+      RAISING   zcx_fi_das_error.
+
+    METHODS skip_whitespace
+      IMPORTING
+        i_text             TYPE string
+        i_position         TYPE i
+      RETURNING
+        VALUE(rv_position) TYPE i.
+
+    METHODS is_whitespace
+      IMPORTING
+        i_char           TYPE char1
+      RETURNING
+        VALUE(rv_result) TYPE abap_bool.
+
+    METHODS trim_text
+      IMPORTING
+        i_text         TYPE string
+      RETURNING
+        VALUE(rv_text) TYPE string.
+
+    METHODS unquote_json
+      IMPORTING
+        i_token         TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string.
+
+    METHODS add_difference
+      IMPORTING
+        i_text TYPE string.
+
+    METHODS assert_no_differences.
+
+
+
+
+
+ENDCLASS.
+
+
+CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
+
+  METHOD setup.
+
+    CLEAR:
+      mt_differences,
+      mv_difference_count.
+
+    CLEAR mv_unused.
+
+  ENDMETHOD.
+
+
+  METHOD test_over_material.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-over-material.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_over_service.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-over-service.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_under_material.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-under-material.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_under_service.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-under-service.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_exclude.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-exclude.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_exclude.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_all.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  METHOD test_over_material_owner.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-over-material-owner.json'.
+
+    ls_case-email =
+      'anita.estrada@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_over_service_owner.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-over-service-owner.json'.
+
+    ls_case-email =
+      'elisa.pawlak@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_under_material_owner.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-under-material-owner.json'.
+
+    ls_case-email =
+      'katarina.simic@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_under_service_owner.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-under-service-owner.json'.
+
+    ls_case-email =
+      'teresa.scoggin@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_exclude_owner.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-exclude-owner.json'.
+
+    ls_case-email =
+      'alta.bazile@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_exclude.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_all.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  METHOD test_filter.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-filter.json'.
+
+    ls_case-email =
+      'patricia-tiemi.oshiro@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  METHOD test_selection.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-selection.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-ponumber =
+  VALUE #(
+    (
+      sign   = 'I'
+      option = 'EQ'
+      low    = '8000401022'
+    ) ).
+
+    ls_case-itemno =
+      VALUE #(
+        (
+          sign   = 'I'
+          option = 'EQ'
+          low    = '2'
+        ) ).
+
+
+    ls_case-supplier =
+      VALUE #(
+        (
+          value    = 'Fuji'
+        ) ).
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+  METHOD test_y_format.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-y_format.json'.
+
+    ls_case-email =
+      'agnieszka.blaszczyk@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+   METHOD test_x_format.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-x_format.json'.
+
+    ls_case-email =
+      'anchalee.chittawut@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+   METHOD test_empty_format.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-empty_format.json'.
+
+    ls_case-email =
+      'ana.verdiguel@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_under.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_material.
+
+    ls_case-poowner = zif_fi_das_dashboard=>mc_owner_mode.
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+
+
+
+
+
+
+
+  METHOD run_paged_case.
+
+    DATA:
+      lv_expected_json   TYPE string,
+      lv_actual_json     TYPE string,
+      lt_expected_index  TYPE tt_expected_index,
+      lt_actual_index    TYPE tt_expected_index,
+      lv_skip            TYPE i,
+      lv_page_rows       TYPE i,
+      lv_total_count     TYPE int8,
+      lv_finished        TYPE abap_bool.
+
+    lv_expected_json =
+      read_mime_fixture(
+        i_fixture = is_case-fixture ).
+
+    lt_expected_index =
+      build_expected_index(
+        i_json = lv_expected_json ).
+
+    WHILE lv_finished = abap_false.
+
+      CLEAR:
+        lv_actual_json,
+        lv_total_count,
+        lv_page_rows.
+
+      fetch_gateway_page(
+        EXPORTING
+          is_case       = is_case
+          i_skip        = lv_skip
+        IMPORTING
+          e_json        = lv_actual_json
+          e_total_count = lv_total_count ).
+
+      lt_actual_index =
+        build_expected_index(
+          i_json = lv_actual_json ).
+
+      lv_page_rows = lines( lt_actual_index ).
+
+      compare_actual_page(
+        EXPORTING
+          i_fixture       = is_case-fixture
+          i_expected_json = lv_expected_json
+          i_actual_json   = lv_actual_json
+          it_actual_index = lt_actual_index
+        CHANGING
+          ct_expected_index = lt_expected_index ).
+
+*     TODO_PARITY_STRICT_COUNT:
+*     Current SEGW implementation can return __count = "0" even with rows.
+*     Remove the LV_TOTAL_COUNT > 0 condition after inline count is fixed.
+      IF lv_total_count > 0
+         AND lv_total_count <> lines( lt_expected_index ).
+        add_difference(
+          i_text =
+              |Inline count differs; Fixture={ is_case-fixture }; |
+            && |XSA={ lines( lt_expected_index ) }; |
+            && |SEGW={ lv_total_count }| ).
+      ENDIF.
+
+      IF lv_page_rows = 0.
+        lv_finished = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      lv_skip = lv_skip + lv_page_rows.
+
+      IF lv_total_count > 0.
+        IF lv_skip >= lv_total_count.
+          lv_finished = abap_true.
+        ENDIF.
+      ELSEIF lv_page_rows < mc_page_size.
+        lv_finished = abap_true.
+      ENDIF.
+
+      FREE lt_actual_index.
+
+    ENDWHILE.
+
+    LOOP AT lt_expected_index
+      ASSIGNING FIELD-SYMBOL(<ls_expected>)
+      WHERE matched = abap_false.
+
+      add_difference(
+        i_text =
+            |Missing SEGW raw JSON row; Fixture={ is_case-fixture }; |
+          && |PO={ <ls_expected>-ponumber }; |
+          && |ITEMNO={ <ls_expected>-itemno }| ).
+
+    ENDLOOP.
+
+    FREE:
+      lt_expected_index,
+      lt_actual_index,
+      lv_expected_json,
+      lv_actual_json.
+
+  ENDMETHOD.
+
+  METHOD fetch_gateway_page.
+
+    DATA lv_path TYPE string.
+
+    CLEAR:
+      e_json,
+      e_total_count.
+
+    lv_path =
+      build_resource_path(
+        is_case = is_case
+        i_skip  = i_skip ).
+
+    e_json =
+      execute_gateway_get(
+        i_resource_path = lv_path ).
+
+    e_total_count =
+      read_inline_count(
+        i_json = e_json ).
+
+  ENDMETHOD.
+
+  METHOD build_resource_path.
+
+    DATA:
+      lv_email   TYPE string,
+      lv_poowner TYPE string,
+      lv_pstype  TYPE string.
+
+    lv_email = odata_quote( i_value = is_case-email ).
+    lv_poowner = odata_quote( i_value = is_case-poowner ).
+    lv_pstype = odata_quote( i_value = is_case-pstype ).
+
+    CASE is_case-flow.
+      WHEN zif_fi_das_dashboard=>mc_over.
+        rv_path =
+            '/sap/opu/odata/sap/ZFI_DAS_SRV/'
+          && |openPOParameters(IP_PSTYPE='{ lv_pstype }',|
+          && |IP_EMAIL='{ lv_email }',|
+          && |IP_POOWNER='{ lv_poowner }')/Results|.
+
+      WHEN zif_fi_das_dashboard=>mc_under.
+        rv_path =
+            '/sap/opu/odata/sap/ZFI_DAS_SRV/'
+          && |thresholdParameters(IP_PSTYPE='{ lv_pstype }',|
+          && |IP_EMAIL='{ lv_email }',|
+          && |IP_POOWNER='{ lv_poowner }')/Results|.
+
+      WHEN zif_fi_das_dashboard=>mc_exclude.
+        rv_path =
+            '/sap/opu/odata/sap/ZFI_DAS_SRV/'
+          && |exclusionPOParameters(IP_EMAIL='{ lv_email }',|
+          && |IP_POOWNER='{ lv_poowner }')/Results|.
+    ENDCASE.
+
+    rv_path =
+        rv_path
+      && |?$format=json|
+      && |&$inlinecount=allpages|
+      && |&$top={ mc_page_size }|
+      && |&$skip={ i_skip }|.
+
+    append_filter(
+      EXPORTING
+        is_case = is_case
+      CHANGING
+        cv_path = rv_path ).
+
+  ENDMETHOD.
+
+  METHOD append_filter.
+
+    DATA:
+      lt_filters TYPE stringtab,
+      lv_filter  TYPE string,
+      lv_low     TYPE string,
+      lv_high    TYPE string,
+      lv_part    TYPE string.
+
+    LOOP AT is_case-ponumber ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
+      lv_low = odata_quote( i_value = <ls_ponumber>-low ).
+      lv_high = odata_quote( i_value = <ls_ponumber>-high ).
+
+      CASE <ls_ponumber>-option.
+        WHEN 'EQ'.
+          lv_part = |PONUMBER eq '{ lv_low }'|.
+        WHEN 'BT'.
+          lv_part =
+              |(PONUMBER ge '{ lv_low }' and |
+            && |PONUMBER le '{ lv_high }')|.
+        WHEN OTHERS.
+          CONTINUE.
+      ENDCASE.
+
+      IF <ls_ponumber>-sign = 'E'.
+        lv_part = |not ({ lv_part })|.
+      ENDIF.
+      APPEND lv_part TO lt_filters.
+    ENDLOOP.
+
+    LOOP AT is_case-itemno ASSIGNING FIELD-SYMBOL(<ls_itemno>).
+      lv_low = |{ <ls_itemno>-low ALPHA = IN }|.
+      lv_high = |{ <ls_itemno>-high ALPHA = IN }|.
+      lv_low = odata_quote( i_value = lv_low ).
+      lv_high = odata_quote( i_value = lv_high ).
+
+      CASE <ls_itemno>-option.
+        WHEN 'EQ'.
+          lv_part = |ITEMNO eq '{ lv_low }'|.
+        WHEN 'BT'.
+          lv_part =
+              |(ITEMNO ge '{ lv_low }' and |
+            && |ITEMNO le '{ lv_high }')|.
+        WHEN OTHERS.
+          CONTINUE.
+      ENDCASE.
+
+      IF <ls_itemno>-sign = 'E'.
+        lv_part = |not ({ lv_part })|.
+      ENDIF.
+      APPEND lv_part TO lt_filters.
+    ENDLOOP.
+
+    LOOP AT is_case-supplier ASSIGNING FIELD-SYMBOL(<ls_supplier>).
+      lv_low = odata_quote( i_value = <ls_supplier>-value ).
+      APPEND |substringof('{ lv_low }',SUPPLIERNAME)| TO lt_filters.
+    ENDLOOP.
+
+    IF lt_filters IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    CONCATENATE LINES OF lt_filters
+      INTO lv_filter
+      SEPARATED BY ' and '.
+
+    cl_http_utility=>escape_url(
+      EXPORTING
+        unescaped = lv_filter
+      RECEIVING
+        escaped   = lv_filter ).
+
+    cv_path = cv_path && |&$filter={ lv_filter }|.
+
+  ENDMETHOD.
+
+  METHOD odata_quote.
+
+    rv_value = CONV string( i_value ).
+    SHIFT rv_value RIGHT DELETING TRAILING space.
+
+    REPLACE ALL OCCURRENCES OF ''''
+      IN rv_value
+      WITH ''''''.
+
+  ENDMETHOD.
+
+  METHOD execute_gateway_get.
+
+    DATA:
+      lo_client          TYPE REF TO /iwfnd/cl_sutil_client_proxy,
+      lt_request_header  TYPE /iwfnd/sutil_property_t,
+      lt_response_header TYPE /iwfnd/sutil_property_t,
+      lv_status_code     TYPE i,
+      lv_status_text     TYPE string,
+      lv_response_body   TYPE xstring.
+
+    lt_request_header = VALUE #(
+      ( name  = '~request_method'
+        value = 'GET' )
+      ( name  = '~request_uri'
+        value = i_resource_path )
+      ( name  = 'accept'
+        value = 'application/json' ) ).
+
+    lo_client =
+      /iwfnd/cl_sutil_client_proxy=>get_instance( ).
+
+    lo_client->web_request(
+      EXPORTING
+        it_request_header  = lt_request_header
+      IMPORTING
+        ev_status_code     = lv_status_code
+        ev_status_text     = lv_status_text
+        et_response_header = lt_response_header
+        ev_response_body   = lv_response_body ).
+
+    rv_json =
+      /iwfnd/cl_sutil_xml_helper=>transform_to_string(
+        lv_response_body ).
+
+    IF lv_status_code < 200 OR lv_status_code >= 300.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+              |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
+            && |URI={ i_resource_path }; Body={ rv_json }|.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_inline_count.
+
+    DATA:
+      lv_offset TYPE i,
+      lv_start  TYPE i,
+      lv_end    TYPE i,
+      lv_length TYPE i,
+      lv_token  TYPE string.
+
+    FIND FIRST OCCURRENCE OF '"__count"'
+      IN i_json
+      MATCH OFFSET lv_offset.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    lv_length = strlen( i_json ).
+    lv_start = lv_offset + 9.
+
+    WHILE lv_start < lv_length
+      AND i_json+lv_start(1) <> ':'.
+      lv_start = lv_start + 1.
+    ENDWHILE.
+
+    lv_start = skip_whitespace(
+      i_text     = i_json
+      i_position = lv_start + 1 ).
+
+    lv_end = read_json_value_end(
+      i_text  = i_json
+      i_start = lv_start ).
+
+    lv_token = substring(
+      val = i_json
+      off = lv_start
+      len = lv_end - lv_start ).
+
+    lv_token = unquote_json(
+      i_token = lv_token ).
+
+    IF lv_token IS NOT INITIAL.
+      rv_count = CONV int8( lv_token ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_mime_fixture.
+
+    DATA:
+      lo_mime    TYPE REF TO if_mr_api,
+      lo_conv    TYPE REF TO cl_abap_conv_in_ce,
+      lv_content TYPE xstring.
+
+    lo_mime =
+      cl_mime_repository_api=>get_api( ).
+
+    lo_mime->get(
+      EXPORTING
+        i_url = mc_mime_root && i_fixture
+      IMPORTING
+        e_content = lv_content
+      EXCEPTIONS
+        parameter_missing  = 1
+        error_occured      = 2
+        not_found          = 3
+        permission_failure = 4
+        OTHERS             = 5 ).
+
+    IF sy-subrc <> 0
+       OR lv_content IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+                     |MIME fixture was not found: { mc_mime_root }{ i_fixture }|.
+
+    ENDIF.
+
+    lo_conv =
+      cl_abap_conv_in_ce=>create(
+        input    = lv_content
+        encoding = 'UTF-8' ).
+
+    lo_conv->read(
+      IMPORTING
+        data = rv_json ).
+
+    FREE lv_content.
+
+    CLEAR:
+      lo_conv,
+      lo_mime.
+
+  ENDMETHOD.
+
+
+  METHOD find_results_array_bounds.
+
+    DATA:
+      lv_results_offset TYPE i,
+      lv_json_length    TYPE i,
+      lv_char           TYPE char1.
+
+    FIND FIRST OCCURRENCE OF '"results"'
+      IN i_json
+      MATCH OFFSET lv_results_offset.
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+                     'Fixture does not contain the OData results property'.
+
+    ENDIF.
+
+    lv_json_length =
+      strlen( i_json ).
+
+    e_array_from =
+      lv_results_offset + 9.
+
+    WHILE e_array_from < lv_json_length.
+
+      lv_char =
+        i_json+e_array_from(1).
+
+      IF lv_char = '['.
+        EXIT.
+      ENDIF.
+
+      e_array_from =
+        e_array_from + 1.
+
+    ENDWHILE.
+
+    IF e_array_from >= lv_json_length.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+                     'Fixture results array start was not found'.
+
+    ENDIF.
+
+    e_array_to =
+      find_matching_end(
+        i_text  = i_json
+        i_start = e_array_from
+        i_open  = '['
+        i_close = ']' ).
+
+  ENDMETHOD.
+
+
+  METHOD build_expected_index.
+
+    DATA:
+      lv_array_from  TYPE i,
+      lv_array_to    TYPE i,
+      lv_position    TYPE i,
+      lv_object_from TYPE i,
+      lv_object_to   TYPE i,
+      lv_ponumber    TYPE string,
+      lv_itemno      TYPE string,
+      lv_char        TYPE char1,
+      ls_expected    TYPE ts_expected_index.
+
+    CLEAR rt_index.
+
+    find_results_array_bounds(
+      EXPORTING
+        i_json = i_json
+      IMPORTING
+        e_array_from = lv_array_from
+        e_array_to   = lv_array_to ).
+
+    lv_position =
+      lv_array_from + 1.
+
+    WHILE lv_position < lv_array_to.
+
+      lv_position =
+        skip_whitespace(
+          i_text     = i_json
+          i_position = lv_position ).
+
+      IF lv_position >= lv_array_to.
+        EXIT.
+      ENDIF.
+
+      lv_char =
+        i_json+lv_position(1).
+
+      IF lv_char = ','.
+
+        lv_position =
+          lv_position + 1.
+
+        CONTINUE.
+
+      ENDIF.
+
+      IF lv_char <> '{'.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       |Unexpected character in results array at offset { lv_position }|.
+
+      ENDIF.
+
+      lv_object_from =
+        lv_position.
+
+      lv_object_to =
+        find_matching_end(
+          i_text  = i_json
+          i_start = lv_object_from
+          i_open  = '{'
+          i_close = '}' ).
+
+      IF lv_object_to > lv_array_to.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       'JSON result object exceeds the results array'.
+
+      ENDIF.
+
+      CLEAR:
+        lv_ponumber,
+        lv_itemno.
+
+      read_json_row_key(
+        EXPORTING
+          i_json        = i_json
+          i_object_from = lv_object_from
+          i_object_to   = lv_object_to
+        IMPORTING
+          e_ponumber    = lv_ponumber
+          e_itemno      = lv_itemno ).
+
+      IF lv_ponumber IS INITIAL
+         OR lv_itemno IS INITIAL.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       'JSON row does not contain PONUMBER and ITEMNO'.
+
+      ENDIF.
+
+      CLEAR ls_expected.
+
+      ls_expected-ponumber =
+        lv_ponumber.
+
+      ls_expected-itemno =
+        lv_itemno.
+
+      ls_expected-object_from =
+        lv_object_from.
+
+      ls_expected-object_to =
+        lv_object_to.
+
+      INSERT ls_expected
+        INTO TABLE rt_index.
+
+      IF sy-subrc <> 0.
+
+        add_difference(
+          i_text =
+              |Duplicate JSON key; PO={ lv_ponumber }; |
+            && |ITEMNO={ lv_itemno }| ).
+
+      ENDIF.
+
+      lv_position =
+        lv_object_to + 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+  METHOD read_json_row_key.
+
+    DATA:
+      lv_position    TYPE i,
+      lv_key_start   TYPE i,
+      lv_key_end     TYPE i,
+      lv_value_start TYPE i,
+      lv_value_end   TYPE i,
+      lv_key         TYPE string,
+      lv_token       TYPE string,
+      lv_char        TYPE char1.
+
+    CLEAR:
+      e_ponumber,
+      e_itemno.
+
+    lv_position =
+      i_object_from + 1.
+
+    WHILE lv_position < i_object_to.
+
+      lv_position =
+        skip_whitespace(
+          i_text     = i_json
+          i_position = lv_position ).
+
+      IF lv_position >= i_object_to.
+        EXIT.
+      ENDIF.
+
+      lv_char =
+        i_json+lv_position(1).
+
+      IF lv_char = ','.
+
+        lv_position =
+          lv_position + 1.
+
+        CONTINUE.
+
+      ENDIF.
+
+      IF lv_char <> '"'.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       'Invalid JSON object property name'.
+
+      ENDIF.
+
+      lv_key_start =
+        lv_position.
+
+      lv_key_end =
+        read_json_string_end(
+          i_text  = i_json
+          i_start = lv_key_start ).
+
+      lv_key =
+        unquote_json(
+          i_token =
+            substring(
+              val = i_json
+              off = lv_key_start
+              len = lv_key_end - lv_key_start + 1 ) ).
+
+      lv_position =
+        skip_whitespace(
+          i_text     = i_json
+          i_position = lv_key_end + 1 ).
+
+      IF lv_position >= i_object_to
+         OR i_json+lv_position(1) <> ':'.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       |JSON property { lv_key } has no colon|.
+
+      ENDIF.
+
+      lv_position =
+        skip_whitespace(
+          i_text     = i_json
+          i_position = lv_position + 1 ).
+
+      lv_value_start =
+        lv_position.
+
+      lv_value_end =
+        read_json_value_end(
+          i_text  = i_json
+          i_start = lv_value_start ).
+
+      IF lv_value_end > i_object_to + 1.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason =
+                       |JSON property { lv_key } exceeds its object boundary|.
+
+      ENDIF.
+
+*--------------------------------------------------------------------*
+* Only create a value substring for the two key properties.
+*--------------------------------------------------------------------*
+      IF lv_key = 'PONUMBER'
+         OR lv_key = 'ITEMNO'.
+
+        lv_token =
+          substring(
+            val = i_json
+            off = lv_value_start
+            len = lv_value_end - lv_value_start ).
+
+        IF lv_key = 'PONUMBER'.
+
+          e_ponumber =
+            unquote_json(
+              i_token = lv_token ).
+
+        ELSE.
+
+          e_itemno =
+            unquote_json(
+              i_token = lv_token ).
+
+        ENDIF.
+
+        FREE lv_token.
+
+        IF e_ponumber IS NOT INITIAL
+           AND e_itemno IS NOT INITIAL.
+
+          RETURN.
+
+        ENDIF.
+
+      ENDIF.
+
+      CLEAR lv_key.
+
+      lv_position =
+        lv_value_end + 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+
+  METHOD compare_actual_page.
+
+    LOOP AT it_actual_index ASSIGNING FIELD-SYMBOL(<ls_actual>).
+
+      READ TABLE ct_expected_index
+        ASSIGNING FIELD-SYMBOL(<ls_expected>)
+        WITH TABLE KEY
+          ponumber = <ls_actual>-ponumber
+          itemno   = <ls_actual>-itemno.
+
+      IF sy-subrc <> 0.
+        add_difference(
+          i_text =
+              |Extra SEGW raw JSON row; Fixture={ i_fixture }; |
+            && |PO={ <ls_actual>-ponumber }; ITEMNO={ <ls_actual>-itemno }| ).
+        CONTINUE.
+      ENDIF.
+
+      IF <ls_expected>-matched = abap_true.
+        add_difference(
+          i_text =
+              |Duplicate SEGW raw JSON key across pages; |
+            && |Fixture={ i_fixture }; PO={ <ls_actual>-ponumber }; |
+            && |ITEMNO={ <ls_actual>-itemno }| ).
+        CONTINUE.
+      ENDIF.
+
+      compare_raw_object(
+        i_fixture       = i_fixture
+        i_ponumber      = <ls_actual>-ponumber
+        i_itemno        = <ls_actual>-itemno
+        i_expected_json = i_expected_json
+        i_expected_from = <ls_expected>-object_from
+        i_expected_to   = <ls_expected>-object_to
+        i_actual_json   = i_actual_json
+        i_actual_from   = <ls_actual>-object_from
+        i_actual_to     = <ls_actual>-object_to ).
+
+      <ls_expected>-matched = abap_true.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD compare_raw_object.
+
+    DATA:
+      lt_expected TYPE tt_json_property,
+      lt_actual   TYPE tt_json_property.
+
+    lt_expected =
+      read_object_properties(
+        i_json        = i_expected_json
+        i_object_from = i_expected_from
+        i_object_to   = i_expected_to ).
+
+    lt_actual =
+      read_object_properties(
+        i_json        = i_actual_json
+        i_object_from = i_actual_from
+        i_object_to   = i_actual_to ).
+
+    LOOP AT lt_expected ASSIGNING FIELD-SYMBOL(<ls_expected>).
+
+      READ TABLE lt_actual
+        ASSIGNING FIELD-SYMBOL(<ls_actual>)
+        WITH TABLE KEY name = <ls_expected>-name.
+
+      IF sy-subrc <> 0.
+
+*--------------------------------------------------------------------*
+* XSA exposes a synthetic ID property that is not part of the migrated
+* SEGW result contract and has no active UI consumer. Only this specific
+* missing property is accepted. Every other missing property remains a
+* parity failure.
+*--------------------------------------------------------------------*
+        IF ignore_missing_property(
+             i_name = <ls_expected>-name ) = abap_true.
+          CONTINUE.
+        ENDIF.
+
+        add_difference(
+          i_text =
+              |Missing SEGW raw JSON property; Fixture={ i_fixture }; |
+            && |PO={ i_ponumber }; ITEMNO={ i_itemno }; |
+            && |Field={ <ls_expected>-name }| ).
+        CONTINUE.
+      ENDIF.
+
+      compare_raw_property(
+        i_fixture        = i_fixture
+        i_ponumber       = i_ponumber
+        i_itemno         = i_itemno
+        i_name           = <ls_expected>-name
+        i_expected_token = <ls_expected>-token
+        i_actual_token   = <ls_actual>-token ).
+
+    ENDLOOP.
+
+    LOOP AT lt_actual ASSIGNING <ls_actual>.
+      IF NOT line_exists( lt_expected[ name = <ls_actual>-name ] ).
+        add_difference(
+          i_text =
+              |Extra SEGW raw JSON property; Fixture={ i_fixture }; |
+            && |PO={ i_ponumber }; ITEMNO={ i_itemno }; |
+            && |Field={ <ls_actual>-name }| ).
+      ENDIF.
+    ENDLOOP.
+
+    FREE:
+      lt_expected,
+      lt_actual.
+
+  ENDMETHOD.
+
+  METHOD read_object_properties.
+
+    DATA:
+      lv_position    TYPE i,
+      lv_key_start   TYPE i,
+      lv_key_end     TYPE i,
+      lv_value_start TYPE i,
+      lv_value_end   TYPE i,
+      lv_key         TYPE string,
+      lv_token       TYPE string,
+      lv_char        TYPE char1.
+
+    lv_position = i_object_from + 1.
+
+    WHILE lv_position < i_object_to.
+
+      lv_position = skip_whitespace(
+        i_text     = i_json
+        i_position = lv_position ).
+
+      IF lv_position >= i_object_to.
+        EXIT.
+      ENDIF.
+
+      lv_char = i_json+lv_position(1).
+
+      IF lv_char = ','.
+        lv_position = lv_position + 1.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_char <> '"'.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason = |Invalid JSON property at offset { lv_position }|.
+      ENDIF.
+
+      lv_key_start = lv_position.
+      lv_key_end = read_json_string_end(
+        i_text  = i_json
+        i_start = lv_key_start ).
+
+      lv_key = unquote_json(
+        i_token = substring(
+          val = i_json
+          off = lv_key_start
+          len = lv_key_end - lv_key_start + 1 ) ).
+
+      lv_position = skip_whitespace(
+        i_text     = i_json
+        i_position = lv_key_end + 1 ).
+
+      IF lv_position >= i_object_to
+         OR i_json+lv_position(1) <> ':'.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason = |JSON property { lv_key } has no colon|.
+      ENDIF.
+
+      lv_value_start = skip_whitespace(
+        i_text     = i_json
+        i_position = lv_position + 1 ).
+
+      lv_value_end = read_json_value_end(
+        i_text  = i_json
+        i_start = lv_value_start ).
+
+      IF lv_key <> '__metadata'.
+        lv_token = trim_text(
+          i_text = substring(
+            val = i_json
+            off = lv_value_start
+            len = lv_value_end - lv_value_start ) ).
+
+        INSERT VALUE #(
+          name  = lv_key
+          token = lv_token
+        ) INTO TABLE rt_properties.
+
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_reason = |Duplicate JSON property { lv_key }|.
+        ENDIF.
+      ENDIF.
+
+      CLEAR:
+        lv_key,
+        lv_token.
+
+      lv_position = lv_value_end + 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+  METHOD compare_raw_property.
+
+    DATA:
+      lv_expected_token TYPE string,
+      lv_actual_token   TYPE string,
+      lv_expected_text  TYPE string,
+      lv_actual_text    TYPE string,
+      lv_expected_len   TYPE i,
+      lv_actual_len     TYPE i.
+
+    lv_expected_token =
+      trim_text(
+        i_text = i_expected_token ).
+
+    lv_actual_token =
+      trim_text(
+        i_text = i_actual_token ).
+
+*--------------------------------------------------------------------*
+* Documented functional compatibility for XSA SQL NULL values
+*
+* Classic SEGW serializes initial ABAP character, decimal, and time
+* values differently from XSA SQL NULL. IS_EQUIVALENT_NULL contains a
+* field-specific allowlist. There is intentionally no global rule such
+* as NULL = empty string or NULL = zero.
+*--------------------------------------------------------------------*
+    IF is_equivalent_null(
+         i_name           = i_name
+         i_expected_token = lv_expected_token
+         i_actual_token   = lv_actual_token ) = abap_true.
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Normalize non-NULL CHANGEDTIME values
+*
+* XSA can omit leading zeroes while SEGW emits two-digit components.
+* Both representations describe the same Edm.Time value:
+*
+*   "PT9H40M11S" = "PT09H40M11S"
+*   "PT8H24M4S"  = "PT08H24M04S"
+*
+* Only CHANGEDTIME enters this normalization. The actual hour, minute,
+* and second values remain strict.
+*--------------------------------------------------------------------*
+    IF i_name = 'CHANGEDTIME'.
+      lv_expected_token =
+        normalize_odata_time(
+          i_token = lv_expected_token ).
+
+      lv_actual_token =
+        normalize_odata_time(
+          i_token = lv_actual_token ).
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* TODO_PARITY_STRICT_001 - temporary aggregate-order exception
+*
+* Aggregate segment order can currently differ between XSA and SEGW.
+* Both values are decoded first. Content and multiplicity must still be
+* identical after ordering is ignored.
+*
+* Accepted:
+*   XSA="A;B;C", SEGW="C;A;B"
+*
+* Rejected:
+*   XSA="A;B;C", SEGW="A;B"
+*   XSA="A;A;B", SEGW="A;B"
+*
+* Remove this branch after aggregate ordering is deterministic and
+* aligned between both implementations.
+*--------------------------------------------------------------------*
+    IF is_unordered_aggregate_field(
+         i_name = i_name ) = abap_true.
+
+      lv_expected_text =
+        unquote_json(
+          i_token = lv_expected_token ).
+
+      lv_actual_text =
+        unquote_json(
+          i_token = lv_actual_token ).
+
+      IF equal_aggregate_content(
+           i_expected = lv_expected_text
+           i_actual   = lv_actual_text ) = abap_false.
+        add_difference(
+          i_text =
+              |Aggregate content differs; Fixture={ i_fixture }; |
+            && |PO={ i_ponumber }; ITEMNO={ i_itemno }; |
+            && |Field={ i_name }; XSA={ lv_expected_token }; |
+            && |SEGW={ lv_actual_token }| ).
+      ENDIF.
+
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Compare decoded JSON string values
+*
+* Different JSON tokens can represent exactly the same string received
+* by the UI. UNQUOTE_JSON removes the outer quotes and decodes supported
+* JSON escape sequences.
+*
+* Accepted examples:
+*   XSA="S \u0026 K",              SEGW="S & K"
+*   XSA="King\u0027s College",    SEGW="King's College"
+*   XSA="\/Date(1677240711333)\/",
+*   SEGW="/Date(1677240711333)/"
+*
+* Rejected examples:
+*   XSA="King's College", SEGW="Kings College"
+*   XSA="A & B",          SEGW="A and B"
+*
+* NULL, numbers, booleans, arrays, and objects do not enter this branch
+* and remain subject to strict token comparison below.
+*--------------------------------------------------------------------*
+    lv_expected_len =
+      strlen( lv_expected_token ).
+
+    lv_actual_len =
+      strlen( lv_actual_token ).
+
+    IF lv_expected_len >= 2
+       AND lv_actual_len >= 2
+       AND lv_expected_token(1) = '"'
+       AND lv_actual_token(1) = '"'.
+
+      lv_expected_text =
+        unquote_json(
+          i_token = lv_expected_token ).
+
+      lv_actual_text =
+        unquote_json(
+          i_token = lv_actual_token ).
+
+      IF lv_expected_text <> lv_actual_text.
+        add_difference(
+          i_text =
+              |String value differs; Fixture={ i_fixture }; |
+            && |PO={ i_ponumber }; ITEMNO={ i_itemno }; |
+            && |Field={ i_name }; XSA={ lv_expected_token }; |
+            && |SEGW={ lv_actual_token }| ).
+      ENDIF.
+
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Strict comparison for every remaining JSON token
+*--------------------------------------------------------------------*
+    IF lv_expected_token <> lv_actual_token.
+      add_difference(
+        i_text =
+            |Raw value differs; Fixture={ i_fixture }; |
+          && |PO={ i_ponumber }; ITEMNO={ i_itemno }; |
+          && |Field={ i_name }; XSA={ lv_expected_token }; |
+          && |SEGW={ lv_actual_token }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+*----------------------------------------------------------------------*
+* TODO_PARITY_FUNCTIONAL_NULL_001 - DOCUMENTED SEGW COMPATIBILITY
+*
+* XSA preserves database NULL and emits the JSON token null. Classic
+* SEGW receives typed ABAP values and emits type-specific initial values:
+*
+*   initial character value -> ""
+*   initial decimal value   -> "0.00"
+*   initial TIMS value      -> "PT00H00M00S"
+*
+* The rules below are deliberately field-specific and one-directional:
+*
+*   XSA null -> approved SEGW initial representation
+*
+* Non-NULL XSA values remain strict. These examples are NOT accepted:
+*
+*   XSA="0.00", SEGW=null
+*   XSA=null,   SEGW="1.00"
+*   XSA=null,   SEGW="X"
+*
+* Reassess this allowlist whenever UI consumption or the OData contract
+* changes. Do not extend it based on ABAP or EDM type alone.
+*----------------------------------------------------------------------*
+  METHOD is_equivalent_null.
+
+  rv_result = abap_false.
+
+*--------------------------------------------------------------------*
+* TODO_PARITY_FUNCTIONAL_NULL_001
+*
+* Functional compatibility between XSA SQL NULL values and standard
+* SEGW serialization of initial ABAP values.
+*
+* Background
+* ----------
+* XSA receives database NULL values directly from SAP HANA and emits:
+*
+*   null
+*
+* Classic SEGW receives typed ABAP values. Elementary ABAP value types
+* do not preserve the distinction between an absent source value and an
+* explicitly supplied initial value.
+*
+* Standard SEGW therefore serializes initial ABAP values as follows:
+*
+*   Character value  -> ""
+*   Decimal value    -> "0.00"
+*   TIMS value       -> "PT00H00M00S"
+*
+* Scope
+* -----
+* The rules below are deliberately field-specific. Do not replace them
+* with global rules such as:
+*
+*   null = ""
+*   null = "0.00"
+*   null = "PT00H00M00S"
+*
+* NULL and an initial value can have different business meanings for
+* other properties.
+*
+* The exceptions are also one-directional:
+*
+*   XSA null -> approved SEGW initial representation
+*
+* A non-NULL XSA value remains subject to strict comparison.
+*
+* The following examples are therefore NOT accepted:
+*
+*   XSA="0.00", SEGW=null
+*   XSA=null,   SEGW="1.00"
+*   XSA=null,   SEGW="X"
+*
+* Review this allowlist whenever UI consumption or the OData contract
+* changes.
+*--------------------------------------------------------------------*
+  IF i_expected_token <> 'null'.
+    RETURN.
+  ENDIF.
+
+  CASE i_name.
+
+*--------------------------------------------------------------------*
+* Character properties serialized by SEGW as ""
+*
+* FULL_NAME
+*   The current UI usage is display-only. Both XSA NULL and the SEGW
+*   empty string produce an empty displayed value and do not change
+*   active application control flow.
+*
+* DECIMAL_FORMAT
+*   This exception applies to DECIMAL_FORMAT in the open-PO result.
+*   The effective user decimal format is loaded separately from the
+*   userDetails service.
+*
+* DATFM and USERNAME
+*   No active UI consumer beyond metadata was identified.
+*
+* COSTCENTERDESC and MANAGEUNIT
+*   These are aggregate/display properties. XSA NULL and SEGW empty
+*   string both represent no aggregate value. Non-empty values still go
+*   through the unordered aggregate comparison, including duplicates.
+*
+* NOTIF_24_HR
+*   The UI activates the notification indicator only when the value is
+*   exactly "X". Both NULL and "" therefore leave it inactive.
+*
+* REVIWED_BY
+*   The property name intentionally follows the existing OData contract.
+*   Both XSA NULL and the SEGW empty string render as an empty reviewer.
+*   The property remains present in the response, so the UI does not
+*   receive an omitted or undefined property.
+*
+* Accepted examples:
+*
+*   FULL_NAME:
+*     XSA=null, SEGW=""
+*
+*   DECIMAL_FORMAT:
+*     XSA=null, SEGW=""
+*
+*   DATFM:
+*     XSA=null, SEGW=""
+*
+*   USERNAME:
+*     XSA=null, SEGW=""
+*
+*   NOTIF_24_HR:
+*     XSA=null, SEGW=""
+*
+*   REVIWED_BY:
+*     XSA=null, SEGW=""
+*
+*   COSTCENTERDESC:
+*     XSA=null, SEGW=""
+*
+*   MANAGEUNIT:
+*     XSA=null, SEGW=""
+*
+* Rejected examples:
+*
+*   FULL_NAME:
+*     XSA=null, SEGW="John Smith"
+*
+*   NOTIF_24_HR:
+*     XSA=null, SEGW="X"
+*
+*   REVIWED_BY:
+*     XSA=null, SEGW="USER123"
+*--------------------------------------------------------------------*
+    WHEN 'COSTCENTERDESC'
+      OR 'DATFM'
+      OR 'DECIMAL_FORMAT'
+      OR 'FULL_NAME'
+      OR 'MANAGEUNIT'
+      OR 'NOTIF_24_HR'
+      OR 'REVIWED_BY'
+      OR 'USERNAME'.
+
+      rv_result =
+        xsdbool(
+          i_actual_token = '""'
+        ).
+
+*--------------------------------------------------------------------*
+* Decimal properties serialized by SEGW as "0.00"
+*
+* EDGEWTDAMT
+*   Business.controller.js and TBS.controller.js explicitly normalize
+*   an XSA NULL value to the string "0.00" before passing the amount to
+*   the accrual calculation:
+*
+*     rData.EDGEWTDAMT === null
+*       ? "0.00"
+*       : rData.EDGEWTDAMT
+*
+*   XSA NULL and SEGW "0.00" therefore produce the same calculation
+*   input and the same functional UI behavior.
+*
+* GRVALUE_USD
+*   The UI already normalizes an XSA NULL amount to 0.00 before currency
+*   formatting. SEGW "0.00" therefore produces the same visible result.
+*
+* INVVALUE_USD
+*   This converted/display amount is initial in SEGW when XSA has no
+*   source value. The exception is intentionally limited to INVVALUE_USD.
+*   INVVALUE remains strict because it participates in accrual arithmetic.
+*
+* INVVALUE_CAL
+*   No active UI consumer was identified for this calculated helper
+*   property. XSA NULL and the initial SEGW decimal value "0.00" therefore
+*   have no functional impact in the current UI. The exception remains
+*   field-specific and must not be generalized to INVVALUE.
+*
+* LASTMONTHWRKCOMP
+*   XSA NULL displays as an empty value. SEGW "0.00" can display as
+*   0.00 in the detail view.
+*
+*   This small presentation difference is explicitly accepted because
+*   custom Gateway JSON serialization solely for this field would add
+*   disproportionate implementation and maintenance complexity.
+*
+*   Backend presence information must remain separate from the numeric
+*   value. A value of 0.00 must not be used as proof that the source
+*   record existed.
+*
+* Accepted examples:
+*
+*   EDGEWTDAMT:
+*     XSA=null, SEGW="0.00"
+*
+*   GRVALUE_USD:
+*     XSA=null, SEGW="0.00"
+*
+*   INVVALUE_USD:
+*     XSA=null, SEGW="0.00"
+*
+*   INVVALUE_CAL:
+*     XSA=null, SEGW="0.00"
+*
+*   LASTMONTHWRKCOMP:
+*     XSA=null, SEGW="0.00"
+*
+* Rejected examples:
+*
+*   EDGEWTDAMT:
+*     XSA=null, SEGW="1.00"
+*
+*   GRVALUE_USD:
+*     XSA=null, SEGW="-1.00"
+*
+*   LASTMONTHWRKCOMP:
+*     XSA=null, SEGW="10.00"
+*
+* The following direction is also rejected:
+*
+*   XSA="0.00", SEGW=null
+*--------------------------------------------------------------------*
+    WHEN 'EDGEWTDAMT'
+      OR 'GRVALUE_USD'
+      OR 'INVVALUE_CAL'
+      OR 'INVVALUE_USD'
+      OR 'LASTMONTHWRKCOMP'.
+
+      rv_result =
+        xsdbool(
+          i_actual_token = '"0.00"'
+        ).
+
+*--------------------------------------------------------------------*
+* Time property serialized by SEGW as "PT00H00M00S"
+*
+* CHANGEDTIME
+*   Initial ABAP TIMS value 000000 is also a valid midnight value.
+*   Standard SEGW therefore serializes it as:
+*
+*     "PT00H00M00S"
+*
+*   XSA preserves an absent database value as:
+*
+*     null
+*
+*   The active UI primarily uses CHANGED_ON for the complete update
+*   timestamp. The SEGW zero-time representation is therefore accepted
+*   as a known compatibility deviation.
+*
+* Accepted example:
+*
+*   CHANGEDTIME:
+*     XSA=null, SEGW="PT00H00M00S"
+*
+* Rejected examples:
+*
+*   CHANGEDTIME:
+*     XSA=null, SEGW="PT10H15M00S"
+*
+*   CHANGEDTIME:
+*     XSA="PT00H00M00S", SEGW=null
+*--------------------------------------------------------------------*
+    WHEN 'CHANGEDTIME'.
+
+      rv_result =
+        xsdbool(
+          i_actual_token = '"PT00H00M00S"'
+        ).
+
+  ENDCASE.
+
+ENDMETHOD.
+
+
+*----------------------------------------------------------------------*
+* Normalize an OData V2 Edm.Time duration token
+*
+* XSA and SEGW can serialize the same time with different zero padding:
+*
+*   XSA:  "PT9H40M11S"
+*   SEGW: "PT09H40M11S"
+*
+*   XSA:  "PT8H24M4S"
+*   SEGW: "PT08H24M04S"
+*
+* Valid PT...H...M...S values are returned in canonical two-digit form.
+* Invalid, unsupported, NULL, or unrelated tokens are returned unchanged,
+* allowing the normal strict comparison to report a real difference.
+*----------------------------------------------------------------------*
+  METHOD normalize_odata_time.
+
+    DATA:
+      lv_value       TYPE string,
+      lv_remainder   TYPE string,
+      lv_hour_text   TYPE string,
+      lv_minute_text TYPE string,
+      lv_second_text TYPE string,
+      lv_hour        TYPE i,
+      lv_minute      TYPE i,
+      lv_second      TYPE i,
+      lv_offset      TYPE i.
+
+    rv_token =
+      trim_text(
+        i_text = i_token ).
+
+    lv_value =
+      unquote_json(
+        i_token = rv_token ).
+
+*--------------------------------------------------------------------*
+* A supported value must start with PT and contain H, M, and S.
+*--------------------------------------------------------------------*
+    IF strlen( lv_value ) < 7
+       OR lv_value(2) <> 'PT'
+       OR lv_value NP 'PT*H*M*S'.
+      RETURN.
+    ENDIF.
+
+    lv_remainder =
+      substring(
+        val = lv_value
+        off = 2 ).
+
+*--------------------------------------------------------------------*
+* Extract hours.
+*--------------------------------------------------------------------*
+    FIND FIRST OCCURRENCE OF 'H'
+      IN lv_remainder
+      MATCH OFFSET lv_offset.
+
+    IF sy-subrc <> 0
+       OR lv_offset = 0.
+      RETURN.
+    ENDIF.
+
+    lv_hour_text =
+      substring(
+        val = lv_remainder
+        off = 0
+        len = lv_offset ).
+
+    lv_remainder =
+      substring(
+        val = lv_remainder
+        off = lv_offset + 1 ).
+
+*--------------------------------------------------------------------*
+* Extract minutes.
+*--------------------------------------------------------------------*
+    FIND FIRST OCCURRENCE OF 'M'
+      IN lv_remainder
+      MATCH OFFSET lv_offset.
+
+    IF sy-subrc <> 0
+       OR lv_offset = 0.
+      RETURN.
+    ENDIF.
+
+    lv_minute_text =
+      substring(
+        val = lv_remainder
+        off = 0
+        len = lv_offset ).
+
+    lv_remainder =
+      substring(
+        val = lv_remainder
+        off = lv_offset + 1 ).
+
+*--------------------------------------------------------------------*
+* Extract seconds and reject any trailing content.
+*--------------------------------------------------------------------*
+    FIND FIRST OCCURRENCE OF 'S'
+      IN lv_remainder
+      MATCH OFFSET lv_offset.
+
+    IF sy-subrc <> 0
+       OR lv_offset = 0
+       OR lv_offset + 1 <> strlen( lv_remainder ).
+      RETURN.
+    ENDIF.
+
+    lv_second_text =
+      substring(
+        val = lv_remainder
+        off = 0
+        len = lv_offset ).
+
+*--------------------------------------------------------------------*
+* Reject non-numeric components before conversion.
+*--------------------------------------------------------------------*
+    IF lv_hour_text CN '0123456789'
+       OR lv_minute_text CN '0123456789'
+       OR lv_second_text CN '0123456789'.
+      RETURN.
+    ENDIF.
+
+    lv_hour =
+      CONV i( lv_hour_text ).
+
+    lv_minute =
+      CONV i( lv_minute_text ).
+
+    lv_second =
+      CONV i( lv_second_text ).
+
+*--------------------------------------------------------------------*
+* Validate ordinary time-of-day ranges.
+*--------------------------------------------------------------------*
+    IF lv_hour > 23
+       OR lv_minute > 59
+       OR lv_second > 59.
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Canonical JSON token with two-digit components.
+*--------------------------------------------------------------------*
+    rv_token =
+        '"PT'
+      && |{ lv_hour WIDTH = 2 PAD = '0' ALIGN = RIGHT }|
+      && 'H'
+      && |{ lv_minute WIDTH = 2 PAD = '0' ALIGN = RIGHT }|
+      && 'M'
+      && |{ lv_second WIDTH = 2 PAD = '0' ALIGN = RIGHT }|
+      && 'S"'.
+
+  ENDMETHOD.
+
+
+*----------------------------------------------------------------------*
+* TODO_PARITY_CONTRACT_001 - SYNTHETIC XSA PROPERTY
+*
+* XSA exposes ID as a generated technical property. The migrated SEGW
+* result contract identifies rows by PONUMBER and ITEMNO and does not
+* expose ID. No active UI consumer uses the XSA ID value.
+*
+* Only a missing ID is accepted. Any other missing SEGW property remains
+* a parity failure. Remove this exception if ID is later added to SEGW or
+* becomes part of the functional UI contract.
+*----------------------------------------------------------------------*
+  METHOD ignore_missing_property.
+
+    rv_result =
+      xsdbool( i_name = 'ID' ).
+
+  ENDMETHOD.
+
+
+*----------------------------------------------------------------------*
+* TODO_PARITY_STRICT_001 - TEMPORARY EXCEPTION
+* Aggregate values are compared without order. Content and multiplicity
+* must still match. Remove this exception after aggregate ordering is
+* aligned between XSA and SEGW.
+*----------------------------------------------------------------------*
+  METHOD is_unordered_aggregate_field.
+
+    CASE i_name.
+
+      WHEN 'GLACCOUNT'
+        OR 'COSTCENTER'
+        OR 'COSTCENTERDESC'
+        OR 'MANAGEUNIT'
+        OR 'INTERNALORDER'
+        OR 'ASSETID'
+        OR 'PROFITCENTER'
+        OR 'BBP_ACC_NO'
+        OR 'DISTPERCENTAGE'
+        OR 'RULETYPE'
+        OR 'RULETYPETEXT'.
+
+        rv_result =
+          abap_true.
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD equal_aggregate_content.
+
+    DATA:
+      lt_expected TYPE tt_string,
+      lt_actual   TYPE tt_string.
+
+*--------------------------------------------------------------------*
+* Semantic unordered parity:
+* - order of all segments is ignored;
+* - leading, internal and trailing empty segments are preserved;
+* - number of empty segments must still match.
+*
+* Therefore:
+*   ;A;B     = A;B;
+*   ;;A;B    = A;B;;
+* but:
+*   A;;B     <> A;B
+*--------------------------------------------------------------------*
+    lt_expected =
+      split_aggregate_empty(
+        i_value = i_expected ).
+
+    lt_actual =
+      split_aggregate_empty(
+        i_value = i_actual ).
+
+    IF lines( lt_expected ) <>
+       lines( lt_actual ).
+
+      FREE:
+        lt_expected,
+        lt_actual.
+
+      RETURN.
+
+    ENDIF.
+
+    SORT lt_expected
+      BY table_line.
+
+    SORT lt_actual
+      BY table_line.
+
+    rv_equal =
+      xsdbool(
+        lt_expected = lt_actual ).
+
+    FREE:
+      lt_expected,
+      lt_actual.
+
+  ENDMETHOD.
+
+  METHOD split_aggregate_empty.
+
+    DATA:
+      lv_length TYPE i,
+      lv_start  TYPE i,
+      lv_pos    TYPE i,
+      lv_token  TYPE string.
+
+*--------------------------------------------------------------------*
+* Empty aggregate represents zero aggregate values, not one empty
+* account-assignment slot. This follows the existing XSA convention.
+*--------------------------------------------------------------------*
+    IF i_value IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    lv_length =
+      strlen(
+        i_value ).
+
+    WHILE lv_pos < lv_length.
+
+      IF i_value+lv_pos(1) = ';'.
+
+        lv_token =
+          substring(
+            val = i_value
+            off = lv_start
+            len = lv_pos - lv_start ).
+
+        APPEND lv_token
+          TO rt_tokens.
+
+        CLEAR lv_token.
+
+        lv_start =
+          lv_pos + 1.
+
+      ENDIF.
+
+      lv_pos =
+        lv_pos + 1.
+
+    ENDWHILE.
+
+*--------------------------------------------------------------------*
+* Always append the final segment. If the source ends in ';', this is
+* deliberately an empty token.
+*--------------------------------------------------------------------*
+    lv_token =
+      substring(
+        val = i_value
+        off = lv_start
+        len = lv_length - lv_start ).
+
+    APPEND lv_token
+      TO rt_tokens.
+
+  ENDMETHOD.
+
+
+  METHOD read_json_string_end.
+
+    DATA:
+      lv_position TYPE i,
+      lv_length   TYPE i,
+      lv_char     TYPE char1,
+      lv_escape   TYPE abap_bool.
+
+    lv_length =
+      strlen(
+        i_text ).
+
+    IF i_start >= lv_length
+       OR i_text+i_start(1) <> '"'.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+                     'JSON string does not start with quote'.
+
+    ENDIF.
+
+    lv_position =
+      i_start + 1.
+
+    WHILE lv_position < lv_length.
+
+      lv_char =
+        i_text+lv_position(1).
+
+      IF lv_escape = abap_true.
+
+        CLEAR lv_escape.
+
+      ELSEIF lv_char = '\'.
+
+        lv_escape =
+          abap_true.
+
+      ELSEIF lv_char = '"'.
+
+        rv_end =
+          lv_position.
+
+        RETURN.
+
+      ENDIF.
+
+      lv_position =
+        lv_position + 1.
+
+    ENDWHILE.
+
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      EXPORTING
+        i_reason =
+                   'JSON string is not closed'.
+
+  ENDMETHOD.
+
+
+  METHOD read_json_value_end.
+
+    DATA:
+      lv_position TYPE i,
+      lv_length   TYPE i,
+      lv_char     TYPE char1,
+      lv_end      TYPE i.
+
+    lv_length =
+      strlen(
+        i_text ).
+
+    IF i_start >= lv_length.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+                     'JSON value is missing'.
+
+    ENDIF.
+
+    lv_char =
+      i_text+i_start(1).
+
+    IF lv_char = '"'.
+
+      lv_end =
+        read_json_string_end(
+          i_text  = i_text
+          i_start = i_start ).
+
+      rv_end =
+        lv_end + 1.
+
+      RETURN.
+
+    ENDIF.
+
+    IF lv_char = '{'.
+
+      lv_end =
+        find_matching_end(
+          i_text  = i_text
+          i_start = i_start
+          i_open  = '{'
+          i_close = '}' ).
+
+      rv_end =
+        lv_end + 1.
+
+      RETURN.
+
+    ENDIF.
+
+    IF lv_char = '['.
+
+      lv_end =
+        find_matching_end(
+          i_text  = i_text
+          i_start = i_start
+          i_open  = '['
+          i_close = ']' ).
+
+      rv_end =
+        lv_end + 1.
+
+      RETURN.
+
+    ENDIF.
+
+    lv_position =
+      i_start.
+
+    WHILE lv_position < lv_length.
+
+      lv_char =
+        i_text+lv_position(1).
+
+      IF lv_char = ','
+         OR lv_char = '}'.
+
+        rv_end =
+          lv_position.
+
+        RETURN.
+
+      ENDIF.
+
+      lv_position =
+        lv_position + 1.
+
+    ENDWHILE.
+
+    rv_end =
+      lv_length.
+
+  ENDMETHOD.
+
+
+  METHOD find_matching_end.
+
+    DATA:
+      lv_position TYPE i,
+      lv_length   TYPE i,
+      lv_depth    TYPE i,
+      lv_char     TYPE char1,
+      lv_in_text  TYPE abap_bool,
+      lv_escape   TYPE abap_bool.
+
+    lv_length =
+      strlen(
+        i_text ).
+
+    lv_position =
+      i_start.
+
+    WHILE lv_position < lv_length.
+
+      lv_char =
+        i_text+lv_position(1).
+
+      IF lv_in_text = abap_true.
+
+        IF lv_escape = abap_true.
+
+          CLEAR lv_escape.
+
+        ELSEIF lv_char = '\'.
+
+          lv_escape =
+            abap_true.
+
+        ELSEIF lv_char = '"'.
+
+          CLEAR lv_in_text.
+
+        ENDIF.
+
+      ELSE.
+
+        IF lv_char = '"'.
+
+          lv_in_text =
+            abap_true.
+
+        ELSEIF lv_char = i_open.
+
+          lv_depth =
+            lv_depth + 1.
+
+        ELSEIF lv_char = i_close.
+
+          lv_depth =
+            lv_depth - 1.
+
+          IF lv_depth = 0.
+
+            rv_end =
+              lv_position.
+
+            RETURN.
+
+          ENDIF.
+
+        ENDIF.
+
+      ENDIF.
+
+      lv_position =
+        lv_position + 1.
+
+    ENDWHILE.
+
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      EXPORTING
+        i_reason =
+                   'JSON object or array is not closed'.
+
+  ENDMETHOD.
+
+  METHOD skip_whitespace.
+
+    DATA:
+      lv_length TYPE i,
+      lv_char   TYPE char1.
+
+    rv_position =
+      i_position.
+
+    lv_length =
+      strlen(
+        i_text ).
+
+    WHILE rv_position < lv_length.
+
+      lv_char =
+        i_text+rv_position(1).
+
+      IF is_whitespace(
+           i_char = lv_char ) = abap_false.
+
+        RETURN.
+
+      ENDIF.
+
+      rv_position =
+        rv_position + 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+
+  METHOD is_whitespace.
+
+    IF i_char = space
+       OR i_char = cl_abap_char_utilities=>horizontal_tab
+       OR i_char = cl_abap_char_utilities=>newline
+       OR i_char = cl_abap_char_utilities=>cr_lf+0(1)
+       OR i_char = cl_abap_char_utilities=>cr_lf+1(1).
+
+      rv_result =
+        abap_true.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD trim_text.
+
+    DATA:
+      lv_start         TYPE i,
+      lv_end           TYPE i,
+      lv_length        TYPE i,
+      lv_last_position TYPE i,
+      lv_char          TYPE char1.
+
+    lv_length =
+      strlen(
+        i_text ).
+
+    lv_end =
+      lv_length.
+
+    WHILE lv_start < lv_length.
+
+      lv_char =
+        i_text+lv_start(1).
+
+      IF is_whitespace(
+           i_char = lv_char ) = abap_false.
+
+        EXIT.
+
+      ENDIF.
+
+      lv_start =
+        lv_start + 1.
+
+    ENDWHILE.
+
+    WHILE lv_end > lv_start.
+
+      lv_last_position =
+        lv_end - 1.
+
+      lv_char =
+        i_text+lv_last_position(1).
+
+      IF is_whitespace(
+           i_char = lv_char ) = abap_false.
+
+        EXIT.
+
+      ENDIF.
+
+      lv_end =
+        lv_end - 1.
+
+    ENDWHILE.
+
+    IF lv_end > lv_start.
+
+      rv_text =
+        substring(
+          val = i_text
+          off = lv_start
+          len = lv_end - lv_start ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD unquote_json.
+
+    DATA:
+      lv_token        TYPE string,
+      lv_length       TYPE i,
+      lv_last_offset  TYPE i,
+      lv_inner_length TYPE i,
+      lv_first_char   TYPE char1,
+      lv_last_char    TYPE char1.
+
+    lv_token =
+      trim_text(
+        i_text = i_token ).
+
+    lv_length =
+      strlen(
+        lv_token ).
+
+    IF lv_length < 2.
+
+      rv_value =
+        lv_token.
+
+      RETURN.
+
+    ENDIF.
+
+    lv_last_offset =
+      lv_length - 1.
+
+    lv_first_char =
+      lv_token(1).
+
+    lv_last_char =
+      lv_token+lv_last_offset(1).
+
+    IF lv_first_char <> '"'
+       OR lv_last_char <> '"'.
+
+      rv_value =
+        lv_token.
+
+      RETURN.
+
+    ENDIF.
+
+    lv_inner_length =
+      lv_length - 2.
+
+    rv_value =
+      substring(
+        val = lv_token
+        off = 1
+        len = lv_inner_length ).
+
+*--------------------------------------------------------------------*
+* Avoid replacement scans in the normal case where the JSON value has
+* no escaped characters.
+*--------------------------------------------------------------------*
+    IF rv_value NS '\'.
+      RETURN.
+    ENDIF.
+
+    REPLACE ALL OCCURRENCES OF '\u0026'
+      IN rv_value
+      WITH '&'.
+
+    REPLACE ALL OCCURRENCES OF '\u003C'
+      IN rv_value
+      WITH '<'.
+
+    REPLACE ALL OCCURRENCES OF '\u003c'
+      IN rv_value
+      WITH '<'.
+
+    REPLACE ALL OCCURRENCES OF '\u003E'
+      IN rv_value
+      WITH '>'.
+
+    REPLACE ALL OCCURRENCES OF '\u003e'
+      IN rv_value
+      WITH '>'.
+
+    REPLACE ALL OCCURRENCES OF '\u0022'
+      IN rv_value
+      WITH '"'.
+
+    REPLACE ALL OCCURRENCES OF '\u0027'
+      IN rv_value
+      WITH ''''.
+
+    REPLACE ALL OCCURRENCES OF '\/'
+      IN rv_value
+      WITH '/'.
+
+    REPLACE ALL OCCURRENCES OF '\"'
+      IN rv_value
+      WITH '"'.
+
+    REPLACE ALL OCCURRENCES OF '\n'
+      IN rv_value
+      WITH cl_abap_char_utilities=>newline.
+
+    REPLACE ALL OCCURRENCES OF '\r'
+      IN rv_value
+      WITH cl_abap_char_utilities=>cr_lf+0(1).
+
+    REPLACE ALL OCCURRENCES OF '\t'
+      IN rv_value
+      WITH cl_abap_char_utilities=>horizontal_tab.
+
+    REPLACE ALL OCCURRENCES OF '\\'
+      IN rv_value
+      WITH '\'.
+
+  ENDMETHOD.
+
+
+  METHOD add_difference.
+
+    mv_difference_count =
+      mv_difference_count + 1.
+
+*--------------------------------------------------------------------*
+* Count every mismatch, but retain a bounded diagnostic sample. This
+* prevents failures with many missing rows from allocating huge logs.
+*--------------------------------------------------------------------*
+    IF lines( mt_differences ) >= mc_max_log.
+      RETURN.
+    ENDIF.
+
+    APPEND i_text
+      TO mt_differences.
+
+  ENDMETHOD.
+
+
+  METHOD assert_no_differences.
+
+    DATA:
+      lv_text   TYPE string,
+      lv_line   TYPE string,
+      lv_shown  TYPE i,
+      lv_hidden TYPE i.
+
+    IF mv_difference_count = 0.
+
+      cl_abap_unit_assert=>assert_true(
+        act = abap_true ).
+
+      RETURN.
+
+    ENDIF.
+
+    lv_shown =
+      lines(
+        mt_differences ).
+
+    lv_hidden =
+      mv_difference_count
+      - lv_shown.
+
+    lv_text =
+        |DAS XSA vs SEGW OData parity failed. |
+      && |Difference count: { mv_difference_count }.|
+      && cl_abap_char_utilities=>newline
+      && |--- First { lv_shown } difference(s) ---|.
+
+    LOOP AT mt_differences INTO lv_line.
+
+      lv_text =
+          lv_text
+        && cl_abap_char_utilities=>newline
+        && lv_line.
+
+    ENDLOOP.
+
+    IF lv_hidden > 0.
+
+      lv_text =
+          lv_text
+        && cl_abap_char_utilities=>newline
+        && |--- { lv_hidden } further difference(s) omitted ---|.
+
+    ENDIF.
+
+    cl_abap_unit_assert=>fail(
+      msg = lv_text ).
+
+  ENDMETHOD.
+
+
+
+ENDCLASS.

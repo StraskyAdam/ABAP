@@ -1,0 +1,1997 @@
+REPORT zfi_das_dashboard_via_abap.
+
+*---------------------------------------------------------------------*
+* Selection-screen helper fields
+*---------------------------------------------------------------------*
+DATA:
+  g_filter_po       TYPE ebeln,
+  g_filter_item     TYPE ebelp,
+  g_filter_supplier TYPE c LENGTH 500.
+
+*---------------------------------------------------------------------*
+* Selection screen
+*---------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b01
+  WITH FRAME TITLE TEXT-t01.
+
+PARAMETERS:
+  p_over RADIOBUTTON GROUP flw
+         DEFAULT 'X'
+         USER-COMMAND flow,
+
+  p_under RADIOBUTTON GROUP flw,
+
+  p_info RADIOBUTTON GROUP flw.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK b02
+  WITH FRAME TITLE TEXT-t02.
+
+PARAMETERS:
+  p_serv RADIOBUTTON GROUP typ
+         DEFAULT 'X'
+         MODIF ID pty,
+
+  p_mat RADIOBUTTON GROUP typ
+        MODIF ID pty.
+
+SELECTION-SCREEN END OF BLOCK b02.
+
+SELECTION-SCREEN SKIP.
+
+PARAMETERS:
+  p_email TYPE ad_smtpadr
+          OBLIGATORY
+          LOWER CASE
+          DEFAULT 'adam.strasky@takeda.com',
+
+  p_owner AS CHECKBOX,
+
+  p_skip  TYPE int4
+          DEFAULT 0,
+
+  p_top   TYPE int4
+          DEFAULT 1000
+          OBLIGATORY,
+
+  p_count AS CHECKBOX
+          DEFAULT 'X'.
+
+SELECTION-SCREEN END OF BLOCK b01.
+
+SELECTION-SCREEN BEGIN OF BLOCK b03
+  WITH FRAME TITLE TEXT-t03.
+
+SELECT-OPTIONS:
+  s_po FOR g_filter_po
+       NO INTERVALS,
+
+  s_item FOR g_filter_item
+         NO INTERVALS,
+
+  s_supp FOR g_filter_supplier
+         NO INTERVALS
+         LOWER CASE.
+
+SELECTION-SCREEN END OF BLOCK b03.
+
+SELECTION-SCREEN BEGIN OF BLOCK b04
+  WITH FRAME TITLE TEXT-t04.
+
+PARAMETERS:
+  p_xnone RADIOBUTTON GROUP xsa
+          DEFAULT 'X'
+          USER-COMMAND xexp,
+
+  p_xjson RADIOBUTTON GROUP xsa.
+
+*  p_xcsv RADIOBUTTON GROUP xsa .
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(24) TEXT-e04 FOR FIELD p_xfile.
+PARAMETERS p_xfile TYPE string
+                   LOWER CASE
+                   MODIF ID xsf.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b04.
+
+*---------------------------------------------------------------------*
+* Text symbols
+*
+* T01 = Dashboard Selection
+* T02 = PO Type
+* T03 = Filters
+* T04 = XSA Comparison Export
+* E04 = Export file
+*---------------------------------------------------------------------*
+
+*---------------------------------------------------------------------*
+* Unified ALV structure.
+*
+* TS_OVER_ODATA is the broadest Open-PO contract. Additional columns
+* that only exist in Under/Information are included explicitly.
+*---------------------------------------------------------------------*
+TYPES:
+  BEGIN OF ts_alv_result.
+
+INCLUDE TYPE zif_fi_das_dashboard=>ts_over.
+
+TYPES:
+    costcenterdesc    TYPE zif_fi_das_dashboard=>t_text_5000,
+    ruletype          TYPE zif_fi_das_dashboard=>t_text_5000,
+    ruletypetext      TYPE zif_fi_das_dashboard=>t_text_5000,
+    reviewed_by       TYPE c LENGTH 225,
+    audit_log_action  TYPE c LENGTH 20,
+    last_update_cet   TYPE c LENGTH 19,
+    changed_on_cet    TYPE c LENGTH 19,
+  END OF ts_alv_result,
+
+  tt_alv_result TYPE STANDARD TABLE OF ts_alv_result
+    WITH DEFAULT KEY,
+
+  t_column_name TYPE lvc_fname,
+
+  tt_column_name TYPE STANDARD TABLE OF t_column_name
+    WITH DEFAULT KEY.
+
+*---------------------------------------------------------------------*
+* Local application class
+*---------------------------------------------------------------------*
+CLASS lcl_application DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    METHODS run.
+
+  PRIVATE SECTION.
+
+    DATA:
+      mo_dashboard  TYPE REF TO zif_fi_das_dashboard,
+      mt_result     TYPE tt_alv_result,
+      mt_over       TYPE zif_fi_das_dashboard=>tt_over,
+      mt_under      TYPE zif_fi_das_dashboard=>tt_under,
+      mt_exclude    TYPE zif_fi_das_dashboard=>tt_exclude,
+      m_total_count TYPE int8.
+
+    METHODS create_provider.
+
+    METHODS validate_selection
+      RAISING zcx_fi_das_error.
+
+    METHODS build_request
+      IMPORTING
+        i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING
+        VALUE(rs_request) TYPE zif_fi_das_dashboard=>ts_request
+      RAISING zcx_fi_das_error.
+
+    METHODS get_section_text
+      RETURNING
+        VALUE(r_section) TYPE string.
+
+    METHODS timestamp_to_text
+      IMPORTING
+        i_timestamp TYPE timestampl
+      RETURNING
+        VALUE(r_text) TYPE string.
+
+    METHODS read_data
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS read_over
+      IMPORTING
+        i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS read_under
+      IMPORTING
+        i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS read_exclude
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS append_over_page
+      IMPORTING
+        it_page TYPE zif_fi_das_dashboard=>tt_over.
+
+    METHODS append_under_page
+      IMPORTING
+        it_page TYPE zif_fi_das_dashboard=>tt_under.
+
+    METHODS append_exclude_page
+      IMPORTING
+        it_page TYPE zif_fi_das_dashboard=>tt_exclude.
+
+    METHODS export_result
+      RAISING zcx_fi_das_error.
+
+    METHODS download_json
+      IMPORTING
+        i_json TYPE string
+      RAISING zcx_fi_das_error.
+
+    METHODS display_result
+      RAISING cx_salv_msg.
+
+    METHODS configure_columns
+      IMPORTING
+        io_columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS set_column_labels
+      IMPORTING
+        io_columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS set_column_label
+      IMPORTING
+        io_columns TYPE REF TO cl_salv_columns_table
+        i_column   TYPE lvc_fname
+        i_short    TYPE scrtext_s
+        i_medium   TYPE scrtext_m
+        i_long     TYPE scrtext_l.
+
+    METHODS make_all_columns_visible
+      IMPORTING
+        io_columns TYPE REF TO cl_salv_columns_table.
+
+    METHODS apply_ui_order
+      IMPORTING
+        io_columns TYPE REF TO cl_salv_columns_table
+        it_columns TYPE tt_column_name.
+
+    METHODS get_service_columns
+      RETURNING
+        VALUE(rt_columns) TYPE tt_column_name.
+
+    METHODS get_material_columns
+      RETURNING
+        VALUE(rt_columns) TYPE tt_column_name.
+
+    METHODS get_info_columns
+      RETURNING
+        VALUE(rt_columns) TYPE tt_column_name.
+
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+* Dynamic selection-screen behavior
+*---------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+
+  LOOP AT SCREEN.
+
+    IF screen-group1 = 'PTY'.
+
+      IF p_info = abap_true.
+        screen-active = 0.
+        screen-input  = 0.
+      ELSE.
+        screen-active = 1.
+        screen-input  = 1.
+      ENDIF.
+
+      MODIFY SCREEN.
+
+    ENDIF.
+
+    IF screen-group1 = 'XSF'.
+
+      IF p_xnone = abap_true.
+        screen-active = 0.
+        screen-input  = 0.
+      ELSE.
+        screen-active = 1.
+        screen-input  = 1.
+      ENDIF.
+
+      MODIFY SCREEN.
+
+    ENDIF.
+
+  ENDLOOP.
+
+*---------------------------------------------------------------------*
+* Export file F4 help
+*---------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_xfile.
+
+  DATA:
+    lv_filename          TYPE string,
+    lv_path              TYPE string,
+    lv_fullpath          TYPE string,
+    lv_default_extension TYPE string,
+    lv_default_filename  TYPE string,
+    lv_filter            TYPE string.
+
+*  IF p_xcsv = abap_true.
+*
+*    lv_default_extension =
+*      'csv'.
+*
+*    lv_filter =
+*      'CSV Files (*.csv)|*.csv|All Files (*.*)|*.*|'.
+*
+*  ELSE.
+   IF p_xjson = abap_true.
+    lv_default_extension =
+      'json'.
+
+    lv_filter =
+      'JSON Files (*.json)|*.json|All Files (*.*)|*.*|'.
+
+  ENDIF.
+
+  lv_default_filename =
+    |export.{ lv_default_extension }|.
+
+  cl_gui_frontend_services=>file_save_dialog(
+    EXPORTING
+      window_title      = 'Select export file'
+      default_extension = lv_default_extension
+      default_file_name = lv_default_filename
+      file_filter       = lv_filter
+    CHANGING
+      filename          = lv_filename
+      path              = lv_path
+      fullpath          = lv_fullpath
+    EXCEPTIONS
+      OTHERS            = 1 ).
+
+  IF sy-subrc = 0
+     AND lv_fullpath IS NOT INITIAL.
+
+    p_xfile =
+      lv_fullpath.
+
+  ENDIF.
+
+*---------------------------------------------------------------------*
+* Selection-screen validation
+*---------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+  DATA:
+    ls_po   LIKE LINE OF s_po,
+    ls_item LIKE LINE OF s_item,
+    ls_supp LIKE LINE OF s_supp.
+
+  IF p_email IS INITIAL.
+    MESSAGE 'User e-mail must not be empty' TYPE 'E'.
+  ENDIF.
+
+  IF p_skip < 0.
+    MESSAGE 'Skip must not be negative' TYPE 'E'.
+  ENDIF.
+
+  IF p_top <= 0.
+    MESSAGE 'Top must be greater than zero' TYPE 'E'.
+  ENDIF.
+
+  IF sy-ucomm = 'ONLI'
+     AND p_xnone = abap_false
+     AND p_xfile IS INITIAL.
+
+    MESSAGE 'Export file must be entered for an export'
+      TYPE 'E'.
+
+  ENDIF.
+
+  LOOP AT s_po INTO ls_po.
+
+    IF ls_po-sign <> 'I'
+       OR ls_po-option <> 'EQ'.
+
+      MESSAGE 'PO Number supports only included single values'
+        TYPE 'E'.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT s_item INTO ls_item.
+
+    IF ls_item-sign <> 'I'
+       OR ls_item-option <> 'EQ'.
+
+      MESSAGE 'Line Item supports only included single values'
+        TYPE 'E'.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT s_supp INTO ls_supp.
+
+    IF ls_supp-sign <> 'I'
+       OR ls_supp-option <> 'EQ'.
+
+      MESSAGE 'Supplier supports only included single values'
+        TYPE 'E'.
+
+    ENDIF.
+
+  ENDLOOP.
+
+*---------------------------------------------------------------------*
+* Main processing
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  DATA go_application TYPE REF TO lcl_application.
+
+  CREATE OBJECT go_application.
+
+  go_application->run( ).
+
+*---------------------------------------------------------------------*
+* Application implementation
+*---------------------------------------------------------------------*
+CLASS lcl_application IMPLEMENTATION.
+
+  METHOD run.
+
+    DATA:
+      lx_das_error TYPE REF TO zcx_fi_das_error,
+      lx_error     TYPE REF TO cx_root,
+      lv_message   TYPE string.
+
+    TRY.
+
+        validate_selection( ).
+        create_provider( ).
+        read_data( ).
+        export_result( ).
+        display_result( ).
+
+      CATCH zcx_fi_das_error INTO lx_das_error.
+
+        lv_message =
+          lx_das_error->reason.
+
+        IF lv_message IS INITIAL.
+          lv_message =
+            lx_das_error->get_text( ).
+        ENDIF.
+
+        IF lv_message IS INITIAL.
+          lv_message =
+            'Unknown DAS dashboard error'.
+        ENDIF.
+
+        MESSAGE lv_message TYPE 'S' DISPLAY LIKE 'E'.
+
+      CATCH cx_root INTO lx_error.
+
+        lv_message =
+          lx_error->get_text( ).
+
+        IF lv_message IS INITIAL.
+          lv_message =
+            'Unexpected dashboard error'.
+        ENDIF.
+
+        MESSAGE lv_message TYPE 'S' DISPLAY LIKE 'E'.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD create_provider.
+
+    CREATE OBJECT mo_dashboard
+      TYPE zcl_fi_das_dashboard.
+
+  ENDMETHOD.
+
+
+  METHOD validate_selection.
+
+    IF p_email IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            'User e-mail must not be empty'.
+
+    ENDIF.
+
+    IF p_skip < 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            'Skip must not be negative'.
+
+    ENDIF.
+
+    IF p_top <= 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            'Top must be greater than zero'.
+
+    ENDIF.
+
+    IF p_info = abap_false
+       AND p_serv = abap_false
+       AND p_mat = abap_false.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            'Select Service or Material PO type'.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD build_request.
+
+    DATA:
+      ls_po       LIKE LINE OF s_po,
+      ls_item     LIKE LINE OF s_item,
+      ls_supplier LIKE LINE OF s_supp.
+
+    CLEAR rs_request.
+
+    rs_request-email =
+      CONV zif_fi_das_dashboard=>t_email(
+        p_email ).
+
+    rs_request-pstype =
+      i_pstype.
+
+    IF p_owner = abap_true.
+
+      rs_request-poowner =
+        zif_fi_das_dashboard=>mc_owner_mode.
+
+    ENDIF.
+
+    rs_request-paging-skip =
+      p_skip.
+
+    rs_request-paging-top =
+      p_top.
+
+    rs_request-paging-count_requested =
+      p_count.
+
+    LOOP AT s_po INTO ls_po
+      WHERE sign = 'I'
+        AND option = 'EQ'.
+
+      IF ls_po-low IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = ls_po-low
+      ) TO rs_request-ponumber.
+
+    ENDLOOP.
+
+    LOOP AT s_item INTO ls_item
+      WHERE sign = 'I'
+        AND option = 'EQ'.
+
+      IF ls_item-low IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = ls_item-low
+      ) TO rs_request-itemno.
+
+    ENDLOOP.
+
+    LOOP AT s_supp INTO ls_supplier
+      WHERE sign = 'I'
+        AND option = 'EQ'.
+
+      IF ls_supplier-low IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #(
+        value =
+          CONV zif_fi_das_dashboard=>t_supplier(
+            ls_supplier-low )
+      ) TO rs_request-supplier.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD get_section_text.
+
+    IF p_info = abap_true.
+
+      r_section =
+        'For Information Only'.
+
+    ELSEIF p_over = abap_true
+       AND p_serv = abap_true.
+
+      r_section =
+        'Over Threshold - Indirect Services'.
+
+    ELSEIF p_over = abap_true.
+
+      r_section =
+        'Over Threshold - Indirect Materials'.
+
+    ELSEIF p_serv = abap_true.
+
+      r_section =
+        'Under Threshold - Indirect Services'.
+
+    ELSE.
+
+      r_section =
+        'Under Threshold - Indirect Materials'.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+METHOD timestamp_to_text.
+
+  DATA lv_ts TYPE string.
+
+  CLEAR r_text.
+
+  IF i_timestamp IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  lv_ts = |{ i_timestamp }|.
+
+  IF strlen( lv_ts ) < 14.
+    RETURN.
+  ENDIF.
+
+  r_text =
+      lv_ts+6(2)
+    && '.'
+    && lv_ts+4(2)
+    && '.'
+    && lv_ts+0(4)
+    && ' '
+    && lv_ts+8(2)
+    && ':'
+    && lv_ts+10(2)
+    && ':'
+    && lv_ts+12(2).
+
+ENDMETHOD.
+*  METHOD timestamp_to_text.
+*
+*    DATA:
+*      lv_date TYPE d,
+*      lv_time TYPE t.
+*
+*    CLEAR r_text.
+*
+*    IF i_timestamp IS INITIAL.
+*      RETURN.
+*    ENDIF.
+*
+**--------------------------------------------------------------------*
+** Dashboard CHANGED_ON is already returned in the local/CET display
+** contract. Do not convert it once more from UTC.
+**--------------------------------------------------------------------*
+*    lv_date =
+*      i_timestamp.
+*
+*    lv_time =
+*      i_timestamp.
+*
+*    r_text =
+*        lv_date+6(2)
+*      && '.'
+*      && lv_date+4(2)
+*      && '.'
+*      && lv_date+0(4)
+*      && ' '
+*      && lv_time+0(2)
+*      && ':'
+*      && lv_time+2(2)
+*      && ':'
+*      && lv_time+4(2).
+*
+*  ENDMETHOD.
+
+
+  METHOD read_data.
+
+    CLEAR:
+      mt_result,
+      mt_over,
+      mt_under,
+      mt_exclude,
+      m_total_count.
+
+    IF p_info = abap_true.
+
+      read_exclude( ).
+
+      RETURN.
+
+    ENDIF.
+
+    IF p_serv = abap_true.
+
+      IF p_over = abap_true.
+
+        read_over(
+          i_pstype =
+            zif_fi_das_dashboard=>mc_pstype_service ).
+
+      ELSE.
+
+        read_under(
+          i_pstype =
+            zif_fi_das_dashboard=>mc_pstype_service ).
+
+      ENDIF.
+
+    ELSE.
+
+      IF p_over = abap_true.
+
+        read_over(
+          i_pstype =
+            zif_fi_das_dashboard=>mc_pstype_material ).
+
+      ELSE.
+
+        read_under(
+          i_pstype =
+            zif_fi_das_dashboard=>mc_pstype_material ).
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD read_over.
+
+    DATA ls_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    CLEAR:
+      mt_over,
+      m_total_count.
+
+    ls_request =
+      build_request(
+        i_pstype = i_pstype ).
+
+    mo_dashboard->over(
+      EXPORTING
+        is_request    = ls_request
+      IMPORTING
+        et_result     = mt_over
+        e_total_count = m_total_count ).
+
+    append_over_page(
+      it_page = mt_over ).
+
+  ENDMETHOD.
+
+
+  METHOD read_under.
+
+    DATA ls_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    CLEAR:
+      mt_under,
+      m_total_count.
+
+    ls_request =
+      build_request(
+        i_pstype = i_pstype ).
+
+    mo_dashboard->under(
+      EXPORTING
+        is_request    = ls_request
+      IMPORTING
+        et_result     = mt_under
+        e_total_count = m_total_count ).
+
+    append_under_page(
+      it_page = mt_under ).
+
+  ENDMETHOD.
+
+
+  METHOD read_exclude.
+
+    DATA ls_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    CLEAR:
+      mt_exclude,
+      m_total_count.
+
+    ls_request =
+      build_request(
+        i_pstype =
+          zif_fi_das_dashboard=>mc_pstype_all ).
+
+    mo_dashboard->exclude(
+      EXPORTING
+        is_request    = ls_request
+      IMPORTING
+        et_result     = mt_exclude
+        e_total_count = m_total_count ).
+
+    append_exclude_page(
+      it_page = mt_exclude ).
+
+  ENDMETHOD.
+
+
+  METHOD append_over_page.
+
+    DATA:
+      ls_source TYPE zif_fi_das_dashboard=>ts_over,
+      ls_target TYPE ts_alv_result.
+
+    LOOP AT it_page INTO ls_source.
+
+      CLEAR ls_target.
+
+      MOVE-CORRESPONDING ls_source
+        TO ls_target.
+
+      ls_target-reviewed_by =
+        ls_source-reviwed_by.
+
+      ls_target-last_update_cet =
+        timestamp_to_text(
+          i_timestamp = ls_source-changed_on ).
+
+      ls_target-changed_on_cet =
+        timestamp_to_text(
+          i_timestamp = ls_source-changed_on ).
+
+      APPEND ls_target
+        TO mt_result.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD append_under_page.
+
+    DATA:
+      ls_source TYPE zif_fi_das_dashboard=>ts_under,
+      ls_target TYPE ts_alv_result.
+
+    LOOP AT it_page INTO ls_source.
+
+      CLEAR ls_target.
+
+      MOVE-CORRESPONDING ls_source
+        TO ls_target.
+
+      ls_target-reviewed_by =
+        ls_source-reviwed_by.
+
+      ls_target-last_update_cet =
+        timestamp_to_text(
+          i_timestamp = ls_source-changed_on ).
+
+      ls_target-changed_on_cet =
+        timestamp_to_text(
+          i_timestamp = ls_source-changed_on ).
+
+      APPEND ls_target
+        TO mt_result.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD append_exclude_page.
+
+    DATA:
+      ls_source TYPE zif_fi_das_dashboard=>ts_exclude,
+      ls_target TYPE ts_alv_result.
+
+    LOOP AT it_page INTO ls_source.
+
+      CLEAR ls_target.
+
+      MOVE-CORRESPONDING ls_source
+        TO ls_target.
+
+      ls_target-changed_on_cet =
+        timestamp_to_text(
+          i_timestamp = ls_source-changed_on ).
+
+      CLEAR:
+        ls_target-reviewed_by,
+        ls_target-last_update_cet,
+        ls_target-audit_log_action.
+
+      APPEND ls_target
+        TO mt_result.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD export_result.
+
+    DATA lv_json TYPE string.
+
+    IF p_xnone = abap_true.
+      RETURN.
+    ENDIF.
+
+*    IF p_xcsv = abap_true.
+*
+*      RAISE EXCEPTION TYPE zcx_fi_das_error
+*        EXPORTING
+*          i_reason =
+*            'CSV export is unavailable in the new dashboard interface'.
+*
+*    ENDIF.
+
+    IF p_info = abap_true.
+
+      lv_json =
+        /ui2/cl_json=>serialize(
+          data = mt_exclude ).
+
+    ELSEIF p_over = abap_true.
+
+      lv_json =
+        /ui2/cl_json=>serialize(
+          data = mt_over ).
+
+    ELSE.
+
+      lv_json =
+        /ui2/cl_json=>serialize(
+          data = mt_under ).
+
+    ENDIF.
+
+    download_json(
+      i_json = lv_json ).
+
+  ENDMETHOD.
+
+
+  METHOD download_json.
+
+    DATA lt_lines TYPE stringtab.
+
+    IF p_xfile IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            'Export file must be entered'.
+
+    ENDIF.
+
+    APPEND i_json
+      TO lt_lines.
+
+    cl_gui_frontend_services=>gui_download(
+      EXPORTING
+        filename  = p_xfile
+        filetype  = 'ASC'
+        codepage  = '4110'
+        write_bom = abap_false
+        write_lf  = abap_true
+      CHANGING
+        data_tab  = lt_lines
+      EXCEPTIONS
+        OTHERS    = 1 ).
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason =
+            |Export to { p_xfile } failed|.
+
+    ENDIF.
+
+    MESSAGE |JSON export written: { p_xfile }|
+      TYPE 'S'.
+
+  ENDMETHOD.
+
+
+  METHOD display_result.
+
+    DATA:
+      lo_salv       TYPE REF TO cl_salv_table,
+      lo_functions  TYPE REF TO cl_salv_functions_list,
+      lo_columns    TYPE REF TO cl_salv_columns_table,
+      lo_display    TYPE REF TO cl_salv_display_settings,
+      lo_selections TYPE REF TO cl_salv_selections,
+      lv_title      TYPE lvc_title,
+      lv_lines      TYPE i,
+      lv_first_row  TYPE int8,
+      lv_last_row   TYPE int8,
+      lv_section    TYPE string.
+
+    IF mt_result IS INITIAL.
+
+      IF p_count = abap_true.
+
+        MESSAGE
+          |No records found. Total filtered records: { m_total_count }|
+          TYPE 'S'.
+
+      ELSE.
+
+        MESSAGE 'No records found for the requested page'
+          TYPE 'S'.
+
+      ENDIF.
+
+      RETURN.
+
+    ENDIF.
+
+    DESCRIBE TABLE mt_result
+      LINES lv_lines.
+
+    lv_first_row =
+      p_skip + 1.
+
+    lv_last_row =
+      p_skip + lv_lines.
+
+    lv_section =
+      get_section_text( ).
+
+    cl_salv_table=>factory(
+      IMPORTING
+        r_salv_table = lo_salv
+      CHANGING
+        t_table      = mt_result ).
+
+    lo_functions =
+      lo_salv->get_functions( ).
+
+    lo_functions->set_all(
+      abap_true ).
+
+    lo_columns =
+      lo_salv->get_columns( ).
+
+    configure_columns(
+      io_columns = lo_columns ).
+
+    lo_columns->set_optimize(
+      abap_true ).
+
+    lo_display =
+      lo_salv->get_display_settings( ).
+
+    lo_display->set_striped_pattern(
+      abap_true ).
+
+    IF p_count = abap_true.
+
+      lv_title =
+          |{ lv_section }: rows { lv_first_row }-{ lv_last_row } |
+        && |of { m_total_count }|.
+
+    ELSE.
+
+      lv_title =
+        |{ lv_section }: rows { lv_first_row }-{ lv_last_row }|.
+
+    ENDIF.
+
+    lo_display->set_list_header(
+      lv_title ).
+
+    lo_selections =
+      lo_salv->get_selections( ).
+
+    lo_selections->set_selection_mode(
+      if_salv_c_selection_mode=>row_column ).
+
+    lo_salv->display( ).
+
+  ENDMETHOD.
+
+
+  METHOD configure_columns.
+
+    DATA lt_columns TYPE tt_column_name.
+
+    make_all_columns_visible(
+      io_columns = io_columns ).
+
+    set_column_labels(
+      io_columns = io_columns ).
+
+    IF p_info = abap_true.
+
+      lt_columns =
+        get_info_columns( ).
+
+    ELSEIF p_serv = abap_true.
+
+      lt_columns =
+        get_service_columns( ).
+
+    ELSE.
+
+      lt_columns =
+        get_material_columns( ).
+
+    ENDIF.
+
+    apply_ui_order(
+      io_columns = io_columns
+      it_columns = lt_columns ).
+
+  ENDMETHOD.
+
+
+  METHOD make_all_columns_visible.
+
+    DATA:
+      lt_column_refs TYPE salv_t_column_ref,
+      ls_column_ref  TYPE salv_s_column_ref,
+      lo_column      TYPE REF TO cl_salv_column_table.
+
+    lt_column_refs =
+      io_columns->get( ).
+
+    LOOP AT lt_column_refs
+      INTO ls_column_ref.
+
+      TRY.
+
+          lo_column ?=
+            ls_column_ref-r_column.
+
+          lo_column->set_visible(
+            abap_true ).
+
+        CATCH cx_salv_error.
+
+      ENDTRY.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD set_column_label.
+
+    DATA lo_column TYPE REF TO cl_salv_column_table.
+
+    TRY.
+
+        lo_column ?=
+          io_columns->get_column(
+            i_column ).
+
+        lo_column->set_short_text(
+          i_short ).
+
+        lo_column->set_medium_text(
+          i_medium ).
+
+        lo_column->set_long_text(
+          i_long ).
+
+        lo_column->set_tooltip(
+          i_long ).
+
+      CATCH cx_salv_not_found.
+      CATCH cx_salv_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD set_column_labels.
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'COMPANYCODE'
+      i_short    = 'Company'
+      i_medium   = 'Company Code'
+      i_long     = 'Company Code' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PURCHASINGUNIT'
+      i_short    =  CONV #( 'Purch. Unit' )
+      i_medium   = 'Purchasing Unit'
+      i_long     = 'Purchasing Unit' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PURCHASINGORGANIZATION'
+      i_short    = CONV #( 'Purch. Org.' )
+      i_medium   = CONV #( 'Purchasing Organization' )
+      i_long     = 'Purchasing Organization' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PONUMBER'
+      i_short    = 'PO Number'
+      i_medium   = CONV #( 'Purchase Order Number' )
+      i_long     = 'Purchase Order Number' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'ITEMNO'
+      i_short    = 'Line Item'
+      i_medium   = CONV #( 'Purchase Order Line Item' )
+      i_long     = 'Purchase Order Line Item' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PSTYPE'
+      i_short    = 'PO Type'
+      i_medium   = 'Purchasing Item Type'
+      i_long     = 'Purchasing Item Type' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PSTYPE_TEXT'
+      i_short    = 'Type'
+      i_medium   = 'Purchase Order Type'
+      i_long     = 'Purchase Order Type' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POOWNER_EMAIL'
+      i_short    = 'PO Owner'
+      i_medium   = 'PO Owner E-Mail'
+      i_long     = 'Purchase Order Owner E-Mail' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PO_PREPARER'
+      i_short    = 'Preparer'
+      i_medium   = 'PO Preparer'
+      i_long     = 'Purchase Order Preparer' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'USERNAME'
+      i_short    = 'User ID'
+      i_medium   = 'PO Owner User ID'
+      i_long     = 'Purchase Order Owner User ID' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'FULL_NAME'
+      i_short    = 'Full Name'
+      i_medium   = 'PO Owner Full Name'
+      i_long     = 'Purchase Order Owner Full Name' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'SUPPLIERID'
+      i_short    = 'Supplier'
+      i_medium   = 'Supplier Code'
+      i_long     = 'Supplier Code' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'SUPPLIERNAME'
+      i_short    = CONV #( 'Supplier Name' )
+      i_medium   = 'Supplier Name'
+      i_long     = 'Supplier Name' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POLINEDESC'
+      i_short    = CONV #( 'Description' )
+      i_medium   = 'PO Line Description'
+      i_long     = 'Purchase Order Line Description' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POCREATEDAT'
+      i_short    = 'Created'
+      i_medium   = 'PO Creation Date'
+      i_long     = 'Purchase Order Creation Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'DOCUMENTDATE'
+      i_short    = 'Doc. Date'
+      i_medium   = 'Document Date'
+      i_long     = 'Document Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'EPNUMBER'
+      i_short    = 'PR Number'
+      i_medium   = 'PR Number'
+      i_long     = 'Purchase Requisition Number' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POCURRENCY'
+      i_short    = 'Currency'
+      i_medium   = 'Document Currency'
+      i_long     = 'Purchase Order Currency' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'COCDECURR'
+      i_short    = 'CoCd Curr.'
+      i_medium   = CONV #( 'Company Code Currency' )
+      i_long     = 'Company Code Currency' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INVOICE_CURRENCY'
+      i_short    = 'Inv. Curr.'
+      i_medium   = 'Invoice Currency'
+      i_long     = 'Invoice Currency' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'EXCHANGERATE'
+      i_short    = 'Exch. Rate'
+      i_medium   = 'Exchange Rate'
+      i_long     = 'Exchange Rate Display Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'EXCHANGERATE_DEC'
+      i_short    = 'Rate Dec.'
+      i_medium   = CONV #( 'Exchange Rate Decimal' )
+      i_long     = 'Exchange Rate Decimal Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POVALUE'
+      i_short    = 'PO Value'
+      i_medium   = 'Purchase Order Value'
+      i_long     = 'Purchase Order Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POVALUE_USD'
+      i_short    = CONV #( 'PO Value USD' )
+      i_medium   = CONV #( 'Purchase Order Value USD' )
+      i_long     = 'Purchase Order Value in USD' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POVALUE_COCO'
+      i_short    = 'PO Local'
+      i_medium   = CONV #( 'PO Value Local Currency' )
+      i_long     = CONV #( 'Purchase Order Value in Company Code Currency' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'WRKSTRTDATE'
+      i_short    = 'Start Date'
+      i_medium   = 'Service Start Date'
+      i_long     = 'Service Work Start Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'WRKENDDATE'
+      i_short    = 'End Date'
+      i_medium   = 'Service End Date'
+      i_long     = 'Service Work End Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPAMT'
+      i_short    = 'Completed'
+      i_medium   = 'Services Completed'
+      i_long     = 'Services Completed Amount' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPAMT_CHAR'
+      i_short    = CONV #( 'Completed UI' )
+      i_medium   = CONV #( 'Services Completed UI' )
+      i_long     = 'Services Completed Amount Display Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPAMT_USD'
+      i_short    = 'Comp. USD'
+      i_medium   = 'Completed Amount USD'
+      i_long     = 'Services Completed Amount in USD' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPAMT_USD_CHAR'
+      i_short    = CONV #( 'Comp. USD UI' )
+      i_medium   = 'Completed USD UI'
+      i_long     = CONV #( 'Services Completed Amount USD Display Value' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPAMT_COCDECURR'
+      i_short    = CONV #( 'Comp. Local' )
+      i_medium   = 'Completed Local'
+      i_long     = CONV #( 'Services Completed Amount in Company Code Currency' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPPER'
+      i_short    = CONV #( 'Completed %' )
+      i_medium   = 'Services Completed %'
+      i_long     = 'Percentage of Services Completed' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'TOTWRKCOMPPER_CHAR'
+      i_short    = CONV #( 'Completed % UI' )
+      i_medium   = CONV #( 'Completed Percentage UI' )
+      i_long     = CONV #('Percentage of Services Completed Display Value' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'GRVALUE'
+      i_short    = 'GR Value'
+      i_medium   = 'Goods Received'
+      i_long     = 'Goods Received to Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'GRVALUE_USD'
+      i_short    = 'GR USD'
+      i_medium   = 'Goods Received USD'
+      i_long     = 'Goods Received to Date in USD' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'GRVALUE_COCDECURR'
+      i_short    = 'GR Local'
+      i_medium   = 'Goods Received Local'
+      i_long     = CONV #( 'Goods Received to Date in Company Code Currency' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INVVALUE'
+      i_short    = 'Invoice'
+      i_medium   = 'Invoice Amount'
+      i_long     = 'Invoice Amount to Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INVVALUE_USD'
+      i_short    = 'Inv. USD'
+      i_medium   = 'Invoice Amount USD'
+      i_long     = 'Invoice Amount to Date in USD' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INVVALUE_CAL'
+      i_short    = 'Inv. Calc.'
+      i_medium   = 'Invoice Calculation'
+      i_long     = 'Invoice Amount Used for Calculation' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INVVALUE_COCDECURR'
+      i_short    = 'Inv. Local'
+      i_medium   = 'Invoice Local'
+      i_long     = CONV #( 'Invoice Amount to Date in Company Code Currency'  ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AMOUNTACCRUED'
+      i_short    = 'Accrued'
+      i_medium   = 'Amount to Accrue'
+      i_long     = 'Amount to be Accrued' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AMOUNTACCRUED_CHAR'
+      i_short    = 'Accrued UI'
+      i_medium   = 'Accrued Amount UI'
+      i_long     = 'Amount to be Accrued Display Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AMOUNTACCRUED_USD'
+      i_short    = 'Accr. USD'
+      i_medium   = 'Accrual Amount USD'
+      i_long     = 'Amount to be Accrued in USD' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AMOUNTACCRUED_USD_CHAR'
+      i_short    = CONV #( 'Accr. USD UI' )
+      i_medium   = 'Accrued USD UI'
+      i_long     = 'Amount to be Accrued USD Display Value' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AMOUNTACCRUED_COCDECURR'
+      i_short    = CONV #( 'Accr. Local' )
+      i_medium   = 'Accrual Local'
+      i_long     = CONV #( 'Amount to be Accrued in Company Code Currency' ) ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'STATUS'
+      i_short    = 'Status'
+      i_medium   = 'Status'
+      i_long     = 'Review Status' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'ACCRUALMETHOD'
+      i_short    = 'Method'
+      i_medium   = 'Accrual Method'
+      i_long     = 'Accrual Method' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'STRAIGHTLINEMTHD'
+      i_short    = 'STL Method'
+      i_medium   = 'Straight Line Method'
+      i_long     = 'Straight Line Method' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'MARKASREVIEWED'
+      i_short    = CONV #( 'Mark Review' )
+      i_medium   = 'Mark as Reviewed'
+      i_long     = 'Mark as Reviewed Flag' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'REVIWED_BY'
+      i_short    = CONV #( 'Reviewed By' )
+      i_medium   = 'Reviewed By'
+      i_long     = 'Reviewed By' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'REVIEWED_BY'
+      i_short    = CONV #( 'Reviewed By' )
+      i_medium   = 'Reviewed By'
+      i_long     = 'Reviewed By' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'CHANGEDDATE'
+      i_short    = CONV #( 'Changed Date' )
+      i_medium   = 'Status Changed Date'
+      i_long     = 'Status Changed Date' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'CHANGEDTIME'
+      i_short    = CONV #( 'Changed Time' )
+      i_medium   = 'Status Changed Time'
+      i_long     = 'Status Changed Time' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'CHANGED_ON'
+      i_short    = CONV #( 'Changed UTC' )
+      i_medium   = 'Changed On'
+      i_long     = 'Status Changed On Timestamp' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'CHANGED_ON_CET'
+      i_short    = CONV #( 'Changed CET' )
+      i_medium   = 'Changed On CET'
+      i_long     = 'Status Changed On CET Text' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'LAST_UPDATE_CET'
+      i_short    = CONV #( 'Updated CET' )
+      i_medium   = 'Last Update CET'
+      i_long     = 'Last Update CET Text' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'LASTMONTHWRKCOMP'
+      i_short    = 'Last Month'
+      i_medium   = 'Last Month Completed'
+      i_long     = 'Last Month Services Completed Amount' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'EDGEWTDAMT'
+      i_short    = 'WTD Amount'
+      i_medium   = 'Work to Date Amount'
+      i_long     = 'Persisted Work to Date Amount' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PO_CLOSURE'
+      i_short    = 'Closure'
+      i_medium   = 'Eligible for Closure'
+      i_long     = 'Purchase Order Eligible for Closure' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'POCLOSURE_FLAG'
+      i_short    = 'Close Flag'
+      i_medium   = 'PO Closure Flag'
+      i_long     = 'Purchase Order Closure Flag' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'NOTIF_24_HR'
+      i_short    = '24h Notice'
+      i_medium   = CONV #( 'Notification 24 Hours' )
+      i_long     = 'Notification Raised During Last 24 Hours' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'LAST_NOTIF_ON'
+      i_short    = CONV #( 'Last Notif.' )
+      i_medium   = 'Last Notification'
+      i_long     = 'Last Notification Timestamp' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'CHECKFLAG'
+      i_short    = 'Check Flag'
+      i_medium   = 'Check Flag'
+      i_long     = 'Check Flag' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'GLACCOUNT'
+      i_short    = 'GL Account'
+      i_medium   = 'GL Account'
+      i_long     = 'General Ledger Account' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'COSTCENTER'
+      i_short    = CONV #( 'Cost Center' )
+      i_medium   = 'Cost Center'
+      i_long     = 'Cost Center' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'COSTCENTERDESC'
+      i_short    = CONV #( 'Cost Ctr Desc.' )
+      i_medium   = CONV #( 'Cost Center Description' )
+      i_long     = 'Cost Center Description' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'MANAGEUNIT'
+      i_short    = 'Mgmt Unit'
+      i_medium   = 'Management Unit'
+      i_long     = 'Management Unit' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'INTERNALORDER'
+      i_short    = CONV #( 'Internal Ord.' )
+      i_medium   = 'Internal Order'
+      i_long     = 'Internal Order' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'ASSETID'
+      i_short    = 'Asset ID'
+      i_medium   = 'Asset ID'
+      i_long     = 'Asset ID' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'PROFITCENTER'
+      i_short    = CONV #( 'Profit Center' )
+      i_medium   = 'Profit Center'
+      i_long     = 'Profit Center' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'BBP_ACC_NO'
+      i_short    = CONV #( 'BBP Acc. No.' )
+      i_medium   = 'BBP Account Number'
+      i_long     = 'BBP Account Assignment Number' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'DISTPERCENTAGE'
+      i_short    = 'Split %'
+      i_medium   = 'Split Accounting %'
+      i_long     = 'Split Accounting Percentage' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'RULETYPE'
+      i_short    = 'Rule Type'
+      i_medium   = 'Rule Type'
+      i_long     = 'Exclusion Rule Type' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'RULETYPETEXT'
+      i_short    = 'Rule Text'
+      i_medium   = 'Rule Type Text'
+      i_long     = 'Exclusion Rule Type Text' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'ORDERQUANTITY'
+      i_short    = 'Quantity'
+      i_medium   = 'Order Quantity'
+      i_long     = 'Order Quantity' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'ZACTIVITYNBR'
+      i_short    = 'Activity'
+      i_medium   = 'Activity Number'
+      i_long     = 'Activity Number' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'REGION'
+      i_short    = 'Region'
+      i_medium   = 'Region'
+      i_long     = 'Region' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'DECIMAL_FORMAT'
+      i_short    = CONV #( 'Dec. Format' )
+      i_medium   = 'Decimal Format'
+      i_long     = 'User Decimal Format' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'DATFM'
+      i_short    = CONV #( 'Date Format' )
+      i_medium   = 'Date Format'
+      i_long     = 'User Date Format' ).
+
+    set_column_label(
+      io_columns = io_columns
+      i_column   = 'AUDIT_LOG_ACTION'
+      i_short    = 'Audit Log'
+      i_medium   = 'Audit Log Action'
+      i_long     = 'Audit Log Action' ).
+
+  ENDMETHOD.
+
+
+  METHOD apply_ui_order.
+
+    DATA:
+      lv_index  TYPE i,
+      lv_column TYPE t_column_name.
+
+    lv_index =
+      lines( it_columns ).
+
+    WHILE lv_index > 0.
+
+      READ TABLE it_columns
+        INTO lv_column
+        INDEX lv_index.
+
+      IF sy-subrc = 0.
+
+        TRY.
+
+            io_columns->set_column_position(
+              columnname = lv_column
+              position   = 1 ).
+
+          CATCH cx_salv_not_found.
+          CATCH cx_salv_error.
+
+        ENDTRY.
+
+      ENDIF.
+
+      lv_index =
+        lv_index - 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+
+  METHOD get_service_columns.
+
+    APPEND 'COMPANYCODE'            TO rt_columns.
+    APPEND 'PONUMBER'               TO rt_columns.
+    APPEND 'ITEMNO'                 TO rt_columns.
+    APPEND 'POLINEDESC'             TO rt_columns.
+    APPEND 'PO_CLOSURE'             TO rt_columns.
+    APPEND 'SUPPLIERID'             TO rt_columns.
+    APPEND 'SUPPLIERNAME'           TO rt_columns.
+    APPEND 'EXCHANGERATE'           TO rt_columns.
+    APPEND 'EXCHANGERATE_DEC'       TO rt_columns.
+    APPEND 'POCURRENCY'             TO rt_columns.
+    APPEND 'POVALUE'                TO rt_columns.
+    APPEND 'POVALUE_USD'            TO rt_columns.
+    APPEND 'POVALUE_COCO'           TO rt_columns.
+    APPEND 'STATUS'                 TO rt_columns.
+    APPEND 'WRKSTRTDATE'            TO rt_columns.
+    APPEND 'WRKENDDATE'             TO rt_columns.
+    APPEND 'TOTWRKCOMPAMT_CHAR'     TO rt_columns.
+    APPEND 'TOTWRKCOMPPER'          TO rt_columns.
+    APPEND 'TOTWRKCOMPAMT_USD_CHAR' TO rt_columns.
+    APPEND 'INVVALUE'               TO rt_columns.
+    APPEND 'INVVALUE_USD'           TO rt_columns.
+    APPEND 'AMOUNTACCRUED_CHAR'     TO rt_columns.
+    APPEND 'AMOUNTACCRUED_USD_CHAR' TO rt_columns.
+    APPEND 'STRAIGHTLINEMTHD'       TO rt_columns.
+    APPEND 'ACCRUALMETHOD'          TO rt_columns.
+    APPEND 'POOWNER_EMAIL'          TO rt_columns.
+    APPEND 'PO_PREPARER'            TO rt_columns.
+    APPEND 'REVIEWED_BY'            TO rt_columns.
+    APPEND 'CHANGEDDATE'            TO rt_columns.
+    APPEND 'CHANGEDTIME'            TO rt_columns.
+    APPEND 'LAST_UPDATE_CET'        TO rt_columns.
+    APPEND 'GLACCOUNT'              TO rt_columns.
+    APPEND 'COSTCENTER'             TO rt_columns.
+    APPEND 'MANAGEUNIT'             TO rt_columns.
+    APPEND 'INTERNALORDER'          TO rt_columns.
+    APPEND 'PROFITCENTER'           TO rt_columns.
+    APPEND 'ASSETID'                TO rt_columns.
+    APPEND 'REGION'                 TO rt_columns.
+    APPEND 'EPNUMBER'               TO rt_columns.
+    APPEND 'POCREATEDAT'            TO rt_columns.
+    APPEND 'ZACTIVITYNBR'           TO rt_columns.
+    APPEND 'LAST_NOTIF_ON'          TO rt_columns.
+    APPEND 'DISTPERCENTAGE'         TO rt_columns.
+    APPEND 'ORDERQUANTITY'          TO rt_columns.
+
+  ENDMETHOD.
+
+
+  METHOD get_material_columns.
+
+    APPEND 'COMPANYCODE'            TO rt_columns.
+    APPEND 'PONUMBER'               TO rt_columns.
+    APPEND 'ITEMNO'                 TO rt_columns.
+    APPEND 'POLINEDESC'             TO rt_columns.
+    APPEND 'PO_CLOSURE'             TO rt_columns.
+    APPEND 'SUPPLIERID'             TO rt_columns.
+    APPEND 'SUPPLIERNAME'           TO rt_columns.
+    APPEND 'EXCHANGERATE'           TO rt_columns.
+    APPEND 'EXCHANGERATE_DEC'       TO rt_columns.
+    APPEND 'POVALUE'                TO rt_columns.
+    APPEND 'POVALUE_USD'            TO rt_columns.
+    APPEND 'POVALUE_COCO'           TO rt_columns.
+    APPEND 'POCURRENCY'             TO rt_columns.
+    APPEND 'STATUS'                 TO rt_columns.
+    APPEND 'GRVALUE'                TO rt_columns.
+    APPEND 'GRVALUE_USD'            TO rt_columns.
+    APPEND 'INVVALUE'               TO rt_columns.
+    APPEND 'INVVALUE_USD'           TO rt_columns.
+    APPEND 'AMOUNTACCRUED_CHAR'     TO rt_columns.
+    APPEND 'AMOUNTACCRUED_USD_CHAR' TO rt_columns.
+    APPEND 'POOWNER_EMAIL'          TO rt_columns.
+    APPEND 'PO_PREPARER'            TO rt_columns.
+    APPEND 'REVIEWED_BY'            TO rt_columns.
+    APPEND 'CHANGEDDATE'            TO rt_columns.
+    APPEND 'CHANGEDTIME'            TO rt_columns.
+    APPEND 'LAST_UPDATE_CET'        TO rt_columns.
+    APPEND 'GLACCOUNT'              TO rt_columns.
+    APPEND 'COSTCENTER'             TO rt_columns.
+    APPEND 'MANAGEUNIT'             TO rt_columns.
+    APPEND 'INTERNALORDER'          TO rt_columns.
+    APPEND 'PROFITCENTER'           TO rt_columns.
+    APPEND 'ASSETID'                TO rt_columns.
+    APPEND 'REGION'                 TO rt_columns.
+    APPEND 'EPNUMBER'               TO rt_columns.
+    APPEND 'POCREATEDAT'            TO rt_columns.
+    APPEND 'ZACTIVITYNBR'           TO rt_columns.
+    APPEND 'LAST_NOTIF_ON'          TO rt_columns.
+    APPEND 'AUDIT_LOG_ACTION'       TO rt_columns.
+    APPEND 'DISTPERCENTAGE'         TO rt_columns.
+    APPEND 'ORDERQUANTITY'          TO rt_columns.
+
+  ENDMETHOD.
+
+
+  METHOD get_info_columns.
+
+    APPEND 'COMPANYCODE'       TO rt_columns.
+    APPEND 'PONUMBER'          TO rt_columns.
+    APPEND 'ITEMNO'            TO rt_columns.
+    APPEND 'SUPPLIERID'        TO rt_columns.
+    APPEND 'SUPPLIERNAME'      TO rt_columns.
+    APPEND 'EXCHANGERATE'      TO rt_columns.
+    APPEND 'EXCHANGERATE_DEC'  TO rt_columns.
+    APPEND 'POCURRENCY'        TO rt_columns.
+    APPEND 'POLINEDESC'        TO rt_columns.
+    APPEND 'POVALUE'           TO rt_columns.
+    APPEND 'POVALUE_USD'       TO rt_columns.
+    APPEND 'POVALUE_COCO'      TO rt_columns.
+    APPEND 'WRKSTRTDATE'       TO rt_columns.
+    APPEND 'WRKENDDATE'        TO rt_columns.
+    APPEND 'TOTWRKCOMPAMT'     TO rt_columns.
+    APPEND 'TOTWRKCOMPPER'     TO rt_columns.
+    APPEND 'TOTWRKCOMPAMT_USD' TO rt_columns.
+    APPEND 'GRVALUE'           TO rt_columns.
+    APPEND 'GRVALUE_USD'       TO rt_columns.
+    APPEND 'INVVALUE'          TO rt_columns.
+    APPEND 'INVVALUE_USD'      TO rt_columns.
+    APPEND 'AMOUNTACCRUED'     TO rt_columns.
+    APPEND 'AMOUNTACCRUED_USD' TO rt_columns.
+    APPEND 'MANAGEUNIT'        TO rt_columns.
+    APPEND 'ASSETID'           TO rt_columns.
+    APPEND 'INTERNALORDER'     TO rt_columns.
+    APPEND 'PROFITCENTER'      TO rt_columns.
+    APPEND 'POOWNER_EMAIL'     TO rt_columns.
+    APPEND 'PO_PREPARER'       TO rt_columns.
+    APPEND 'GLACCOUNT'         TO rt_columns.
+    APPEND 'COSTCENTER'        TO rt_columns.
+    APPEND 'COSTCENTERDESC'    TO rt_columns.
+    APPEND 'REGION'            TO rt_columns.
+    APPEND 'EPNUMBER'          TO rt_columns.
+    APPEND 'POCREATEDAT'       TO rt_columns.
+    APPEND 'RULETYPE'          TO rt_columns.
+    APPEND 'RULETYPETEXT'      TO rt_columns.
+    APPEND 'PSTYPE_TEXT'       TO rt_columns.
+    APPEND 'ZACTIVITYNBR'      TO rt_columns.
+    APPEND 'DISTPERCENTAGE'    TO rt_columns.
+    APPEND 'ACCRUALMETHOD'     TO rt_columns.
+    APPEND 'CHANGED_ON_CET'    TO rt_columns.
+    APPEND 'CHECKFLAG'         TO rt_columns.
+    APPEND 'COCDECURR'         TO rt_columns.
+    APPEND 'DOCUMENTDATE'      TO rt_columns.
+    APPEND 'INVOICE_CURRENCY'  TO rt_columns.
+    APPEND 'LASTMONTHWRKCOMP'  TO rt_columns.
+    APPEND 'PO_CLOSURE'        TO rt_columns.
+    APPEND 'POCLOSURE_FLAG'    TO rt_columns.
+    APPEND 'PSTYPE'            TO rt_columns.
+    APPEND 'PURCHASINGUNIT'    TO rt_columns.
+    APPEND 'STATUS'            TO rt_columns.
+    APPEND 'STRAIGHTLINEMTHD'  TO rt_columns.
+
+  ENDMETHOD.
+
+ENDCLASS.

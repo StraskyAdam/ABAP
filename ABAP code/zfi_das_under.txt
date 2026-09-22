@@ -1,0 +1,7 @@
+@EndUserText.label : 'Under'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_under {
+  include zfi_das_shared;
+  include zfi_das_over_under;
+
+}

@@ -1,0 +1,15 @@
+@AbapCatalog.sqlViewName: 'ZIFIDASROLES'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'User Roles Configuration'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZI_FI_DAS_ROLES as select from zfi_das_roles {
+ 
+    key user_emailid,
+    key company_code,
+        user_role,
+        user_access,
+        management_unit,
+        cost_center
+}

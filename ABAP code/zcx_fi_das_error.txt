@@ -1,0 +1,29 @@
+CLASS zcx_fi_das_error DEFINITION
+  PUBLIC
+  INHERITING FROM cx_static_check
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    INTERFACES if_t100_dyn_msg.
+
+    DATA reason TYPE string READ-ONLY.
+
+    METHODS constructor
+      IMPORTING
+        i_reason TYPE string OPTIONAL
+        previous TYPE REF TO cx_root OPTIONAL.
+
+ENDCLASS.
+
+
+CLASS zcx_fi_das_error IMPLEMENTATION.
+
+  METHOD constructor ##ADT_SUPPRESS_GENERATION.
+    super->constructor(
+      previous = previous ).
+
+    reason = i_reason.
+  ENDMETHOD.
+
+ENDCLASS.

@@ -1,0 +1,11 @@
+@AbapCatalog.sqlViewName: 'ZIFIDASCONFVAL'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'DAS Config Values'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZI_FI_DAS_CONF_VAL as select from zfi_das_conf_val
+{
+    key config_name,
+        config_value
+}

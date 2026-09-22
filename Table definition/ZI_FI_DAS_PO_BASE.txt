@@ -1,0 +1,119 @@
+@AbapCatalog.sqlViewName: 'ZIFIDASPOBASE'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'DAS Purchase Order Base'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZI_FI_DAS_PO_BASE
+  as select from ekpo
+    inner join ekko
+      on ekko.ebeln = ekpo.ebeln
+    left outer join lfa1
+      on lfa1.lifnr = ekko.lifnr
+    inner join t001
+      on t001.bukrs = ekko.bukrs
+{
+  /*
+   * Jednoznačný kľúč PO položky.
+   * Filtre sa aplikujú nad týmto základom ešte pred 1:N enrichmentom.
+   * Nadväzuje na XSA TF_getOpenPOQueryWithEmail.
+   */
+  key ekpo.ebeln       as PoNumber,
+  key ekpo.ebelp       as ItemNo,
+
+  /*
+   * Polia potrebné na XSA výber service/material PO.
+   * Japan/Brazil preklasifikácia zostáva mimo CDS, pretože závisí
+   * od konfiguračnej hodnoty Japan_Brazil.
+   */
+      ekpo.pstyp       as PsType,
+      ekpo.erekz       as FinalInvoiceIndicator,
+
+  /*
+   * Vylúčenie zmazaných a dodávkovo ukončených položiek.
+   * XSA kandidátny výber (TF_getOpenPOQueryWithEmail) pracuje nad
+   * replikovanou EKPO, ktorá tieto položky neobsahuje. Bez týchto
+   * dvoch indikátorov ABAP vyberá položky navyše.
+   *
+   * Ak zdrojový systém tieto polia v replikácii nemá, musí sa view
+   * rozšíriť o ekvivalentný zdroj a AMDP filter zostáva nezmenený.
+   */
+      ekpo.loekz       as DeletionIndicator,
+      ekpo.elikz       as DeliveryCompleted,
+
+      ekpo.zstart_date as WorkStartDateRaw,
+      ekpo.zend_date   as WorkEndDateRaw,
+      ekpo.bukrs       as ItemCompanyCode,
+
+  /*
+   * Hodnoty potrebné na threshold a GR výpočty.
+   * Threshold sa podľa XSA počíta zo SUM(EKPO-NETWR) na úrovni PO.
+   */
+      @Semantics.amount.currencyCode: 'PoCurrency'
+      ekpo.netwr       as NetValue,
+
+      @Semantics.amount.currencyCode: 'PoCurrency'
+      ekpo.brtwr       as GrossValue,
+
+      @Semantics.amount.currencyCode: 'PoCurrency'
+      ekpo.netpr       as NetPrice,
+
+      ekpo.peinh       as PriceUnit,
+
+      /*
+       * MENGE má v DDIC referenciu na MEINS. Obidve polia musia byť
+       * v CDS sprístupnené a explicitne previazané, aby nevznikla
+       * nekonzistentná quantity reference.
+       */
+      @Semantics.quantity.unitOfMeasure: 'OrderUnit'
+      ekpo.menge       as OrderQuantity,
+
+      @Semantics.unitOfMeasure: true
+      ekpo.meins       as OrderUnit,
+
+  /*
+   * PO Owner scope.
+   * LOWER a LIKE podmienky sa vykonajú databázovo v provider triede.
+   * Nadväzuje na PO_REQUESTOR/PO_PREPARER vetvu XSA.
+   */
+      ekpo.po_requestor as PoRequestor,
+      ekpo.po_preparer  as PoPreparer,
+
+  /*
+   * Zdroje pre WTD/STL výpočet a výstup dashboardu.
+   * CDS hodnoty nemení ani neformátuje.
+   */
+      ekpo.zserv_amt    as ServiceAmount,
+      ekpo.zserv_perc   as ServicePercentage,
+      ekpo.txz01        as PoLineDescription,
+      ekpo.zactivitynbr as ActivityNumber,
+
+  /*
+   * PO hlavička.
+   * Filter BSART = 'ZARP' sa aplikuje pri výbere kandidátnych kľúčov
+   * rovnako ako v TF_getOpenPOQueryWithEmail.
+   */
+      ekko.bukrs        as CompanyCode,
+      ekko.bsart        as DocumentType,
+
+      @Semantics.currencyCode: true
+      ekko.waers        as PoCurrency,
+
+      ekko.lifnr        as SupplierId,
+      ekko.aedat        as PoCreatedAt,
+      ekko.bedat        as DocumentDate,
+      ekko.ekorg        as PurchasingOrganization,
+      ekko.unsez        as EpNumber,
+
+  /*
+   * Supplier a company-code údaje.
+   * LEFT OUTER JOIN na LFA1 zachová PO aj bez supplier textu.
+   * INNER JOIN na T001 zodpovedá efektívnej XSA key-selection logike.
+   */
+      lfa1.name1        as SupplierName,
+      t001.butxt        as PurchasingUnit,
+      t001.land1        as Region,
+
+      @Semantics.currencyCode: true
+      t001.waers        as CompanyCodeCurrency
+}

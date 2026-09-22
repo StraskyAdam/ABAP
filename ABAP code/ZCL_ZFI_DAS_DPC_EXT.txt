@@ -1,0 +1,200 @@
+class ZCL_ZFI_DAS_DPC_EXT definition
+  public
+  inheriting from ZCL_ZFI_DAS_DPC
+  create public .
+
+public section.
+protected section.
+
+  methods OPENPOTYPESET_GET_ENTITYSET
+    redefinition .
+  methods THRESHOLDSET_GET_ENTITYSET
+    redefinition .
+  methods EXCLUSIONPOSET_GET_ENTITYSET
+    redefinition .
+private section.
+
+  methods BUILD_REQUEST
+    importing
+      !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
+      !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR optional
+    returning
+      value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+ENDCLASS.
+
+
+
+CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
+
+
+METHOD build_request.
+
+  CLEAR rs_request.
+
+  " Parameters z openPOParameters(...)
+
+  READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<ls_key>)
+    WITH KEY name = 'IP_EMAIL'.
+
+  IF sy-subrc = 0.
+    rs_request-email = <ls_key>-value.
+  ENDIF.
+
+  READ TABLE it_key_tab ASSIGNING <ls_key>
+    WITH KEY name = 'IP_PSTYPE'.
+
+  IF sy-subrc = 0.
+    rs_request-pstype = <ls_key>-value.
+  ENDIF.
+
+  READ TABLE it_key_tab ASSIGNING <ls_key>
+    WITH KEY name = 'IP_POOWNER'.
+
+  IF sy-subrc = 0.
+    rs_request-poowner = <ls_key>-value.
+  ENDIF.
+
+  " Paging
+
+  rs_request-paging-top =
+    io_tech_request_context->get_top( ).
+
+  rs_request-paging-skip =
+    io_tech_request_context->get_skip( ).
+
+  rs_request-paging-count_requested =
+    io_tech_request_context->has_inlinecount( ).
+
+  " OData filtre
+
+  DATA(lt_filters) =
+    io_tech_request_context->get_filter( )->get_filter_select_options( ).
+
+  LOOP AT lt_filters ASSIGNING FIELD-SYMBOL(<ls_filter>).
+
+    CASE to_upper( <ls_filter>-property ).
+
+      WHEN 'PONUMBER'.
+
+        LOOP AT <ls_filter>-select_options
+          ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
+
+          APPEND VALUE #(
+            sign   = <ls_ponumber>-sign
+            option = <ls_ponumber>-option
+            low    = CONV ebeln( <ls_ponumber>-low )
+            high   = CONV ebeln( <ls_ponumber>-high )
+          ) TO rs_request-ponumber.
+
+        ENDLOOP.
+
+      WHEN 'ITEMNO'.
+
+        LOOP AT <ls_filter>-select_options
+          ASSIGNING FIELD-SYMBOL(<ls_itemno>).
+
+          APPEND VALUE #(
+            sign   = <ls_itemno>-sign
+            option = <ls_itemno>-option
+            low    = CONV ebelp( <ls_itemno>-low )
+            high   = CONV ebelp( <ls_itemno>-high )
+          ) TO rs_request-itemno.
+
+        ENDLOOP.
+
+      WHEN 'SUPPLIERNAME'.
+
+        LOOP AT <ls_filter>-select_options
+          ASSIGNING FIELD-SYMBOL(<ls_supplier>).
+
+          APPEND VALUE #(
+            value = CONV zif_fi_das_dashboard=>t_supplier(
+                      <ls_supplier>-low )
+          ) TO rs_request-supplier.
+
+        ENDLOOP.
+
+    ENDCASE.
+
+  ENDLOOP.
+
+ENDMETHOD.
+
+
+METHOD exclusionposet_get_entityset.
+
+  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
+        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+
+  ls_request = build_request(
+    io_tech_request_context = io_tech_request_context
+    it_key_tab              = it_key_tab ).
+
+  CREATE OBJECT lo_dashboard
+    TYPE zcl_fi_das_dashboard.
+
+  lo_dashboard->exclude(
+    EXPORTING
+      is_request    = ls_request
+    IMPORTING
+      et_result     = DATA(lt_result)
+      e_total_count = DATA(lv_count) ).
+
+  et_entityset = CORRESPONDING #( lt_result ).
+
+  es_response_context-inlinecount = lv_count.
+
+ENDMETHOD.
+
+
+METHOD openpotypeset_get_entityset.
+
+  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
+        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+
+  ls_request = build_request(
+    io_tech_request_context = io_tech_request_context
+    it_key_tab              = it_key_tab ).
+
+  CREATE OBJECT lo_dashboard
+    TYPE zcl_fi_das_dashboard.
+
+  lo_dashboard->over(
+    EXPORTING
+      is_request    = ls_request
+    IMPORTING
+      et_result     = DATA(lt_result)
+      e_total_count = DATA(lv_count) ).
+
+  et_entityset = CORRESPONDING #( lt_result ).
+
+  es_response_context-inlinecount = lv_count.
+
+ENDMETHOD.
+
+
+METHOD thresholdset_get_entityset.
+
+  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
+        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+
+  ls_request = build_request(
+    io_tech_request_context = io_tech_request_context
+    it_key_tab              = it_key_tab ).
+
+  CREATE OBJECT lo_dashboard
+    TYPE zcl_fi_das_dashboard.
+
+  lo_dashboard->under(
+    EXPORTING
+      is_request    = ls_request
+    IMPORTING
+      et_result     = DATA(lt_result)
+      e_total_count = DATA(lv_count) ).
+
+  et_entityset = CORRESPONDING #( lt_result ).
+
+  es_response_context-inlinecount = lv_count.
+
+ENDMETHOD.
+ENDCLASS.

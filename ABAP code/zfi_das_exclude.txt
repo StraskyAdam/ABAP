@@ -1,0 +1,7 @@
+@EndUserText.label : 'Exclude'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_exclude {
+  include zfi_das_shared;
+  include zfi_das_exclude_fields;
+  totwrkcompper : abap.dec(13,2);
+}

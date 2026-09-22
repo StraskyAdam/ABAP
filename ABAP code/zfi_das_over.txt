@@ -1,0 +1,9 @@
+@EndUserText.label : 'Over'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_over {
+  include zfi_das_shared;
+  include zfi_das_over_under;
+  last_notif_on : timestampl;
+  notif_24_hr   : abap.char(1);
+
+}

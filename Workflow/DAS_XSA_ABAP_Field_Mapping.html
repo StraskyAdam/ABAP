@@ -1,0 +1,1811 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>DAS Dashboard – XSA / ABAP Field Mapping</title>
+
+  <style>
+    :root {
+      --background: #f3f6fa;
+      --surface: #ffffff;
+      --surface-secondary: #f8fafc;
+      --border: #d9e2ec;
+      --text: #172b4d;
+      --muted: #5e6c84;
+      --primary: #0057b8;
+      --primary-soft: #e8f1fb;
+      --success: #16794b;
+      --success-soft: #e8f7ef;
+      --warning: #9a6700;
+      --warning-soft: #fff4ce;
+      --danger: #b42318;
+      --danger-soft: #ffebe9;
+      --service: #6554c0;
+      --material: #006644;
+      --information: #974f0c;
+      --shadow: 0 2px 10px rgba(23, 43, 77, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--background);
+      font-family:
+        Inter,
+        "Segoe UI",
+        Roboto,
+        Arial,
+        sans-serif;
+    }
+
+    header {
+      padding: 24px 32px;
+      color: #ffffff;
+      background:
+        linear-gradient(
+          125deg,
+          #003b7a 0%,
+          #0057b8 55%,
+          #1682d4 100%
+        );
+      box-shadow: var(--shadow);
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    header p {
+      max-width: 1100px;
+      margin: 0;
+      line-height: 1.5;
+      opacity: 0.94;
+    }
+
+    main {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .summary-card {
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-card .value {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--primary);
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    .summary-card .label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .notice {
+      margin-bottom: 20px;
+      padding: 16px 18px;
+      line-height: 1.5;
+      background: var(--warning-soft);
+      border: 1px solid #e2b203;
+      border-left: 5px solid #e2b203;
+      border-radius: 8px;
+    }
+
+    .notice strong {
+      color: #7a4f01;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns:
+        minmax(260px, 2fr)
+        repeat(4, minmax(150px, 1fr))
+        auto;
+      gap: 12px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    input,
+    select,
+    button {
+      min-height: 40px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: #ffffff;
+      border: 1px solid #b8c4d1;
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    input:focus,
+    select:focus,
+    button:focus {
+      outline: 3px solid rgba(0, 87, 184, 0.18);
+      border-color: var(--primary);
+    }
+
+    button {
+      align-self: end;
+      color: #ffffff;
+      background: var(--primary);
+      border-color: var(--primary);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: #004890;
+    }
+
+    button.secondary {
+      color: var(--primary);
+      background: #ffffff;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 16px 0 10px;
+    }
+
+    .result-count {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .toolbar-actions button {
+      min-height: 36px;
+    }
+
+    .table-wrapper {
+      overflow: auto;
+      max-height: calc(100vh - 360px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      min-width: 1550px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding: 12px;
+      color: #ffffff;
+      background: #253858;
+      border-right: 1px solid #42526e;
+      font-size: 12px;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    tbody td {
+      padding: 12px;
+      vertical-align: top;
+      background: #ffffff;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    tbody tr:hover td {
+      background: #f4f9ff;
+    }
+
+    code {
+      padding: 2px 5px;
+      color: #403294;
+      background: #f1effd;
+      border-radius: 4px;
+      font-family:
+        "Cascadia Code",
+        Consolas,
+        monospace;
+      font-size: 12px;
+    }
+
+    .technical-name {
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .source {
+      min-width: 300px;
+    }
+
+    .business {
+      min-width: 260px;
+    }
+
+    .badge-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 7px;
+      white-space: nowrap;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge.over {
+      color: #0747a6;
+      background: #deebff;
+    }
+
+    .badge.under {
+      color: #006644;
+      background: #e3fcef;
+    }
+
+    .badge.info {
+      color: #974f0c;
+      background: #fffae6;
+    }
+
+    .badge.service {
+      color: #403294;
+      background: #eae6ff;
+    }
+
+    .badge.material {
+      color: #006644;
+      background: #e3fcef;
+    }
+
+    .badge.all {
+      color: #42526e;
+      background: #ebecf0;
+    }
+
+    .badge.exact {
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .badge.exception {
+      color: var(--warning);
+      background: var(--warning-soft);
+    }
+
+    .badge.contract {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .badge.read {
+      color: #0747a6;
+      background: #deebff;
+    }
+
+    .badge.calculated {
+      color: #403294;
+      background: #eae6ff;
+    }
+
+    .badge.aggregated {
+      color: #974f0c;
+      background: #fffae6;
+    }
+
+    .badge.formatted {
+      color: #006644;
+      background: #e3fcef;
+    }
+
+    .badge.synthetic {
+      color: #42526e;
+      background: #ebecf0;
+    }
+
+    .empty-state {
+      display: none;
+      padding: 48px;
+      color: var(--muted);
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .legend {
+      margin-top: 18px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .legend h2 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .legend p {
+      margin: 5px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    footer {
+      padding: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 1200px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .legend-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 650px) {
+      header,
+      main {
+        padding: 16px;
+      }
+
+      .summary-grid,
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .controls,
+      .toolbar-actions,
+      .notice {
+        display: none;
+      }
+
+      .table-wrapper {
+        overflow: visible;
+        max-height: none;
+        box-shadow: none;
+      }
+
+      thead th {
+        position: static;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>DAS Dashboard – XSA / ABAP Field Mapping</h1>
+    <p>
+      Interaktívna dokumentácia mapovania dashboardových polí zo systému
+      edge-accurals-xsa na ABAP implementáciu. Dokument pokrýva sekcie
+      Over Threshold, Under Threshold a For Information Only.
+    </p>
+  </header>
+
+  <main>
+    <section class="summary-grid" aria-label="Súhrn dokumentácie">
+      <div class="summary-card">
+        <span class="value" id="totalFields">0</span>
+        <span class="label">Zdokumentovaných polí</span>
+      </div>
+
+      <div class="summary-card">
+        <span class="value" id="visibleFields">0</span>
+        <span class="label">Polí po aplikovaní filtrov</span>
+      </div>
+
+      <div class="summary-card">
+        <span class="value" id="exactFields">0</span>
+        <span class="label">Priame alebo ekvivalentné mapovania</span>
+      </div>
+
+      <div class="summary-card">
+        <span class="value" id="exceptionFields">0</span>
+        <span class="label">Schválené migračné výnimky</span>
+      </div>
+
+      <div class="summary-card">
+        <span class="value" id="contractFields">0</span>
+        <span class="label">Premenované technické kontrakty</span>
+      </div>
+    </section>
+
+    <section class="notice">
+      <strong>Technický názov Reviewed By:</strong>
+      XSA používa historický názov <code>REVIWED_BY</code>.
+      ABAP verejný kontrakt používa opravený názov
+      <code>REVIEWED_BY</code>. Všetky ABAP výsledkové štruktúry,
+      provider a kontrolný report musia používať rovnaký názov
+      <code>REVIEWED_BY</code>.
+    </section>
+
+    <section class="controls" aria-label="Filtre">
+      <div class="control">
+        <label for="search">Vyhľadávanie</label>
+        <input
+          id="search"
+          type="search"
+          placeholder="UI názov, technické pole, tabuľka, funkcia..."
+        >
+      </div>
+
+      <div class="control">
+        <label for="sectionFilter">Dashboard sekcia</label>
+        <select id="sectionFilter">
+          <option value="">Všetky sekcie</option>
+          <option value="Over">Over Threshold</option>
+          <option value="Under">Under Threshold</option>
+          <option value="Information">For Information Only</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="poTypeFilter">PO typ</label>
+        <select id="poTypeFilter">
+          <option value="">Všetky PO typy</option>
+          <option value="Service">Service</option>
+          <option value="Material">Material</option>
+          <option value="All">Spoločné</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="processingFilter">Spracovanie</label>
+        <select id="processingFilter">
+          <option value="">Všetky typy</option>
+          <option value="Read">Načítané</option>
+          <option value="Calculated">Vypočítané</option>
+          <option value="Aggregated">Agregované</option>
+          <option value="Formatted">Formátované</option>
+          <option value="Synthetic">Syntetické</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="parityFilter">Parita</label>
+        <select id="parityFilter">
+          <option value="">Všetky stavy</option>
+          <option value="Exact">Ekvivalentné</option>
+          <option value="Exception">Migračná výnimka</option>
+          <option value="Contract">Premenovaný kontrakt</option>
+        </select>
+      </div>
+
+      <button id="resetFilters" type="button" class="secondary">
+        Zrušiť filtre
+      </button>
+    </section>
+
+    <div class="toolbar">
+      <div class="result-count" id="resultDescription"></div>
+
+      <div class="toolbar-actions">
+        <button id="exportCsv" type="button">Export CSV</button>
+        <button id="printDocument" type="button" class="secondary">
+          Tlač / PDF
+        </button>
+      </div>
+    </div>
+
+    <section class="table-wrapper" id="tableWrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>UI field</th>
+            <th>Technický názov</th>
+            <th>Sekcia / PO typ</th>
+            <th>Spracovanie</th>
+            <th>Zdroj a spracovanie v XSA</th>
+            <th>Implementácia v ABAP</th>
+            <th>Business popis</th>
+            <th>Parita</th>
+          </tr>
+        </thead>
+
+        <tbody id="mappingBody"></tbody>
+      </table>
+    </section>
+
+    <section class="empty-state" id="emptyState">
+      Pre zvolené filtre neboli nájdené žiadne polia.
+    </section>
+
+    <section class="legend">
+      <h2>Legenda a rozsah parity</h2>
+
+      <div class="legend-grid">
+        <div>
+          <p>
+            <span class="badge exact">Ekvivalentné</span>
+            ABAP reprodukuje aktívne XSA business správanie.
+          </p>
+          <p>
+            <span class="badge contract">Premenovaný kontrakt</span>
+            Business hodnota ostáva rovnaká, technický názov bol opravený.
+          </p>
+        </div>
+
+        <div>
+          <p>
+            <span class="badge exception">Migračná výnimka</span>
+            Známy a schválený rozdiel oproti technickej implementácii XSA.
+          </p>
+          <p>
+            Kurzy sa v ABAP čítajú zo SAP currency customizing k 1. aprílu.
+            XSA používa <code>ZT_EDGE_EXCHANGERATE</code>.
+          </p>
+        </div>
+
+        <div>
+          <p>
+            Account assignment agregácia v ABAP vynecháva prázdne segmenty.
+          </p>
+          <p>
+            ABAP navyše používa deterministické server-side stránkovanie
+            a voliteľné spotrebiteľské filtre.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Statické mapovanie aktívneho XSA read flow. Výsledková parita musí byť
+    následne potvrdená porovnaním rovnakých produkčných dát.
+  </footer>
+
+  <script>
+    const mappings = [
+      {
+        ui: "Company code",
+        technical: "COMPANYCODE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.BUKRS. Načítané cez spoločné PO enrichment funkcie a vrátené finálnymi dashboard facade funkciami.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-COMPANYCODE z EKKO.BUKRS; READ_DETAILS → INITIALIZE_RESULT_ROW-COMPANYCODE.",
+        business:
+          "Právna spoločnosť, ku ktorej je nákupná objednávka priradená. Používa sa aj na scope používateľa a Japan/Brazil pravidlo.",
+        parity: "Exact"
+      },
+      {
+        ui: "Company",
+        technical: "PURCHASINGUNIT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "T001.BUTXT po spojení EKKO.BUKRS = T001.BUKRS.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-PURCHASINGUNIT z T001.BUTXT; READ_DETAILS → INITIALIZE_RESULT_ROW.",
+        business:
+          "Textový názov spoločnosti pre používateľsky čitateľný výstup.",
+        parity: "Exact"
+      },
+      {
+        ui: "Region",
+        technical: "REGION",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "T001.LAND1.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-REGION z T001.LAND1.",
+        business:
+          "Krajina alebo región spoločnosti.",
+        parity: "Exact"
+      },
+      {
+        ui: "Company Code Currency",
+        technical: "COCDECURR",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "T001.WAERS.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-COMPANYCODECURRENCY → INITIALIZE_RESULT_ROW-COCDECURR.",
+        business:
+          "Lokálna účtovná mena company code.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Number",
+        technical: "PONUMBER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKPO.EBELN / EKKO.EBELN. Kľúč kandidátneho PO výberu.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-PONUMBER; AMDP používa pole ako kľúč, filter a paging kritérium.",
+        business:
+          "Jedinečné číslo nákupnej objednávky.",
+        parity: "Exact"
+      },
+      {
+        ui: "Line Item",
+        technical: "ITEMNO",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKPO.EBELP.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-ITEMNO; súčasť kľúča PONUMBER + ITEMNO.",
+        business:
+          "Konkrétna položka nákupnej objednávky.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Line Description",
+        technical: "POLINEDESC",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKPO.TXZ01.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-POLINEDESCRIPTION → INITIALIZE_RESULT_ROW-POLINEDESC.",
+        business:
+          "Krátky popis služby alebo materiálu objednaného na PO položke.",
+        parity: "Exact"
+      },
+      {
+        ui: "Type",
+        technical: "PSTYPE / PSTYPE_TEXT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "EKPO.PSTYP. Japan/Brazil material položka s vyplneným service start date sa reklasifikuje z 0 na 9. Text: 9 = Service, 0 = Material.",
+        abap:
+          "AMDP vypočíta effective PSTYPE pomocou CASE nad PSTYPE, WORKSTARTDATERAW a IT_JAPAN_BRAZIL. INITIALIZE_RESULT_ROW vytvorí PSTYPE_TEXT.",
+        business:
+          "Určuje, či sa položka spracuje ako Service alebo Material a aký accrual výpočet sa použije.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Creation Date",
+        technical: "POCREATEDAT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.AEDAT.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-POCREATEDAT → INITIALIZE_RESULT_ROW.",
+        business:
+          "Dátum vytvorenia PO. UI ho používa aj na indikátor New PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "Document Date",
+        technical: "DOCUMENTDATE",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.BEDAT.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-DOCUMENTDATE → INITIALIZE_RESULT_ROW.",
+        business:
+          "Dátum nákupného dokumentu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Purchasing Organization",
+        technical: "PURCHASINGORGANIZATION",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.EKORG.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-PURCHASINGORGANIZATION → INITIALIZE_RESULT_ROW.",
+        business:
+          "Nákupná organizácia zodpovedná za PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "PR Number",
+        technical: "EPNUMBER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.UNSEZ.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-EPNUMBER → INITIALIZE_RESULT_ROW.",
+        business:
+          "Referenčné EP/PR číslo. Používa sa aj pri integrácii uzatvorenia s Aribou.",
+        parity: "Exact"
+      },
+      {
+        ui: "Supplier Code",
+        technical: "SUPPLIERID",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Formatted",
+        xsa:
+          "EKKO.LIFNR; XSA odstraňuje úvodné nuly pomocou LTRIM.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-SUPPLIERID; ZCL_FI_DAS_UTILITY=>ALPHA_OUTPUT odstráni úvodné nuly.",
+        business:
+          "Technický identifikátor dodávateľa v SAP.",
+        parity: "Exact"
+      },
+      {
+        ui: "Supplier Name",
+        technical: "SUPPLIERNAME",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "LFA1.NAME1 cez LEFT JOIN na EKKO.LIFNR.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-SUPPLIERNAME z LFA1.NAME1.",
+        business:
+          "Obchodný názov dodávateľa.",
+        parity: "Exact"
+      },
+      {
+        ui: "Document Currency",
+        technical: "POCURRENCY",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKKO.WAERS.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-POCURRENCY → INITIALIZE_RESULT_ROW.",
+        business:
+          "Mena, v ktorej je PO vystavené.",
+        parity: "Exact"
+      },
+      {
+        ui: "Invoice Currency",
+        technical: "INVOICE_CURRENCY",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "Finálny XSA výstup vracia prázdnu hodnotu.",
+        abap:
+          "INITIALIZE_RESULT_ROW explicitne vykoná CLEAR INVOICE_CURRENCY.",
+        business:
+          "Rezervované pole pre menu faktúry; aktívny dashboard ho nenapĺňa.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Value",
+        technical: "POVALUE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "EKPO.BRTWR. Pre JPY/VND sa v dashboard výstupe aplikuje historický faktor ×100.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-GROSSVALUE; INITIALIZE_RESULT_ROW aplikuje ×100 pre JPY/VND.",
+        business:
+          "Hrubá hodnota PO položky v mene nákupnej objednávky.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Value (USD)",
+        technical: "POVALUE_USD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "POVALUE sa prepočíta cez SF_ConvertCurrency a ZT_EDGE_EXCHANGERATE.",
+        abap:
+          "APPLY_CURRENCY_FIELDS volá ZCL_FI_DAS_UTILITY=>CONVERT_CURRENCY.",
+        business:
+          "USD ekvivalent PO hodnoty na porovnávanie medzi krajinami.",
+        parity: "Exception"
+      },
+      {
+        ui: "Exchange Rate",
+        technical: "EXCHANGERATE / EXCHANGERATE_DEC",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Formatted",
+        xsa:
+          "Kurz je odvodený zo ZT_EDGE_EXCHANGERATE. Textové pole sa formátuje podľa user decimal formátu.",
+        abap:
+          "APPLY_CURRENCY_FIELDS uloží efektívny SAP kurz do EXCHANGERATE_DEC a následne formátuje túto zaokrúhlenú hodnotu na 6 desatinných miest.",
+        business:
+          "Kurz použitý na prepočet dokumentovej meny do USD.",
+        parity: "Exception"
+      },
+      {
+        ui: "Service Start Date",
+        technical: "WRKSTRTDATE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Read",
+        xsa:
+          "EKPO.ZSTART_DATE. Povinná súčasť bežného Service PO výberu.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-WORKSTARTDATERAW → READ_DETAILS-WORK_START_DATE.",
+        business:
+          "Začiatok obdobia poskytovania služby; vstup do Straight Line výpočtu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Service End Date",
+        technical: "WRKENDDATE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Read",
+        xsa:
+          "EKPO.ZEND_DATE.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-WORKENDDATERAW → READ_DETAILS-WORK_END_DATE.",
+        business:
+          "Koniec obdobia poskytovania služby; vstup do Straight Line výpočtu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Services Completed Amount",
+        technical: "TOTWRKCOMPAMT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Calculated",
+        xsa:
+          "SF_accrualMethod vyberá WTD hodnotu alebo STL výsledok podľa persisted method a dostupnosti ZSERV_AMT.",
+        abap:
+          "CALCULATE_ACCRUAL_DATA volá ZCL_FI_DAS_CALCULATION=>CALCULATE_ACCRUAL_METHOD a mapuje TOTAL_WORK_AMOUNT.",
+        business:
+          "Hodnota práce dokončenej k aktuálnemu účtovnému obdobiu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Services Completed Amount – formatted",
+        technical: "TOTWRKCOMPAMT_CHAR",
+        sections: ["Over", "Under"],
+        poTypes: ["Service"],
+        processing: "Formatted",
+        xsa:
+          "Finálne funkcie používajú TO_NVARCHAR s maskou 0.00 alebo 0,0.00 a user decimal format.",
+        abap:
+          "FORMAT_RESULT_FIELDS používa FORMAT_AMOUNT s 2 desatinnými miestami a grouping.",
+        business:
+          "Textová hodnota dokončenej práce pripravená na zobrazenie v UI.",
+        parity: "Exact"
+      },
+      {
+        ui: "% of Services Completed",
+        technical: "TOTWRKCOMPPER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Calculated",
+        xsa:
+          "SF_accrualMethod vracia manuálne WTD percento alebo STL percento zaokrúhlené na jedno desatinné miesto.",
+        abap:
+          "CALCULATE_ACCRUAL_METHOD vracia TOTAL_WORK_PERCENT typu DECIMAL s jedným desatinným miestom.",
+        business:
+          "Percentuálne vyjadrenie dokončenia servisného kontraktu.",
+        parity: "Exact"
+      },
+      {
+        ui: "% of Services Completed – formatted",
+        technical: "TOTWRKCOMPPER_CHAR",
+        sections: ["Over", "Under"],
+        poTypes: ["Service"],
+        processing: "Formatted",
+        xsa:
+          "Finálne XSA wrappery formátujú textové pole maskou 0.00 / 0,0.00.",
+        abap:
+          "FORMAT_RESULT_FIELDS používa 2 desatinné miesta. Numerické TOTWRKCOMPPER ostáva s jedným desatinným miestom.",
+        business:
+          "Textový UI variant percenta. Napríklad numerické 25.0 sa zobrazí ako 25.00.",
+        parity: "Exact"
+      },
+      {
+        ui: "Services Completed Amount (USD)",
+        technical: "TOTWRKCOMPAMT_USD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Calculated",
+        xsa:
+          "SF_ConvertCurrency nad výsledným TOTWRKCOMPAMT; JPY/VND call-site normalizácia sa historicky ruší s interným faktorom.",
+        abap:
+          "CALCULATE_ACCRUAL_DATA vykoná priamu SAP konverziu finálneho TOTWRKCOMPAMT.",
+        business:
+          "USD ekvivalent dokončenej práce.",
+        parity: "Exception"
+      },
+      {
+        ui: "Services Completed Amount (USD) – formatted",
+        technical: "TOTWRKCOMPAMT_USD_CHAR",
+        sections: ["Over", "Under"],
+        poTypes: ["Service"],
+        processing: "Formatted",
+        xsa:
+          "Finálny XSA wrapper formátuje hodnotu na dve desatinné miesta.",
+        abap:
+          "FORMAT_RESULT_FIELDS → FORMAT_AMOUNT, 2 desatinné miesta a user grouping.",
+        business:
+          "Textový USD variant dokončenej práce pripravený pre UI.",
+        parity: "Exact"
+      },
+      {
+        ui: "Last Month Services Completed",
+        technical: "LASTMONTHWRKCOMP",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Calculated",
+        xsa:
+          "Over/Under čítajú posledný záznam Services Completed Amount zo ZT_EDGE_AUDITLOG za predchádzajúce číslo mesiaca. Information používa hodnotu status/detail flow.",
+        abap:
+          "READ_LAST_MONTH_WORK číta ZFI_DAS_AUDITLOG pre Over/Under. Information používa ZFI_DAS_POSTATUS-WORKCOMPLASTMONTHAMT.",
+        business:
+          "Referenčná hodnota dokončenej práce z predchádzajúceho mesiaca.",
+        parity: "Exact"
+      },
+      {
+        ui: "Straight Line Method",
+        technical: "STRAIGHTLINEMTHD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Service"],
+        processing: "Calculated",
+        xsa:
+          "SF_accrualMethod vracia technické X alebo blank. Finálne Open/Under wrappery ho mapujú na true/false text.",
+        abap:
+          "CALCULATE_ACCRUAL_DATA mapuje X na true, inak false. BUILD_EXCLUSION_RESULT ho pre Information konvertuje späť na technické X/blank.",
+        business:
+          "Indikuje, či sa služby časovo rozpočítavajú Straight Line metódou.",
+        parity: "Exact"
+      },
+      {
+        ui: "Accrual Method",
+        technical: "ACCRUALMETHOD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "SF_accrualMethod rozhoduje medzi WTD a STL. Under-threshold Service vetva nútene používa STL.",
+        abap:
+          "APPLY_STATUS_DATA nastaví persisted method a pre Under Service ho prepíše na STL. CALCULATE_ACCRUAL_DATA mapuje WTD/STL na používateľský text.",
+        business:
+          "Metóda použitá na výpočet dokončenej práce a následného accrualu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Goods Received to Date",
+        technical: "GRVALUE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Material"],
+        processing: "Aggregated",
+        xsa:
+          "TF_getPOGRValue používa material PSTYPE 0 a EKBE.BEWTP = E. Výpočet je MENGE × NETPR / PEINH so znamienkom SHKZG a JPY/VND faktorom.",
+        abap:
+          "READ_HISTORY spracuje BEWTP E iba pre effective PSTYPE 0 a agreguje rovnaký vzorec.",
+        business:
+          "Hodnota materiálu fyzicky prijatého do zvoleného cutoff dátumu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Goods Received to Date (USD)",
+        technical: "GRVALUE_USD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["Material"],
+        processing: "Aggregated",
+        xsa:
+          "Každý GR history riadok sa konvertuje do USD, zaokrúhli a následne sčíta.",
+        abap:
+          "READ_HISTORY konvertuje každý GR riadok cez CONVERT_CURRENCY, priradí ho do DECIMAL(13,2) a následne agreguje.",
+        business:
+          "USD ekvivalent prijatého materiálu.",
+        parity: "Exception"
+      },
+      {
+        ui: "Invoice Amount to Date",
+        technical: "INVVALUE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "TF_getPOInvValue agreguje EKBE invoice history pre BEWTP Q/N a VGABE 2/3 so znamienkom SHKZG.",
+        abap:
+          "READ_HISTORY vyberá rovnaké BEWTP/VGABE kombinácie a agreguje WRBTR.",
+        business:
+          "Celková suma faktúr zaúčtovaných k PO položke do cutoff dátumu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Invoice Amount to Date (USD)",
+        technical: "INVVALUE_USD",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "Jednotlivé invoice history riadky sa konvertujú do USD pred agregáciou.",
+        abap:
+          "READ_HISTORY konvertuje každý invoice riadok a zaokrúhlené hodnoty sčíta.",
+        business:
+          "USD ekvivalent doteraz zaúčtovaných faktúr.",
+        parity: "Exception"
+      },
+      {
+        ui: "Invoice Value – calculated",
+        technical: "INVVALUE_CAL",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "Calculation view mapuje zápornú alebo nulovú invoice sumu na nulu.",
+        abap:
+          "ZCL_FI_DAS_CALCULATION=>CALCULATE_INVOICE_VALUE.",
+        business:
+          "Normalizovaná invoice hodnota použitá na výpočet accrualu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Amount to be Accrued",
+        technical: "AMOUNTACCRUED",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "Service: MAX(0, TOTWRKCOMPAMT − INVVALUE_CAL). Material: MAX(0, GRVALUE − INVVALUE_CAL).",
+        abap:
+          "ZCL_FI_DAS_CALCULATION=>CALCULATE_ACCRUED_AMOUNT.",
+        business:
+          "Suma, ktorú má Finance zaúčtovať ako accrual bez dvojitého započítania faktúr.",
+        parity: "Exact"
+      },
+      {
+        ui: "Amount to be Accrued – formatted",
+        technical: "AMOUNTACCRUED_CHAR",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Formatted",
+        xsa:
+          "Finálny wrapper formátuje hodnotu na dve desatinné miesta podľa user decimal formátu.",
+        abap:
+          "FORMAT_RESULT_FIELDS → FORMAT_AMOUNT.",
+        business:
+          "Textová lokálna suma accrualu pre UI.",
+        parity: "Exact"
+      },
+      {
+        ui: "Amount to be Accrued (USD)",
+        technical: "AMOUNTACCRUED_USD",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "AMOUNTACCRUED sa konvertuje cez XSA exchange-rate vrstvu.",
+        abap:
+          "APPLY_CURRENCY_FIELDS konvertuje AMOUNTACCRUED cez SAP currency customizing.",
+        business:
+          "USD ekvivalent sumy určenej na accrual.",
+        parity: "Exception"
+      },
+      {
+        ui: "Status",
+        technical: "STATUS",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "ZT_EDGE_SERVICEPO_STATUS.STATUS s read-time CASE logikou. PO_CLOSURE=true má vždy Reviewed; staré Reviewed záznamy môžu byť zobrazené ako Pending.",
+        abap:
+          "READ_STATUSES + ZCL_FI_DAS_CALCULATION=>CALCULATE_VISIBLE_STATUS.",
+        business:
+          "Ukazuje, či používateľ potvrdil mesačnú kontrolu PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "Mark as Reviewed",
+        technical: "MARKASREVIEWED",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "Finálne Open/Threshold facade funkcie vracajú literal false; UI stav sa mení interaktívne.",
+        abap:
+          "BUILD_RESULT_ROW nastaví MARKASREVIEWED = false.",
+        business:
+          "Dočasný UI stav akcie Mark as Reviewed.",
+        parity: "Exact"
+      },
+      {
+        ui: "Reviewed By",
+        technical: "XSA: REVIWED_BY / ABAP: REVIEWED_BY",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "ZT_EDGE_SERVICEPO_STATUS.REVIWED_BY. XSA technický názov obsahuje historický preklep.",
+        abap:
+          "ZFI_DAS_POSTATUS-REVIEWED_BY → APPLY_STATUS_DATA → výsledkové pole REVIEWED_BY.",
+        business:
+          "E-mail alebo identifikátor používateľa, ktorý naposledy vykonal review PO.",
+        parity: "Contract"
+      },
+      {
+        ui: "Last Update On",
+        technical: "CHANGED_ON",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Formatted",
+        xsa:
+          "ZT_EDGE_SERVICEPO_STATUS.CHANGED_ON; XSA používa UTCTOLOCAL(..., CET).",
+        abap:
+          "UTC_TO_CET_TIMESTAMP konvertuje timestamp na CET wall-clock hodnotu. Kontrolný report ju zobrazí ako text.",
+        business:
+          "Čas poslednej zmeny statusového záznamu.",
+        parity: "Exact"
+      },
+      {
+        ui: "Eligible for Closure",
+        technical: "PO_CLOSURE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "ZT_EDGE_SERVICEPO_STATUS.PO_CLOSURE. Chýbajúca hodnota sa vo finálnych wrapperoch mapuje na false.",
+        abap:
+          "APPLY_STATUS_DATA načíta persisted hodnotu; APPLY_CLOSURE_FLAGS mapuje initial na false.",
+        business:
+          "Označuje plne dokončené PO pripravené na uzatvorenie v Aribe.",
+        parity: "Exact"
+      },
+      {
+        ui: "Closure Flag",
+        technical: "POCLOSURE_FLAG",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "Odvodené z PO_CLOSURE: true = 1, inak 0.",
+        abap:
+          "APPLY_CLOSURE_FLAGS vytvorí integer 1/0.",
+        business:
+          "Technický flag používaný UI na vypnutie editovateľných polí uzatvoreného PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "Local Closure Flag",
+        technical: "POCLOSURE_FLAG_LOCAL",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "Finálne backend facade funkcie vracajú blank; UI ho nastavuje iba lokálne.",
+        abap:
+          "APPLY_CLOSURE_FLAGS vždy vykoná CLEAR POCLOSURE_FLAG_LOCAL.",
+        business:
+          "Dočasný UI stav po interaktívnej closure akcii.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Owner",
+        technical: "POOWNER_EMAIL",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "Pre PO Owner flow vzniká z EKPO.PO_REQUESTOR; výber povoľuje zhodu aj cez EKPO.PO_PREPARER.",
+        abap:
+          "AMDP vracia LOWER(POREQUESTOR) ako POOWNER_EMAIL a filtruje requestor/preparer cez LIKE.",
+        business:
+          "Používateľ zodpovedný za kontrolu PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "PO Preparer",
+        technical: "PO_PREPARER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Formatted",
+        xsa:
+          "EKPO.PO_PREPARER.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-POPREPARER; NORMALIZE_EMAIL odstráni medzery a prevedie hodnotu na malé písmená.",
+        business:
+          "Používateľ, ktorý PO pripravil a môže mať rovnaký access ako PO Owner.",
+        parity: "Exact"
+      },
+      {
+        ui: "GL Account",
+        technical: "GLACCOUNT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.SAKTO; LTRIM úvodných núl a STRING_AGG s oddeľovačom ;.",
+        abap:
+          "READ_ACCOUNTS; ALPHA_OUTPUT a APPEND_DELIMITED.",
+        business:
+          "Účtovný GL účet priradený k PO položke.",
+        parity: "Exception"
+      },
+      {
+        ui: "Cost Center",
+        technical: "COSTCENTER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.KOSTL; LTRIM úvodných núl a STRING_AGG.",
+        abap:
+          "READ_ACCOUNTS; ALPHA_OUTPUT a APPEND_DELIMITED.",
+        business:
+          "Nákladové stredisko financujúce PO položku.",
+        parity: "Exception"
+      },
+      {
+        ui: "Cost Center Description",
+        technical: "COSTCENTERDESC",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "TF_getExclusionPOs explicitne vracia NULL AS COSTCENTERDESC.",
+        abap:
+          "BUILD_EXCLUSION_RESULT explicitne vykoná CLEAR COSTCENTERDESC.",
+        business:
+          "Pole je súčasťou Information kontraktu, ale aktívny XSA flow ho nenapĺňa.",
+        parity: "Exact"
+      },
+      {
+        ui: "Management Unit",
+        technical: "MANAGEUNIT",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "CSKS.ZZRPTUN cez EKKN cost-center assignment; STRING_AGG.",
+        abap:
+          "READ_ACCOUNTS spája EKKN s CSKS a agreguje MANAGEMENT_UNIT.",
+        business:
+          "Reportingová alebo manažérska jednotka použitá aj na access scope.",
+        parity: "Exception"
+      },
+      {
+        ui: "Internal Order",
+        technical: "INTERNALORDER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.AUFNR; LTRIM úvodných núl a STRING_AGG.",
+        abap:
+          "READ_ACCOUNTS; ALPHA_OUTPUT a APPEND_DELIMITED.",
+        business:
+          "Interná objednávka použitá na účtovné priradenie nákladu.",
+        parity: "Exception"
+      },
+      {
+        ui: "Profit Center",
+        technical: "PROFITCENTER",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.PRCTR; STRING_AGG.",
+        abap:
+          "READ_ACCOUNTS agreguje PROFIT_CENTER cez APPEND_DELIMITED.",
+        business:
+          "Profit centrum priradené k nákladu PO položky.",
+        parity: "Exception"
+      },
+      {
+        ui: "Asset Id",
+        technical: "ASSETID",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.ANLN1; LTRIM úvodných núl a STRING_AGG.",
+        abap:
+          "READ_ACCOUNTS; ALPHA_OUTPUT a APPEND_DELIMITED.",
+        business:
+          "Číslo majetku, ak je PO účtované na asset.",
+        parity: "Exception"
+      },
+      {
+        ui: "Split Accounting %",
+        technical: "DISTPERCENTAGE",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "EKKN.VPROZ; STRING_AGG pre viac account assignments.",
+        abap:
+          "READ_ACCOUNTS agreguje DIST_PERCENTAGE cez APPEND_DELIMITED.",
+        business:
+          "Percentuálne rozdelenie PO položky medzi viac účtovných priradení.",
+        parity: "Exception"
+      },
+      {
+        ui: "Order Quantity",
+        technical: "ORDERQUANTITY",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKPO.MENGE.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-ORDERQUANTITY s referenciou na ORDERUNIT.",
+        business:
+          "Objednané množstvo materiálu alebo služby.",
+        parity: "Exact"
+      },
+      {
+        ui: "Activity Number",
+        technical: "ZACTIVITYNBR",
+        sections: ["Over", "Under", "Information"],
+        poTypes: ["All"],
+        processing: "Read",
+        xsa:
+          "EKPO.ZACTIVITYNBR.",
+        abap:
+          "ZI_FI_DAS_PO_BASE-ACTIVITYNUMBER → INITIALIZE_RESULT_ROW.",
+        business:
+          "Dodatočný business identifikátor aktivity viazanej na PO.",
+        parity: "Exact"
+      },
+      {
+        ui: "Last Notified On",
+        technical: "LAST_NOTIF_ON",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "MAX(ZT_POLINE_AUDIT.CHANGEDON) pre PONUMBER + LINEITEM.",
+        abap:
+          "READ_NOTIFICATIONS zoradí ZFI_DAS_PO_AUDIT podľa timestamp zostupne a ponechá prvý záznam.",
+        business:
+          "Čas poslednej notifikácie PO Ownerovi.",
+        parity: "Exact"
+      },
+      {
+        ui: "Notified Today",
+        technical: "NOTIF_24_HR",
+        sections: ["Over", "Under"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "DAYS_BETWEEN(CURRENT_UTCTIMESTAMP, MAX(CHANGEDON)) = 0.",
+        abap:
+          "IS_CURRENT_UTC_DAY porovná UTC kalendárny deň timestampu s aktuálnym UTC dňom.",
+        business:
+          "Anti-spam flag zabraňujúci opakovanej notifikácii v rovnaký UTC deň.",
+        parity: "Exact"
+      },
+      {
+        ui: "Exclusion Rule",
+        technical: "RULETYPE",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Aggregated",
+        xsa:
+          "ZT_EDGE_EXCLUSIONPO.RULETYPE; jedna PO položka môže mať viac pravidiel agregovaných cez ;.",
+        abap:
+          "READ_EXCLUSIONS číta ZFI_DAS_PO_EXCL a agreguje RULETYPE.",
+        business:
+          "Technický kód pravidla, ktoré spôsobilo vyradenie PO z accrual procesu.",
+        parity: "Exception"
+      },
+      {
+        ui: "Rule Type Text",
+        technical: "RULETYPETEXT",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Calculated",
+        xsa:
+          "CASE mapovanie GL, CC, PC, PO, VD a IV na používateľský text.",
+        abap:
+          "GET_RULE_TEXT používa rovnaké mapovanie a READ_EXCLUSIONS texty agreguje.",
+        business:
+          "Používateľsky čitateľný dôvod, prečo bolo PO vylúčené.",
+        parity: "Exact"
+      },
+      {
+        ui: "Check Flag",
+        technical: "CHECKFLAG",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "Technické pole finálneho kontraktu bez aktívnej business hodnoty.",
+        abap:
+          "BUILD_RESULT_ROW vykoná CLEAR CHECKFLAG.",
+        business:
+          "Rezervovaný technický príznak.",
+        parity: "Exact"
+      },
+      {
+        ui: "Information ID",
+        technical: "ID",
+        sections: ["Information"],
+        poTypes: ["All"],
+        processing: "Synthetic",
+        xsa:
+          "OData vrstva používa syntetický identifikátor výsledku.",
+        abap:
+          "Kontrolný report vytvára stabilné ID spojením PONUMBER a ITEMNO.",
+        business:
+          "Technický identifikátor riadku pre spotrebiteľa výsledku.",
+        parity: "Exception"
+      }
+    ];
+
+    const search = document.getElementById("search");
+    const sectionFilter = document.getElementById("sectionFilter");
+    const poTypeFilter = document.getElementById("poTypeFilter");
+    const processingFilter =
+      document.getElementById("processingFilter");
+    const parityFilter = document.getElementById("parityFilter");
+    const mappingBody = document.getElementById("mappingBody");
+    const tableWrapper = document.getElementById("tableWrapper");
+    const emptyState = document.getElementById("emptyState");
+
+    let visibleMappings = [];
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function badgeClass(value) {
+      const classes = {
+        Over: "over",
+        Under: "under",
+        Information: "info",
+        Service: "service",
+        Material: "material",
+        All: "all",
+        Exact: "exact",
+        Exception: "exception",
+        Contract: "contract",
+        Read: "read",
+        Calculated: "calculated",
+        Aggregated: "aggregated",
+        Formatted: "formatted",
+        Synthetic: "synthetic"
+      };
+
+      return classes[value] || "all";
+    }
+
+    function displayName(value) {
+      const names = {
+        Over: "Over",
+        Under: "Under",
+        Information: "Information",
+        Service: "Service",
+        Material: "Material",
+        All: "Spoločné",
+        Exact: "Ekvivalentné",
+        Exception: "Migračná výnimka",
+        Contract: "Premenovaný kontrakt",
+        Read: "Načítané",
+        Calculated: "Vypočítané",
+        Aggregated: "Agregované",
+        Formatted: "Formátované",
+        Synthetic: "Syntetické"
+      };
+
+      return names[value] || value;
+    }
+
+    function createBadges(values) {
+      return values
+        .map(
+          value =>
+            `<span class="badge ${badgeClass(value)}">` +
+            `${escapeHtml(displayName(value))}</span>`
+        )
+        .join("");
+    }
+
+    function matchesFilters(item) {
+      const query = search.value.trim().toLocaleLowerCase("sk");
+
+      const searchableText = [
+        item.ui,
+        item.technical,
+        item.sections.join(" "),
+        item.poTypes.join(" "),
+        item.processing,
+        item.xsa,
+        item.abap,
+        item.business,
+        item.parity
+      ]
+        .join(" ")
+        .toLocaleLowerCase("sk");
+
+      if (query && !searchableText.includes(query)) {
+        return false;
+      }
+
+      if (
+        sectionFilter.value &&
+        !item.sections.includes(sectionFilter.value)
+      ) {
+        return false;
+      }
+
+      if (
+        poTypeFilter.value &&
+        !item.poTypes.includes(poTypeFilter.value) &&
+        !item.poTypes.includes("All")
+      ) {
+        return false;
+      }
+
+      if (
+        processingFilter.value &&
+        item.processing !== processingFilter.value
+      ) {
+        return false;
+      }
+
+      if (
+        parityFilter.value &&
+        item.parity !== parityFilter.value
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+
+    function render() {
+      visibleMappings = mappings.filter(matchesFilters);
+
+      mappingBody.innerHTML = visibleMappings
+        .map(
+          item => `
+            <tr>
+              <td><strong>${escapeHtml(item.ui)}</strong></td>
+
+              <td class="technical-name">
+                <code>${escapeHtml(item.technical)}</code>
+              </td>
+
+              <td>
+                <div class="badge-list">
+                  ${createBadges(item.sections)}
+                  ${createBadges(item.poTypes)}
+                </div>
+              </td>
+
+              <td>
+                ${createBadges([item.processing])}
+              </td>
+
+              <td class="source">
+                ${escapeHtml(item.xsa)}
+              </td>
+
+              <td class="source">
+                ${escapeHtml(item.abap)}
+              </td>
+
+              <td class="business">
+                ${escapeHtml(item.business)}
+              </td>
+
+              <td>
+                ${createBadges([item.parity])}
+              </td>
+            </tr>
+          `
+        )
+        .join("");
+
+      const hasResults = visibleMappings.length > 0;
+
+      tableWrapper.style.display = hasResults ? "block" : "none";
+      emptyState.style.display = hasResults ? "none" : "block";
+
+      document.getElementById("totalFields").textContent =
+        mappings.length;
+
+      document.getElementById("visibleFields").textContent =
+        visibleMappings.length;
+
+      document.getElementById("exactFields").textContent =
+        mappings.filter(item => item.parity === "Exact").length;
+
+      document.getElementById("exceptionFields").textContent =
+        mappings.filter(item => item.parity === "Exception").length;
+
+      document.getElementById("contractFields").textContent =
+        mappings.filter(item => item.parity === "Contract").length;
+
+      document.getElementById("resultDescription").textContent =
+        `Zobrazených ${visibleMappings.length} z ${mappings.length} polí`;
+    }
+
+    function csvEscape(value) {
+      const text = String(value ?? "");
+
+      if (
+        text.includes(";") ||
+        text.includes('"') ||
+        text.includes("\n")
+      ) {
+        return `"${text.replaceAll('"', '""')}"`;
+      }
+
+      return text;
+    }
+
+    function exportCsv() {
+      const headers = [
+        "UI field",
+        "Technický názov",
+        "Sekcie",
+        "PO typ",
+        "Spracovanie",
+        "Zdroj XSA",
+        "Implementácia ABAP",
+        "Business popis",
+        "Parita"
+      ];
+
+      const rows = visibleMappings.map(item => [
+        item.ui,
+        item.technical,
+        item.sections.join(", "),
+        item.poTypes.join(", "),
+        displayName(item.processing),
+        item.xsa,
+        item.abap,
+        item.business,
+        displayName(item.parity)
+      ]);
+
+      const csv = [headers, ...rows]
+        .map(row => row.map(csvEscape).join(";"))
+        .join("\r\n");
+
+      const blob = new Blob(
+        ["\uFEFF" + csv],
+        { type: "text/csv;charset=utf-8" }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "DAS_XSA_ABAP_Field_Mapping.csv";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    }
+
+    [
+      search,
+      sectionFilter,
+      poTypeFilter,
+      processingFilter,
+      parityFilter
+    ].forEach(control => {
+      control.addEventListener("input", render);
+      control.addEventListener("change", render);
+    });
+
+    document
+      .getElementById("resetFilters")
+      .addEventListener("click", () => {
+        search.value = "";
+        sectionFilter.value = "";
+        poTypeFilter.value = "";
+        processingFilter.value = "";
+        parityFilter.value = "";
+
+        render();
+      });
+
+    document
+      .getElementById("exportCsv")
+      .addEventListener("click", exportCsv);
+
+    document
+      .getElementById("printDocument")
+      .addEventListener("click", () => window.print());
+
+    render();
+  </script>
+</body>
+</html>

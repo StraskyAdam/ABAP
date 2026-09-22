@@ -1,0 +1,30 @@
+@EndUserText.label : 'SHared elements in structure'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_over_under {
+  totwrkcompamt_cocdecurr : abap.dec(13,2);
+  totwrkcompper           : abap.dec(13,1);
+  totwrkcompper_char      : abap.char(5000);
+  markasreviewed          : abap.char(5);
+  edgewtdamt              : abap.dec(13,2);
+  changeddate             : dats;
+  changedtime             : tims;
+  reviwed_by              : abap.char(225);
+  bbp_acc_no              : abap.char(5000);
+  purchasingorganization  : ekorg;
+  orderquantity           : abap.dec(13,2);
+  totwrkcompamt_char      : abap.char(500);
+  totwrkcompamt_usd_char  : abap.char(500);
+  amountaccrued           : abap.dec(13,2);
+  amountaccrued_char      : abap.char(500);
+  amountaccrued_cocdecurr : abap.dec(13,2);
+  amountaccrued_usd       : abap.dec(13,2);
+  amountaccrued_usd_char  : abap.char(500);
+  invvalue_cocdecurr      : abap.dec(13,2);
+  grvalue_cocdecurr       : abap.dec(13,2);
+  username                : xubname;
+  full_name               : ad_namtext;
+  decimal_format          : abap.char(1);
+  datfm                   : abap.char(1);
+  invvalue_cal            : abap.dec(13,2);
+
+}

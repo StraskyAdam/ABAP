@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data Flow in XSA</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+.page-title {
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d3a6b 100%);
+  color: white; padding: 28px 40px;
+}
+.page-title h1 { font-size: 1.7rem; font-weight: 700; }
+.page-title p  { margin-top: 6px; color: #90aec0; font-size: 0.85rem; }
+
+.container { max-width: 1600px; margin: 0 auto; padding: 32px 24px; }
+
+.section-title {
+  font-size: 0.95rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.2px; color: #4a5568; margin: 40px 0 18px;
+  border-left: 4px solid #667eea; padding-left: 12px;
+}
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  background: white; border-radius: 10px;
+  padding: 14px 20px; margin-bottom: 32px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  font-size: 0.78rem;
+}
+.leg { display: flex; align-items: center; gap: 7px; }
+.dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+/* ── ROLES ── */
+.box-white {
+  background: white; border-radius: 12px;
+  padding: 24px 28px; box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.roles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.role-card { border-radius: 10px; padding: 16px 18px; border: 2px solid; }
+.rc-owner { background:#ebf8ff; border-color:#63b3ed; }
+.rc-tbs   { background:#faf5ff; border-color:#d6bcfa; }
+.role-badge {
+  font-size:0.65rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:1px; padding:2px 8px; border-radius:20px;
+  display:inline-block; margin-bottom:8px;
+}
+.rb-owner { background:#ebf8ff; color:#2b6cb0; }
+.rb-tbs   { background:#faf5ff; color:#6b46c1; }
+.role-name  { font-weight:700; font-size:0.92rem; margin-bottom:6px; }
+.role-param { font-family:monospace; font-size:0.78rem; font-weight:700;
+  background:#f7fafc; border-radius:4px; padding:2px 6px;
+  display:inline-block; margin-bottom:8px; }
+.role-detail { font-size:0.75rem; color:#4a5568; line-height:1.7; }
+.role-detail b { color:#1a1a2e; }
+.role-note { margin-top:8px; font-size:0.69rem; color:#718096;
+  background:#f7fafc; border-radius:4px; padding:5px 8px; line-height:1.5; }
+
+/* ── SUMMARY CARDS ── */
+.sum-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(175px,1fr));
+  gap:12px; margin-top:14px;
+}
+.sum-card {
+  background:#f7fafc; border:1.5px solid #e2e8f0;
+  border-radius:8px; padding:12px 14px; text-align:center;
+}
+.sum-val   { font-size:1.1rem; font-weight:800; color:#2d3a6b; }
+.sum-label { font-size:0.7rem; color:#718096; margin-top:3px; }
+
+/* ── FIELDS GRID ── */
+.fields-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr));
+  gap:14px; margin-top:0;
+}
+.field-card {
+  background:white; border-radius:10px;
+  border-left:4px solid;
+  padding:14px 16px;
+  box-shadow:0 1px 5px rgba(0,0,0,.07);
+}
+.fc-blue   { border-color:#63b3ed; }
+.fc-green  { border-color:#68d391; }
+.fc-orange { border-color:#f6ad55; }
+.fc-purple { border-color:#d6bcfa; }
+.fc-red    { border-color:#fc8181; }
+.fc-teal   { border-color:#81e6d9; }
+.field-name  { font-weight:700; font-size:0.88rem; margin-bottom:5px; }
+.field-col   { font-family:monospace; font-size:0.75rem; color:#6b46c1;
+  background:#faf5ff; border-radius:3px; padding:1px 5px;
+  display:inline-block; margin-bottom:6px; }
+.field-body  { font-size:0.74rem; color:#4a5568; line-height:1.65; }
+.field-body b { color:#1a1a2e; }
+.field-biz {
+  margin-top:7px; font-size:0.69rem; color:#276749;
+  background:#f0fff4; border-radius:4px; padding:4px 8px; line-height:1.5;
+}
+.field-note {
+  margin-top:6px; font-size:0.68rem; color:#718096;
+  border-top:1px dashed #e2e8f0; padding-top:5px; line-height:1.5;
+}
+.formula-box {
+  margin:6px 0; background:#f7fafc; border-radius:5px;
+  padding:6px 10px; font-family:monospace; font-size:0.74rem;
+  color:#2d3a6b; line-height:1.7;
+}
+
+/* ── TREE ── */
+.tree-wrap {
+  background:white; border-radius:14px;
+  padding:36px 24px; box-shadow:0 2px 12px rgba(0,0,0,.08);
+  overflow-x:auto;
+}
+.root { display:flex; justify-content:center; }
+.node-root {
+  background:linear-gradient(135deg,#1a1a2e,#2d3a6b);
+  color:white; border-radius:12px; padding:16px 32px;
+  text-align:center; box-shadow:0 4px 14px rgba(45,58,107,.35); min-width:240px;
+}
+.node-root .n-title { font-size:1rem; font-weight:700; }
+.node-root .n-sub   { font-size:0.72rem; color:#90aec0; margin-top:4px; line-height:1.6; }
+.root-v { display:flex; justify-content:center; height:30px; }
+.root-v::before { content:''; width:2px; background:#cbd5e0; }
+.h-bar-wrap { position:relative; display:flex; margin:0 60px; }
+.h-bar-wrap::before {
+  content:''; position:absolute; top:0;
+  left:calc(16.66% + 10px); width:calc(66.66% - 20px);
+  height:2px; background:#cbd5e0;
+}
+.branch-col { flex:1; display:flex; flex-direction:column; align-items:center; padding:0 10px; }
+.branch-v   { width:2px; height:26px; background:#cbd5e0; }
+.node-branch {
+  border-radius:10px; padding:13px 16px;
+  text-align:center; width:100%; box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+.node-branch .n-title { font-size:0.88rem; font-weight:700; }
+.node-branch .n-sub   { font-size:0.7rem; margin-top:4px; line-height:1.6; }
+.nb-over  { background:#ebf8ff; border:2px solid #63b3ed; }
+.nb-under { background:#f0fff4; border:2px solid #68d391; }
+.nb-excl  { background:#fff5f5; border:2px solid #fc8181; }
+.step-v { width:2px; height:18px; background:#e2e8f0; }
+.node-step {
+  border-radius:8px; padding:12px 14px; width:100%; font-size:0.74rem;
+  box-shadow:0 1px 5px rgba(0,0,0,.07);
+}
+.s-name { font-weight:700; font-size:0.8rem; margin-bottom:5px; font-family:monospace; }
+.s-what { color:#2d3748; line-height:1.65; }
+.s-what b { color:#1a1a2e; }
+.s-note  { margin-top:7px; font-size:0.69rem; color:#718096; border-top:1px dashed #e2e8f0; padding-top:5px; line-height:1.5; }
+.s-biz   { margin-top:7px; font-size:0.69rem; color:#276749; background:#f0fff4; border-radius:4px; padding:4px 8px; line-height:1.5; }
+.st-facade { background:#f7fafc; border:1.5px solid #a0aec0; }
+.st-allpo  { background:#fffaf0; border:1.5px solid #fbd38d; }
+.st-query  { background:#fff5f5; border:1.5px solid #fc8181; }
+.st-scalar { background:#faf5ff; border:1.5px solid #d6bcfa; }
+.st-sap    { background:#e6fffa; border:1.5px solid #81e6d9; }
+.st-z      { background:#fffbea; border:1.5px solid #f6e05e; }
+.st-excl   { background:#fff5f5; border:1.5px solid #feb2b2; }
+.st-write  { background:#fff8f3; border:1.5px solid #f6ad55; }
+.st-notify { background:#faf5ff; border:1.5px solid #d6bcfa; }
+.tag {
+  display:inline-block; font-size:0.62rem; font-weight:700;
+  padding:2px 7px; border-radius:20px; margin-bottom:6px;
+}
+.tag-fn    { background:#ebf8ff; color:#2b6cb0; }
+.tag-sap   { background:#e6fffa; color:#234e52; }
+.tag-z     { background:#fffbea; color:#744210; }
+.tag-write { background:#fff8f3; color:#c05621; }
+.tag-proc  { background:#faf5ff; color:#6b46c1; }
+.tag-ui    { background:#f0fff4; color:#276749; }
+.shared-title {
+  text-align:center; color:#a0aec0; font-size:0.74rem;
+  margin:28px 0 14px; letter-spacing:.5px;
+}
+.shared-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:12px; }
+.write-grid  { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:14px; margin-top:14px; }
+.pstype-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.pstype-badge {
+  font-size:0.68rem; font-weight:700; padding:3px 8px;
+  border-radius:4px; display:inline-flex; gap:5px; align-items:center;
+}
+.pb-9 { background:#ebf8ff; color:#2b6cb0; border:1px solid #90cdf4; }
+.pb-0 { background:#f0fff4; color:#276749; border:1px solid #9ae6b4; }
+code { background:#f7fafc; padding:1px 5px; border-radius:3px; font-size:0.8rem; }
+
+@media (max-width:900px) {
+  .h-bar-wrap { margin:0; flex-direction:column; align-items:center; }
+  .h-bar-wrap::before { display:none; }
+  .branch-col { width:100%; max-width:440px; }
+  .roles-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>Data Flow in XSA</h1>
+  <p>edge-accurals-xsa · edge-accurals-ui &nbsp;|&nbsp; Complete function call hierarchy with business context</p>
+</div>
+
+<div class="container">
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="leg"><div class="dot" style="background:#a0aec0"></div>Facade / Orchestrator Function</div>
+    <div class="leg"><div class="dot" style="background:#fbd38d"></div>Enrichment Function (JOIN layer)</div>
+    <div class="leg"><div class="dot" style="background:#fc8181"></div>Query / Filter Function</div>
+    <div class="leg"><div class="dot" style="background:#d6bcfa"></div>Scalar Calculation Function</div>
+    <div class="leg"><div class="dot" style="background:#81e6d9"></div>SAP Standard Tables</div>
+    <div class="leg"><div class="dot" style="background:#f6e05e"></div>Z-Custom Tables</div>
+    <div class="leg"><div class="dot" style="background:#f6ad55"></div>Write / Status Update</div>
+    <div class="leg"><div class="dot" style="background:#276749">✓</div>Business meaning</div>
+  </div>
+
+
+  <!-- ═══ ① USER ROLES ═══ -->
+  <div class="section-title">① User Roles — How the System Identifies Who Is Logged In</div>
+
+  <div class="box-white">
+    <div style="font-size:0.82rem;color:#4a5568;line-height:1.7;">
+      On login, UI calls <code>common.getUserRole(emailId)</code> → reads OData entity <strong>userRole</strong>
+      → backed by HANA Calculation View <strong>CV_getUserRoleConfig</strong>
+      → reads from Z-table <strong>ZT_CONFIG_ROLES</strong>.<br>
+      This table stores the user's role, their assigned company codes, management units and cost centers.
+      The result sets <code>loginUserRole</code> — passed as <strong>IP_POOWNER</strong> to every backend OData call.
+      This single parameter controls what data each user sees across all 3 dashboard tabs.
+    </div>
+
+    <div style="margin:12px 0 6px;font-size:0.72rem;color:#718096;">
+      <strong>ZT_CONFIG_ROLES</strong> fields: USER_ROLE · USER_EMAILID · USER_ACCESS · COMPANY_CODE · MANAGEMENT_UNIT · COST_CENTER (NCLOB)<br>
+      Managed by Admin via <code>insertUserRole.xsjs</code> → procedure <strong>insertUserRoleConfig</strong> (UPSERT)
+    </div>
+
+    <div class="roles-grid">
+      <div class="role-card rc-owner">
+        <div class="role-badge rb-owner">PO Owner / PO Preparer</div>
+        <div class="role-name">👤 PO Owner Role</div>
+        <div class="role-param">ZT_CONFIG_ROLES.USER_ROLE = 'PO_OWNER' → IP_POOWNER = 'X'</div>
+        <div class="role-detail">
+          <b>Who:</b> Person responsible for a PO (PO_REQUESTOR or PO_PREPARER in EKPO)<br>
+          <b>What they see:</b> Only POs where their email matches EKPO.PO_REQUESTOR <em>or</em> EKPO.PO_PREPARER<br>
+          <b>Filter in TF_getOpenPOQueryWithEmail:</b><br>
+          &nbsp;<code>LOWER(PO_REQUESTOR) LIKE :email OR LOWER(PO_PREPARER) LIKE :email</code><br>
+          <b>Can edit:</b> Services Completed Amount, % of Services Completed, Straight Line Method checkbox<br>
+          <b>Can do:</b> Mark as Reviewed, set Eligible for Closure
+        </div>
+        <div class="role-note">UI tile: "PO Owner / PO Preparer" — uses Business.controller.js</div>
+      </div>
+
+      <div class="role-card rc-tbs">
+        <div class="role-badge rb-tbs">TBS / Finance / Admin</div>
+        <div class="role-name">👥 TBS Finance / Admin Role</div>
+        <div class="role-param">ZT_CONFIG_ROLES.USER_ROLE = 'TBS'/'FINANCE'/'ADMIN' → IP_POOWNER = ''</div>
+        <div class="role-detail">
+          <b>Who:</b> TBS Finance, Finance, or Admin — USER_ROLE stored in ZT_CONFIG_ROLES<br>
+          <b>What they see:</b> All POs within their configured scope — filtered by Company Code + Cost Center + Management Unit from ZT_CONFIG_ROLES<br>
+          <b>Filter in TF_getOpenPOQueryWithEmail:</b><br>
+          &nbsp;Uses <code>TF_UserConfigCompanyCodes</code> + <code>TF_UserConfigCostCenter</code> + <code>TF_UserConfigManagementUnit</code><br>
+          <b>Additional actions:</b> Notify PO Owners (reviewPOLine), bulk Mark as Reviewed<br>
+          <b>Role variants affect:</b> Which Quick Links are shown (getLinksData in common.js)<br>
+          &nbsp;TBS / FINANCE / ADMIN each see different reference links
+        </div>
+        <div class="role-note">UI tile: "Admin / TBS / Finance" — uses TBS.controller.js</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══ ② DASHBOARD SUMMARY ═══ -->
+  <div class="section-title">② Dashboard Summary Cards — TF_getPOOwnerDash</div>
+
+  <div class="box-white">
+    <div style="font-size:0.82rem;color:#4a5568;line-height:1.7;margin-bottom:14px;">
+      The summary numbers at the top of the dashboard come from <strong>TF_getPOOwnerDash</strong>.
+      It reads from both <strong>CV_getOpenPO</strong> (Over $50k) and <strong>CV_getThresholdPO</strong> (Under $50k) —
+      so totals reflect <em>all</em> open POs across both tabs.
+      Japan/Brazil override is applied: Material POs with service start date count as Service POs.
+    </div>
+    <div class="sum-grid">
+      <div class="sum-card"><div class="sum-val">totPOAmount</div><div class="sum-label">Total PO Value (rounded up per currency)</div></div>
+      <div class="sum-card"><div class="sum-val">totAccAmount</div><div class="sum-label">Total Amount to be Accrued (amountaccrued &gt; 0)</div></div>
+      <div class="sum-card"><div class="sum-val">totInvAmount</div><div class="sum-label">Total Invoice Amount to Date</div></div>
+      <div class="sum-card"><div class="sum-val">grpending</div><div class="sum-label">GR Value + WTC Amount (grvalue + totwrkcompamt)</div></div>
+      <div class="sum-card"><div class="sum-val">servPOCount</div><div class="sum-label">Service PO Count (pstype='9' + Japan/Brazil override)</div></div>
+      <div class="sum-card"><div class="sum-val">matPOCount</div><div class="sum-label">Material PO Count (pstype='0' minus Japan/Brazil override)</div></div>
+      <div class="sum-card" style="background:#f0fff4;border-color:#9ae6b4;"><div class="sum-val" style="color:#276749;">revPOCount</div><div class="sum-label">Reviewed PO Count</div></div>
+      <div class="sum-card" style="background:#fff5f5;border-color:#feb2b2;"><div class="sum-val" style="color:#c53030;">pendPOCount</div><div class="sum-label">Pending PO Count</div></div>
+    </div>
+  </div>
+
+
+  <!-- ═══ ③ KEY FIELDS ═══ -->
+  <div class="section-title">③ Key Editable & Calculated Fields</div>
+
+  <div class="fields-grid">
+
+    <div class="field-card fc-blue">
+      <div class="field-name">Services Completed Amount</div>
+      <div class="field-col">TOTALWORKCOMPLTODATE</div>
+      <div class="field-body">
+        <b>What:</b> Reviewer manually enters how much of the service contract has been completed in monetary value.<br><br>
+        <b>Stored in:</b> <code>ZT_EDGE_SERVICEPO_STATUS.TOTALWORKCOMPLTODATE</code> via <code>updateServPOStatus</code> (UPSERT)<br>
+        <b>Read in:</b> TF_getOpenAllPO → <code>edgePO.totalworkcompltodate</code> → passed as <code>iv_edgeWTDAmt</code> into SF_accrualMethod<br>
+        <b>UI validation:</b> Cannot exceed PO Value · Cannot be negative · Only for Service POs
+      </div>
+      <div class="field-biz">💼 Business: The amount of work confirmed completed to date. Used as the WTD (Work To Date) basis for accrual calculation.</div>
+    </div>
+
+    <div class="field-card fc-blue">
+      <div class="field-name">% of Services Completed</div>
+      <div class="field-col">TOTALWORKCOMPLPERCENT</div>
+      <div class="field-body">
+        <b>What:</b> Reviewer manually enters the percentage of service contract completed.<br><br>
+        <b>Stored in:</b> <code>ZT_EDGE_SERVICEPO_STATUS.TOTALWORKCOMPLPERCENT</code> via <code>updateServPOStatus</code><br>
+        <b>Passed to:</b> SF_accrualMethod as <code>iv_totWrkCompPer</code><br>
+        <b>UI validation:</b> Max 100 · Not negative · Max 1 decimal place
+      </div>
+      <div class="field-biz">💼 Business: Works in tandem with Services Completed Amount — reviewer enters either or both. Used in WTD accrual method.</div>
+    </div>
+
+    <div class="field-card fc-teal">
+      <div class="field-name">Goods Received to Date</div>
+      <div class="field-col">GRVALUE</div>
+      <div class="field-body">
+        <b>What:</b> Read-only field — how much goods/services have been physically received (GR) in SAP.<br><br>
+        <b>Source:</b> SAP table <strong>EKBE</strong> (PO History), filter: <code>bewtp = 'E'</code> (GR movements only)<br>
+        <b>Calculated in:</b> <code>TF_getPOGRValue</code> → <code>CV_getPO_GRValue</code> calculation view<br>
+        <div class="formula-box">
+          grvalue = SUM( menge × netpr / peinh )<br>
+          shkzg = 'S' → debit (positive) &nbsp;|&nbsp; shkzg = 'H' → credit/reversal (negative)<br>
+          JPY / VND: × 100 before calculation<br>
+          Date cutoff: if today is day 1–6 → last day of previous month, else last day of current month
+        </div>
+        <b>Used for:</b> AMOUNTACCRUED formula (Material POs)
+      </div>
+      <div class="field-biz">💼 Business: For Material POs, GR Value replaces WTC as the basis for accrual — the system accrues the difference between what was received and what was already invoiced.</div>
+    </div>
+
+    <div class="field-card fc-green">
+      <div class="field-name">Amount to be Accrued</div>
+      <div class="field-col">AMOUNTACCRUED</div>
+      <div class="field-body">
+        <b>What:</b> Read-only calculated field — how much needs to be accrued this month.<br><br>
+        <b>Calculated in:</b> HANA Calculation Views (CV_getOpenPO, CV_getThresholdPO, CV_getOpenPOReport) as a <strong>calculated attribute</strong> — not in SF_accrualMethod.<br>
+        <div class="formula-box">
+          Service PO (pstype='9'):<br>
+          &nbsp;&nbsp;AMOUNTACCRUED = MAX(0, TOTWRKCOMPAMT − INVVALUE_CAL)<br><br>
+          Material PO (pstype='0'):<br>
+          &nbsp;&nbsp;AMOUNTACCRUED = MAX(0, GRVALUE − INVVALUE_CAL)<br><br>
+          AMOUNTACCRUED_USD = ROUND(EXCHANGERATE × AMOUNTACCRUED, 2)
+        </div>
+        <b>INVVALUE_CAL</b> = Invoice Amount already posted to date
+      </div>
+      <div class="field-biz">💼 Business: The actual journal entry amount Finance needs to post as accrual. It prevents double-counting already invoiced amounts.</div>
+    </div>
+
+    <div class="field-card fc-orange">
+      <div class="field-name">Mark as Reviewed</div>
+      <div class="field-col">STATUS · MARKASREVIEWED</div>
+      <div class="field-body">
+        <b>What:</b> Reviewer confirms they have reviewed this PO for the current month.<br><br>
+        <b>What gets saved to ZT_EDGE_SERVICEPO_STATUS:</b><br>
+        &nbsp;STATUS = 'Reviewed' · MARKASREVIEWED = 'X'<br>
+        &nbsp;CHANGEDDATE = current date · REVIWED_BY = logged-in email<br>
+        &nbsp;TOTALWORKCOMPLTODATE + TOTALWORKCOMPLPERCENT from UI<br><br>
+        <b>Monthly reset:</b> There is <strong>no physical batch reset job</strong>. The STATUS field stays 'Reviewed' in the database. The reset is a <strong>read-time calculation</strong> inside TF_getOpenAllPO — if changeddate has passed the ACCRUAL_REVIEW_DATE cutoff, the function returns 'Pending' even though the database still holds 'Reviewed'. Exception: po_closure='true' → always 'Reviewed', never resets.
+      </div>
+      <div class="field-biz">💼 Business: Monthly confirmation that the reviewer has checked and agreed the accrual amount. Expires automatically each month after the review cutoff date.</div>
+    </div>
+
+    <div class="field-card fc-purple">
+      <div class="field-name">Straight Line Method / Accrual Method</div>
+      <div class="field-col">STRAIGHTLINEMTHD · ACCRUALMETHOD</div>
+      <div class="field-body">
+        <b>What:</b> Checkbox allowing reviewer to override the accrual method from WTD to STL or vice versa.<br><br>
+        <b>Visible for:</b> Service POs only (Over $50k and Under $50k). <strong>Commented out for Material POs</strong> — Material has no accrual calculation.<br><br>
+        <b>XSA chain when checkbox is changed:</b><br>
+        <div class="formula-box">
+          UI checkbox change<br>
+          → OData: /methodParameters(IV_POVALUE, IV_POCURRENCY, IV_WRKSTRTDATE,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IV_WRKENDDATE, IV_ACCRUALMETHOD='STL', IV_TOTWRKCOMPAMT,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IV_TOTWRKCOMPPER, IV_EDGEWTDAMT, IV_PSTYP, IV_COMPANY)/Results<br>
+          → CV_accrualMethod.hdbcalculationview<br>
+          → TF_accrualMethod.hdbfunction<br>
+          → SF_accrualMethod (called ×5)<br>
+          → returns: TOTWRKCOMPAMT, TOTWRKCOMPPER, STRAIGHTLINEMTHD, ACCRUALMETHOD
+        </div>
+        This is <strong>not saved</strong> — it only updates the displayed value in real time. Save happens on "Mark as Reviewed".<br><br>
+        <b>Under $50k note:</b> Checkbox is visible but backend forces STL regardless.
+      </div>
+      <div class="field-biz">💼 Business: Reviewers can switch between Straight Line and Work To Date per PO. The system recalculates the accrual amount instantly so the reviewer sees the impact before saving.</div>
+    </div>
+
+    <div class="field-card fc-red">
+      <div class="field-name">Eligible for Closure</div>
+      <div class="field-col">PO_CLOSURE · POCLOSURE_FLAG</div>
+      <div class="field-body">
+        <b>What:</b> Checkbox to mark a PO as fully completed and ready to close in Ariba.<br><br>
+        <b>Flow when checked:</b><br>
+        1. UI shows confirmation popup (POClosurePopUp fragment)<br>
+        2. On confirm → <code>PO_CLOSURE = 'true'</code> added to save payload<br>
+        3. <code>updateServPOStatus.xsjs</code> saves to <code>ZT_EDGE_SERVICEPO_STATUS.PO_CLOSURE = 'true'</code><br>
+        4. <strong>Ariba SOAP call</strong>: <code>LineItemsPOCloseImportRequest</code> with Closed=4, SAPPOLineNumber=LINEITEM, UniqueName=EKKO.UNSEZ<br>
+        5. <code>POCLOSURE_FLAG = 1</code> set in UI model → editable fields (amount, %, STL checkbox) become <strong>disabled</strong><br>
+        6. STATUS = 'Reviewed' permanently — <strong>never resets monthly</strong><br><br>
+        <b>Effect on accrual:</b> AMOUNTACCRUED = 0, ACCRUALMETHOD = 'WTD', STRAIGHTLINEMTHD = ''
+      </div>
+      <div class="field-biz">💼 Business: When a contract is fully completed, reviewer marks it for closure. The system automatically notifies Ariba to close the shopping cart lines — no manual Ariba step needed.</div>
+    </div>
+
+    <div class="field-card fc-teal">
+      <div class="field-name">New PO Identification</div>
+      <div class="field-col">POCREATEDAT (UI-side only)</div>
+      <div class="field-body">
+        <b>What:</b> A red ❤ icon with "New PO" label appears below the table when at least one PO was created in the current month.<br><br>
+        <b>No backend call</b> — purely UI-side logic in <code>common.js setNewPOIconVisibility()</code>:<br>
+        <div class="formula-box">
+          allDataAct1.filter(e =>
+            e.POCREATEDAT.getMonth() + e.POCREATEDAT.getYear() ===
+            new Date().getMonth() + new Date().getYear()
+          ).length > 0 → show icon
+        </div>
+        Runs after OData data is loaded into the UI model. Compares <code>POCREATEDAT</code> (from EKKO.AEDAT) with current month + year.
+      </div>
+      <div class="field-biz">💼 Business: Visual indicator that alerts reviewers a new PO appeared in their list this month — helping them spot new contracts that need attention.</div>
+    </div>
+
+    <div class="field-card fc-orange">
+      <div class="field-name">Monthly Status Reset</div>
+      <div class="field-col">STATUS (read-time logic, no DB reset)</div>
+      <div class="field-body">
+        <b>What:</b> 'Reviewed' status automatically appears as 'Pending' after the monthly cutoff — but <strong>no batch job or procedure resets it</strong>.<br><br>
+        <b>How it works:</b> The STATUS field in <code>ZT_EDGE_SERVICEPO_STATUS</code> stays 'Reviewed' permanently.
+        The reset is a <strong>calculated CASE expression</strong> inside <code>TF_getOpenAllPO</code> and <code>TF_getOpenAllThresholdPO</code> evaluated fresh on every data load.<br><br>
+        <b>Rules (simplified):</b>
+        <div class="formula-box">
+          IF po_closure = 'true' → always 'Reviewed'<br>
+          IF changeddate same month AND day ≥ ACCRUAL_REVIEW_DATE → 'Pending'<br>
+          IF changeddate previous month AND today &gt; day 6 → 'Pending'<br>
+          IF changeddate &gt; 1 month ago → always 'Pending'<br>
+          ELSE → 'Reviewed'
+        </div>
+        <code>ACCRUAL_REVIEW_DATE</code> = day of month, read from <code>ZT_CONFIG_VALUES</code>.
+      </div>
+      <div class="field-biz">💼 Business: Reviewers must re-confirm their POs each month. The system enforces this by treating old 'Reviewed' records as 'Pending' at read time — without any overnight batch job.</div>
+    </div>
+
+  </div><!-- /fields-grid -->
+
+
+  <!-- ═══ ④ CALL TREE ═══ -->
+  <div class="section-title">④ Data Flow in XSA</div>
+
+  <div class="tree-wrap">
+
+    <div class="root">
+      <div class="node-root">
+        <div class="n-title">📊 PO Accruals Dashboard</div>
+        <div class="n-sub">
+          SAPUI5 — Business.controller.js / TBS.controller.js<br>
+          Loaded on page open for the logged-in user.<br>
+          Sends 3 separate OData requests — one per tab.
+        </div>
+      </div>
+    </div>
+    <div class="root-v"></div>
+
+    <div class="h-bar-wrap">
+
+      <!-- ═══ BRANCH 1: OVER $50k ═══ -->
+      <div class="branch-col">
+        <div class="branch-v"></div>
+        <div class="node-branch nb-over">
+          <div class="n-title">🔵 To Act Upon — Over $50k</div>
+          <div class="n-sub" style="color:#2b6cb0;">
+            OData EntitySet: <code>openPOParameters</code><br>
+            <div class="pstype-row">
+              <span class="pstype-badge pb-9">IP_PSTYPE = '9' → Indirect Services</span>
+              <span class="pstype-badge pb-0">IP_PSTYPE = '0' → Indirect Materials</span>
+            </div>
+            IP_THRESHOLD = '1' (SUM netwr &gt; threshold)<br>
+            <em style="font-size:0.68rem;">High-value POs requiring monthly accrual review</em>
+          </div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-facade">
+          <div class="tag tag-fn">Facade / Orchestrator</div>
+          <div class="s-name">TF_getOpenPO</div>
+          <div class="s-what">
+            1. Reads user decimal format from <b>CV_getUserDetails</b> (X = dot, space = comma, Y = space)<br>
+            2. Reads last-month "Services Completed Amount" from <b>ZT_EDGE_AUDITLOG</b> → <em>lastMonthwrkcomp</em> column<br>
+            3. Calls <b>TF_getOpenAllPO</b><br>
+            4. Removes exclusion POs (ZT_EDGE_EXCLUSIONPO)<br>
+            5. <b>STRING_AGG</b> with ';' for multi-line account assignment: GL Account · Cost Center · Internal Order · Profit Center · Asset ID · Management Unit · Distribution %<br>
+            6. Formats totwrkcompamt_char with locale-correct decimal separator<br>
+            7. Derives pstype_text (Service / Material) and poclosure_flag (0 / 1)
+          </div>
+          <div class="s-biz">💼 Business: Final output per row = one PO line item with all columns visible to the reviewer.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-allpo">
+          <div class="tag tag-fn">Enrichment Function (JOIN Layer)</div>
+          <div class="s-name">TF_getOpenAllPO</div>
+          <div class="s-what">
+            1. Calls <b>TF_getOpenPOQueryWithEmail('1', pstype)</b> → filtered PO keys<br>
+            2. LEFT JOINs: EKPO · EKKO · LFA1 · T001 · EKKN · CSKT · CSKS<br>
+            3. LEFT JOIN <b>ZT_EDGE_SERVICEPO_STATUS</b> — status, accrualMethod, WTD amount<br>
+            4. LEFT JOIN <b>ZT_EDGE_EXCHANGERATE</b> — exchange rates<br>
+            5. LEFT JOIN <b>ZT_POLINE_AUDIT</b> → last_notif_on, notif_24_hr<br>
+            6. Calls <b>SF_accrualMethod ×5 per row</b> → TOTWRKCOMPAMT, USD amount, %, straightlinemthd, accrualMethod<br>
+            7. Evaluates <b>Reviewed / Pending</b> via read-time CASE (changeddate vs ACCRUAL_REVIEW_DATE)<br>
+            8. <b>Japan/Brazil rule:</b> pstyp='0' + zstart_date + bukrs IN Japan/Brazil → reclassified as '9'
+          </div>
+          <div class="s-note">⚠ SF_accrualMethod is called 5× per row — HANA scalar functions return one value per call.</div>
+          <div class="s-biz">💼 Business: PO value, service dates, accrual method, amount to accrue and review status combined into one row.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-query">
+          <div class="tag tag-fn">Query + Threshold Filter</div>
+          <div class="s-name">TF_getOpenPOQueryWithEmail &nbsp;<small>(IP_THRESHOLD='1')</small></div>
+          <div class="s-what">
+            Returns only: EBELN · EBELP · POOWNER_EMAIL<br><br>
+            <b>Indirect Services (pstyp='9'):</b> pstyp='9' AND erekz IN (' ','') AND bsart='ZARP' AND zstart_date≠'00000000' AND zend_date≠'00000000' UNION Japan/Brazil pstyp='0' with zstart_date set<br><br>
+            <b>Indirect Materials (pstyp='0'):</b> pstyp='0' AND bukrs NOT IN Japan/Brazil AND erekz IN (' ','') UNION Japan/Brazil pstyp='0' with zstart_date='00000000'<br><br>
+            <b>Threshold (HAVING):</b> SUM(EKPO.netwr) per PO number &gt; SF_ConvertCurrency(threshold_USD → waers). Threshold from <b>ZT_PO_THRESHOLD</b>.<br><br>
+            <b>IP_POOWNER='X':</b> adds LOWER(PO_REQUESTOR) LIKE email OR LOWER(PO_PREPARER) LIKE email<br>
+            <b>IP_POOWNER='':</b> filters via TF_UserConfigCompanyCodes + TF_UserConfigCostCenter + TF_UserConfigManagementUnit
+          </div>
+          <div class="s-biz">💼 Business: Only POs whose total value across all line items exceeds the threshold (e.g. $50k USD) are returned. Threshold is configurable in ZT_PO_THRESHOLD — not hardcoded.</div>
+        </div>
+      </div>
+
+
+      <!-- ═══ BRANCH 2: UNDER $50k ═══ -->
+      <div class="branch-col">
+        <div class="branch-v"></div>
+        <div class="node-branch nb-under">
+          <div class="n-title">🟢 To Act Upon — Under $50k</div>
+          <div class="n-sub" style="color:#276749;">
+            OData EntitySet: <code>thresholdParameters</code><br>
+            <div class="pstype-row">
+              <span class="pstype-badge pb-9">IP_PSTYPE = '9' → Indirect Services</span>
+              <span class="pstype-badge pb-0">IP_PSTYPE = '0' → Indirect Materials</span>
+            </div>
+            IP_THRESHOLD = '2' (SUM netwr ≤ threshold)<br>
+            <em style="font-size:0.68rem;">Smaller POs — Straight Line method always applied for Service</em>
+          </div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-facade">
+          <div class="tag tag-fn">Facade / Orchestrator</div>
+          <div class="s-name">TF_getOpenThresholdPO</div>
+          <div class="s-what">
+            1. Reads user decimal format from <b>CV_getUserDetails</b><br>
+            2. Reads last-month "Services Completed Amount" from <b>ZT_EDGE_AUDITLOG</b><br>
+            3. Calls <b>TF_getOpenAllThresholdPO</b><br>
+            4. Removes exclusion POs (ZT_EDGE_EXCLUSIONPO)<br>
+            5. Reads ZT_POLINE_AUDIT directly for notification flags<br>
+            6. STRING_AGG for all multi-value account assignment fields<br>
+            7. Same output format as TF_getOpenPO
+          </div>
+          <div class="s-note">ℹ Structurally identical to TF_getOpenPO. Only difference: delegates to TF_getOpenAllThresholdPO.</div>
+          <div class="s-biz">💼 Business: POs below threshold. Accrual is always Straight Line — no manual WTD entry needed.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-allpo">
+          <div class="tag tag-fn">Enrichment Function (JOIN Layer)</div>
+          <div class="s-name">TF_getOpenAllThresholdPO</div>
+          <div class="s-what">
+            1. Calls <b>TF_getOpenPOQueryWithEmail('2', pstype)</b> → under-threshold PO keys<br>
+            2. Identical JOINs as TF_getOpenAllPO<br>
+            3. <b>Key difference:</b> for Indirect Service POs under threshold, <b>accrualMethod is forced to 'STL'</b> regardless of ZT_EDGE_SERVICEPO_STATUS<br>
+            4. Same Reviewed/Pending read-time logic and Japan/Brazil override
+          </div>
+          <div class="s-biz">💼 Business: Under $50k Service POs always use Straight Line — system does not allow WTD for small contracts.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-query">
+          <div class="tag tag-fn">Query + Threshold Filter</div>
+          <div class="s-name">TF_getOpenPOQueryWithEmail &nbsp;<small>(IP_THRESHOLD='2')</small></div>
+          <div class="s-what">
+            Same PO selection logic as Over $50k branch (pstyp rules, erekz, bsart='ZARP', Japan/Brazil UNION, PO Owner vs TBS filter).<br><br>
+            <b>Threshold difference:</b> HAVING SUM(EKPO.netwr) <b>≤</b> SF_ConvertCurrency(threshold_USD → waers)<br>
+            Same ZT_PO_THRESHOLD value — applied with ≤ instead of &gt;.
+          </div>
+          <div class="s-biz">💼 Business: Both branches together cover 100% of open POs. The split point is the same configurable value.</div>
+        </div>
+      </div>
+
+
+      <!-- ═══ BRANCH 3: FOR INFORMATION ONLY ═══ -->
+      <div class="branch-col">
+        <div class="branch-v"></div>
+        <div class="node-branch nb-excl">
+          <div class="n-title">🔴 For Information Only</div>
+          <div class="n-sub" style="color:#c53030;">
+            OData EntitySet: <code>exclusionPOParameters</code><br>
+            Source: <b>ZT_EDGE_EXCLUSIONPO</b> (nightly staged)<br>
+            No IP_PSTYPE / IP_THRESHOLD — shows all excluded POs<br>
+            <em style="font-size:0.68rem;">Excluded from accrual — shown for transparency only</em>
+          </div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-facade">
+          <div class="tag tag-fn">Facade / Orchestrator</div>
+          <div class="s-name">TF_getExclusionPOs</div>
+          <div class="s-what">
+            1. Calls TF_getOpenPOQueryWithEmail for all 4 combinations (threshold '1'+'2', pstype '9'+'0') → UNION ALL<br>
+            2. Reads <b>ZT_EDGE_EXCLUSIONPO</b> (pre-staged)<br>
+            3. <b>Inverse filter</b> — keeps only POs that ARE IN the exclusion table<br>
+            4. Calls <b>TF_getPODetail</b> for full data enrichment<br>
+            5. Aggregates RULETYPE: GL → "Cost Element (GL/BL)" · CC → "Cost Center" · PC → "Profit Centre" · PO → "Purchase Order" · VD → "Vendor" · IV → "Internal Order"
+          </div>
+          <div class="s-biz">💼 Business: Reviewers see why a PO was excluded. No accrual action needed — purely informational.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-excl">
+          <div class="tag tag-z">Z-Table — Nightly Staged</div>
+          <div class="s-name">ZT_EDGE_EXCLUSIONPO</div>
+          <div class="s-what">
+            Populated by <b>exclusionStaging.hdbprocedure</b> (nightly or on-demand):<br><br>
+            1. Loads ALL open POs (threshold '1'+'2', pstype '9'+'0')<br>
+            2. Calls <b>TF_checkPOExcl_Mod</b> for rule evaluation<br>
+            3. DELETE + INSERT (full refresh)<br><br>
+            <b>Fields:</b> PONUMBER · ITEMNO · PSTYPE · RULETYPE · LAST_REPLICATED_AT<br>
+            One PO can match multiple rules — all stored separately, aggregated with ';' in display.
+          </div>
+          <div class="s-biz">💼 Business: Exclusion rules maintained by Finance/Admin apply automatically each night. New rules take effect the next morning.</div>
+        </div>
+
+        <div class="step-v"></div>
+        <div class="node-step st-query">
+          <div class="tag tag-fn">Exclusion Check Function</div>
+          <div class="s-name">TF_checkPOExcl_Mod</div>
+          <div class="s-what">
+            For each PO: JOINs EKPO · EKKO · LFA1 · EKKN → checks each rule type against configured ranges:<br>
+            bukrs range · sakto range (GL) · kostl range · prctr range · aufnr range · lifnr exact (vendor) · ebeln exact (PO)<br>
+            Returns: PONUMBER · ITEMNO · RULETYPE per match
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /h-bar-wrap -->
+
+
+    <!-- ═══ SHARED ═══ -->
+    <div class="shared-title">─────── Shared components used by all 3 branches ───────</div>
+
+    <div class="shared-grid">
+
+      <div class="node-step st-scalar">
+        <div class="tag tag-fn">Scalar Function — called ×5 per row</div>
+        <div class="s-name">SF_accrualMethod</div>
+        <div class="s-what">
+          <b>Purpose:</b> Determines accrual amount for a Service PO. Material POs return zero.<br><br>
+          <b>Decision logic:</b><br>
+          • Method=NULL, no WTD → <b>STL</b> &nbsp;|&nbsp; Method=NULL, WTD exists → <b>WTD</b><br>
+          • Method='WTD', no amount → <b>fallback STL</b> &nbsp;|&nbsp; Method='WTD', amount exists → <b>WTD</b><br>
+          • Method='STL' → always <b>STL</b><br><br>
+          <b>5 outputs per call:</b> TOTWRKCOMPAMT_OUT · TOTWRKCOMPAMT_USD_OUT · TOTWRKCOMPPER_OUT · STRAIGHTLINEMTHD · ACCRUALMETHOD_OUT
+        </div>
+        <div class="s-biz">💼 Business: The "Amount to be Accrued" column driver. Reviewers can switch between STL and WTD — system recalculates instantly via CV_accrualMethod → TF_accrualMethod → SF_accrualMethod.</div>
+      </div>
+
+      <div class="node-step st-scalar">
+        <div class="tag tag-fn">Scalar Function — called from SF_accrualMethod</div>
+        <div class="s-name">SF_calcSTL_wtdAmountPer</div>
+        <div class="s-what">
+          <b>Straight Line calculation based on elapsed contract months (not days).</b><br><br>
+          Via SF_getMonthDiff:<br>
+          • MONTH_BET = total months start → end<br>
+          • MONTH_BET_CRR = elapsed months start → today<br>
+          • Day &gt; 15 → round up to next month · Day ≤ 15 → round down<br>
+          • If contract already ended → treat as 1/1 (full amount)<br><br>
+          <b>Formula:</b> stl_amt = ROUND((povalue / MONTH_BET) × MONTH_BET_CRR, 2), capped at povalue<br>
+          stl_per = ROUND((stl_amt / povalue) × 100, 1)
+        </div>
+        <div class="s-biz">💼 Business: 12-month contract $120k — after 3 months = $30,000 (25%). Mid-month rounding ensures consistency at month-end close.</div>
+      </div>
+
+      <div class="node-step st-scalar">
+        <div class="tag tag-fn">Scalar Function</div>
+        <div class="s-name">SF_ConvertCurrency</div>
+        <div class="s-what">
+          Converts amounts between currencies using <b>ZT_EDGE_EXCHANGERATE</b> (not SAP TCURR).<br><br>
+          <b>JPY / VND special handling:</b> values stored ÷100 in EKPO → system multiplies by 100 before conversion.<br><br>
+          <b>Used for:</b> PO value → USD · $50k threshold → PO currency · Accrual amounts → USD
+        </div>
+        <div class="s-biz">💼 Business: All amounts shown in both PO currency and USD so Finance can compare accruals across countries.</div>
+      </div>
+
+      <div class="node-step st-sap">
+        <div class="tag tag-sap">SAP Standard Tables</div>
+        <div class="s-name">Core SAP data — JOINed in all enrichment functions</div>
+        <div class="s-what">
+          <b>EKPO</b> — pstyp · brtwr (gross value) · txz01 (description) · zstart_date · zend_date · zserv_amt · zserv_perc · erekz (final invoice indicator) · menge · PO_REQUESTOR · PO_PREPARER · ZACTIVITYNBR<br><br>
+          <b>EKKO</b> — bsart ('ZARP' filter) · waers · lifnr · bukrs · aedat (creation date) · unsez (EP/PR number)<br><br>
+          <b>EKBE</b> — GR history: bewtp='E' · menge · shkzg (S=debit/H=credit) · budat (used for GR date cutoff)<br><br>
+          <b>T001</b> — butxt (company name) · land1 (country) · waers (company currency)<br><br>
+          <b>LFA1</b> — name1 (supplier name)<br><br>
+          <b>EKKN</b> — sakto (GL) · kostl (cost center) · aufnr (internal order) · anln1 (asset) · prctr (profit center) · vproz (distribution %). Multiple rows per PO line = reason for STRING_AGG.<br><br>
+          <b>CSKS</b> — zzrptun (management/reporting unit) · datbi (validity date)<br><br>
+          <b>CSKT</b> — ltext (cost center description), language='E'
+        </div>
+      </div>
+
+      <div class="node-step st-z">
+        <div class="tag tag-z">Z-Custom Tables</div>
+        <div class="s-name">Supporting Z-tables — all branches</div>
+        <div class="s-what">
+          <b>ZT_EDGE_SERVICEPO_STATUS</b> — Central reviewer write table. STATUS · ACCRUALMETHOD · TOTALWORKCOMPLTODATE · TOTALWORKCOMPLPERCENT · MARKASREVIEWED · CHANGEDDATE · REVIWED_BY · PO_CLOSURE · CHANGED_ON. Note: STATUS never physically reset — recalculated at read time.<br><br>
+          <b>ZT_CONFIG_ROLES</b> — User role config: USER_ROLE · USER_EMAILID · COMPANY_CODE · MANAGEMENT_UNIT · COST_CENTER. Read via CV_getUserRoleConfig → OData 'userRole'.<br><br>
+          <b>ZT_PO_THRESHOLD</b> — Configurable split point in USD per currency + company code.<br><br>
+          <b>ZT_EDGE_EXCHANGERATE</b> — Exchange rates (separate from SAP TCURR).<br><br>
+          <b>ZT_POLINE_AUDIT</b> — Notification audit: PONUMBER · LINEITEM · CHANGEDON. Used to suppress repeat emails within 24h (notif_24_hr flag).<br><br>
+          <b>ZT_EDGE_AUDITLOG</b> — Full change log: PONUMBER · LINEITEM · FNAME · OLDVALUE · NEWVALUE · CHANGEDON · CHANGEDBY · ACTIVEFLAG · REVIEWED_BY. Used for lastMonthwrkcomp and audit trail popup. Write source not visible in this XSA repo — likely written from SAP side.<br><br>
+          <b>ZT_CONFIG_VALUES</b> — Japan_Brazil company codes · ACCRUAL_REVIEW_DATE · ACCRUALS_EDGE_LINK<br><br>
+          <b>ZT_EDGE_EXCLUSIONPO</b> — Nightly-staged exclusion POs with RULETYPE.<br><br>
+          <b>ZT_USER_LANGUAGE</b> — User's preferred language for emails.<br><br>
+          <b>ZT_TEXT_TRANSLATIONS</b> — UI message translations (NOTIFY_NO_EMAIL · NOTIFY_SENT · NOTIFIED_24).
+        </div>
+      </div>
+
+      <div class="node-step" style="background:#f7fafc;border:1.5px solid #a0aec0;">
+        <div class="tag tag-fn">Status Calculation — read-time CASE in TF_getOpenAllPO / TF_getOpenAllThresholdPO</div>
+        <div class="s-name">Reviewed → Pending Reset Rules (no batch job — calculated on every data load)</div>
+        <div class="s-what">
+          <b>po_closure='true'</b> → always <b>Reviewed</b> (permanent, never resets)<br><br>
+          <b>status='Reviewed' — when does it stay Reviewed?</b><br>
+          • Previous year → Reviewed only on days 1–6 of current month<br>
+          • Exactly 1 month ago → Reviewed only on days 1–6 of current month<br>
+          • More than 1 month ago → always <b>Pending</b><br>
+          • Same month: changeddate &lt; REVIEW_DAY and today ≥ REVIEW_DAY → <b>Pending</b> (missed cutoff)<br>
+          • Same month: changeddate ≥ REVIEW_DAY → <b>Reviewed</b><br><br>
+          <b>status='Pending' or NULL</b> → always <b>Pending</b>
+        </div>
+        <div class="s-biz">💼 Business: Reviewed status expires each month after the ACCRUAL_REVIEW_DATE cutoff. No overnight job — the logic runs fresh on every page load.</div>
+      </div>
+
+    </div><!-- /shared-grid -->
+
+
+    <!-- ═══ WRITE PATH ═══ -->
+    <div class="shared-title" style="margin-top:32px;">─────── Write path — reviewers and scheduled jobs ───────</div>
+
+    <div class="write-grid">
+
+      <div class="node-step st-write">
+        <div class="tag tag-write">Write — Triggered by UI</div>
+        <div class="s-name">updateServPOStatus.xsjs</div>
+        <div class="s-what">
+          <b>Triggered:</b> "Mark as Reviewed" button.<br><br>
+          1. Receives JSON array of PO status objects from UI<br>
+          2. Procedure <b>updateServPOStatus</b> → UPSERT into ZT_EDGE_SERVICEPO_STATUS<br>
+          3. If po_closure='true' → <b>Ariba SOAP</b>: LineItemsPOCloseImportRequest, Closed=4, UniqueName=EKKO.UNSEZ<br>
+          4. Multiple line items of same PO grouped into one SOAP call
+        </div>
+        <div class="s-biz">💼 Business: Saves reviewer's monthly confirmation. If marked for closure, automatically notifies Ariba — no manual step in Ariba needed.</div>
+      </div>
+
+      <div class="node-step st-write">
+        <div class="tag tag-write">Write — Triggered by UI</div>
+        <div class="s-name">reviewPOLine.xsjs</div>
+        <div class="s-what">
+          <b>Triggered:</b> TBS Finance clicks "Notify PO Owners".<br><br>
+          1. Procedure <b>reviewPOLine</b><br>
+          2. Checks ZT_POLINE_AUDIT — if notified in last 24h → skip (anti-spam)<br>
+          3. NOTIFY='X' → email sent · NOTIFY='' → save only · No email on record → logged + skipped<br>
+          4. Inserts new record into ZT_POLINE_AUDIT
+        </div>
+        <div class="s-biz">💼 Business: Finance flags pending POs and notifies PO Owner directly from dashboard. 24h cooldown prevents duplicate emails.</div>
+      </div>
+
+      <div class="node-step st-write">
+        <div class="tag tag-write">Write — UI Button</div>
+        <div class="s-name">getAllOpenPOs.xsjs — Email Excel Report</div>
+        <div class="s-what">
+          <b>Triggered:</b> "📎 Email Excel Report" button in dashboard header.<br><br>
+          1. UI fires POST to <code>getAllOpenPOs.xsjs</code> — <b>async, no wait</b><br>
+          2. UI immediately shows: <em>"An email will be sent to your email id with dashboard details for all tabs"</em><br>
+          3. Backend generates CSV for all open POs (all tabs) and emails it<br><br>
+          <b>Why it exists:</b> Direct Excel download limited to 6,000 rows. For large portfolios users must use this.
+        </div>
+        <div class="s-biz">💼 Business: Finance teams with large PO portfolios receive a full export by email instead of being blocked by the browser download limit.</div>
+      </div>
+
+      <div class="node-step st-notify">
+        <div class="tag tag-proc">Scheduled — Monthly Notifications</div>
+        <div class="s-name">notifyPOOwner · notifyPOPreparer · notifyAdmin · notifyTbs · notifyFinance · notifyOpenPO</div>
+        <div class="s-what">
+          <b>Triggered:</b> Monthly batch job at month-end close period.<br><br>
+          Each notifier: counts open POs per recipient (total + SERVPENDINGPOCOUNT + MATPENDINGPOCOUNT) · reads template from <b>ZT_EMAIL_TEMPLATE_CONFIG</b> in user's language (ZT_USER_LANGUAGE) · replaces placeholders: &amp;MONTH&amp; · &amp;NOPO&amp; · &amp;NOSPO&amp; · &amp;NOMPO&amp; · &amp;COMPANYCODES&amp; · &amp;LINK&amp; · sends via XS Mail API<br><br>
+          <b>notifyPOOwner</b> — PO Owner: pending count &nbsp;|&nbsp; <b>notifyPOPreparer</b> — PO Preparer: pending count<br>
+          <b>notifyAdmin</b> — PO Admin: cross-company summary &nbsp;|&nbsp; <b>notifyTbs</b> — TBS Finance: portfolio summary<br>
+          <b>notifyFinance</b> — Finance: full company code breakdown &nbsp;|&nbsp; <b>notifyOpenPO</b> — combined reminder
+        </div>
+        <div class="s-biz">💼 Business: Automated reminders ensure reviewers act before the accounting cut-off. Multi-language via ZT_USER_LANGUAGE.</div>
+      </div>
+
+      <div class="node-step st-notify">
+        <div class="tag tag-proc">Scheduled — Manager Notification</div>
+        <div class="s-name">notifyPOOwnerManager.xsjs</div>
+        <div class="s-what">
+          <b>Triggered:</b> Scheduled job — runs only on configured working day (checked via <b>jobSchedulerWD2Dates</b> procedure).<br><br>
+          1. Procedure <b>getEmailManagersperPO</b> → manager ↔ PO Owner pairs<br>
+          2. Checks currDate = jobDate — skips if not the right day<br>
+          3. Reads pending POs from <b>TB_PENDING_PO_DETAILS</b> per manager<br>
+          4. CSV attachment (~separator): POOWNER · PONUMBER · POLINE · POVALUE_USD · CHANGED_ON · PO_DASHBOARD_SECTION · SUPPLIERNAME · ACCRUALMETHOD · WRKSTRTDATE · WRKENDDATE<br>
+          5. Email to <b>manager</b> with CSV · CC to PO Owner · Template: NOTIFY_POMANAGER
+        </div>
+        <div class="s-biz">💼 Business: Managers receive a consolidated CSV of their team's pending POs — enabling follow-up with PO Owners who have not completed their monthly review.</div>
+      </div>
+
+      <div class="node-step st-notify">
+        <div class="tag tag-proc">Scheduled — Nightly Procedure</div>
+        <div class="s-name">exclusionStaging.hdbprocedure</div>
+        <div class="s-what">
+          <b>Triggered:</b> Nightly (or on-demand by Admin).<br><br>
+          1. All 4 combinations of TF_getOpenPOQueryWithEmail (threshold '1'+'2', pstype '9'+'0') → UNION ALL<br>
+          2. TF_checkPOExcl_Mod → rule evaluation<br>
+          3. DELETE FROM ZT_EDGE_EXCLUSIONPO · INSERT new results with LAST_REPLICATED_AT
+        </div>
+        <div class="s-biz">💼 Business: New exclusion rules take effect automatically the next morning — no manual intervention needed.</div>
+      </div>
+
+    </div><!-- /write-grid -->
+
+  </div><!-- /tree-wrap -->
+
+</div><!-- /container -->
+</body>
+</html>

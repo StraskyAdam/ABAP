@@ -1,0 +1,602 @@
+CLASS zcl_fi_das_utility DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+
+    TYPES:
+      tt_string TYPE STANDARD TABLE OF string
+        WITH EMPTY KEY,
+
+      t_amount_precision TYPE p LENGTH 16 DECIMALS 8.
+
+    CLASS-METHODS normalize_email
+      IMPORTING
+        i_email TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
+
+    CLASS-METHODS split_list
+      IMPORTING
+        i_value     TYPE string
+        i_delimiter TYPE char1 DEFAULT ','
+      RETURNING
+        VALUE(rt_values) TYPE tt_string.
+
+    CLASS-METHODS append_delimited
+      IMPORTING
+        i_current      TYPE string
+        i_value        TYPE string
+        i_delimiter    TYPE char1 DEFAULT ';'
+        i_skip_initial TYPE abap_bool DEFAULT abap_false
+        i_first        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(r_result) TYPE string.
+
+    CLASS-METHODS trim_delimiters
+      IMPORTING
+        i_value     TYPE string
+        i_delimiter TYPE char1 DEFAULT ';'
+      RETURNING
+        VALUE(r_value) TYPE string.
+
+    CLASS-METHODS alpha_output
+      IMPORTING
+        i_value TYPE string
+      RETURNING
+        VALUE(r_value) TYPE string.
+
+    CLASS-METHODS utc_to_cet_timestamp
+      IMPORTING
+        i_timestamp TYPE timestampl
+      RETURNING
+        VALUE(r_timestamp) TYPE timestampl
+      RAISING
+        cx_sy_conversion_error.
+
+    CLASS-METHODS is_current_utc_day
+      IMPORTING
+        i_timestamp TYPE timestampl
+      RETURNING
+        VALUE(r_result) TYPE abap_bool.
+
+
+
+
+
+
+    CLASS-METHODS truncate_decimal
+      IMPORTING
+        i_value         TYPE decfloat34
+        i_decimals      TYPE i
+      RETURNING
+        VALUE(r_value) TYPE decfloat34
+      RAISING
+        zcx_fi_das_error.
+    CLASS-METHODS parse_percentage
+      IMPORTING
+        i_value              TYPE string
+      RETURNING
+        VALUE(rv_percentage) TYPE zif_fi_das_dashboard=>t_percentage
+      RAISING
+        zcx_fi_das_error.
+
+    CLASS-METHODS month_bucket
+      IMPORTING
+        i_date          TYPE d
+        i_split_day     TYPE i
+      RETURNING
+        VALUE(r_bucket) TYPE d.
+    CLASS-METHODS months_between
+      IMPORTING
+        i_from          TYPE d
+        i_to            TYPE d
+      RETURNING
+        VALUE(r_months) TYPE i.
+    CLASS-METHODS format_odata_amount
+      IMPORTING
+        i_amount                TYPE t_amount_precision
+        i_decimals              TYPE i
+        i_decimal_format        TYPE zif_fi_das_dashboard=>t_decimal_format
+        i_use_grouping          TYPE abap_bool DEFAULT abap_false
+        i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(r_value) TYPE string
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ts_number_parts,
+        sign     TYPE char1,
+        integer  TYPE string,
+        fraction TYPE string,
+      END OF ts_number_parts.
+    CLASS-METHODS get_number_parts
+      IMPORTING
+        i_amount       TYPE t_amount_precision
+        i_decimals     TYPE i
+      RETURNING
+        VALUE(rs_parts) TYPE ts_number_parts.
+
+    CLASS-METHODS get_number_separators
+      IMPORTING
+        i_decimal_format      TYPE zif_fi_das_dashboard=>t_decimal_format
+      EXPORTING
+        e_decimal_separator   TYPE char1
+        e_grouping_separator  TYPE char1.
+
+    CLASS-METHODS group_integer
+      IMPORTING
+        i_integer             TYPE string
+        i_grouping_separator  TYPE char1
+      RETURNING
+        VALUE(rv_integer)     TYPE string.
+
+
+    CONSTANTS:
+      mc_decimal_dot   TYPE xudcpfm VALUE 'X',
+      mc_decimal_space TYPE xudcpfm VALUE 'Y',
+      mc_max_decimals  TYPE i VALUE 14.
+
+ENDCLASS.
+
+
+
+CLASS ZCL_FI_DAS_UTILITY IMPLEMENTATION.
+
+
+  METHOD alpha_output.
+
+    DATA lv_value TYPE string.
+
+    lv_value =
+      i_value.
+
+    SHIFT lv_value LEFT DELETING LEADING space.
+    SHIFT lv_value RIGHT DELETING TRAILING space.
+
+    IF lv_value IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SHIFT lv_value LEFT DELETING LEADING '0'.
+
+    IF lv_value IS INITIAL.
+      lv_value = '0'.
+    ENDIF.
+
+    r_value =
+      lv_value.
+
+  ENDMETHOD.
+
+
+  METHOD append_delimited.
+    DATA(lv_value) = i_value.
+    SHIFT lv_value LEFT DELETING LEADING space.
+
+    IF i_skip_initial = abap_true.
+      SHIFT lv_value RIGHT DELETING TRAILING space.
+      IF lv_value IS INITIAL.
+        r_result = i_current.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    IF i_first = abap_true
+       OR ( i_skip_initial = abap_true AND i_current IS INITIAL ).
+      r_result = lv_value.
+      RETURN.
+    ENDIF.
+
+    r_result = i_current && i_delimiter && lv_value.
+  ENDMETHOD.
+
+
+METHOD format_odata_amount.
+  DATA:
+    ls_parts       TYPE ts_number_parts,
+    lv_decimal_sep TYPE char1,
+    lv_grouping_sep TYPE char1.
+
+  CLEAR r_value.
+  IF i_decimals < 0 OR i_decimals > 8.
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      EXPORTING
+        i_reason = |Unsupported OData decimal count: { i_decimals }|.
+  ENDIF.
+
+  ls_parts = get_number_parts(
+    i_amount   = i_amount
+    i_decimals = i_decimals ).
+
+  IF i_pad_nonzero_below_ten = abap_true
+     AND i_amount <> 0
+     AND i_amount > -10
+     AND i_amount < 10.
+    WHILE strlen( ls_parts-integer ) < 2.
+      ls_parts-integer = '0' && ls_parts-integer.
+    ENDWHILE.
+  ENDIF.
+
+  get_number_separators(
+    EXPORTING
+      i_decimal_format     = i_decimal_format
+    IMPORTING
+      e_decimal_separator  = lv_decimal_sep
+      e_grouping_separator = lv_grouping_sep ).
+
+  IF i_use_grouping = abap_true.
+    ls_parts-integer = group_integer(
+      i_integer             = ls_parts-integer
+      i_grouping_separator = lv_grouping_sep ).
+  ENDIF.
+
+  r_value = ls_parts-sign && ls_parts-integer.
+  IF i_decimals > 0.
+    r_value = r_value && lv_decimal_sep && ls_parts-fraction.
+  ENDIF.
+ENDMETHOD.
+
+
+METHOD get_number_parts.
+  DATA:
+    lv_write_text       TYPE c LENGTH 100,
+    lv_normalized       TYPE string,
+    lv_decimal_position TYPE i,
+    lv_position         TYPE i,
+    lv_fraction_length  TYPE i,
+    lv_character        TYPE char1.
+
+  WRITE i_amount TO lv_write_text
+    DECIMALS i_decimals
+    NO-GROUPING.
+
+  lv_normalized = lv_write_text.
+  CONDENSE lv_normalized NO-GAPS.
+  IF lv_normalized IS INITIAL.
+    lv_normalized = '0'.
+  ENDIF.
+  REPLACE ALL OCCURRENCES OF ',' IN lv_normalized WITH '.'.
+
+  lv_character = substring( val = lv_normalized off = 0 len = 1 ).
+  IF lv_character = '-'.
+    rs_parts-sign = '-'.
+    lv_normalized = substring( val = lv_normalized off = 1 ).
+  ELSEIF lv_character = '+'.
+    lv_normalized = substring( val = lv_normalized off = 1 ).
+  ENDIF.
+
+  FIND FIRST OCCURRENCE OF '.'
+    IN lv_normalized
+    MATCH OFFSET lv_decimal_position.
+  IF sy-subrc = 0.
+    IF lv_decimal_position > 0.
+      rs_parts-integer = substring(
+        val = lv_normalized
+        off = 0
+        len = lv_decimal_position ).
+    ENDIF.
+    lv_position = lv_decimal_position + 1.
+    IF lv_position < strlen( lv_normalized ).
+      rs_parts-fraction = substring(
+        val = lv_normalized
+        off = lv_position ).
+    ENDIF.
+  ELSE.
+    rs_parts-integer = lv_normalized.
+  ENDIF.
+
+  IF rs_parts-integer IS INITIAL.
+    rs_parts-integer = '0'.
+  ENDIF.
+
+  lv_fraction_length = strlen( rs_parts-fraction ).
+  IF lv_fraction_length > i_decimals.
+    rs_parts-fraction = substring(
+      val = rs_parts-fraction
+      off = 0
+      len = i_decimals ).
+  ELSEIF lv_fraction_length < i_decimals.
+    rs_parts-fraction =
+      rs_parts-fraction
+      && repeat(
+           val = '0'
+           occ = i_decimals - lv_fraction_length ).
+  ENDIF.
+ENDMETHOD.
+
+
+  METHOD get_number_separators.
+
+    CASE i_decimal_format.
+      WHEN mc_decimal_dot.
+        e_decimal_separator = '.'.
+        e_grouping_separator = ','.
+      WHEN mc_decimal_space.
+        e_decimal_separator = ','.
+        e_grouping_separator = space.
+      WHEN OTHERS.
+        e_decimal_separator = ','.
+        e_grouping_separator = '.'.
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD group_integer.
+
+    DATA(lv_length) = strlen( i_integer ).
+    DATA(lv_first_group) = lv_length MOD 3.
+
+    IF lv_first_group = 0.
+      lv_first_group = 3.
+    ENDIF.
+
+    rv_integer = substring(
+      val = i_integer
+      off = 0
+      len = lv_first_group ).
+
+    DATA(lv_position) = lv_first_group.
+
+    WHILE lv_position < lv_length.
+      rv_integer =
+          rv_integer
+        && i_grouping_separator
+        && substring(
+             val = i_integer
+             off = lv_position
+             len = 3 ).
+      lv_position = lv_position + 3.
+    ENDWHILE.
+
+  ENDMETHOD.
+
+
+  METHOD is_current_utc_day.
+
+    DATA:
+      lv_now        TYPE timestampl,
+      lv_now_date   TYPE d,
+      lv_now_time   TYPE t,
+      lv_value_date TYPE d,
+      lv_value_time TYPE t.
+
+    IF i_timestamp IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    GET TIME STAMP FIELD lv_now.
+
+    CONVERT TIME STAMP lv_now
+      TIME ZONE 'UTC'
+      INTO DATE lv_now_date
+           TIME lv_now_time.
+
+    CONVERT TIME STAMP i_timestamp
+      TIME ZONE 'UTC'
+      INTO DATE lv_value_date
+           TIME lv_value_time.
+
+    r_result =
+      xsdbool( lv_value_date = lv_now_date ).
+
+  ENDMETHOD.
+
+
+  METHOD months_between.
+    r_months =
+        ( CONV i( i_to(4) ) - CONV i( i_from(4) ) ) * 12
+      + ( CONV i( i_to+4(2) ) - CONV i( i_from+4(2) ) ).
+  ENDMETHOD.
+
+
+  METHOD month_bucket.
+    DATA(lv_first_of_month) =
+      CONV d( i_date(6) && '01' ).
+    IF CONV i( i_date+6(2) ) > i_split_day.
+      DATA(lv_next_month) =
+        CONV d( lv_first_of_month + 32 ).
+      r_bucket =
+        CONV d( lv_next_month(6) && '01' ).
+    ELSE.
+      r_bucket =
+        lv_first_of_month.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD normalize_email.
+
+    DATA lv_email TYPE string.
+
+    lv_email =
+      i_email.
+
+    SHIFT lv_email LEFT DELETING LEADING space.
+    SHIFT lv_email RIGHT DELETING TRAILING space.
+
+    TRANSLATE lv_email TO LOWER CASE.
+
+    r_email =
+      lv_email.
+
+  ENDMETHOD.
+
+
+  METHOD parse_percentage.
+    DATA:
+      lv_text     TYPE string,
+      lv_negative TYPE abap_bool,
+      lv_value    TYPE decfloat34.
+
+    lv_text = i_value.
+    CONDENSE lv_text NO-GAPS.
+
+    IF lv_text IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF lv_text CS ',' AND lv_text CS '.'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason = |Invalid work-completed percentage: { i_value }|.
+    ENDIF.
+
+    REPLACE ALL OCCURRENCES OF ',' IN lv_text WITH '.'.
+
+    IF lv_text+0(1) = '-'.
+      lv_negative = abap_true.
+      lv_text = lv_text+1.
+    ELSEIF lv_text+0(1) = '+'.
+      lv_text = lv_text+1.
+    ENDIF.
+
+    FIND REGEX '^[0-9]+([.][0-9]+)?$' IN lv_text.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason = |Invalid work-completed percentage: { i_value }|.
+    ENDIF.
+
+    TRY.
+        lv_value = CONV decfloat34( lv_text ).
+
+        IF lv_negative = abap_true.
+          lv_value = - lv_value.
+        ENDIF.
+
+        rv_percentage =
+          CONV zif_fi_das_dashboard=>t_percentage( lv_value ).
+
+      CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason = |Invalid work-completed percentage: { i_value }|
+            previous = lx_conversion.
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD split_list.
+
+    DATA:
+      lt_parts TYPE STANDARD TABLE OF string WITH EMPTY KEY,
+      lv_part  TYPE string.
+
+    IF i_value IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SPLIT i_value
+      AT i_delimiter
+      INTO TABLE lt_parts.
+
+    LOOP AT lt_parts INTO lv_part.
+
+      SHIFT lv_part LEFT DELETING LEADING space.
+      SHIFT lv_part RIGHT DELETING TRAILING space.
+
+      IF lv_part IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND lv_part
+        TO rt_values.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD trim_delimiters.
+
+    DATA:
+      lv_value TYPE string,
+      lv_start TYPE i,
+      lv_end   TYPE i,
+      lv_last  TYPE i.
+
+    lv_value = i_value.
+    lv_end   = strlen( lv_value ).
+    lv_start = 0.
+
+    WHILE lv_start < lv_end
+      AND lv_value+lv_start(1) = i_delimiter.
+      lv_start = lv_start + 1.
+    ENDWHILE.
+
+    WHILE lv_end > lv_start.
+      lv_last = lv_end - 1.
+      IF lv_value+lv_last(1) <> i_delimiter.
+        EXIT.
+      ENDIF.
+      lv_end = lv_last.
+    ENDWHILE.
+
+    r_value = substring(
+      val = lv_value
+      off = lv_start
+      len = lv_end - lv_start ).
+
+  ENDMETHOD.
+
+
+  METHOD truncate_decimal.
+    IF i_decimals < 0 OR i_decimals > mc_max_decimals.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason = |Unsupported decimal count: { i_decimals }|.
+    ENDIF.
+
+    DATA(lv_factor) = CONV decfloat34( 10 ) ** i_decimals.
+
+    r_value = trunc( i_value * lv_factor ) / lv_factor.
+  ENDMETHOD.
+
+
+   METHOD utc_to_cet_timestamp.
+
+    DATA:
+      lv_utc_whole  TYPE timestampl,
+      lv_fraction   TYPE decfloat34,
+      lv_local_date TYPE d,
+      lv_local_time TYPE t.
+
+    IF i_timestamp IS INITIAL.
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Do not assign the long timestamp to TYPE timestamp: that conversion
+* rounds its fractional seconds. Derive the integer UTC portion by
+* truncation, then retain the original fraction separately.
+*--------------------------------------------------------------------*
+    lv_utc_whole =
+      CONV timestampl(
+        trunc(
+          CONV decfloat34(
+            i_timestamp ) ) ).
+
+    lv_fraction =
+        CONV decfloat34(
+          i_timestamp )
+      - CONV decfloat34(
+          lv_utc_whole ).
+
+    CONVERT TIME STAMP lv_utc_whole
+      TIME ZONE 'CET'
+      INTO DATE lv_local_date
+           TIME lv_local_time.
+
+    r_timestamp =
+      CONV timestampl(
+        |{ lv_local_date }{ lv_local_time }| )
+      + CONV timestampl(
+          lv_fraction ).
+
+  ENDMETHOD.
+ENDCLASS.

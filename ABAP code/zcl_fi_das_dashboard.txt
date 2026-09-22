@@ -1,0 +1,3605 @@
+CLASS zcl_fi_das_dashboard DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    INTERFACES zif_fi_das_dashboard.
+    INTERFACES if_amdp_marker_hdb.
+
+  PRIVATE SECTION.
+
+
+
+    TYPES:
+      t_amount_precision TYPE p LENGTH 16 DECIMALS 8,
+      t_amount_high      TYPE p LENGTH 16 DECIMALS 14,
+      t_service_amount   TYPE c LENGTH 20,
+      t_rule_type        TYPE c LENGTH 2,
+      t_review_action    TYPE c LENGTH 1.
+
+    CONSTANTS:
+      mc_yes                 TYPE c LENGTH 1 VALUE 'X',
+      mc_currency_jpy        TYPE waers VALUE 'JPY',
+      mc_currency_vnd        TYPE waers VALUE 'VND',
+
+      mc_bewtp_e             TYPE ekbe-bewtp VALUE 'E',
+      mc_bewtp_q             TYPE ekbe-bewtp VALUE 'Q',
+      mc_bewtp_n             TYPE ekbe-bewtp VALUE 'N',
+      mc_vgabe_2             TYPE ekbe-vgabe VALUE '2',
+      mc_vgabe_3             TYPE ekbe-vgabe VALUE '3',
+      mc_credit_indicator    TYPE ekbe-shkzg VALUE 'H',
+
+      mc_rule_gl             TYPE t_rule_type VALUE 'GL',
+      mc_rule_cost_center    TYPE t_rule_type VALUE 'CC',
+      mc_rule_profit_center  TYPE t_rule_type VALUE 'PC',
+      mc_rule_po             TYPE t_rule_type VALUE 'PO',
+      mc_rule_vendor         TYPE t_rule_type VALUE 'VD',
+      mc_rule_internal_order TYPE t_rule_type VALUE 'IV',
+
+      mc_config_japan_brazil TYPE zfi_das_conf_val-config_name
+        VALUE 'Japan_Brazil',
+      mc_config_review_day   TYPE zfi_das_conf_val-config_name
+        VALUE 'ACCRUAL_REVIEW_DATE',
+
+      mc_format_decimal_dot  TYPE xudcpfm VALUE 'X',
+      mc_null                TYPE string VALUE 'NULL',
+      mc_asterisk_sign       TYPE c LENGTH 1 VALUE '*',
+      mc_percent_sign        TYPE c LENGTH 1 VALUE '%',
+      mc_comma               TYPE c LENGTH 1 VALUE ',',
+      mc_amount_decimals      TYPE i VALUE 2,
+      mc_calculation_decimals TYPE i VALUE 8,
+      mc_percentage_decimals  TYPE i VALUE 1,
+      mc_stl_split_day        TYPE i VALUE 15,
+      mc_stl_current_day      TYPE i VALUE 7,
+      mc_stl_grace_day        TYPE i VALUE 6.
+
+    CONSTANTS:
+
+      mc_first_half_month_day TYPE n LENGTH 2 VALUE '06',
+
+      mc_first_day_of_month   TYPE c LENGTH 2 VALUE '01',
+
+      mc_next_month_offset    TYPE i VALUE 32.
+
+    CONSTANTS:
+      mc_default_review_day TYPE i VALUE 7,
+      mc_min_review_day     TYPE i VALUE 1,
+      mc_max_review_day     TYPE i VALUE 31.
+    CONSTANTS:
+      mc_review_action_none  TYPE t_review_action VALUE space,
+      mc_review_action_keep  TYPE t_review_action VALUE 'K',
+      mc_review_action_reset TYPE t_review_action VALUE 'R'.
+
+    CONSTANTS:
+      mc_rule_text_gl             TYPE string VALUE 'Cost Element (GL/BL)',
+      mc_rule_text_cost_center    TYPE string VALUE 'Cost Center',
+      mc_rule_text_profit_center  TYPE string VALUE 'Profit Centre',
+      mc_rule_text_po             TYPE string VALUE 'Purchase Order',
+      mc_rule_text_vendor         TYPE string VALUE 'Vendor',
+      mc_rule_text_internal_order TYPE string VALUE 'Internal Order'.
+
+* Presence information retained for future metadata-driven OData NULL mapping.
+* ABAP initial values cannot distinguish an absent source value from an
+* explicitly supplied initial value. The state remains private.
+    TYPES:
+      BEGIN OF ts_row_state,
+        grvalue_usd_supplied  TYPE abap_bool,
+        invvalue_usd_supplied TYPE abap_bool,
+        invvalue_cal_supplied TYPE abap_bool,
+        edgewtdamt_supplied   TYPE abap_bool,
+        lastmonth_supplied    TYPE abap_bool,
+        notification_supplied TYPE abap_bool,
+        reviewed_by_supplied  TYPE abap_bool,
+        manageunit_supplied   TYPE abap_bool,
+        user_supplied         TYPE abap_bool,
+      END OF ts_row_state.
+
+    TYPES:
+      BEGIN OF ts_key,
+        ponumber      TYPE ebeln,
+        itemno        TYPE ebelp,
+        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
+        poowner_email TYPE zif_fi_das_dashboard=>t_email,
+      END OF ts_key,
+
+      tt_key TYPE SORTED TABLE OF ts_key
+        WITH UNIQUE KEY ponumber itemno pstype.
+
+    TYPES:
+      BEGIN OF ts_role,
+        company_code    TYPE string,
+        cost_center     TYPE string,
+        management_unit TYPE string,
+      END OF ts_role.
+
+    TYPES:
+      BEGIN OF ts_company_scope,
+        value    TYPE bukrs,
+        wildcard TYPE abap_bool,
+      END OF ts_company_scope,
+
+      tt_company_scope TYPE SORTED TABLE OF ts_company_scope
+        WITH UNIQUE KEY value wildcard.
+
+    TYPES:
+      BEGIN OF ts_cost_center_scope,
+        value    TYPE kostl,
+        wildcard TYPE abap_bool,
+        is_null  TYPE abap_bool,
+      END OF ts_cost_center_scope,
+
+      tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope
+        WITH UNIQUE KEY value wildcard is_null.
+
+    TYPES:
+      BEGIN OF ts_management_scope,
+        value    TYPE csks-zzrptun,
+        wildcard TYPE abap_bool,
+        is_null  TYPE abap_bool,
+      END OF ts_management_scope,
+
+      tt_management_scope TYPE SORTED TABLE OF ts_management_scope
+        WITH UNIQUE KEY value wildcard is_null.
+
+    TYPES:
+      BEGIN OF ts_source_detail,
+        ponumber              TYPE ebeln,
+        itemno                TYPE ebelp,
+        original_pstype       TYPE zif_fi_das_dashboard=>t_pstype,
+        effective_pstype      TYPE zif_fi_das_dashboard=>t_pstype,
+        work_start_date       TYPE d,
+        work_end_date         TYPE d,
+        item_company_code     TYPE bukrs,
+        net_value             TYPE t_amount_precision,
+        gross_value           TYPE t_amount_precision,
+        net_price             TYPE t_amount_precision,
+        price_unit            TYPE ekpo-peinh,
+        order_quantity        TYPE ekpo-menge,
+        po_requestor          TYPE zif_fi_das_dashboard=>t_email,
+        po_preparer           TYPE zif_fi_das_dashboard=>t_email,
+        service_amount        TYPE t_service_amount,
+        service_percentage    TYPE ekpo-zserv_perc,
+        po_line_description   TYPE zif_fi_das_dashboard=>t_text_5000,
+        activity_number       TYPE c LENGTH 200,
+        company_code          TYPE bukrs,
+        po_currency           TYPE waers,
+        supplier_id           TYPE lifnr,
+        po_created_at         TYPE d,
+        document_date         TYPE d,
+        purchasing_org        TYPE ekorg,
+        ep_number             TYPE c LENGTH 12,
+        supplier_name         TYPE zif_fi_das_dashboard=>t_supplier,
+        purchasing_unit       TYPE t001-butxt,
+        region                TYPE t001-land1,
+        company_code_currency TYPE waers,
+        poowner_email         TYPE zif_fi_das_dashboard=>t_email,
+      END OF ts_source_detail,
+
+      tt_source_detail TYPE HASHED TABLE OF ts_source_detail
+        WITH UNIQUE KEY ponumber itemno.
+
+
+    TYPES:
+      BEGIN OF ts_account_aggregate,
+        ponumber              TYPE ebeln,
+        itemno                TYPE ebelp,
+        glaccount             TYPE string,
+        costcenter            TYPE string,
+        costcenter_desc       TYPE string,
+        management_unit       TYPE string,
+        management_unit_count TYPE i,
+        internal_order        TYPE string,
+        asset_id              TYPE string,
+        profit_center         TYPE string,
+        bbp_acc_no            TYPE string,
+        dist_percentage       TYPE string,
+        quantity              TYPE ekkn-menge,
+        entry_count           TYPE i,
+      END OF ts_account_aggregate,
+
+      tt_account_aggregate TYPE HASHED TABLE OF ts_account_aggregate
+        WITH UNIQUE KEY ponumber itemno.
+
+
+    TYPES:
+      BEGIN OF ts_history_aggregate,
+        ponumber              TYPE ebeln,
+        itemno                TYPE ebelp,
+        gr_value              TYPE t_amount_high,
+        gr_value_usd          TYPE t_amount_high,
+        invoice_value         TYPE t_amount_precision,
+        invoice_local         TYPE t_amount_precision,
+        invoice_usd           TYPE t_amount_precision,
+        gr_source_exists      TYPE abap_bool,
+        invoice_source_exists TYPE abap_bool,
+      END OF ts_history_aggregate,
+
+      tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate
+        WITH UNIQUE KEY ponumber itemno.
+
+    TYPES:
+      BEGIN OF ts_status,
+        ponumber          TYPE ebeln,
+        itemno            TYPE ebelp,
+        status            TYPE zfi_das_postatus-status,
+        accrual_method    TYPE zfi_das_postatus-accrualmethod,
+        mark_as_reviewed  TYPE zfi_das_postatus-markasreviewed,
+        changed_date      TYPE zfi_das_postatus-changeddate,
+        changed_time      TYPE zfi_das_postatus-changedtime,
+        changed_on        TYPE zfi_das_postatus-changed_on,
+        reviewed_by       TYPE zfi_das_postatus-reviewed_by,
+        po_closure        TYPE zfi_das_postatus-po_closure,
+        wtd_amount        TYPE zfi_das_postatus-totalworkcompltodate,
+        last_month_amount TYPE zfi_das_postatus-workcomplastmonthamt,
+        wtd_source_exists TYPE abap_bool,
+      END OF ts_status,
+
+      tt_status TYPE HASHED TABLE OF ts_status
+        WITH UNIQUE KEY ponumber itemno.
+
+    TYPES:
+      BEGIN OF ts_notification,
+        ponumber      TYPE ebeln,
+        itemno        TYPE ebelp,
+        last_notif_on TYPE timestampl,
+      END OF ts_notification,
+
+      tt_notification TYPE HASHED TABLE OF ts_notification
+        WITH UNIQUE KEY ponumber itemno.
+
+
+    TYPES:
+      BEGIN OF ts_exclusion_aggregate,
+        ponumber     TYPE ebeln,
+        itemno       TYPE ebelp,
+        ruletype     TYPE string,
+        ruletypetext TYPE string,
+      END OF ts_exclusion_aggregate,
+
+      tt_exclusion_aggregate TYPE HASHED TABLE OF ts_exclusion_aggregate
+        WITH UNIQUE KEY ponumber itemno.
+
+    TYPES:
+      BEGIN OF ts_user,
+        email          TYPE ad_smtpadr,
+        username       TYPE xubname,
+        full_name      TYPE ad_namtext,
+        decimal_format TYPE xudcpfm,
+        date_format    TYPE xudatfm,
+      END OF ts_user,
+
+      tt_user TYPE HASHED TABLE OF ts_user
+        WITH UNIQUE KEY email.
+
+    TYPES:
+      BEGIN OF ts_exchange_rate,
+        source_currency TYPE waers,
+        rate            TYPE t_amount_precision,
+      END OF ts_exchange_rate.
+
+    TYPES:
+      BEGIN OF ts_calculation,
+        total_work_amount     TYPE zif_fi_das_dashboard=>t_amount,
+        total_work_amount_usd TYPE zif_fi_das_dashboard=>t_amount,
+        total_work_percent    TYPE zif_fi_das_dashboard=>t_percentage,
+        straight_line         TYPE abap_bool,
+        accrual_method        TYPE zif_fi_das_dashboard=>t_accrual_method,
+      END OF ts_calculation.
+
+    TYPES:
+      BEGIN OF ts_context,
+        details       TYPE tt_source_detail,
+        accounts      TYPE tt_account_aggregate,
+        history       TYPE tt_history_aggregate,
+        statuses      TYPE tt_status,
+        notifications TYPE tt_notification,
+        exclusions    TYPE tt_exclusion_aggregate,
+        users         TYPE tt_user,
+        review_day    TYPE i,
+      END OF ts_context.
+
+    TYPES:
+      BEGIN OF ts_amdp_po_filter,
+        value TYPE ebeln,
+      END OF ts_amdp_po_filter,
+
+      tt_amdp_po_filter TYPE STANDARD TABLE OF ts_amdp_po_filter
+        WITH EMPTY KEY,
+
+      BEGIN OF ts_amdp_item_filter,
+        value TYPE ebelp,
+      END OF ts_amdp_item_filter,
+
+      tt_amdp_item_filter TYPE STANDARD TABLE OF ts_amdp_item_filter
+        WITH EMPTY KEY,
+
+      BEGIN OF ts_amdp_supplier_filter,
+        value        TYPE zif_fi_das_dashboard=>t_supplier,
+        value_length TYPE i,
+      END OF ts_amdp_supplier_filter,
+
+      tt_amdp_supplier_filter TYPE STANDARD TABLE OF ts_amdp_supplier_filter
+        WITH EMPTY KEY.
+
+    METHODS get_required_keys
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+        i_excluded_only TYPE abap_bool
+      EXPORTING
+        et_keys         TYPE tt_key
+        e_total_count   TYPE int8
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS validate_request
+      IMPORTING
+        is_request TYPE zif_fi_das_dashboard=>ts_request
+        i_mode     TYPE zif_fi_das_dashboard=>t_operation
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_results
+      IMPORTING
+        it_keys          TYPE tt_key
+        is_context       TYPE ts_context
+        i_mode           TYPE zif_fi_das_dashboard=>t_operation
+        i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
+      CHANGING
+        ct_result        TYPE ANY TABLE
+      RAISING
+        zcx_fi_das_error.
+    METHODS get_row
+      IMPORTING
+        is_key        TYPE ts_key
+        is_context    TYPE ts_context
+        i_mode        TYPE zif_fi_das_dashboard=>t_operation
+      RETURNING
+        VALUE(rs_row) TYPE zif_fi_das_dashboard=>ts_result
+      RAISING
+        zcx_fi_das_error.
+    METHODS get_odata_row
+      IMPORTING
+        is_row           TYPE zif_fi_das_dashboard=>ts_result
+        i_mode           TYPE zif_fi_das_dashboard=>t_operation
+        i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
+      RETURNING
+        VALUE(rs_result) TYPE zif_fi_das_dashboard=>ts_odata_result.
+    METHODS get_context
+      IMPORTING
+        it_keys           TYPE tt_key
+        i_mode            TYPE zif_fi_das_dashboard=>t_operation
+      RETURNING
+        VALUE(rs_context) TYPE ts_context
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS get_details
+      IMPORTING
+        it_keys           TYPE tt_key
+      RETURNING
+        VALUE(rt_details) TYPE tt_source_detail
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_accounts
+      IMPORTING
+        it_keys            TYPE tt_key
+      RETURNING
+        VALUE(rt_accounts) TYPE tt_account_aggregate
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_history
+      IMPORTING
+        it_keys           TYPE tt_key
+        it_details        TYPE tt_source_detail
+      RETURNING
+        VALUE(rt_history) TYPE tt_history_aggregate
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS get_statuses
+      IMPORTING
+        it_keys            TYPE tt_key
+      RETURNING
+        VALUE(rt_statuses) TYPE tt_status
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_notifications
+      IMPORTING
+        it_keys                 TYPE tt_key
+      RETURNING
+        VALUE(rt_notifications) TYPE tt_notification
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_exclusions
+      IMPORTING
+        it_keys              TYPE tt_key
+      RETURNING
+        VALUE(rt_exclusions) TYPE tt_exclusion_aggregate
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS read_users
+      IMPORTING
+        VALUE(it_details) TYPE tt_source_detail
+      EXPORTING
+        VALUE(et_users)   TYPE tt_user
+      RAISING
+        cx_amdp_error.
+
+    METHODS get_exchrt.
+
+    METHODS apply_detail
+      IMPORTING
+        is_detail TYPE ts_source_detail
+      CHANGING
+        cs_result TYPE zif_fi_das_dashboard=>ts_result.
+    METHODS apply_user
+      IMPORTING
+        is_user   TYPE ts_user
+      CHANGING
+        cs_result TYPE zif_fi_das_dashboard=>ts_result
+        cs_state  TYPE ts_row_state.
+    METHODS apply_account
+      IMPORTING
+        is_account TYPE ts_account_aggregate
+      CHANGING
+        cs_result  TYPE zif_fi_das_dashboard=>ts_result
+        cs_state   TYPE ts_row_state.
+
+    METHODS apply_history
+      IMPORTING
+        is_history TYPE ts_history_aggregate
+      CHANGING
+        cs_result  TYPE zif_fi_das_dashboard=>ts_result
+        cs_state   TYPE ts_row_state.
+
+    METHODS apply_status
+      IMPORTING
+        is_status             TYPE ts_status
+        i_pstype              TYPE zif_fi_das_dashboard=>t_pstype
+        i_mode                TYPE zif_fi_das_dashboard=>t_operation
+        i_review_day          TYPE i
+      CHANGING
+        cs_result             TYPE zif_fi_das_dashboard=>ts_result
+        cs_state              TYPE ts_row_state
+      RETURNING
+        VALUE(rs_calculation) TYPE ts_calculation
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS apply_calculation
+      IMPORTING
+        is_detail      TYPE ts_source_detail
+        is_calculation TYPE ts_calculation
+      CHANGING
+        cs_result      TYPE zif_fi_das_dashboard=>ts_result
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS apply_currency
+      IMPORTING
+        is_detail TYPE ts_source_detail
+      CHANGING
+        cs_result TYPE zif_fi_das_dashboard=>ts_result
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS apply_closure
+      CHANGING
+        cs_result TYPE zif_fi_das_dashboard=>ts_result.
+
+    METHODS apply_notification
+      IMPORTING
+        is_notification TYPE ts_notification
+      CHANGING
+        cs_result       TYPE zif_fi_das_dashboard=>ts_result
+        cs_state        TYPE ts_row_state
+      RAISING
+        cx_sy_conversion_error.
+
+    METHODS apply_exclusion
+      IMPORTING
+        is_exclusion TYPE ts_exclusion_aggregate
+      CHANGING
+        cs_result    TYPE zif_fi_das_dashboard=>ts_result.
+    METHODS calculate_accrual
+      IMPORTING
+        is_detail        TYPE ts_source_detail
+        i_accrual_method TYPE zif_fi_das_dashboard=>t_accrual_method
+      RETURNING
+        VALUE(rs_result) TYPE ts_calculation
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS calculate_straight_line
+      IMPORTING
+        i_po_value        TYPE t_amount_precision
+        i_po_currency     TYPE waers
+        i_work_start_date TYPE d
+        i_work_end_date   TYPE d
+      RETURNING
+        VALUE(rs_result)  TYPE ts_calculation
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_review_action
+      IMPORTING
+        i_changed_date        TYPE d
+        i_review_day          TYPE i
+      RETURNING
+        VALUE(r_review_action) TYPE t_review_action.
+    METHODS calculate_visible_status
+      IMPORTING
+        is_status    TYPE ts_status
+        i_review_day TYPE i
+      CHANGING
+        cs_result    TYPE zif_fi_das_dashboard=>ts_result
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS calculate_invoice_value
+      IMPORTING
+        i_invoice_value         TYPE zif_fi_das_dashboard=>t_amount
+      RETURNING
+        VALUE(rv_invoice_value) TYPE zif_fi_das_dashboard=>t_amount.
+
+    METHODS calculate_accrued_amount
+      IMPORTING
+        i_pstype            TYPE zif_fi_das_dashboard=>t_pstype
+        i_total_work_amount TYPE zif_fi_das_dashboard=>t_amount
+        i_gr_value          TYPE zif_fi_das_dashboard=>t_amount
+        i_invoice_value     TYPE zif_fi_das_dashboard=>t_amount
+      RETURNING
+        VALUE(rv_amount)    TYPE zif_fi_das_dashboard=>t_amount.
+
+
+    METHODS get_month_difference
+      IMPORTING
+        i_work_start_date TYPE d
+        i_work_end_date   TYPE d
+      EXPORTING
+        e_total_months    TYPE i
+        e_elapsed_months  TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_history_cutoff_date
+      RETURNING
+        VALUE(rv_cutoff_date) TYPE d
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_role
+      IMPORTING
+        i_email        TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(rs_role) TYPE ts_role
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_access_scope
+      IMPORTING
+        i_email             TYPE zif_fi_das_dashboard=>t_email
+        i_poowner           TYPE abap_bool
+      EXPORTING
+        et_company_codes    TYPE tt_company_scope
+        et_cost_centers     TYPE tt_cost_center_scope
+        et_management_units TYPE tt_management_scope
+      RAISING
+        zcx_fi_das_error.
+
+
+    METHODS get_company_codes
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_company_scope.
+    METHODS get_cost_centers
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_cost_center_scope.
+    METHODS get_management_units
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_management_scope.
+    METHODS get_po_filter
+      IMPORTING
+        is_request          TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_po_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_po_filter
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_item_filter
+      IMPORTING
+        is_request            TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_item_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_item_filter
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_supplier_filter
+      IMPORTING
+        is_request                TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_supplier_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_supplier_filter.
+
+    METHODS get_email
+      IMPORTING
+        i_email        TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
+
+    METHODS read_exchange_rate
+      IMPORTING
+        i_source_currency TYPE waers
+        i_target_currency TYPE waers DEFAULT zif_fi_das_dashboard=>mc_currency_usd
+      RETURNING
+        VALUE(rs_rate)    TYPE ts_exchange_rate
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS convert_to_usd
+      IMPORTING
+        i_amount               TYPE t_amount_precision
+        i_source_currency      TYPE waers
+        i_keep_precision       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rv_amount)       TYPE zif_fi_das_dashboard=>t_amount
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS get_currency_factor
+      IMPORTING
+        i_currency       TYPE waers
+      RETURNING
+        VALUE(rv_factor) TYPE t_amount_precision.
+
+
+
+
+    METHODS read_request_decimal_format
+      IMPORTING
+        i_email                  TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(rv_decimal_format)
+          TYPE zif_fi_das_dashboard=>t_decimal_format
+      RAISING
+        cx_sy_open_sql_db.
+
+
+
+
+
+    METHODS get_threshold
+      RETURNING
+        VALUE(r_threshold_usd) TYPE zfi_das_thresh-po_threshold
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_review_day
+      RETURNING
+        VALUE(r_review_day) TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_japan_brazil
+      RETURNING
+        VALUE(rt_company_codes) TYPE tt_company_scope
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_pstype
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+      RETURNING
+        VALUE(r_pstype) TYPE zif_fi_das_dashboard=>t_pstype.
+
+    METHODS get_accrual_method_text
+      IMPORTING
+        i_method       TYPE zif_fi_das_dashboard=>t_accrual_method
+      RETURNING
+        VALUE(r_text) TYPE zif_fi_das_dashboard=>t_accrual_method.
+    METHODS get_pstype_text
+      IMPORTING
+        i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING
+        VALUE(r_text) TYPE char10.
+    METHODS get_rule_text
+      IMPORTING
+        i_rule_type   TYPE t_rule_type
+      RETURNING
+        VALUE(r_text) TYPE string.
+
+    CLASS-METHODS get_keys
+      IMPORTING
+        VALUE(i_mode)              TYPE zif_fi_das_dashboard=>t_operation
+        VALUE(i_pstype)            TYPE zif_fi_das_dashboard=>t_pstype
+        VALUE(i_email)             TYPE zif_fi_das_dashboard=>t_email
+        VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
+        VALUE(i_excluded_only)     TYPE abap_bool
+        VALUE(i_count_requested)   TYPE abap_bool
+        VALUE(i_skip)              TYPE i
+        VALUE(i_top)               TYPE i
+        VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
+        VALUE(it_japan_brazil)     TYPE tt_company_scope
+        VALUE(it_company_codes)    TYPE tt_company_scope
+        VALUE(it_cost_centers)     TYPE tt_cost_center_scope
+        VALUE(it_management_units) TYPE tt_management_scope
+        VALUE(it_po_filter)        TYPE tt_amdp_po_filter
+        VALUE(it_item_filter)      TYPE tt_amdp_item_filter
+        VALUE(it_supplier_filter)  TYPE tt_amdp_supplier_filter
+      EXPORTING
+        VALUE(et_keys)             TYPE tt_key
+        VALUE(e_total_count)       TYPE int8.
+
+    DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
+
+
+
+ENDCLASS.
+
+CLASS zcl_fi_das_dashboard IMPLEMENTATION.
+
+  METHOD zif_fi_das_dashboard~over.
+    CLEAR: et_result, e_total_count.
+    get_required_keys(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_over
+        i_excluded_only = abap_false
+      IMPORTING
+        et_keys         = DATA(lt_keys)
+        e_total_count   = e_total_count ).
+    IF lt_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA(ls_context) = get_context(
+      it_keys = lt_keys
+      i_mode  = zif_fi_das_dashboard=>mc_over ).
+    get_results(
+      EXPORTING
+        it_keys          = lt_keys
+        is_context       = ls_context
+        i_mode           = zif_fi_das_dashboard=>mc_over
+        i_decimal_format = read_request_decimal_format(
+          i_email = is_request-email )
+      CHANGING
+        ct_result        = et_result ).
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~under.
+    CLEAR: et_result, e_total_count.
+    get_required_keys(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_under
+        i_excluded_only = abap_false
+      IMPORTING
+        et_keys         = DATA(lt_keys)
+        e_total_count   = e_total_count ).
+    IF lt_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA(ls_context) = get_context(
+      it_keys = lt_keys
+      i_mode  = zif_fi_das_dashboard=>mc_under ).
+    get_results(
+      EXPORTING
+        it_keys          = lt_keys
+        is_context       = ls_context
+        i_mode           = zif_fi_das_dashboard=>mc_under
+        i_decimal_format = read_request_decimal_format(
+          i_email = is_request-email )
+      CHANGING
+        ct_result        = et_result ).
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~exclude.
+    CLEAR: et_result, e_total_count.
+    get_required_keys(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_exclude
+        i_excluded_only = abap_true
+      IMPORTING
+        et_keys         = DATA(lt_keys)
+        e_total_count   = e_total_count ).
+    IF lt_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA(ls_context) = get_context(
+      it_keys = lt_keys
+      i_mode  = zif_fi_das_dashboard=>mc_exclude ).
+    get_results(
+      EXPORTING
+        it_keys          = lt_keys
+        is_context       = ls_context
+        i_mode           = zif_fi_das_dashboard=>mc_exclude
+        i_decimal_format = read_request_decimal_format(
+          i_email = is_request-email )
+      CHANGING
+        ct_result        = et_result ).
+  ENDMETHOD.
+
+  METHOD get_required_keys.
+
+    validate_request( is_request = is_request
+                      i_mode     = i_mode ).
+
+    DATA(l_email) = get_email( is_request-email ).
+
+    get_access_scope( EXPORTING i_email   = l_email
+                                i_poowner = is_request-poowner
+                      IMPORTING et_cost_centers = DATA(lt_cost_centers)
+                                et_company_codes = DATA(lt_company_codes)
+                                et_management_units = DATA(lt_management_units) ).
+
+    get_keys(
+      EXPORTING
+        i_mode              = i_mode
+        i_pstype            = get_pstype( is_request = is_request
+                                          i_mode     = i_mode )
+        i_email             = l_email
+        i_poowner           = is_request-poowner
+        i_excluded_only     = i_excluded_only
+        i_count_requested   = is_request-paging-count_requested
+        i_skip              = is_request-paging-skip
+        i_top               = is_request-paging-top
+        i_threshold_usd     = get_threshold( )
+        it_japan_brazil     = get_japan_brazil( )
+        it_company_codes    = lt_company_codes
+        it_cost_centers     = lt_cost_centers
+        it_management_units = lt_management_units
+        it_po_filter        = get_po_filter( is_request )
+        it_item_filter      = get_item_filter( is_request )
+        it_supplier_filter  = get_supplier_filter( is_request )
+      IMPORTING
+        et_keys             = et_keys
+        e_total_count       = e_total_count ).
+
+  ENDMETHOD.
+
+
+  METHOD validate_request.
+
+    IF i_mode <> zif_fi_das_dashboard=>mc_over  AND
+       i_mode <> zif_fi_das_dashboard=>mc_under AND
+       i_mode <> zif_fi_das_dashboard=>mc_exclude.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e005(zfi_das).
+
+    ENDIF.
+
+    IF is_request-email IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e006(zfi_das).
+
+    ENDIF.
+
+    IF is_request-poowner <> abap_true AND is_request-poowner <> abap_false.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e007(zfi_das).
+
+    ENDIF.
+
+    IF i_mode <> zif_fi_das_dashboard=>mc_exclude AND
+       is_request-pstype <> zif_fi_das_dashboard=>mc_pstype_material AND
+       is_request-pstype <> zif_fi_das_dashboard=>mc_pstype_service  AND
+       is_request-pstype <> zif_fi_das_dashboard=>mc_pstype_all.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+         MESSAGE e008(zfi_das).
+
+    ENDIF.
+
+    IF is_request-paging-skip < 0 OR is_request-paging-top < 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e009(zfi_das).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_results.
+    DATA:
+      ls_row        TYPE zif_fi_das_dashboard=>ts_result,
+      ls_odata_row  TYPE zif_fi_das_dashboard=>ts_odata_result,
+      lr_target_row TYPE REF TO data.
+    FIELD-SYMBOLS <fs_target_row> TYPE any.
+
+    CLEAR ct_result.
+    CREATE DATA lr_target_row LIKE LINE OF ct_result.
+    ASSIGN lr_target_row->* TO <fs_target_row>.
+
+    LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+      ls_row = get_row(
+        is_key     = <fs_key>
+        is_context = is_context
+        i_mode     = i_mode ).
+      IF ls_row-ponumber IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      ls_odata_row = get_odata_row(
+        is_row           = ls_row
+        i_mode           = i_mode
+        i_decimal_format = i_decimal_format ).
+      CLEAR <fs_target_row>.
+      MOVE-CORRESPONDING ls_odata_row TO <fs_target_row>.
+      INSERT <fs_target_row> INTO TABLE ct_result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_row.
+
+    DATA ls_state TYPE ts_row_state.
+
+    CLEAR rs_row.
+
+    ASSIGN is_context-details[
+      ponumber = is_key-ponumber
+      itemno   = is_key-itemno
+    ] TO FIELD-SYMBOL(<ls_detail>).
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    apply_detail(
+      EXPORTING
+        is_detail = <ls_detail>
+      CHANGING
+        cs_result = rs_row ).
+
+    apply_user(
+      EXPORTING
+        is_user =
+          VALUE #(
+            is_context-users[
+              email = zcl_fi_das_utility=>normalize_email(
+                i_email = <ls_detail>-poowner_email )
+            ] OPTIONAL )
+      CHANGING
+        cs_result = rs_row
+        cs_state  = ls_state ).
+
+    apply_account(
+      EXPORTING
+        is_account =
+          VALUE #(
+            is_context-accounts[
+              ponumber = is_key-ponumber
+              itemno   = is_key-itemno
+            ] OPTIONAL )
+      CHANGING
+        cs_result = rs_row
+        cs_state  = ls_state ).
+
+    apply_history(
+      EXPORTING
+        is_history =
+          VALUE #(
+            is_context-history[
+              ponumber = is_key-ponumber
+              itemno   = is_key-itemno
+            ] OPTIONAL )
+      CHANGING
+        cs_result = rs_row
+        cs_state  = ls_state ).
+
+    DATA(ls_calculation) =
+      apply_status(
+        EXPORTING
+          is_status =
+            VALUE #(
+              is_context-statuses[
+                ponumber = is_key-ponumber
+                itemno   = is_key-itemno
+              ] OPTIONAL )
+          i_pstype     = is_key-pstype
+          i_mode       = i_mode
+          i_review_day = is_context-review_day
+        CHANGING
+          cs_result    = rs_row
+          cs_state     = ls_state ).
+
+    apply_calculation(
+      EXPORTING
+        is_detail      = <ls_detail>
+        is_calculation = ls_calculation
+      CHANGING
+        cs_result      = rs_row ).
+
+    apply_currency(
+      EXPORTING
+        is_detail = <ls_detail>
+      CHANGING
+        cs_result = rs_row ).
+
+    apply_closure(
+      CHANGING
+        cs_result = rs_row ).
+
+    apply_notification(
+      EXPORTING
+        is_notification =
+          VALUE #(
+            is_context-notifications[
+              ponumber = is_key-ponumber
+              itemno   = is_key-itemno
+            ] OPTIONAL )
+      CHANGING
+        cs_result = rs_row
+        cs_state  = ls_state ).
+
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
+
+      apply_exclusion(
+        EXPORTING
+          is_exclusion =
+            VALUE #(
+              is_context-exclusions[
+                ponumber = is_key-ponumber
+                itemno   = is_key-itemno
+              ] OPTIONAL )
+        CHANGING
+          cs_result = rs_row ).
+
+    ENDIF.
+
+    CLEAR rs_row-checkflag.
+
+  ENDMETHOD.
+
+  METHOD get_odata_row.
+    CLEAR rs_result.
+    MOVE-CORRESPONDING is_row TO rs_result.
+
+    rs_result-reviwed_by = is_row-reviewed_by.
+    rs_result-invoice_currency = COND #(
+      WHEN is_row-invoice_currency IS INITIAL THEN ` `
+      ELSE CONV string( is_row-invoice_currency ) ).
+    rs_result-documentdate = COND #(
+      WHEN is_row-documentdate IS INITIAL THEN space
+      ELSE CONV char8( is_row-documentdate ) ).
+    rs_result-pstype_text = get_pstype_text(
+      i_pstype = is_row-pstype ).
+    rs_result-accrualmethod = get_accrual_method_text(
+      i_method = is_row-accrualmethod ).
+    rs_result-exchangerate_dec = is_row-exchangerate.
+    rs_result-exchangerate = zcl_fi_das_utility=>format_odata_amount(
+      i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-exchangerate )
+      i_decimals = 6
+      i_decimal_format = i_decimal_format
+      i_use_grouping = abap_false ).
+    rs_result-po_closure = COND #( WHEN is_row-po_closure = abap_true
+               THEN zif_fi_das_dashboard=>mc_boolean_true
+               ELSE zif_fi_das_dashboard=>mc_boolean_false ).
+
+    IF i_mode = zif_fi_das_dashboard=>mc_over
+       OR i_mode = zif_fi_das_dashboard=>mc_under.
+      rs_result-straightlinemthd = COND #( WHEN is_row-straightlinemthd = abap_true
+               THEN zif_fi_das_dashboard=>mc_boolean_true
+               ELSE zif_fi_das_dashboard=>mc_boolean_false ).
+      rs_result-markasreviewed = COND #( WHEN is_row-markasreviewed = abap_true
+               THEN zif_fi_das_dashboard=>mc_boolean_true
+               ELSE zif_fi_das_dashboard=>mc_boolean_false ).
+      rs_result-totwrkcompamt_char = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompamt )
+        i_decimals = 2 i_decimal_format = i_decimal_format
+        i_use_grouping = abap_true i_pad_nonzero_below_ten = abap_true ).
+      rs_result-totwrkcompamt_usd_char = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompamt_usd )
+        i_decimals = 2 i_decimal_format = i_decimal_format
+        i_use_grouping = abap_true i_pad_nonzero_below_ten = abap_true ).
+      rs_result-amountaccrued_char = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-amountaccrued )
+        i_decimals = 2 i_decimal_format = i_decimal_format
+        i_use_grouping = abap_true i_pad_nonzero_below_ten = abap_true ).
+      rs_result-amountaccrued_usd_char = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-amountaccrued_usd )
+        i_decimals = 2 i_decimal_format = i_decimal_format
+        i_use_grouping = abap_true i_pad_nonzero_below_ten = abap_true ).
+      rs_result-totwrkcompper_char = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompper )
+        i_decimals = 2 i_decimal_format = i_decimal_format
+        i_use_grouping = abap_false i_pad_nonzero_below_ten = abap_true ).
+    ENDIF.
+
+    IF i_mode = zif_fi_das_dashboard=>mc_over.
+      rs_result-notif_24_hr = COND #(
+        WHEN is_row-notif_24_hr = abap_true THEN mc_yes ELSE space ).
+    ELSEIF i_mode = zif_fi_das_dashboard=>mc_exclude.
+*      rs_result-id = |{ is_row-ponumber }{ is_row-itemno }|.
+
+      rs_result-straightlinemthd = COND #(
+        WHEN is_row-straightlinemthd = abap_true THEN mc_yes ELSE space ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_context.
+
+    get_exchrt( ).
+
+    rs_context-details = get_details( it_keys ).
+
+    rs_context-accounts = get_accounts( it_keys ).
+
+    rs_context-history = get_history( it_keys    = it_keys
+                                      it_details = rs_context-details ).
+
+    rs_context-statuses = get_statuses( it_keys ).
+
+    rs_context-notifications = get_notifications( it_keys = it_keys ).
+
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
+      rs_context-exclusions = get_exclusions( it_keys ).
+    ENDIF.
+
+    read_users( EXPORTING it_details = rs_context-details
+                IMPORTING et_users = rs_context-users  ).
+
+    rs_context-review_day = get_review_day( ).
+
+  ENDMETHOD.
+
+  METHOD get_details.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT
+      ponumber,
+      itemno,
+      pstype                 AS original_pstype,
+      workstartdateraw       AS work_start_date,
+      workenddateraw         AS work_end_date,
+      itemcompanycode        AS item_company_code,
+      netvalue               AS net_value,
+      grossvalue             AS gross_value,
+      netprice               AS net_price,
+      priceunit              AS price_unit,
+      orderquantity          AS order_quantity,
+      porequestor            AS po_requestor,
+      popreparer             AS po_preparer,
+      serviceamount          AS service_amount,
+      servicepercentage      AS service_percentage,
+      polinedescription      AS po_line_description,
+      activitynumber         AS activity_number,
+      companycode            AS company_code,
+      pocurrency             AS po_currency,
+      supplierid             AS supplier_id,
+      pocreatedat            AS po_created_at,
+      documentdate           AS document_date,
+      purchasingorganization AS purchasing_org,
+      epnumber               AS ep_number,
+      suppliername           AS supplier_name,
+      purchasingunit         AS purchasing_unit,
+      region                 AS region,
+      companycodecurrency    AS company_code_currency
+    FROM zi_fi_das_po_base
+      FOR ALL ENTRIES IN @it_keys
+    WHERE ponumber = @it_keys-ponumber AND
+          itemno   = @it_keys-itemno
+      INTO TABLE @DATA(lt_base).
+
+    LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
+
+      ASSIGN it_keys[ ponumber = <fs_base>-ponumber
+                      itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+      INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
+                      effective_pstype = <fs_key>-pstype
+                      poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_accounts.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT
+      ekkn~ebeln   AS ponumber,
+      ekkn~ebelp   AS itemno,
+      ekkn~sakto   AS glaccount,
+      ekkn~kostl   AS costcenter,
+      cskt~ltext   AS costcenter_desc,
+      csks~zzrptun AS management_unit,
+      csks~kostl   AS management_unit_found,
+      ekkn~aufnr   AS internal_order,
+      ekkn~anln1   AS asset_id,
+      ekkn~prctr   AS profit_center,
+      ekkn~zekkn   AS bbp_acc_no,
+      ekkn~vproz   AS dist_percentage,
+      ekkn~menge   AS quantity
+    FROM ekkn
+     LEFT OUTER JOIN cskt ON cskt~kokrs = ekkn~kokrs AND
+                             cskt~kostl = ekkn~kostl AND
+                             cskt~spras = 'E' AND
+                             cskt~datbi >= @sy-datum
+     LEFT OUTER JOIN csks ON csks~kokrs = ekkn~kokrs AND
+                             csks~kostl = ekkn~kostl AND
+                             csks~datbi >= @sy-datum
+     FOR ALL ENTRIES IN @it_keys
+         WHERE ekkn~ebeln = @it_keys-ponumber AND
+               ekkn~ebelp = @it_keys-itemno
+     INTO TABLE @DATA(lt_accounts).
+
+    SORT lt_accounts BY ponumber itemno bbp_acc_no.
+
+    LOOP AT lt_accounts ASSIGNING FIELD-SYMBOL(<fs_account>).
+
+      ASSIGN rt_accounts[ ponumber = <fs_account>-ponumber
+                          itemno   = <fs_account>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
+
+      IF sy-subrc <> 0.
+
+        INSERT VALUE #( ponumber = <fs_account>-ponumber
+                        itemno   = <fs_account>-itemno ) INTO TABLE rt_accounts ASSIGNING <fs_aggregate>.
+
+      ENDIF.
+
+      DATA(l_is_first_entry) = xsdbool( <fs_aggregate>-entry_count = 0 ).
+
+      DATA(l_value) = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-glaccount ) ).
+      <fs_aggregate>-glaccount = zcl_fi_das_utility=>append_delimited(
+                                     i_current = <fs_aggregate>-glaccount
+                                     i_value   = l_value
+                                     i_first   = l_is_first_entry ).
+
+      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-costcenter ) ).
+      <fs_aggregate>-costcenter = zcl_fi_das_utility=>append_delimited(
+                                     i_current = <fs_aggregate>-costcenter
+                                     i_value   = l_value
+                                     i_first   = l_is_first_entry ).
+
+      <fs_aggregate>-costcenter_desc = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-costcenter_desc
+                                         i_value   = CONV string( <fs_account>-costcenter_desc )
+                                         i_first   = l_is_first_entry ).
+
+*    Management unit is aggregated only if the corresponding CSKS record exists.
+*    It therefore needs its own count, not ENTRY_COUNT.
+
+      IF <fs_account>-management_unit_found IS NOT INITIAL.
+
+        <fs_aggregate>-management_unit = zcl_fi_das_utility=>append_delimited(
+                                             i_current = <fs_aggregate>-management_unit
+                                             i_value   = CONV string( <fs_account>-management_unit )
+                                             i_first   = xsdbool( <fs_aggregate>-management_unit_count = 0 ) ).
+
+        <fs_aggregate>-management_unit_count = <fs_aggregate>-management_unit_count + 1.
+
+      ENDIF.
+
+      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-internal_order ) ).
+      <fs_aggregate>-internal_order = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-internal_order
+                                         i_value   = l_value
+                                         i_first   = l_is_first_entry ).
+
+      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-asset_id ) ).
+      <fs_aggregate>-asset_id = zcl_fi_das_utility=>append_delimited(
+                                  i_current = <fs_aggregate>-asset_id
+                                  i_value   = l_value
+                                  i_first   = l_is_first_entry ).
+
+      <fs_aggregate>-profit_center = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-profit_center
+                                         i_value   = CONV string( <fs_account>-profit_center )
+                                         i_first   = l_is_first_entry ).
+
+      <fs_aggregate>-bbp_acc_no = zcl_fi_das_utility=>append_delimited(
+                                     i_current = <fs_aggregate>-bbp_acc_no
+                                     i_value   = CONV string( <fs_account>-bbp_acc_no )
+                                     i_first   = l_is_first_entry ).
+
+      l_value = |{ <fs_account>-dist_percentage NUMBER = RAW }|.
+      CONDENSE l_value.
+      <fs_aggregate>-dist_percentage = zcl_fi_das_utility=>append_delimited(
+                                          i_current = <fs_aggregate>-dist_percentage
+                                          i_value   = l_value
+                                          i_first   = l_is_first_entry ).
+
+      <fs_aggregate>-quantity = <fs_aggregate>-quantity + <fs_account>-quantity.
+
+      <fs_aggregate>-entry_count = <fs_aggregate>-entry_count + 1.
+
+    ENDLOOP.
+
+    LOOP AT rt_accounts ASSIGNING <fs_aggregate>.
+
+      <fs_aggregate>-asset_id = zcl_fi_das_utility=>trim_delimiters( <fs_aggregate>-asset_id ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_history.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(l_cutoff_date) = get_history_cutoff_date( ).
+
+    SELECT
+      ebeln AS ponumber,
+      ebelp AS itemno,
+      zekkn AS acc_assign,
+      gjahr AS fiscal_year,
+      belnr AS document_no,
+      buzei AS document_item,
+      bewtp AS category,
+      vgabe AS transaction,
+      menge AS quantity,
+      wrbtr AS amount,
+      dmbtr AS local_amount,
+      shkzg AS debit_credit,
+      budat AS posting_date
+    FROM ekbe
+      FOR ALL ENTRIES IN @it_keys
+    WHERE ebeln = @it_keys-ponumber AND
+          ebelp = @it_keys-itemno AND
+          budat <= @l_cutoff_date AND
+          ( bewtp = @mc_bewtp_e OR
+          ( bewtp IN ( @mc_bewtp_q, @mc_bewtp_n )  AND
+            vgabe IN ( @mc_vgabe_2, @mc_vgabe_3 ) ) )
+      INTO TABLE @DATA(lt_history).
+
+    LOOP AT lt_history ASSIGNING FIELD-SYMBOL(<fs_history>).
+
+      ASSIGN it_details[ ponumber = <fs_history>-ponumber
+                         itemno   = <fs_history>-itemno ] TO FIELD-SYMBOL(<fs_detail>).
+
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+      ASSIGN rt_history[ ponumber = <fs_history>-ponumber
+                         itemno   = <fs_history>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
+
+      IF sy-subrc <> 0.
+
+        INSERT VALUE #( ponumber = <fs_history>-ponumber
+                        itemno   = <fs_history>-itemno ) INTO TABLE rt_history ASSIGNING <fs_aggregate>.
+      ENDIF.
+
+      DATA(l_currency_factor) = get_currency_factor( <fs_detail>-po_currency ).
+
+      DATA(l_sign) = COND i( WHEN <fs_history>-debit_credit = mc_credit_indicator
+                              THEN -1
+                              ELSE 1 ).
+
+      IF <fs_history>-category = mc_bewtp_e.
+
+        IF <fs_detail>-effective_pstype <> zif_fi_das_dashboard=>mc_pstype_material OR <fs_detail>-price_unit IS INITIAL.
+          CONTINUE.
+        ENDIF.
+
+        DATA(l_gr_amount) = CONV t_amount_precision( <fs_history>-quantity * <fs_detail>-net_price /
+                                                      <fs_detail>-price_unit * l_sign  ).
+
+        <fs_aggregate>-gr_value = <fs_aggregate>-gr_value + l_gr_amount * l_currency_factor.
+
+        <fs_aggregate>-gr_value_usd = <fs_aggregate>-gr_value_usd + convert_to_usd(
+                                                                      i_amount          = l_gr_amount
+                                                                      i_source_currency = <fs_detail>-po_currency
+                                                                      i_keep_precision  = abap_true ).
+
+        <fs_aggregate>-gr_source_exists = abap_true.
+
+      ELSE.
+
+        DATA(l_invoice_amount) = CONV t_amount_precision( <fs_history>-amount * l_sign  ).
+
+        <fs_aggregate>-invoice_value = <fs_aggregate>-invoice_value + l_invoice_amount * l_currency_factor.
+
+        <fs_aggregate>-invoice_local = <fs_aggregate>-invoice_local + <fs_history>-local_amount
+                                        * l_currency_factor * l_sign.
+
+        <fs_aggregate>-invoice_usd = <fs_aggregate>-invoice_usd + convert_to_usd(
+                                                                      i_amount          = l_invoice_amount
+                                                                      i_source_currency = <fs_detail>-po_currency ).
+
+        <fs_aggregate>-invoice_source_exists = abap_true.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_statuses.
+
+    TYPES:BEGIN OF ts_wtd_key,
+            ponumber TYPE ebeln,
+            itemno   TYPE ebelp,
+          END OF ts_wtd_key,
+
+          tt_wtd_key TYPE HASHED TABLE OF ts_wtd_key WITH UNIQUE KEY ponumber itemno.
+
+    DATA lt_wtd_keys TYPE tt_wtd_key.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT
+      ponumber,
+      lineitem               AS itemno,
+      status,
+      accrualmethod         AS accrual_method,
+      markasreviewed        AS mark_as_reviewed,
+      changeddate           AS changed_date,
+      changedtime           AS changed_time,
+      changed_on,
+      reviewed_by,
+      po_closure,
+      totalworkcompltodate  AS wtd_amount,
+      workcomplastmonthamt  AS last_month_amount
+     FROM zfi_das_postatus
+       FOR ALL ENTRIES IN @it_keys
+     WHERE ponumber = @it_keys-ponumber AND
+           lineitem = @it_keys-itemno
+      INTO TABLE @DATA(lt_statuses).
+
+* Open SQL maps SQL NULL numeric fields to ABAP initial values.
+* Preserve distinction between NULL and 0.00.
+
+    SELECT
+      ponumber,
+      lineitem AS itemno
+    FROM zfi_das_postatus
+      FOR ALL ENTRIES IN @it_keys
+    WHERE ponumber = @it_keys-ponumber AND
+          lineitem = @it_keys-itemno AND
+          totalworkcompltodate IS NOT NULL
+     INTO TABLE @lt_wtd_keys.
+
+    LOOP AT lt_statuses ASSIGNING FIELD-SYMBOL(<fs_status>).
+
+      DATA(l_wtd_source_exists) = xsdbool( line_exists( lt_wtd_keys[ ponumber = <fs_status>-ponumber
+                                                                     itemno   = <fs_status>-itemno ] ) ).
+      INSERT VALUE #( BASE CORRESPONDING #( <fs_status> )
+                      wtd_source_exists = l_wtd_source_exists ) INTO TABLE rt_statuses.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_notifications.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT
+      ponumber,
+      lineitem AS itemno,
+      changedon AS last_notif_on
+    FROM zfi_das_po_audit
+      FOR ALL ENTRIES IN @it_keys
+    WHERE ponumber = @it_keys-ponumber AND
+          lineitem = @it_keys-itemno
+      INTO TABLE @DATA(lt_notifications).
+
+    LOOP AT lt_notifications ASSIGNING FIELD-SYMBOL(<fs_notification>).
+
+      ASSIGN rt_notifications[ ponumber = <fs_notification>-ponumber
+                               itemno   = <fs_notification>-itemno ] TO FIELD-SYMBOL(<fs_result>).
+
+      IF sy-subrc <> 0.
+
+        INSERT VALUE #( ponumber      = <fs_notification>-ponumber
+                        itemno        = <fs_notification>-itemno
+                        last_notif_on = <fs_notification>-last_notif_on ) INTO TABLE rt_notifications ASSIGNING <fs_result>.
+        CONTINUE.
+
+      ENDIF.
+
+      IF <fs_notification>-last_notif_on > <fs_result>-last_notif_on.
+        <fs_result>-last_notif_on =  <fs_notification>-last_notif_on.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_exclusions.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT ponumber, itemno, ruletype
+      FROM zfi_das_po_excl
+    FOR ALL ENTRIES IN @it_keys
+      WHERE ponumber = @it_keys-ponumber AND
+            itemno   = @it_keys-itemno
+    INTO TABLE @DATA(lt_exclusions).
+
+    SORT lt_exclusions BY ponumber itemno ruletype.
+
+    LOOP AT lt_exclusions ASSIGNING FIELD-SYMBOL(<fs_exclusion>).
+
+      ASSIGN rt_exclusions[ ponumber = <fs_exclusion>-ponumber
+                            itemno   = <fs_exclusion>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
+
+      IF sy-subrc <> 0.
+
+        INSERT VALUE #( ponumber = <fs_exclusion>-ponumber
+                        itemno   = <fs_exclusion>-itemno  ) INTO TABLE rt_exclusions ASSIGNING <fs_aggregate>.
+
+      ENDIF.
+
+      <fs_aggregate>-ruletype = zcl_fi_das_utility=>append_delimited(
+                                  i_current      = <fs_aggregate>-ruletype
+                                  i_value        = <fs_exclusion>-ruletype
+                                  i_skip_initial = abap_true ).
+
+      <fs_aggregate>-ruletypetext = zcl_fi_das_utility=>append_delimited(
+                                      i_current      = <fs_aggregate>-ruletypetext
+                                      i_value        =  get_rule_text( CONV t_rule_type(  <fs_exclusion>-ruletype )  )
+                                      i_skip_initial = abap_true ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD read_users
+   BY DATABASE PROCEDURE
+   FOR HDB
+   LANGUAGE SQLSCRIPT
+   OPTIONS READ-ONLY
+   USING usr21
+         adrp
+         adr6
+         usr01
+         usr02.
+
+    lt_requested = SELECT DISTINCT LOWER( TRIM( poowner_email ) ) AS email
+                     FROM :it_details
+                   WHERE poowner_email IS NOT NULL AND
+                         TRIM( poowner_email ) <> '';
+
+    lt_candidates = SELECT
+                      LOWER( email.smtp_addr ) AS email,
+                      user_data.bname          AS username,
+                      person.name_text         AS full_name,
+                      user_defaults.dcpfm      AS decimal_format,
+                      user_defaults.datfm      AS date_format
+                    FROM usr21 AS user_data
+
+                    INNER JOIN adrp AS person  ON person.persnumber = user_data.persnumber
+
+                    INNER JOIN adr6 AS email ON  email.persnumber = user_data.persnumber AND
+                                                 email.addrnumber = user_data.addrnumber
+
+                    INNER JOIN usr01 AS user_defaults ON user_defaults.bname = user_data.bname
+
+                    INNER JOIN usr02 AS user_logon ON user_logon.bname = user_data.bname
+
+                    INNER JOIN :lt_requested AS requested ON requested.email = LOWER( TRIM( email.smtp_addr ) )
+
+                     WHERE user_logon.ustyp = 'A' AND
+                           user_logon.class NOT LIKE '%RPA%' AND
+                           user_logon.gltgv < CURRENT_DATE AND
+                           user_logon.gltgb >= CURRENT_DATE AND
+                           SUBSTRING( user_data.bname, 1, 1 )
+                             NOT IN ( '0', '1', '2', '3', '4','5', '6', '7', '8', '9' );
+
+    et_users = SELECT email, username, full_name, decimal_format, date_format
+      FROM (  SELECT email, username, full_name, decimal_format,date_format,
+          ROW_NUMBER() OVER
+          (
+            PARTITION BY email
+            ORDER BY USERNAME
+          ) AS row_number
+        FROM :lt_candidates
+      )
+      WHERE row_number = 1;
+
+  ENDMETHOD.
+
+  METHOD get_exchrt.
+    SELECT source_curr,
+           target_curr,
+           exchange_rate,
+           reference_date,
+           last_replicated_at,
+           rev_exchange_rate
+      FROM zfi_das_exchrt
+      INTO CORRESPONDING FIELDS OF TABLE @mt_exchrt.
+  ENDMETHOD.
+
+  METHOD apply_detail.
+
+    cs_result-ponumber = is_detail-ponumber.
+    cs_result-itemno = is_detail-itemno.
+    cs_result-poowner_email = is_detail-poowner_email.
+    cs_result-companycode = is_detail-company_code.
+    cs_result-purchasingunit = is_detail-purchasing_unit.
+    cs_result-region = is_detail-region.
+    cs_result-cocdecurr = is_detail-company_code_currency.
+    cs_result-pocreatedat = is_detail-po_created_at.
+    cs_result-supplierid = |{ is_detail-supplier_id ALPHA = OUT }|.
+    cs_result-suppliername = is_detail-supplier_name.
+    cs_result-polinedesc = is_detail-po_line_description.
+    cs_result-pstype = is_detail-effective_pstype.
+    cs_result-pocurrency = is_detail-po_currency.
+    cs_result-wrkstrtdate = is_detail-work_start_date.
+    cs_result-wrkenddate = is_detail-work_end_date.
+    cs_result-epnumber = is_detail-ep_number.
+    cs_result-documentdate = is_detail-document_date.
+    cs_result-purchasingorganization = is_detail-purchasing_org.
+    cs_result-orderquantity =
+      CONV zif_fi_das_dashboard=>t_amount(
+        zcl_fi_das_utility=>truncate_decimal(
+          i_value    = CONV decfloat34( is_detail-order_quantity )
+          i_decimals = mc_amount_decimals ) ).
+    cs_result-po_preparer =
+      zcl_fi_das_utility=>normalize_email(
+        i_email = is_detail-po_preparer ).
+    cs_result-zactivitynbr = is_detail-activity_number.
+    cs_result-povalue =
+      is_detail-gross_value
+      * get_currency_factor(
+          i_currency = is_detail-po_currency ).
+
+  ENDMETHOD.
+
+  METHOD apply_user.
+
+    IF is_user-email IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    cs_result-username = is_user-username.
+    cs_result-full_name = is_user-full_name.
+    cs_result-decimal_format = is_user-decimal_format.
+    cs_result-datfm = is_user-date_format.
+    cs_state-user_supplied = abap_true.
+
+  ENDMETHOD.
+
+  METHOD apply_account.
+
+    cs_result-glaccount =
+      is_account-glaccount.
+
+    cs_result-costcenter =
+      is_account-costcenter.
+
+    cs_result-costcenterdesc =
+      is_account-costcenter_desc.
+
+    cs_result-manageunit =
+      is_account-management_unit.
+
+    cs_result-internalorder =
+      is_account-internal_order.
+
+    cs_result-assetid =
+      is_account-asset_id.
+
+    cs_result-profitcenter =
+      is_account-profit_center.
+
+    cs_result-bbp_acc_no =
+      is_account-bbp_acc_no.
+
+    cs_result-distpercentage =
+      is_account-dist_percentage.
+
+    cs_state-manageunit_supplied =
+      xsdbool( is_account-management_unit_count > 0 ).
+
+  ENDMETHOD.
+
+
+  METHOD apply_history.
+
+    cs_result-grvalue =
+      CONV zif_fi_das_dashboard=>t_amount(
+        zcl_fi_das_utility=>truncate_decimal(
+          i_value    = CONV decfloat34( is_history-gr_value )
+          i_decimals = mc_amount_decimals ) ).
+
+    cs_result-grvalue_cocdecurr =
+      cs_result-grvalue.
+
+    cs_result-grvalue_usd =
+      is_history-gr_value_usd.
+
+    cs_result-invvalue =
+      is_history-invoice_value.
+
+    cs_result-invvalue_cocdecurr =
+      is_history-invoice_local.
+
+    cs_result-invvalue_usd =
+      is_history-invoice_usd.
+
+    cs_state-grvalue_usd_supplied =
+      is_history-gr_source_exists.
+
+    cs_state-invvalue_usd_supplied =
+      is_history-invoice_source_exists.
+
+  ENDMETHOD.
+
+  METHOD apply_status.
+
+    DATA:
+      lv_closure TYPE string.
+
+    CLEAR rs_calculation.
+
+*--------------------------------------------------------------------*
+* XSA final facades expose MARKASREVIEWED as false.
+*--------------------------------------------------------------------*
+    CLEAR cs_result-markasreviewed.
+
+*--------------------------------------------------------------------*
+* XSA provides LASTMONTHWRKCOMP in:
+* - Exclude / Information flow;
+* - Under-threshold Service flow.
+*
+* Over and Under Material retain their existing behavior.
+*--------------------------------------------------------------------*
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude
+       OR (
+         i_mode = zif_fi_das_dashboard=>mc_under
+         AND i_pstype = zif_fi_das_dashboard=>mc_pstype_service
+       ).
+
+      cs_result-lastmonthwrkcomp =
+        is_status-last_month_amount.
+
+    ENDIF.
+
+    IF is_status-ponumber IS INITIAL.
+
+      cs_result-status =
+        zif_fi_das_dashboard=>mc_status_pending.
+
+      CLEAR cs_result-po_closure.
+
+      RETURN.
+
+    ENDIF.
+
+    cs_result-reviewed_by =
+      is_status-reviewed_by.
+
+    cs_state-reviewed_by_supplied =
+      abap_true.
+
+    cs_result-changed_on =
+      zcl_fi_das_utility=>utc_to_cet_timestamp(
+        i_timestamp = is_status-changed_on ).
+
+*--------------------------------------------------------------------*
+* SQL NULL versus explicit 0.00 remains distinguishable internally.
+* For Service rows, an existing zero WTD source remains a supplied
+* value and must not be treated as absent.
+*--------------------------------------------------------------------*
+    IF is_status-wtd_source_exists = abap_true
+       AND (
+         is_status-wtd_amount <> 0
+         OR i_pstype = zif_fi_das_dashboard=>mc_pstype_service
+       ).
+
+      cs_result-edgewtdamt =
+        is_status-wtd_amount.
+
+      cs_state-edgewtdamt_supplied =
+        abap_true.
+
+    ELSE.
+
+      CLEAR cs_result-edgewtdamt.
+
+    ENDIF.
+
+    lv_closure =
+      is_status-po_closure.
+
+    TRANSLATE lv_closure TO LOWER CASE.
+
+    cs_result-po_closure =
+      xsdbool(
+        lv_closure = zif_fi_das_dashboard=>mc_boolean_true ).
+
+*--------------------------------------------------------------------*
+* Respect the accrual method stored in the status record. Under Service
+* must not be forcibly changed to Straight Line.
+*--------------------------------------------------------------------*
+    rs_calculation-accrual_method =
+      is_status-accrual_method.
+
+    calculate_visible_status(
+      EXPORTING
+        is_status    = is_status
+        i_review_day = i_review_day
+      CHANGING
+        cs_result    = cs_result ).
+
+  ENDMETHOD.
+
+
+  METHOD apply_calculation.
+
+    DATA ls_result TYPE ts_calculation.
+
+    ls_result =
+      calculate_accrual(
+        is_detail         = is_detail
+        i_accrual_method = is_calculation-accrual_method ).
+
+    cs_result-totwrkcompamt =
+      ls_result-total_work_amount.
+
+    cs_result-totwrkcompamt_usd =
+      ls_result-total_work_amount_usd.
+
+    cs_result-totwrkcompper =
+      ls_result-total_work_percent.
+
+    cs_result-straightlinemthd =
+      ls_result-straight_line.
+
+    cs_result-accrualmethod =
+      ls_result-accrual_method.
+
+    cs_result-invvalue_cal =
+      calculate_invoice_value(
+        i_invoice_value = cs_result-invvalue ).
+
+    cs_result-amountaccrued =
+      calculate_accrued_amount(
+        i_pstype            = is_detail-effective_pstype
+        i_total_work_amount = cs_result-totwrkcompamt
+        i_gr_value          = cs_result-grvalue
+        i_invoice_value     = cs_result-invvalue_cal ).
+
+  ENDMETHOD.
+
+
+  METHOD apply_currency.
+
+    DATA:
+      ls_rate   TYPE ts_exchange_rate,
+      lv_amount TYPE t_amount_precision.
+
+    ls_rate =
+      read_exchange_rate(
+        i_source_currency = is_detail-po_currency ).
+
+    cs_result-exchangerate =
+      ls_rate-rate.
+
+* XSA POVALUE_USD is converted from the same gross PO value used for
+* POVALUE. For JPY/VND the historical 100x normalization is inside
+* CONVERT_TO_USD.
+    cs_result-povalue_usd =
+      convert_to_usd(
+        i_amount          = is_detail-gross_value
+        i_source_currency = is_detail-po_currency ).
+
+* XSA keeps PO value in company-code currency equal to the displayed PO
+* value in this read flow.
+    cs_result-povalue_coco =
+      cs_result-povalue.
+
+    cs_result-totwrkcompamt_cocdecurr =
+      convert_to_usd(
+        i_amount =
+          CONV t_amount_precision(
+            cs_result-totwrkcompamt )
+        i_source_currency =
+          is_detail-po_currency ).
+
+    cs_result-amountaccrued_cocdecurr =
+        cs_result-totwrkcompamt_cocdecurr
+      - cs_result-invvalue_cocdecurr.
+
+    lv_amount =
+        CONV t_amount_precision(
+          cs_result-amountaccrued )
+      * CONV t_amount_precision(
+          cs_result-exchangerate ).
+
+    cs_result-amountaccrued_usd =
+      CONV zif_fi_das_dashboard=>t_amount(
+        round(
+          val  = CONV decfloat34( lv_amount )
+          dec  = mc_amount_decimals
+          mode = cl_abap_math=>round_half_up ) ).
+
+  ENDMETHOD.
+
+
+  METHOD apply_closure.
+
+    IF cs_result-po_closure = abap_true.
+
+      cs_result-poclosure_flag =
+        1.
+
+    ELSE.
+
+      cs_result-poclosure_flag =
+        0.
+
+    ENDIF.
+
+    CLEAR cs_result-poclosure_flag_local.
+
+  ENDMETHOD.
+
+
+  METHOD apply_notification.
+
+    CLEAR:
+      cs_result-last_notif_on,
+      cs_result-notif_24_hr.
+
+    IF is_notification-ponumber IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    cs_result-last_notif_on =
+      zcl_fi_das_utility=>utc_to_cet_timestamp(
+        i_timestamp = is_notification-last_notif_on ).
+
+    cs_state-notification_supplied =
+      abap_true.
+
+    IF zcl_fi_das_utility=>is_current_utc_day(
+         i_timestamp = is_notification-last_notif_on ) = abap_true.
+
+      cs_result-notif_24_hr =
+        abap_true.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD apply_exclusion.
+
+    cs_result-ruletype = is_exclusion-ruletype.
+    cs_result-ruletypetext = is_exclusion-ruletypetext.
+    CLEAR cs_result-costcenterdesc.
+
+  ENDMETHOD.
+
+  METHOD calculate_accrual.
+
+    DATA:
+      ls_straight_line      TYPE ts_calculation,
+      lv_service_amount     TYPE t_amount_precision,
+      lv_service_is_initial TYPE abap_bool,
+      lv_stl_po_value       TYPE t_amount_precision,
+      lv_usd_source_amount  TYPE t_amount_precision,
+      lx_conversion         TYPE REF TO cx_root.
+
+    CLEAR rs_result.
+
+*--------------------------------------------------------------------*
+* Material items do not use Service WTD/STL calculation.
+*--------------------------------------------------------------------*
+    IF is_detail-effective_pstype <>
+         zif_fi_das_dashboard=>mc_pstype_service.
+
+      rs_result-accrual_method =
+        zif_fi_das_dashboard=>mc_accrual_stl.
+
+      RETURN.
+
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Straight-line calculation uses dashboard-normalized PO value.
+*--------------------------------------------------------------------*
+    lv_stl_po_value =
+        is_detail-gross_value
+      * get_currency_factor(
+          i_currency = is_detail-po_currency ).
+
+*--------------------------------------------------------------------*
+* XSA decision source:
+*
+* Initial SERVICE_AMOUNT -> STL fallback
+* Supplied SERVICE_AMOUNT -> WTD, including numeric zero
+*--------------------------------------------------------------------*
+    IF is_detail-service_amount IS INITIAL.
+
+      lv_service_is_initial =
+        abap_true.
+
+    ELSE.
+
+      TRY.
+
+          lv_service_amount =
+            CONV t_amount_precision(
+              is_detail-service_amount ).
+
+        CATCH cx_sy_conversion_no_number
+              cx_sy_conversion_overflow
+              cx_sy_conversion_error
+              INTO lx_conversion.
+
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_reason =
+                         |Invalid services-completed amount: { is_detail-service_amount }|
+              previous =
+                         lx_conversion.
+
+      ENDTRY.
+
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* XSA calculates the STL candidate before method selection.
+*--------------------------------------------------------------------*
+    ls_straight_line =
+      calculate_straight_line(
+        i_po_value        = lv_stl_po_value
+        i_po_currency     = is_detail-po_currency
+        i_work_start_date = is_detail-work_start_date
+        i_work_end_date   = is_detail-work_end_date ).
+
+*--------------------------------------------------------------------*
+* Empty persisted method and explicit WTD both select according to
+* SERVICE_AMOUNT availability.
+*--------------------------------------------------------------------*
+    IF i_accrual_method IS INITIAL
+       OR i_accrual_method = zif_fi_das_dashboard=>mc_accrual_wtd.
+
+      IF lv_service_is_initial = abap_true.
+
+        rs_result =
+          ls_straight_line.
+
+        rs_result-accrual_method =
+          zif_fi_das_dashboard=>mc_accrual_stl.
+
+        rs_result-straight_line =
+          abap_true.
+
+      ELSE.
+
+*------------------------------------------------------------------*
+* XSA's DECIMAL(...,2) result column truncates surplus fractions.
+*
+* Do not use:
+*   CONV T_AMOUNT( LV_SERVICE_AMOUNT )
+*
+* because ABAP conversion rounds (e.g. 241.825 -> 241.83) whereas
+* XSA returns 241.82 for the verified boundary case
+* 8002132177 / 00001.
+*------------------------------------------------------------------*
+        rs_result-total_work_amount =
+          CONV zif_fi_das_dashboard=>t_amount(
+            zcl_fi_das_utility=>truncate_decimal(
+              i_value    = CONV decfloat34( lv_service_amount )
+              i_decimals = mc_amount_decimals ) ).
+
+*------------------------------------------------------------------*
+* XSA service WTD USD conversion:
+*
+* For JPY/VND the displayed work amount is in normalized units.
+* XSA passes TOTAL_WORK_AMOUNT / 100 into SF_ConvertCurrency. The
+* function truncates its source input to two decimals and applies its
+* historical JPY/VND x100 factor.
+*
+*------------------------------------------------------------------*
+        lv_usd_source_amount =
+            lv_service_amount
+          / get_currency_factor(
+              i_currency = is_detail-po_currency ).
+
+        rs_result-total_work_amount_usd =
+          convert_to_usd(
+            i_amount          = lv_usd_source_amount
+            i_source_currency = is_detail-po_currency ).
+
+        rs_result-total_work_percent =
+          zcl_fi_das_utility=>parse_percentage(
+            i_value =
+              CONV string(
+                is_detail-service_percentage ) ).
+
+        rs_result-accrual_method =
+          zif_fi_das_dashboard=>mc_accrual_wtd.
+
+        CLEAR rs_result-straight_line.
+
+      ENDIF.
+
+      RETURN.
+
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Persisted STL always selects the pre-calculated STL candidate.
+*--------------------------------------------------------------------*
+    IF i_accrual_method =
+         zif_fi_das_dashboard=>mc_accrual_stl.
+
+      rs_result =
+        ls_straight_line.
+
+      rs_result-accrual_method =
+        zif_fi_das_dashboard=>mc_accrual_stl.
+
+      rs_result-straight_line =
+        abap_true.
+
+      RETURN.
+
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* XSA SQLScript fall-through for unsupported noninitial methods.
+*--------------------------------------------------------------------*
+    CLEAR rs_result.
+
+  ENDMETHOD.
+
+  METHOD calculate_straight_line.
+
+    DATA:
+      lv_total_months      TYPE i,
+      lv_elapsed_months    TYPE i,
+      lv_division          TYPE t_amount_high,
+      lv_monthly_amount    TYPE t_amount_precision,
+      lv_unrounded_amount  TYPE t_amount_high,
+      lv_amount            TYPE zif_fi_das_dashboard=>t_amount,
+      lv_percentage        TYPE decfloat34,
+      lv_usd_source_amount TYPE t_amount_precision.
+
+    CLEAR rs_result.
+
+    get_month_difference(
+      EXPORTING
+        i_work_start_date = i_work_start_date
+        i_work_end_date   = i_work_end_date
+      IMPORTING
+        e_total_months    = lv_total_months
+        e_elapsed_months  = lv_elapsed_months ).
+
+*--------------------------------------------------------------------*
+* XSA SF_calcSTL_wtdAmountPer:
+*
+* If all calculated service periods have elapsed, XSA calculates the
+* completed value as a 1 / 1 interval.
+*--------------------------------------------------------------------*
+    IF lv_total_months = lv_elapsed_months.
+
+      lv_total_months =
+        1.
+
+      lv_elapsed_months =
+        1.
+
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* XSA:
+*
+* IF MONTH_BET > 0 THEN
+*   LV_AMOUNT = ROUND(
+*     ( IV_POVALUE / MONTH_BET ) * MONTH_BET_CRR,
+*     2
+*   );
+* ELSE
+*   LV_AMOUNT = 0.00;
+* END IF;
+*
+* Important:
+*
+* Do not evaluate the complete expression as a single DECFLOAT34
+* expression. The HANA division is materialized at a finite decimal
+* scale before multiplication. The observed parity behavior requires
+* truncation to eight decimals at that exact boundary.
+*--------------------------------------------------------------------*
+    IF lv_total_months > 0.
+
+      lv_division =
+          i_po_value
+        / lv_total_months.
+
+      lv_monthly_amount =
+        CONV t_amount_precision(
+          zcl_fi_das_utility=>truncate_decimal(
+            i_value    = CONV decfloat34( lv_division )
+            i_decimals = mc_calculation_decimals ) ).
+
+      lv_unrounded_amount =
+          lv_monthly_amount
+        * lv_elapsed_months.
+
+      lv_amount =
+        CONV zif_fi_das_dashboard=>t_amount(
+          round(
+            val  = CONV decfloat34( lv_unrounded_amount )
+            dec  = mc_amount_decimals
+            mode = cl_abap_math=>round_half_up ) ).
+
+*--------------------------------------------------------------------*
+* XSA cap: the completed amount cannot exceed the original PO amount.
+*--------------------------------------------------------------------*
+      IF lv_amount >
+           CONV zif_fi_das_dashboard=>t_amount(
+             i_po_value ).
+
+        lv_amount =
+          CONV zif_fi_das_dashboard=>t_amount(
+            i_po_value ).
+
+      ENDIF.
+
+    ELSE.
+
+      CLEAR lv_amount.
+
+    ENDIF.
+
+    rs_result-total_work_amount =
+      lv_amount.
+
+*--------------------------------------------------------------------*
+* XSA SF_ConvertCurrency is called using source-scale amounts.
+*
+* I_PO_VALUE was supplied in dashboard-normalized units:
+*
+*   JPY/VND: raw amount * 100
+*
+* Therefore the calculated straight-line amount is also normalized.
+* Divide it by 100 before calling CONVERT_TO_USD. That method then:
+*
+* 1. truncates the source input to two decimals;
+* 2. reapplies XSA's JPY/VND x100 factor;
+* 3. multiplies the rate;
+* 4. applies final ROUND(..., 2).
+*--------------------------------------------------------------------*
+    lv_usd_source_amount =
+        CONV t_amount_precision(
+          lv_amount )
+      / get_currency_factor(
+          i_currency = i_po_currency ).
+
+    rs_result-total_work_amount_usd =
+      convert_to_usd(
+        i_amount          = lv_usd_source_amount
+        i_source_currency = i_po_currency ).
+
+*--------------------------------------------------------------------*
+* XSA:
+*
+* STL_PER = ROUND( ( LV_AMOUNT / IV_POVALUE ) * 100, 1 )
+*--------------------------------------------------------------------*
+    IF i_po_value > 0.
+
+      lv_percentage =
+          CONV decfloat34(
+            lv_amount )
+        / CONV decfloat34(
+            i_po_value )
+        * 100.
+
+      rs_result-total_work_percent =
+        CONV zif_fi_das_dashboard=>t_percentage(
+          round(
+            val  = lv_percentage
+            dec  = mc_percentage_decimals
+            mode = cl_abap_math=>round_half_up ) ).
+
+    ELSE.
+
+      CLEAR rs_result-total_work_percent.
+
+    ENDIF.
+
+    rs_result-accrual_method =
+      zif_fi_das_dashboard=>mc_accrual_stl.
+
+    rs_result-straight_line =
+      abap_true.
+
+  ENDMETHOD.
+
+  METHOD get_review_action.
+    DATA:
+      lv_current_day    TYPE i,
+      lv_changed_day    TYPE i,
+      lv_current_month  TYPE i,
+      lv_changed_month  TYPE i,
+      lv_current_year   TYPE i,
+      lv_changed_year   TYPE i,
+      lv_previous_month TYPE d.
+
+    r_review_action = mc_review_action_none.
+
+    IF i_changed_date IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    lv_current_day = sy-datum+6(2).
+    lv_current_month = sy-datum+4(2).
+    lv_current_year = sy-datum+0(4).
+    lv_changed_day = i_changed_date+6(2).
+    lv_changed_month = i_changed_date+4(2).
+    lv_changed_year = i_changed_date+0(4).
+
+    IF lv_changed_year < lv_current_year.
+      r_review_action = mc_review_action_reset.
+
+      IF lv_current_day BETWEEN 1 AND 6.
+        lv_previous_month = sy-datum - lv_current_day.
+        IF i_changed_date+0(6) = lv_previous_month+0(6).
+          r_review_action = mc_review_action_keep.
+        ENDIF.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    IF lv_changed_year <> lv_current_year.
+      RETURN.
+    ENDIF.
+
+    IF lv_changed_month < lv_current_month.
+      r_review_action = mc_review_action_reset.
+
+      IF lv_changed_month = lv_current_month - 1
+         AND lv_current_day BETWEEN 1 AND 6.
+        r_review_action = mc_review_action_keep.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    IF lv_changed_month <> lv_current_month.
+      RETURN.
+    ENDIF.
+
+    IF lv_changed_day = i_review_day
+       AND lv_current_day = i_review_day.
+      r_review_action = mc_review_action_keep.
+    ELSEIF lv_changed_day < i_review_day
+       AND lv_current_day >= i_review_day.
+      r_review_action = mc_review_action_reset.
+    ELSEIF lv_changed_day < i_review_day
+       AND lv_current_day < i_review_day.
+      r_review_action = mc_review_action_keep.
+    ELSEIF lv_changed_day > i_review_day
+       AND lv_current_day > i_review_day.
+      r_review_action = mc_review_action_keep.
+    ELSEIF lv_changed_day = i_review_day
+       AND lv_current_day > i_review_day.
+      r_review_action = mc_review_action_keep.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD calculate_visible_status.
+    DATA lv_closure TYPE string.
+
+    IF is_status-status IS INITIAL
+       OR is_status-status = zif_fi_das_dashboard=>mc_status_pending.
+      cs_result-status = zif_fi_das_dashboard=>mc_status_pending.
+      cs_result-changeddate = is_status-changed_date.
+      cs_result-changedtime = is_status-changed_time.
+      RETURN.
+    ENDIF.
+
+    IF is_status-status <> zif_fi_das_dashboard=>mc_status_reviewed
+       OR is_status-changed_date IS INITIAL.
+      CLEAR:
+        cs_result-status,
+        cs_result-changeddate,
+        cs_result-changedtime.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_review_action) = get_review_action(
+      i_changed_date = is_status-changed_date
+      i_review_day   = i_review_day ).
+
+    CASE lv_review_action.
+      WHEN mc_review_action_none.
+        CLEAR:
+          cs_result-status,
+          cs_result-changeddate,
+          cs_result-changedtime.
+
+      WHEN mc_review_action_keep.
+        cs_result-status = zif_fi_das_dashboard=>mc_status_reviewed.
+        cs_result-changeddate = is_status-changed_date.
+        cs_result-changedtime = is_status-changed_time.
+
+      WHEN mc_review_action_reset.
+        lv_closure = is_status-po_closure.
+        TRANSLATE lv_closure TO LOWER CASE.
+
+        IF lv_closure = zif_fi_das_dashboard=>mc_boolean_true.
+          cs_result-status = zif_fi_das_dashboard=>mc_status_reviewed.
+        ELSE.
+          cs_result-status = zif_fi_das_dashboard=>mc_status_pending.
+        ENDIF.
+
+        CLEAR:
+          cs_result-changeddate,
+          cs_result-changedtime.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD calculate_invoice_value.
+
+    IF i_invoice_value > 0.
+
+      rv_invoice_value =
+        i_invoice_value.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD calculate_accrued_amount.
+
+    DATA lv_base TYPE zif_fi_das_dashboard=>t_amount.
+
+    IF i_pstype = zif_fi_das_dashboard=>mc_pstype_service.
+
+      lv_base =
+        i_total_work_amount.
+
+    ELSE.
+
+      lv_base =
+        i_gr_value.
+
+    ENDIF.
+
+    rv_amount =
+      lv_base - i_invoice_value.
+
+    IF rv_amount < 0.
+      CLEAR rv_amount.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+
+  METHOD get_month_difference.
+    CLEAR: e_total_months, e_elapsed_months.
+    IF i_work_start_date IS INITIAL OR i_work_end_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_reason = 'Service start and end dates are required for straight-line calculation'.
+    ENDIF.
+
+    DATA(lv_current_date) = sy-datum.
+    DATA(lv_current_day) = CONV i( lv_current_date+6(2) ).
+    IF lv_current_day BETWEEN 1 AND mc_stl_grace_day.
+      lv_current_date = lv_current_date - lv_current_day.
+    ENDIF.
+
+    DATA(lv_start_bucket) = zcl_fi_das_utility=>month_bucket(
+      i_date      = i_work_start_date
+      i_split_day = mc_stl_split_day ).
+    DATA(lv_end_bucket) = zcl_fi_das_utility=>month_bucket(
+      i_date      = i_work_end_date
+      i_split_day = mc_stl_split_day ).
+    DATA(lv_current_bucket) = zcl_fi_das_utility=>month_bucket(
+      i_date      = lv_current_date
+      i_split_day = mc_stl_grace_day ).
+
+    IF i_work_end_date+0(6) < lv_current_date+0(6).
+      e_total_months = 1.
+      e_elapsed_months = 1.
+      RETURN.
+    ENDIF.
+
+    IF i_work_end_date+0(6) = lv_current_date+0(6).
+      lv_end_bucket = zcl_fi_das_utility=>month_bucket(
+        i_date      = i_work_end_date
+        i_split_day = mc_stl_split_day ).
+      lv_current_bucket = lv_end_bucket.
+    ENDIF.
+
+    IF i_work_start_date+0(6) = lv_current_date+0(6).
+      lv_start_bucket = zcl_fi_das_utility=>month_bucket(
+        i_date      = i_work_start_date
+        i_split_day = mc_stl_split_day ).
+    ENDIF.
+
+    e_total_months = zcl_fi_das_utility=>months_between(
+      i_from = lv_start_bucket
+      i_to   = lv_end_bucket ).
+    e_elapsed_months = zcl_fi_das_utility=>months_between(
+      i_from = lv_start_bucket
+      i_to   = lv_current_bucket ).
+
+    IF e_elapsed_months <= 0.
+      IF i_work_end_date+0(6) = lv_current_date+0(6).
+        e_elapsed_months = 1.
+      ELSE.
+        CLEAR e_elapsed_months.
+      ENDIF.
+    ENDIF.
+    IF e_total_months <= 0.
+      e_total_months = 1.
+    ENDIF.
+  ENDMETHOD.
+  METHOD get_history_cutoff_date.
+
+    DATA(lv_first_of_month) =
+      CONV d( sy-datum(6) && mc_first_day_of_month ).
+
+    IF sy-datum+6(2) <= mc_first_half_month_day .
+
+      rv_cutoff_date = lv_first_of_month - 1.
+
+    ELSE.
+
+      DATA(lv_next_month) =
+        CONV d( lv_first_of_month + mc_next_month_offset ).
+
+      rv_cutoff_date =
+        CONV d( lv_next_month(6) && mc_first_day_of_month ) - 1.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_role.
+
+    SELECT SINGLE company_code, cost_center, management_unit
+      FROM zfi_das_roles
+    WHERE user_emailid = @i_email
+      INTO @rs_role.
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e012(zfi_das).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_access_scope.
+
+    IF i_poowner = abap_true OR i_email = mc_percent_sign.
+
+      INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_company_codes.
+      INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_cost_centers.
+      INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_management_units.
+
+      RETURN.
+
+    ENDIF.
+
+    DATA(ls_role) = get_role( i_email ).
+
+    et_cost_centers = get_cost_centers( ls_role-cost_center ).
+    et_company_codes = get_company_codes( ls_role-company_code ).
+    et_management_units = get_management_units( ls_role-management_unit ).
+
+    IF et_company_codes IS INITIAL OR et_cost_centers IS INITIAL OR et_management_units IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+         MESSAGE e013(zfi_das).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_company_codes.
+
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+
+      CONDENSE <fv_value>.
+      <fv_value> = to_upper( <fv_value> ).
+
+      IF <fv_value> IS INITIAL.
+        CONTINUE.
+
+      ELSEIF <fv_value> = mc_asterisk_sign.
+        INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
+
+      ELSE.
+        INSERT VALUE #( value = CONV bukrs( <fv_value> ) ) INTO TABLE rt_scope.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_cost_centers.
+
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+
+      CONDENSE <fv_value>.
+      <fv_value> = to_upper( <fv_value> ).
+
+      IF <fv_value> IS INITIAL.
+        CONTINUE.
+
+      ELSEIF <fv_value> = mc_asterisk_sign.
+        INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
+
+      ELSEIF <fv_value> = mc_null.
+        INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
+
+      ELSE.
+        INSERT VALUE #( value = |{ CONV kostl( <fv_value> ) ALPHA = IN }| ) INTO TABLE rt_scope.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_management_units.
+
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+
+      CONDENSE <fv_value>.
+      <fv_value> = to_upper( <fv_value> ).
+
+      IF <fv_value> IS INITIAL.
+        CONTINUE.
+
+      ELSEIF <fv_value> = mc_asterisk_sign.
+        INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
+
+      ELSEIF <fv_value> = mc_null.
+        INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
+
+      ELSE.
+        INSERT VALUE #( value = CONV csks-zzrptun( <fv_value> ) ) INTO TABLE rt_scope.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_po_filter.
+
+    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<fs_ponumber>).
+
+      IF <fs_ponumber>-sign <> rsmds_c_sign-including OR <fs_ponumber>-option <> rsmds_c_option-equal.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+            MESSAGE e010(zfi_das).
+
+      ENDIF.
+
+      APPEND VALUE #( value = |{ <fs_ponumber>-low ALPHA = IN }| ) TO rt_po_filter.
+
+    ENDLOOP.
+
+    SORT rt_po_filter BY value.
+    DELETE ADJACENT DUPLICATES FROM rt_po_filter COMPARING value.
+
+  ENDMETHOD.
+
+  METHOD get_item_filter.
+
+    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<fs_item>).
+
+      IF <fs_item>-sign <> rsmds_c_sign-including OR <fs_item>-option <> rsmds_c_option-equal.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+            MESSAGE e011(zfi_das).
+
+      ENDIF.
+
+      APPEND VALUE #( value = |{ <fs_item>-low ALPHA = IN }| ) TO rt_item_filter.
+
+    ENDLOOP.
+
+    SORT rt_item_filter BY value.
+    DELETE ADJACENT DUPLICATES FROM rt_item_filter COMPARING value.
+
+  ENDMETHOD.
+
+
+  METHOD get_supplier_filter.
+
+    LOOP AT is_request-supplier ASSIGNING FIELD-SYMBOL(<fs_supplier>).
+
+      DATA(l_supplier) = CONV string( <fs_supplier>-value ).
+
+      SHIFT l_supplier LEFT DELETING LEADING space.
+      SHIFT l_supplier RIGHT DELETING TRAILING space.
+
+      IF l_supplier IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      SHIFT l_supplier LEFT DELETING LEADING '*'.
+
+SHIFT l_supplier RIGHT DELETING TRAILING '*'.
+CONDENSE l_supplier.
+
+      TRANSLATE l_supplier TO LOWER CASE.
+
+      APPEND VALUE #( value        = l_supplier
+                      value_length = strlen( l_supplier ) ) TO rt_supplier_filter.
+
+    ENDLOOP.
+
+    SORT rt_supplier_filter BY value value_length.
+    DELETE ADJACENT DUPLICATES FROM rt_supplier_filter COMPARING value value_length.
+
+  ENDMETHOD.
+
+  METHOD get_email.
+
+    r_email = zcl_fi_das_utility=>normalize_email( i_email = i_email ).
+
+    IF r_email = mc_asterisk_sign.
+      r_email = mc_percent_sign.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_exchange_rate.
+    rs_rate-source_currency = i_source_currency.
+    rs_rate-rate = 1.
+    READ TABLE mt_exchrt
+      ASSIGNING FIELD-SYMBOL(<fs_exchrt>)
+      WITH TABLE KEY
+        source_curr = i_source_currency
+        target_curr = i_target_currency.
+    IF <fs_exchrt> IS ASSIGNED
+       AND sy-subrc = 0.
+      rs_rate-rate = <fs_exchrt>-exchange_rate.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD convert_to_usd.
+
+    DATA:
+      ls_rate          TYPE ts_exchange_rate,
+      lv_source_amount TYPE t_amount_precision,
+      lv_usd_amount    TYPE decfloat34.
+
+    CLEAR rv_amount.
+
+*--------------------------------------------------------------------*
+* XSA SF_ConvertCurrency first converts the source input to a
+* two-decimal amount before multiplying by the exchange rate.
+*
+* The full-precision option is used only by the GR USD path, where
+* XSA does not call SF_ConvertCurrency.
+*--------------------------------------------------------------------*
+    IF i_keep_precision = abap_true.
+
+      lv_source_amount =
+        i_amount.
+
+    ELSE.
+
+      lv_source_amount =
+        CONV t_amount_precision(
+          CONV t_amount_precision(
+            zcl_fi_das_utility=>truncate_decimal(
+              i_value    = CONV decfloat34( i_amount )
+              i_decimals = mc_amount_decimals ) ) ).
+
+    ENDIF.
+
+    IF lv_source_amount IS INITIAL.
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Raw JPY/VND source values need the XSA historical factor of 100.
+*
+*--------------------------------------------------------------------*
+    lv_source_amount =
+        lv_source_amount
+      * get_currency_factor(
+          i_currency = i_source_currency ).
+
+    ls_rate =
+      read_exchange_rate(
+        i_source_currency = i_source_currency ).
+
+    lv_usd_amount =
+        CONV decfloat34(
+          lv_source_amount )
+      * CONV decfloat34(
+          ls_rate-rate ).
+
+    rv_amount =
+      CONV zif_fi_das_dashboard=>t_amount(
+        round(
+          val  = lv_usd_amount
+          dec  = mc_amount_decimals
+          mode = cl_abap_math=>round_half_up ) ).
+
+  ENDMETHOD.
+
+
+  METHOD get_currency_factor.
+
+    rv_factor =
+      COND t_amount_precision(
+        WHEN i_currency = mc_currency_jpy
+          OR i_currency = mc_currency_vnd
+        THEN 100
+        ELSE 1 ).
+
+  ENDMETHOD.
+  METHOD read_request_decimal_format.
+
+    TYPES:
+      BEGIN OF ts_user_format,
+        bname TYPE xubname,
+        dcpfm TYPE xudcpfm,
+      END OF ts_user_format,
+
+      tt_user_format TYPE STANDARD TABLE OF ts_user_format
+        WITH EMPTY KEY.
+
+    DATA:
+      lv_email      TYPE ad_smtpadr,
+      lt_candidates TYPE tt_user_format,
+      ls_candidate  TYPE ts_user_format,
+      lv_first_char TYPE c LENGTH 1.
+
+*--------------------------------------------------------------------*
+* XSA behavior:
+*
+* TF_getOpenPOFinal / TF_getOpenThresholdPO / TF_getExclusionPOFinal
+* obtain DECIMAL_FORMAT from CV_getUserDetails by IP_EMAIL.
+*
+* CV_getUserDetails contains a row only when the e-mail can be joined
+* to a valid dialog user. If there is no row, XSA executes:
+*
+*   IF lv_delimiter IS NULL THEN
+*     lv_delimiter = 'X';
+*   END IF;
+*
+* Therefore:
+* - no valid XSA user row -> X (1,234.56)
+* - valid row with blank DCPFM -> blank (1.234,56)
+*
+* Do not use POOWNER to decide the formatting.
+*--------------------------------------------------------------------*
+    rv_decimal_format =
+      mc_format_decimal_dot.
+
+    lv_email =
+      CONV ad_smtpadr(
+        zcl_fi_das_utility=>normalize_email(
+          i_email = i_email ) ).
+
+    IF lv_email IS INITIAL.
+      RETURN.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Reproduce CV_getAllUserDetails:
+*
+* - USR21 / ADR6 link by person and address number
+* - USR01 defaults
+* - active dialog user from USR02
+* - not an RPA account
+*
+* The BNAME first-character condition is applied below because it is
+* safer for the supported Open SQL release than using SUBSTRING in SQL.
+*--------------------------------------------------------------------*
+    SELECT DISTINCT
+      user_data~bname,
+      user_defaults~dcpfm
+      FROM usr21 AS user_data
+      INNER JOIN adr6 AS email
+        ON  email~persnumber = user_data~persnumber
+        AND email~addrnumber = user_data~addrnumber
+      INNER JOIN usr01 AS user_defaults
+        ON user_defaults~bname = user_data~bname
+      INNER JOIN usr02 AS logon_data
+        ON logon_data~bname = user_data~bname
+      WHERE email~smtp_addr = @lv_email
+        AND logon_data~ustyp = 'A'
+        AND logon_data~class NOT LIKE '%RPA%'
+        AND logon_data~gltgv < @sy-datum
+        AND logon_data~gltgb >= @sy-datum
+      ORDER BY user_data~bname
+      INTO TABLE @lt_candidates.
+
+    LOOP AT lt_candidates
+      INTO ls_candidate.
+
+      lv_first_char =
+        ls_candidate-bname+0(1).
+
+      IF lv_first_char CO '0123456789'.
+        CONTINUE.
+      ENDIF.
+
+*------------------------------------------------------------------*
+* A valid XSA user row exists. Assign DCPFM even when it is blank.
+* This intentionally overwrites the X fallback with blank for the
+* European XSA format: grouping '.', decimal ','.
+*------------------------------------------------------------------*
+      rv_decimal_format =
+        ls_candidate-dcpfm.
+
+      RETURN.
+
+    ENDLOOP.
+
+*--------------------------------------------------------------------*
+* No valid user candidate: retain XSA fallback X.
+*
+* This is the required path for
+* patricia-tiemi.oshiro@takeda.com when ADR6 has an e-mail address but
+* no usable USR21 -> ADR6 -> USR01/USR02 identity chain exists.
+*--------------------------------------------------------------------*
+    FREE lt_candidates.
+
+  ENDMETHOD.
+
+
+
+
+
+  METHOD get_threshold.
+
+    SELECT SINGLE po_threshold
+      FROM zfi_das_thresh
+    WHERE currency = @zif_fi_das_dashboard=>mc_currency_usd
+      INTO @r_threshold_usd.
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e014(zfi_das).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_review_day.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = @mc_config_review_day
+      INTO @DATA(l_value).
+
+    IF sy-subrc <> 0 OR l_value IS INITIAL.
+      r_review_day = mc_default_review_day.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        r_review_day = CONV i( l_value ).
+      CATCH cx_sy_conversion_error.
+        r_review_day = mc_default_review_day.
+    ENDTRY.
+
+    IF r_review_day NOT BETWEEN mc_min_review_day AND mc_max_review_day.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+       MESSAGE e016(zfi_das).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_japan_brazil.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = @mc_config_japan_brazil
+      INTO @DATA(l_config_value).
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+         MESSAGE e015(zfi_das).
+
+    ENDIF.
+
+    LOOP AT zcl_fi_das_utility=>split_list( i_value     = CONV string( l_config_value )
+                                            i_delimiter = mc_comma ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+
+      CONDENSE <fv_value> NO-GAPS.
+
+      IF <fv_value> IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      INSERT VALUE #( value = CONV bukrs( <fv_value> ) ) INTO TABLE rt_company_codes.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_pstype.
+
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
+      r_pstype = zif_fi_das_dashboard=>mc_pstype_all.
+    ELSE.
+      r_pstype = is_request-pstype.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_accrual_method_text.
+    CASE i_method.
+      WHEN zif_fi_das_dashboard=>mc_accrual_stl.
+        r_text = zif_fi_das_dashboard=>mc_accrual_stl_text.
+      WHEN zif_fi_das_dashboard=>mc_accrual_wtd.
+        r_text = zif_fi_das_dashboard=>mc_accrual_wtd_text.
+      WHEN OTHERS.
+        r_text = i_method.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD get_pstype_text.
+    CASE i_pstype.
+      WHEN zif_fi_das_dashboard=>mc_pstype_material.
+        r_text = zif_fi_das_dashboard=>mc_pstype_material_text.
+      WHEN zif_fi_das_dashboard=>mc_pstype_service.
+        r_text = zif_fi_das_dashboard=>mc_pstype_service_text.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD get_rule_text.
+
+    r_text =
+      SWITCH string( i_rule_type
+        WHEN mc_rule_gl THEN mc_rule_text_gl
+        WHEN mc_rule_cost_center THEN mc_rule_text_cost_center
+        WHEN mc_rule_profit_center THEN mc_rule_text_profit_center
+        WHEN mc_rule_po THEN mc_rule_text_po
+        WHEN mc_rule_vendor THEN mc_rule_text_vendor
+        WHEN mc_rule_internal_order  THEN mc_rule_text_internal_order ).
+
+  ENDMETHOD.
+  METHOD get_keys
+  BY DATABASE PROCEDURE
+  FOR HDB
+  LANGUAGE SQLSCRIPT
+  OPTIONS READ-ONLY
+  USING
+    zifidaspobase
+    ekpo
+    ekko
+    ekkn
+    csks
+    zfi_das_po_excl
+    zfi_das_exchrt.
+
+    lt_base_candidates =
+      SELECT
+        b.ponumber,
+        b.itemno,
+
+        CASE
+          WHEN b.pstype = '0'
+           AND b.workstartdateraw <> '00000000'
+           AND EXISTS
+               (
+                 SELECT 1
+                   FROM :it_japan_brazil AS jb
+                  WHERE jb.value = b.itemcompanycode
+               )
+          THEN '9'
+          ELSE b.pstype
+        END AS pstype,
+
+        LOWER( b.porequestor ) AS poowner_email,
+        b.itemcompanycode,
+        b.companycode,
+        b.pocurrency AS po_currency,
+        b.netvalue
+
+      FROM zifidaspobase AS b
+
+      INNER JOIN ekpo AS source_ekpo
+        ON  source_ekpo.ebeln = b.ponumber
+        AND source_ekpo.ebelp = b.itemno
+
+      INNER JOIN ekko AS source_ekko
+        ON source_ekko.ebeln = b.ponumber
+
+      WHERE b.finalinvoiceindicator IN ( ' ', '' )
+        AND b.deletionindicator IN ( ' ', '' )
+        AND b.documenttype = 'ZARP'
+
+        AND source_ekko.bsart = 'ZARP'
+        AND source_ekko.reason_code IN ( ' ', '' )
+        AND source_ekko.ebeln BETWEEN '8000000000' AND '8999999999'
+
+        AND source_ekko.bukrs IN
+        (
+          '2028', '6305', '9930', '2720', '1076', '3383', '6960',
+          '3390', '3387', '3310', '3312', '8036', '3317', '2787',
+          '3316', '3032', '3345', '3385', '3347', '3311', '3318',
+          '1380', '9202', '3314', '3381', '3389', '3392', '3393',
+          '3315', '3000', '9970', '7070', '6067', '2776', '8011',
+          '1500', '9971', '8035', '2805', '8290', '4037', '2030',
+          '7430', '8083', '7420', '4840', '8088', '9207', '8800',
+          '9090', '2785', '3025', '9991', '8081', '6999', '8262',
+          '2775', '2772', '8085', '8130', '8087', '9093', '2808',
+          '5052', '8131', '1350', '1523', '1538', '8291', '9210',
+          '4850', '1532', '7072', '2807', '7076', '9995', '2025',
+          '1106', '2022', '2771', '2773', '2774', '2798', '2901',
+          '2936', '2950', '2953', '3033', '5056', '5951', '5955',
+          '6057', '6058', '6061', '6062', '6064', '6068', '6356',
+          '6358', '6372', '6377', '6379', '8086', '8261', '9730',
+          '9732', '9734', '9928', '9962', '9963', '9966', '9980',
+          '9983', '9986', '9989', '9990', '2780', '2810', '9922',
+          '2820', '2021', '6979'
+        )
+
+        AND source_ekpo.pstyp IN ( '0', '9' )
+        AND source_ekpo.erekz IN ( ' ', '' )
+        AND source_ekpo.loekz IN ( ' ', '' )
+        AND source_ekpo.ebeln BETWEEN '8000000000' AND '8999999999'
+
+        AND
+        (
+          source_ekpo.bukrs IN
+          (
+            '2028', '6305', '9930', '2720', '3383', '2810', '6960',
+            '2025', '3390', '3387', '3310', '3312', '8036', '3317',
+            '2787', '3316', '3032', '3389', '3345', '3385', '3347',
+            '3311', '3318', '1380', '9202', '3314', '3381', '3392',
+            '3393', '3315', '3000', '9970', '7070', '6067', '2776',
+            '8011', '1500', '9971', '8035', '2805', '8290', '4037',
+            '2030', '7430', '8083', '7420', '4840', '8088', '9207',
+            '8800', '9090', '2785', '3025', '9991', '8081', '6999',
+            '8262', '2775', '2772', '8085', '8130', '8087', '9093',
+            '2808', '5052', '8131', '1350', '1523', '1538', '8291',
+            '9210', '4850', '1532', '7072', '2807', '7076', '9995',
+            '1076', '1106', '2022', '2771', '2773', '2774', '2798',
+            '2901', '2936', '2950', '2953', '3033', '5056', '5951',
+            '5955', '6057', '6058', '6061', '6062', '6064', '6068',
+            '6356', '6358', '6372', '6377', '6379', '8086', '8261',
+            '9730', '9732', '9734', '9928', '9962', '9963', '9966',
+            '9980', '9983', '9986', '9989', '9990', '9922', '2820',
+            '2021', '6979'
+          )
+
+          OR
+          (
+            source_ekpo.bukrs = '2780'
+
+            AND
+            (
+              source_ekpo.xersy IN ( ' ', '' )
+
+              OR
+              (
+                source_ekpo.xersy = 'X'
+                AND source_ekpo.zstart_date <> '00000000'
+              )
+            )
+          )
+        )
+
+        AND
+        (
+          NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_po_filter
+              )
+
+          OR EXISTS
+              (
+                SELECT 1
+                  FROM :it_po_filter AS filter_po
+                 WHERE filter_po.value = b.ponumber
+              )
+        )
+
+        AND
+        (
+          NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_supplier_filter
+              )
+
+          OR EXISTS
+              (
+                SELECT 1
+                  FROM :it_supplier_filter AS filter_supplier
+                 WHERE filter_supplier.value_length > 0
+                   AND LOWER( IFNULL( b.suppliername, '' ) )
+                       LIKE
+                         '%' ||
+                         SUBSTRING(
+                           filter_supplier.value,
+                           1,
+                           filter_supplier.value_length
+                         ) ||
+                         '%'
+              )
+        )
+
+        AND
+        (
+          :i_poowner <> 'X'
+          OR LOWER( b.porequestor ) LIKE :i_email
+          OR LOWER( b.popreparer ) LIKE :i_email
+        )
+
+        AND
+        (
+          (
+            :i_pstype IN ( '9', '*' )
+
+            AND
+            (
+              (
+                b.pstype = '9'
+                AND b.workstartdateraw <> '00000000'
+                AND b.workenddateraw <> '00000000'
+              )
+
+              OR
+
+              (
+                b.pstype = '0'
+                AND b.workstartdateraw <> '00000000'
+
+                AND EXISTS
+                    (
+                      SELECT 1
+                        FROM :it_japan_brazil AS jb
+                       WHERE jb.value = b.itemcompanycode
+                    )
+              )
+            )
+          )
+
+          OR
+
+          (
+            :i_pstype IN ( '0', '*' )
+            AND b.pstype = '0'
+
+            AND
+            (
+              NOT EXISTS
+                  (
+                    SELECT 1
+                      FROM :it_japan_brazil AS jb
+                     WHERE jb.value = b.itemcompanycode
+                  )
+
+              OR
+
+              (
+                b.workstartdateraw = '00000000'
+
+                AND EXISTS
+                    (
+                      SELECT 1
+                        FROM :it_japan_brazil AS jb
+                       WHERE jb.value = b.itemcompanycode
+                    )
+              )
+            )
+          )
+        );
+
+    IF :i_poowner = 'X' THEN
+
+      lt_scoped_candidates =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email,
+          candidate.itemcompanycode,
+          candidate.companycode,
+          candidate.po_currency,
+          candidate.netvalue
+        FROM :lt_base_candidates AS candidate;
+
+    ELSE
+
+      lt_scoped_candidates =
+        SELECT DISTINCT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email,
+          candidate.itemcompanycode,
+          candidate.companycode,
+          candidate.po_currency,
+          candidate.netvalue
+
+        FROM :lt_base_candidates AS candidate
+
+        LEFT OUTER JOIN ekkn AS account
+          ON  account.ebeln = candidate.ponumber
+          AND account.ebelp = candidate.itemno
+
+        LEFT OUTER JOIN csks AS cost_center
+          ON  cost_center.kostl = account.kostl
+          AND cost_center.kokrs = account.kokrs
+          AND cost_center.datbi >= CURRENT_DATE
+
+        WHERE EXISTS
+              (
+                SELECT 1
+                  FROM :it_company_codes AS scope_company
+                 WHERE scope_company.wildcard = 'X'
+                    OR scope_company.value = candidate.companycode
+              )
+
+          AND EXISTS
+              (
+                SELECT 1
+                  FROM :it_cost_centers AS scope_cost
+                 WHERE scope_cost.wildcard = 'X'
+                    OR scope_cost.value = account.kostl
+                    OR
+                    (
+                      scope_cost.is_null = 'X'
+                      AND
+                      (
+                        account.kostl IS NULL
+                        OR account.kostl = ''
+                        OR account.kostl = ' '
+                      )
+                    )
+              )
+
+          AND
+          (
+            cost_center.zzrptun IS NULL
+            OR cost_center.zzrptun = ''
+            OR cost_center.zzrptun = ' '
+
+            OR EXISTS
+                (
+                  SELECT 1
+                    FROM :it_management_units AS scope_management
+                   WHERE scope_management.wildcard = 'X'
+                      OR scope_management.value = cost_center.zzrptun
+                      OR
+                      (
+                        scope_management.is_null = 'X'
+                        AND
+                        (
+                          cost_center.zzrptun IS NULL
+                          OR cost_center.zzrptun = ''
+                          OR cost_center.zzrptun = ' '
+                        )
+                      )
+                )
+          );
+
+    END IF;
+
+    lt_po_totals =
+      SELECT
+        candidate.ponumber,
+        candidate.pstype,
+        MAX( candidate.companycode ) AS companycode,
+        MAX( candidate.po_currency ) AS po_currency,
+
+        SUM(
+          CASE
+            WHEN candidate.po_currency IN ( 'JPY', 'VND' )
+            THEN candidate.netvalue * 100
+            ELSE candidate.netvalue
+          END
+        ) AS po_threshold_total
+
+      FROM :lt_scoped_candidates AS candidate
+
+      GROUP BY
+        candidate.ponumber,
+        candidate.pstype;
+
+    lt_po_threshold =
+      SELECT
+        total.companycode,
+        total.ponumber,
+        total.pstype,
+        total.po_currency,
+        total.po_threshold_total,
+
+        ROUND(
+          :i_threshold_usd
+          * ( 1 / exchange_rate.exchange_rate ),
+          2
+        ) AS threshold_in_po_currency
+
+      FROM :lt_po_totals AS total
+
+      INNER JOIN zfi_das_exchrt AS exchange_rate
+        ON exchange_rate.source_curr = total.po_currency;
+
+    lt_threshold_classified =
+      SELECT
+        candidate.ponumber,
+        candidate.itemno,
+        candidate.pstype,
+        candidate.poowner_email
+
+      FROM :lt_scoped_candidates AS candidate
+
+      INNER JOIN :lt_po_threshold AS threshold
+        ON  threshold.ponumber = candidate.ponumber
+        AND threshold.pstype = candidate.pstype
+
+      WHERE
+        (
+          :i_mode = '1'
+          AND threshold.po_threshold_total >
+              threshold.threshold_in_po_currency
+        )
+
+        OR
+
+        (
+          :i_mode = '2'
+          AND threshold.po_threshold_total <=
+              threshold.threshold_in_po_currency
+        )
+
+        OR :i_mode = '3';
+
+    IF :i_excluded_only = 'X' THEN
+
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+
+        FROM :lt_threshold_classified AS candidate
+
+        WHERE EXISTS
+              (
+                SELECT 1
+                  FROM zfi_das_po_excl AS exclusion
+                 WHERE exclusion.ponumber = candidate.ponumber
+                   AND exclusion.itemno = candidate.itemno
+              );
+
+    ELSE
+
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+
+        FROM :lt_threshold_classified AS candidate
+
+        WHERE NOT EXISTS
+              (
+                SELECT 1
+                  FROM zfi_das_po_excl AS exclusion
+                 WHERE exclusion.ponumber = candidate.ponumber
+                   AND exclusion.itemno = candidate.itemno
+                   AND exclusion.pstype = candidate.pstype
+              );
+
+    END IF;
+
+    lt_filtered =
+      SELECT DISTINCT
+        candidate.ponumber,
+        candidate.itemno,
+        candidate.pstype,
+        candidate.poowner_email
+
+      FROM :lt_exclusion_applied AS candidate
+
+      WHERE
+        NOT EXISTS
+            (
+              SELECT 1
+                FROM :it_item_filter
+            )
+
+        OR EXISTS
+            (
+              SELECT 1
+                FROM :it_item_filter AS filter_item
+               WHERE filter_item.value = candidate.itemno
+            );
+
+    IF :i_count_requested = 'X' THEN
+
+      SELECT COUNT(*)
+        INTO e_total_count
+        FROM :lt_filtered;
+
+    ELSE
+
+      e_total_count = 0;
+
+    END IF;
+
+    lt_numbered =
+      SELECT
+        candidate.ponumber,
+        candidate.itemno,
+        candidate.pstype,
+        candidate.poowner_email,
+
+        ROW_NUMBER() OVER
+        (
+          ORDER BY
+            candidate.ponumber,
+            candidate.itemno,
+            candidate.pstype
+        ) AS row_number_value
+
+      FROM :lt_filtered AS candidate;
+
+    et_keys =
+      SELECT
+        numbered.ponumber,
+        numbered.itemno,
+        numbered.pstype,
+        numbered.poowner_email
+
+      FROM :lt_numbered AS numbered
+
+      WHERE numbered.row_number_value > :i_skip
+
+        AND
+        (
+          :i_top = 0
+          OR numbered.row_number_value <= :i_skip + :i_top
+        )
+
+      ORDER BY numbered.row_number_value;
+
+  ENDMETHOD.
+
+ENDCLASS.

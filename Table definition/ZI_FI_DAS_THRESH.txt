@@ -1,0 +1,13 @@
+@AbapCatalog.sqlViewName: 'ZIFIDASTHRESH'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Threshold Configuration'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZI_FI_DAS_THRESH as select from zfi_das_thresh {
+    
+    key currency,
+    key company_code,
+        po_threshold
+    
+}

@@ -3225,13 +3225,6 @@ CONDENSE l_supplier.
     r_field_name = to_upper( i_field_name ).
 
 *--------------------------------------------------------------------*
-* OData consumers can send the historical REVIWED_BY name or the
-* corrected REVIEWED_BY name. Normalize once to the native row field.
-*--------------------------------------------------------------------*
-    IF r_field_name = 'REVIWED_BY'.
-      r_field_name = 'REVIEWED_BY'.
-    ENDIF.
-
   ENDMETHOD.
 
   METHOD apply_sort_and_paging.
@@ -3249,6 +3242,19 @@ CONDENSE l_supplier.
 
     DATA(lo_line_descr) =
       CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
+
+    IF line_exists( lo_line_descr->components[ name = l_sort_property ] ) = abap_false.
+      CASE l_sort_property.
+        WHEN 'REVIEWED_BY'.
+          IF line_exists( lo_line_descr->components[ name = 'REVIWED_BY' ] ).
+            l_sort_property = 'REVIWED_BY'.
+          ENDIF.
+        WHEN 'REVIWED_BY'.
+          IF line_exists( lo_line_descr->components[ name = 'REVIEWED_BY' ] ).
+            l_sort_property = 'REVIEWED_BY'.
+          ENDIF.
+      ENDCASE.
+    ENDIF.
 
     IF line_exists( lo_line_descr->components[ name = l_sort_property ] ).
       IF l_sort_property = 'PONUMBER'.

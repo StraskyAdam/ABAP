@@ -434,6 +434,53 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 ENDCLASS.
 
 
+CLASS ltc_fi_das_dpc_request DEFINITION
+  FINAL
+  FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    METHODS test_skip_calculations_flag
+              FOR TESTING.
+
+ENDCLASS.
+
+
+CLASS ltc_fi_das_dpc_request IMPLEMENTATION.
+
+  METHOD test_skip_calculations_flag.
+
+    DATA(lo_dpc_ext) =
+      NEW zcl_zfi_das_dpc_ext( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = lo_dpc_ext->should_skip_calculations(
+        it_selected_properties = VALUE stringtab(
+          ( `PONUMBER` )
+          ( `POLINEDESC` ) )
+        i_orderby_property     = `` ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = lo_dpc_ext->should_skip_calculations(
+        it_selected_properties = VALUE stringtab(
+          ( `PONUMBER` )
+          ( `AMOUNTACCRUED` ) )
+        i_orderby_property     = `` ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = lo_dpc_ext->should_skip_calculations(
+        it_selected_properties = VALUE stringtab(
+          ( `PONUMBER` )
+          ( `POLINEDESC` ) )
+        i_orderby_property     = `AMOUNTACCRUED` ) ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   METHOD setup.

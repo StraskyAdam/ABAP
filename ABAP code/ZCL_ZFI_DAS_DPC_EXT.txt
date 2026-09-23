@@ -3,6 +3,8 @@ class ZCL_ZFI_DAS_DPC_EXT definition
   inheriting from ZCL_ZFI_DAS_DPC
   create public .
 
+  friends ltc_fi_das_dpc_request.
+
 public section.
 protected section.
 

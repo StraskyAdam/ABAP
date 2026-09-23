@@ -833,6 +833,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     DATA:
       ls_case        TYPE ts_case,
+      lv_path        TYPE string,
       lv_json        TYPE string,
       lv_total_count TYPE int8,
       lv_ponumber    TYPE string.
@@ -865,6 +866,19 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         (
           value = 'Fuji'
         ) ).
+
+    lv_path =
+      build_resource_path(
+        is_case = ls_case
+        i_skip  = 0 ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_path CS 'substringof(''8000401022'',PONUMBER)' )
+      msg = 'PO contains test must send substringof filter for PONUMBER' ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( lv_path CS 'ICP8000401022' )
+      msg = 'PO contains test must not send stale ICP-style encoding' ).
 
     fetch_gateway_page(
       EXPORTING

@@ -728,6 +728,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_rule_type   TYPE t_rule_type
       RETURNING
         VALUE(r_text) TYPE string.
+    METHODS normalize_request_property
+      IMPORTING
+        i_field_name      TYPE string
+      RETURNING
+        VALUE(r_field_name) TYPE string.
     METHODS is_select_field_requested
       IMPORTING
         is_request      TYPE zif_fi_das_dashboard=>ts_request
@@ -3244,7 +3249,20 @@ CONDENSE l_supplier.
 
   ENDMETHOD.
 
+  METHOD normalize_request_property.
+
+    r_field_name = to_upper( i_field_name ).
+
+    IF r_field_name = 'REVIEWED_BY'.
+      r_field_name = 'REVIWED_BY'.
+    ENDIF.
+
+  ENDMETHOD.
+
   METHOD is_select_field_requested.
+
+    DATA(l_field_name) =
+      normalize_request_property( i_field_name ).
 
     IF is_request-select_fields IS INITIAL.
       r_result = abap_true.
@@ -3255,7 +3273,7 @@ CONDENSE l_supplier.
       xsdbool(
         line_exists(
           is_request-select_fields[
-            name = to_upper( i_field_name ) ] ) ).
+            name = l_field_name ] ) ).
 
   ENDMETHOD.
 
@@ -3325,6 +3343,9 @@ CONDENSE l_supplier.
 
   METHOD should_load_statuses.
 
+    DATA(l_orderby_property) =
+      normalize_request_property( is_request-orderby-property ).
+
     r_result = abap_true.
 
     IF is_request-select_fields IS INITIAL.
@@ -3352,22 +3373,22 @@ CONDENSE l_supplier.
         OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_USD' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'LASTMONTHWRKCOMP' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'STRAIGHTLINEMTHD' )
-        OR to_upper( is_request-orderby-property ) = 'STATUS'
-        OR to_upper( is_request-orderby-property ) = 'MARKASREVIEWED'
-        OR to_upper( is_request-orderby-property ) = 'REVIWED_BY'
-        OR to_upper( is_request-orderby-property ) = 'CHANGEDDATE'
-        OR to_upper( is_request-orderby-property ) = 'CHANGEDTIME'
-        OR to_upper( is_request-orderby-property ) = 'CHANGED_ON'
-        OR to_upper( is_request-orderby-property ) = 'PO_CLOSURE'
-        OR to_upper( is_request-orderby-property ) = 'POCLOSURE_FLAG'
-        OR to_upper( is_request-orderby-property ) = 'EDGEWTDAMT'
-        OR to_upper( is_request-orderby-property ) = 'ACCRUALMETHOD'
-        OR to_upper( is_request-orderby-property ) = 'TOTWRKCOMPAMT'
-        OR to_upper( is_request-orderby-property ) = 'TOTWRKCOMPAMT_USD'
-        OR to_upper( is_request-orderby-property ) = 'TOTWRKCOMPPER'
-        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED'
-        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_USD'
-        OR to_upper( is_request-orderby-property ) = 'LASTMONTHWRKCOMP' ).
+        OR l_orderby_property = 'STATUS'
+        OR l_orderby_property = 'MARKASREVIEWED'
+        OR l_orderby_property = 'REVIWED_BY'
+        OR l_orderby_property = 'CHANGEDDATE'
+        OR l_orderby_property = 'CHANGEDTIME'
+        OR l_orderby_property = 'CHANGED_ON'
+        OR l_orderby_property = 'PO_CLOSURE'
+        OR l_orderby_property = 'POCLOSURE_FLAG'
+        OR l_orderby_property = 'EDGEWTDAMT'
+        OR l_orderby_property = 'ACCRUALMETHOD'
+        OR l_orderby_property = 'TOTWRKCOMPAMT'
+        OR l_orderby_property = 'TOTWRKCOMPAMT_USD'
+        OR l_orderby_property = 'TOTWRKCOMPPER'
+        OR l_orderby_property = 'AMOUNTACCRUED'
+        OR l_orderby_property = 'AMOUNTACCRUED_USD'
+        OR l_orderby_property = 'LASTMONTHWRKCOMP' ).
 
   ENDMETHOD.
 

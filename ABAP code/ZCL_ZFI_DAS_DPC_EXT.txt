@@ -135,7 +135,8 @@ METHOD build_request.
 
             ENDIF.
 
-            IF strlen( l_ponumber_pattern ) >= 2
+            IF <ls_ponumber>-sign = 'I'
+               AND strlen( l_ponumber_pattern ) >= 2
                AND l_ponumber_pattern NA '+'
                AND l_ponumber_pattern(1) = '*'
                AND l_ponumber_pattern+l_ponumber_last_offset(1) = '*'.
@@ -188,7 +189,8 @@ METHOD build_request.
 
             ENDIF.
 
-            IF strlen( l_itemno_pattern ) >= 2
+            IF <ls_itemno>-sign = 'I'
+               AND strlen( l_itemno_pattern ) >= 2
                AND l_itemno_pattern NA '+'
                AND l_itemno_pattern(1) = '*'
                AND l_itemno_pattern+l_itemno_last_offset(1) = '*'.

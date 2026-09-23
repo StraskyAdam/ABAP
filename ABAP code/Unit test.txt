@@ -152,6 +152,9 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
+    METHODS test_reviewed_by_path_alias
+              FOR TESTING.
+
     METHODS test_y_format
    FOR TESTING
       RAISING cx_static_check.
@@ -1055,6 +1058,36 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( lv_total_count >= 0 ) ).
+
+  ENDMETHOD.
+
+  METHOD test_reviewed_by_path_alias.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'REVIEWED_BY asc'.
+    ls_case-select_list = 'REVIEWED_BY'.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+           build_resource_path(
+             is_case = ls_case
+             i_skip  = 0 ) CS '$orderby=REVIEWED_BY asc' ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+           build_resource_path(
+             is_case = ls_case
+             i_skip  = 0 ) CS '$select=REVIEWED_BY' ) ).
 
   ENDMETHOD.
 

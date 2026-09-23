@@ -35,6 +35,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
         supplier      TYPE zif_fi_das_dashboard=>tt_supplier_filter,
         orderby       TYPE string,
         select_list   TYPE string,
+        top           TYPE i,
       END OF ts_case,
 
       BEGIN OF ts_expected_index,
@@ -1046,6 +1047,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'TOTWRKCOMPAMT_COCDECURR desc'.
+    ls_case-top = 2.
 
     ls_case_asc = ls_case.
     ls_case_asc-orderby = 'TOTWRKCOMPAMT_COCDECURR asc'.
@@ -1207,6 +1209,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'SUPPLIERNAME asc'.
+    ls_case-top = 2.
 
     fetch_gateway_page(
       EXPORTING
@@ -1301,6 +1304,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'SUPPLIERID asc'.
+    ls_case-top = 2.
 
     fetch_gateway_page(
       EXPORTING
@@ -1397,6 +1401,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'TOTWRKCOMPAMT desc'.
+    ls_case-top = 2.
 
     fetch_gateway_page(
       EXPORTING
@@ -1529,6 +1534,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'REVIEWED_BY asc'.
+    ls_case-top = 2.
     ls_case-select_list = 'REVIEWED_BY'.
 
     cl_abap_unit_assert=>assert_true(
@@ -1860,11 +1866,17 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     DATA:
       lv_email   TYPE string,
       lv_poowner TYPE string,
-      lv_pstype  TYPE string.
+      lv_pstype  TYPE string,
+      lv_top     TYPE i.
 
     lv_email = odata_quote( i_value = is_case-email ).
     lv_poowner = odata_quote( i_value = is_case-poowner ).
     lv_pstype = odata_quote( i_value = is_case-pstype ).
+    lv_top = mc_page_size.
+
+    IF is_case-top > 0.
+      lv_top = is_case-top.
+    ENDIF.
 
     CASE is_case-flow.
       WHEN zif_fi_das_dashboard=>mc_over.
@@ -1892,7 +1904,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         rv_path
       && |?$format=json|
       && |&$inlinecount=allpages|
-      && |&$top={ mc_page_size }|
+      && |&$top={ lv_top }|
       && |&$skip={ i_skip }|.
 
     IF is_case-orderby IS NOT INITIAL.

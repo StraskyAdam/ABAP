@@ -108,6 +108,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
         WITH UNIQUE KEY ponumber itemno.
 
     TYPES:
+      tt_result TYPE STANDARD TABLE OF zif_fi_das_dashboard=>ts_result
+        WITH EMPTY KEY.
+
+    TYPES:
       BEGIN OF ts_role,
         company_code    TYPE string,
         cost_center     TYPE string,
@@ -740,7 +744,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
        is_request TYPE zif_fi_das_dashboard=>ts_request
       CHANGING
-       ct_result  TYPE ANY TABLE.
+       ct_result  TYPE tt_result.
 
     CLASS-METHODS get_keys
       IMPORTING
@@ -962,8 +966,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ls_row        TYPE zif_fi_das_dashboard=>ts_result,
       ls_odata_row  TYPE zif_fi_das_dashboard=>ts_odata_result,
       lr_target_row TYPE REF TO data,
-      lt_rows       TYPE STANDARD TABLE OF zif_fi_das_dashboard=>ts_result
-        WITH EMPTY KEY.
+      lt_rows       TYPE tt_result.
     FIELD-SYMBOLS:
       <fs_key>        TYPE ts_key,
       <fs_target_row> TYPE any.
@@ -3243,7 +3246,7 @@ CONDENSE l_supplier.
     DATA(lo_line_descr) =
       CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
 
-    IF line_exists( lo_line_descr->components[ name = l_sort_property ] ) = abap_false.
+    IF NOT line_exists( lo_line_descr->components[ name = l_sort_property ] ).
       CASE l_sort_property.
         WHEN 'REVIEWED_BY'.
           IF line_exists( lo_line_descr->components[ name = 'REVIWED_BY' ] ).

@@ -910,10 +910,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-pstype =
       zif_fi_das_dashboard=>mc_pstype_service.
 
-    ls_case-orderby = 'TOTWRKCOMPAMT desc'.
+    ls_case-orderby = 'TOTWRKCOMPAMT_COCDECURR desc'.
 
     ls_case_asc = ls_case.
-    ls_case_asc-orderby = 'TOTWRKCOMPAMT asc'.
+    ls_case_asc-orderby = 'TOTWRKCOMPAMT_COCDECURR asc'.
 
     ls_case_select = ls_case.
     ls_case_select-select_list = 'PONUMBER'.
@@ -981,17 +981,17 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     lv_first_amount =
       read_first_result_property(
         i_json     = lv_json_first
-        i_property = 'TOTWRKCOMPAMT' ).
+        i_property = 'TOTWRKCOMPAMT_COCDECURR' ).
 
     lv_second_amount =
       read_first_result_property(
         i_json     = lv_json_second
-        i_property = 'TOTWRKCOMPAMT' ).
+        i_property = 'TOTWRKCOMPAMT_COCDECURR' ).
 
     lv_asc_amount =
       read_first_result_property(
         i_json     = lv_json_asc
-        i_property = 'TOTWRKCOMPAMT' ).
+        i_property = 'TOTWRKCOMPAMT_COCDECURR' ).
 
     cl_abap_unit_assert=>assert_not_initial(
       act = lv_json_first ).

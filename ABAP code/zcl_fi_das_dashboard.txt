@@ -3342,6 +3342,7 @@ CONDENSE l_supplier.
         OR to_upper( is_request-orderby-property ) = 'INVVALUE_COCDECURR'
         OR to_upper( is_request-orderby-property ) = 'INVVALUE_CAL'
         OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED'
+        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_COCDECURR'
         OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_USD' ).
 
   ENDMETHOD.
@@ -3389,9 +3390,11 @@ CONDENSE l_supplier.
         OR l_orderby_property = 'EDGEWTDAMT'
         OR l_orderby_property = 'ACCRUALMETHOD'
         OR l_orderby_property = 'TOTWRKCOMPAMT'
+        OR l_orderby_property = 'TOTWRKCOMPAMT_COCDECURR'
         OR l_orderby_property = 'TOTWRKCOMPAMT_USD'
         OR l_orderby_property = 'TOTWRKCOMPPER'
         OR l_orderby_property = 'AMOUNTACCRUED'
+        OR l_orderby_property = 'AMOUNTACCRUED_COCDECURR'
         OR l_orderby_property = 'AMOUNTACCRUED_USD'
         OR l_orderby_property = 'LASTMONTHWRKCOMP' ).
 

@@ -17,6 +17,7 @@
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=SUPPLIERNAME desc&$top=100&$skip=0&$inlinecount=allpages
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=TOTWRKCOMPAMT desc&$top=100&$skip=0&$inlinecount=allpages
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=TOTWRKCOMPAMT desc&$top=2&$skip=1&$inlinecount=allpages
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=UNSUPPORTED_FIELD asc&$top=100&$skip=0&$inlinecount=allpages
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=PONUMBER,POLINEDESC&$top=100
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=PONUMBER,AMOUNTACCRUED&$top=100
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('40102',PONUMBER)&$orderby=PSTYPE desc&$top=100&$skip=0&$inlinecount=allpages

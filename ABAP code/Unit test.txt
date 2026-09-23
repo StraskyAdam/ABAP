@@ -156,6 +156,10 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
+    METHODS test_unsupported_orderby_fallback
+              FOR TESTING
+      RAISING cx_static_check.
+
     METHODS test_computed_orderby_paging_smoke
               FOR TESTING
       RAISING cx_static_check.
@@ -1307,6 +1311,74 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
             |{ lv_second_vendor ALPHA = IN }| ) ).
       ENDIF.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD test_unsupported_orderby_fallback.
+
+    DATA:
+      ls_default       TYPE ts_case,
+      ls_unsupported   TYPE ts_case,
+      lv_json_default  TYPE string,
+      lv_json_invalid  TYPE string,
+      lv_default_po    TYPE string,
+      lv_default_item  TYPE string,
+      lv_invalid_po    TYPE string,
+      lv_invalid_item  TYPE string.
+
+    ls_default-email =
+      'adam.strasky@takeda.com'.
+
+    ls_default-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_default-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_unsupported = ls_default.
+    ls_unsupported-orderby = 'UNSUPPORTED_FIELD asc'.
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_default
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_default
+        e_total_count = DATA(lv_total_count_default) ).
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_unsupported
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_invalid
+        e_total_count = DATA(lv_total_count_invalid) ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_default
+      IMPORTING
+        e_ponumber = lv_default_po
+        e_itemno   = lv_default_item ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_invalid
+      IMPORTING
+        e_ponumber = lv_invalid_po
+        e_itemno   = lv_invalid_item ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_invalid
+      exp = lv_total_count_default ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_invalid_po
+      exp = lv_default_po ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_invalid_item
+      exp = lv_default_item ).
 
   ENDMETHOD.
 

@@ -20,6 +20,11 @@ private section.
       !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR optional
     returning
       value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods SHOULD_SKIP_CALCULATIONS
+    importing
+      !IT_SELECTED_PROPERTIES type STRINGTAB
+    returning
+      value(R_RESULT) type ABAP_BOOL .
 ENDCLASS.
 
 
@@ -30,50 +35,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 METHOD build_request.
 
   CLEAR rs_request.
-
-  DATA(lt_supported_orderby) = VALUE stringtab(
-      ( `PSTYPE` )
-      ( `PONUMBER` )
-      ( `ITEMNO` )
-      ( `SUPPLIERNAME` )
-      ( `SUPPLIERID` )
-      ( `GLACCOUNT` )
-      ( `COSTCENTER` )
-      ( `COSTCENTERDESC` )
-      ( `MANAGEUNIT` )
-      ( `INTERNALORDER` )
-      ( `ASSETID` )
-      ( `PROFITCENTER` )
-      ( `POCURRENCY` )
-      ( `POCREATEDAT` )
-      ( `EPNUMBER` )
-      ( `POLINEDESC` )
-      ( `RULETYPE` )
-      ( `RULETYPETEXT` )
-      ( `EXCHANGERATE` )
-      ( `STATUS` )
-      ( `TOTWRKCOMPAMT` )
-      ( `TOTWRKCOMPAMT_USD` )
-      ( `TOTWRKCOMPAMT_COCDECURR` )
-      ( `TOTWRKCOMPPER` )
-      ( `AMOUNTACCRUED` )
-      ( `AMOUNTACCRUED_USD` )
-      ( `AMOUNTACCRUED_COCDECURR` )
-      ( `INVVALUE` )
-      ( `INVVALUE_USD` )
-      ( `INVVALUE_COCDECURR` )
-      ( `GRVALUE` )
-      ( `GRVALUE_USD` )
-      ( `GRVALUE_COCDECURR` )
-      ( `ACCRUALMETHOD` )
-      ( `MARKASREVIEWED` )
-      ( `LASTMONTHWRKCOMP` )
-      ( `LAST_NOTIF_ON` )
-      ( `NOTIF_24_HR` )
-      ( `REVIEWED_BY` )
-      ( `BBP_ACC_NO` )
-      ( `DISTPERCENTAGE` )
-      ( `QUANTITY` ) ).
 
   " Parameters z openPOParameters(...)
 
@@ -250,45 +211,94 @@ METHOD build_request.
 
   ENDLOOP.
 
-  LOOP AT io_tech_request_context->get_orderby( )
-    ASSIGNING FIELD-SYMBOL(<ls_orderby>).
+  DATA(lt_orderby) =
+    io_tech_request_context->get_orderby( ).
 
-    DATA(l_property) =
+  READ TABLE lt_orderby
+    ASSIGNING FIELD-SYMBOL(<ls_orderby>)
+    INDEX 1.
+
+  IF sy-subrc = 0.
+    rs_request-orderby-property =
       to_upper( CONV string( <ls_orderby>-property ) ).
+    rs_request-orderby-descending =
+      xsdbool(
+        to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
+  ENDIF.
 
-    IF l_property = 'REVIWED_BY'.
-      l_property = 'REVIEWED_BY'.
+  rs_request-skip_calculations =
+    should_skip_calculations(
+      io_tech_request_context->get_select( ) ).
+
+ENDMETHOD.
+
+
+METHOD should_skip_calculations.
+
+  DATA(lt_calculation_fields) = VALUE stringtab(
+    ( `USERNAME` )
+    ( `FULL_NAME` )
+    ( `DATFM` )
+    ( `DECIMAL_FORMAT` )
+    ( `GLACCOUNT` )
+    ( `COSTCENTER` )
+    ( `COSTCENTERDESC` )
+    ( `MANAGEUNIT` )
+    ( `INTERNALORDER` )
+    ( `ASSETID` )
+    ( `PROFITCENTER` )
+    ( `BBP_ACC_NO` )
+    ( `DISTPERCENTAGE` )
+    ( `GRVALUE` )
+    ( `GRVALUE_USD` )
+    ( `GRVALUE_COCDECURR` )
+    ( `INVVALUE` )
+    ( `INVVALUE_USD` )
+    ( `INVVALUE_COCDECURR` )
+    ( `INVVALUE_CAL` )
+    ( `STATUS` )
+    ( `MARKASREVIEWED` )
+    ( `REVIWED_BY` )
+    ( `REVIEWED_BY` )
+    ( `CHANGEDDATE` )
+    ( `CHANGEDTIME` )
+    ( `CHANGED_ON` )
+    ( `PO_CLOSURE` )
+    ( `POCLOSURE_FLAG` )
+    ( `EDGEWTDAMT` )
+    ( `ACCRUALMETHOD` )
+    ( `TOTWRKCOMPAMT` )
+    ( `TOTWRKCOMPAMT_USD` )
+    ( `TOTWRKCOMPPER` )
+    ( `TOTWRKCOMPAMT_COCDECURR` )
+    ( `AMOUNTACCRUED` )
+    ( `AMOUNTACCRUED_COCDECURR` )
+    ( `AMOUNTACCRUED_USD` )
+    ( `LASTMONTHWRKCOMP` )
+    ( `STRAIGHTLINEMTHD` )
+    ( `EXCHANGERATE` )
+    ( `POVALUE_USD` )
+    ( `POVALUE_COCO` )
+    ( `LAST_NOTIF_ON` )
+    ( `NOTIF_24_HR` )
+    ( `RULETYPE` )
+    ( `RULETYPETEXT` ) ).
+
+  r_result = abap_false.
+
+  IF it_selected_properties IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  LOOP AT it_selected_properties ASSIGNING FIELD-SYMBOL(<lv_property>).
+    IF line_exists(
+         lt_calculation_fields[
+           table_line = to_upper( CONV string( <lv_property> ) ) ] ).
+      RETURN.
     ENDIF.
-
-    IF line_exists( lt_supported_orderby[ table_line = l_property ] ).
-      rs_request-orderby-property = l_property.
-      rs_request-orderby-descending =
-        xsdbool(
-          to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
-      EXIT.
-    ENDIF.
-
   ENDLOOP.
 
-  DATA(lt_selected_properties) =
-    io_tech_request_context->get_select( ).
-
-  LOOP AT lt_selected_properties ASSIGNING FIELD-SYMBOL(<lv_property>).
-
-    DATA(l_selected_property) =
-      to_upper( CONV string( <lv_property> ) ).
-
-    IF l_selected_property = 'REVIWED_BY'.
-      l_selected_property = 'REVIEWED_BY'.
-    ENDIF.
-
-    APPEND VALUE #(
-      name = l_selected_property ) TO rs_request-select_fields.
-
-  ENDLOOP.
-
-  SORT rs_request-select_fields BY name.
-  DELETE ADJACENT DUPLICATES FROM rs_request-select_fields COMPARING name.
+  r_result = abap_true.
 
 ENDMETHOD.
 

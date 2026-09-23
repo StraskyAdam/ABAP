@@ -148,6 +148,10 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
+    METHODS test_orderby_paging_smoke
+              FOR TESTING
+      RAISING cx_static_check.
+
     METHODS test_value_help_select_smoke
               FOR TESTING
       RAISING cx_static_check.
@@ -1052,6 +1056,100 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           act = xsdbool( lv_first_key < lv_second_key ) ).
       ENDIF.
 
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD test_orderby_paging_smoke.
+
+    DATA:
+      ls_case            TYPE ts_case,
+      lv_json_first      TYPE string,
+      lv_json_second     TYPE string,
+      lv_total_count     TYPE int8,
+      lv_first_po        TYPE string,
+      lv_first_item      TYPE string,
+      lv_second_po       TYPE string,
+      lv_second_item     TYPE string,
+      lv_first_supplier  TYPE string,
+      lv_second_supplier TYPE string.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'SUPPLIERNAME asc'.
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_first
+        e_total_count = lv_total_count ).
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 1
+      IMPORTING
+        e_json        = lv_json_second
+        e_total_count = DATA(lv_total_count_skip1) ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_first
+      IMPORTING
+        e_ponumber = lv_first_po
+        e_itemno   = lv_first_item ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_second
+      IMPORTING
+        e_ponumber = lv_second_po
+        e_itemno   = lv_second_item ).
+
+    lv_first_supplier =
+      read_first_result_property(
+        i_json     = lv_json_first
+        i_property = 'SUPPLIERNAME' ).
+
+    lv_second_supplier =
+      read_first_result_property(
+        i_json     = lv_json_second
+        i_property = 'SUPPLIERNAME' ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_json_first ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_skip1
+      exp = lv_total_count ).
+
+    IF lv_total_count > 1.
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool(
+             lv_first_po <> lv_second_po
+          OR lv_first_item <> lv_second_item ) ).
+
+      IF lv_first_supplier = lv_second_supplier.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool(
+               lv_first_po < lv_second_po
+            OR (
+                 lv_first_po = lv_second_po
+                 AND lv_first_item < lv_second_item
+               ) ) ).
+      ELSE.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( lv_first_supplier <= lv_second_supplier ) ).
+      ENDIF.
     ENDIF.
 
   ENDMETHOD.

@@ -349,6 +349,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         it_keys          TYPE tt_key
         is_context       TYPE ts_context
         i_mode           TYPE zif_fi_das_dashboard=>t_operation
+        i_skip_calculations TYPE abap_bool
         i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
       CHANGING
         ct_result        TYPE ANY TABLE
@@ -359,6 +360,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_key        TYPE ts_key
         is_context    TYPE ts_context
         i_mode        TYPE zif_fi_das_dashboard=>t_operation
+        i_skip_calculations TYPE abap_bool
       RETURNING
         VALUE(rs_row) TYPE zif_fi_das_dashboard=>ts_result
       RAISING
@@ -733,62 +735,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_field_name      TYPE string
       RETURNING
         VALUE(r_field_name) TYPE string.
-    METHODS is_select_field_requested
+    METHODS apply_sort_and_paging
       IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_field_name    TYPE string
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS has_computed_orderby
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS is_amdp_sortable_field
-      IMPORTING
-        i_field_name    TYPE string
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_history
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_statuses
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_notifications
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_exclusions
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_users
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS should_load_accounts
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
-    METHODS sort_result_table
-      IMPORTING
-        is_request TYPE zif_fi_das_dashboard=>ts_request
+       is_request TYPE zif_fi_das_dashboard=>ts_request
       CHANGING
-        ct_result  TYPE ANY TABLE.
-    METHODS apply_result_paging
-      IMPORTING
-        is_request TYPE zif_fi_das_dashboard=>ts_request
-      CHANGING
-        ct_result  TYPE ANY TABLE.
+       ct_result  TYPE ANY TABLE.
 
     CLASS-METHODS get_keys
       IMPORTING
@@ -805,8 +756,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(it_company_codes)    TYPE tt_company_scope
         VALUE(it_cost_centers)     TYPE tt_cost_center_scope
         VALUE(it_management_units) TYPE tt_management_scope
-        VALUE(i_sort_field)        TYPE zif_fi_das_dashboard=>t_text_500
-        VALUE(i_sort_desc)         TYPE abap_bool
         VALUE(it_po_filter)        TYPE tt_amdp_po_filter
         VALUE(it_item_filter)      TYPE tt_amdp_item_filter
         VALUE(it_supplier_filter)  TYPE tt_amdp_supplier_filter
@@ -868,68 +817,66 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       cv_total_count   = e_total_count ).
   ENDMETHOD.
 
-  METHOD execute_request.
+ METHOD execute_request.
 
    DATA ls_effective_request TYPE zif_fi_das_dashboard=>ts_request.
-   DATA lv_requires_full_sort TYPE abap_bool.
+   DATA lv_apply_sort_and_paging TYPE abap_bool.
 
-  CLEAR:
-    ct_result,
-    cv_total_count.
+   CLEAR:
+     ct_result,
+     cv_total_count.
 
    ls_effective_request = is_request.
 
-   lv_requires_full_sort =
-     has_computed_orderby( is_request ).
+   lv_apply_sort_and_paging =
+     xsdbool( is_request-orderby-property IS NOT INITIAL ).
 
-   IF lv_requires_full_sort = abap_true.
+   IF lv_apply_sort_and_paging = abap_true.
      ls_effective_request-paging-skip = 0.
      ls_effective_request-paging-top = 0.
+     ls_effective_request-skip_calculations = abap_false.
    ENDIF.
 
-  get_required_keys(
-   EXPORTING
-     is_request      = ls_effective_request
-     i_mode          = i_mode
-     i_excluded_only = i_excluded_only
-   IMPORTING
-      et_keys         = DATA(lt_keys)
-      e_total_count   = cv_total_count ).
+   get_required_keys(
+     EXPORTING
+       is_request      = ls_effective_request
+       i_mode          = i_mode
+       i_excluded_only = i_excluded_only
+     IMPORTING
+       et_keys         = DATA(lt_keys)
+       e_total_count   = cv_total_count ).
 
-  IF lt_keys IS INITIAL.
-    RETURN.
-  ENDIF.
+   IF lt_keys IS INITIAL.
+     RETURN.
+   ENDIF.
 
-  DATA(ls_context) =
-    get_context(
-      is_request = is_request
-      it_keys    = lt_keys
-      i_mode     = i_mode ).
+   DATA(ls_context) =
+     get_context(
+       is_request = ls_effective_request
+       it_keys    = lt_keys
+       i_mode     = i_mode ).
 
-  get_results(
-    EXPORTING
-      it_keys          = lt_keys
-      is_context       = ls_context
-      i_mode           = i_mode
-      i_decimal_format = read_request_decimal_format(
-        i_email = is_request-email )
-    CHANGING
-      ct_result        = ct_result ).
+   get_results(
+     EXPORTING
+       it_keys          = lt_keys
+       is_context       = ls_context
+       i_mode           = i_mode
+       i_skip_calculations = ls_effective_request-skip_calculations
+       i_decimal_format = read_request_decimal_format(
+         i_email = is_request-email )
+     CHANGING
+       ct_result        = ct_result ).
 
-    IF lv_requires_full_sort = abap_true.
-      sort_result_table(
-        EXPORTING
-          is_request = is_request
-        CHANGING
-          ct_result  = ct_result ).
-      apply_result_paging(
-        EXPORTING
-          is_request = is_request
-        CHANGING
-          ct_result  = ct_result ).
-    ENDIF.
+   IF lv_apply_sort_and_paging = abap_true.
+     FREE ls_context.
+     apply_sort_and_paging(
+       EXPORTING
+         is_request = is_request
+       CHANGING
+         ct_result  = ct_result ).
+   ENDIF.
 
-ENDMETHOD.
+ ENDMETHOD.
 
   METHOD get_required_keys.
 
@@ -960,11 +907,6 @@ ENDMETHOD.
         it_company_codes    = lt_company_codes
         it_cost_centers     = lt_cost_centers
         it_management_units = lt_management_units
-        i_sort_field        = COND #(
-          WHEN is_amdp_sortable_field( is_request-orderby-property ) = abap_true
-          THEN is_request-orderby-property
-          ELSE `` )
-        i_sort_desc         = is_request-orderby-descending
         it_po_filter        = get_po_filter( is_request )
         it_item_filter      = get_item_filter( is_request )
         it_supplier_filter  = get_supplier_filter( is_request )
@@ -1034,7 +976,8 @@ ENDMETHOD.
       ls_row = get_row(
         is_key     = <fs_key>
         is_context = is_context
-        i_mode     = i_mode ).
+        i_mode     = i_mode
+        i_skip_calculations = i_skip_calculations ).
       IF ls_row-ponumber IS INITIAL.
         CONTINUE.
       ENDIF.
@@ -1068,6 +1011,10 @@ ENDMETHOD.
         is_detail = <ls_detail>
       CHANGING
         cs_result = rs_row ).
+
+    IF i_skip_calculations = abap_true.
+      RETURN.
+    ENDIF.
 
     apply_user(
       EXPORTING
@@ -1237,36 +1184,26 @@ ENDMETHOD.
 
   METHOD get_context.
 
-    get_exchrt( ).
-
     rs_context-details = get_details( it_keys ).
 
-    IF should_load_accounts( is_request ) = abap_true.
-      rs_context-accounts = get_accounts( it_keys ).
+    IF is_request-skip_calculations = abap_true.
+      RETURN.
     ENDIF.
 
-    IF should_load_history( is_request ) = abap_true.
-      rs_context-history = get_history( it_keys    = it_keys
-                                        it_details = rs_context-details ).
-    ENDIF.
+    get_exchrt( ).
 
-    IF should_load_statuses( is_request ) = abap_true.
-      rs_context-statuses = get_statuses( it_keys ).
-    ENDIF.
+    rs_context-accounts = get_accounts( it_keys ).
+    rs_context-history = get_history( it_keys    = it_keys
+                                      it_details = rs_context-details ).
+    rs_context-statuses = get_statuses( it_keys ).
+    rs_context-notifications = get_notifications( it_keys = it_keys ).
 
-    IF should_load_notifications( is_request ) = abap_true.
-      rs_context-notifications = get_notifications( it_keys = it_keys ).
-    ENDIF.
-
-    IF i_mode = zif_fi_das_dashboard=>mc_exclude
-       AND should_load_exclusions( is_request ) = abap_true.
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
       rs_context-exclusions = get_exclusions( it_keys ).
     ENDIF.
 
-    IF should_load_users( is_request ) = abap_true.
-      read_users( EXPORTING it_details = rs_context-details
-                  IMPORTING et_users = rs_context-users  ).
-    ENDIF.
+    read_users( EXPORTING it_details = rs_context-details
+                IMPORTING et_users = rs_context-users  ).
 
     rs_context-review_day = get_review_day( ).
 
@@ -3264,232 +3201,7 @@ CONDENSE l_supplier.
 
   ENDMETHOD.
 
-  METHOD is_select_field_requested.
-
-    DATA(l_field_name) =
-      normalize_request_property( i_field_name ).
-
-    IF is_request-select_fields IS INITIAL.
-      r_result = abap_true.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-        line_exists(
-          is_request-select_fields[
-            name = l_field_name ] ) ).
-
-  ENDMETHOD.
-
-  METHOD is_amdp_sortable_field.
-
-    CASE to_upper( i_field_name ).
-      WHEN 'PSTYPE'
-        OR 'PONUMBER'
-        OR 'ITEMNO'
-        OR 'SUPPLIERNAME'
-        OR 'SUPPLIERID'
-        OR 'POCURRENCY'
-        OR 'POCREATEDAT'
-        OR 'EPNUMBER'
-        OR 'POLINEDESC'.
-        r_result = abap_true.
-      WHEN OTHERS.
-        r_result = abap_false.
-    ENDCASE.
-
-  ENDMETHOD.
-
-  METHOD has_computed_orderby.
-
-    r_result = abap_false.
-
-    IF is_request-orderby-property IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    IF is_amdp_sortable_field( is_request-orderby-property ) = abap_true.
-      RETURN.
-    ENDIF.
-
-    r_result = abap_true.
-
-  ENDMETHOD.
-
-  METHOD should_load_history.
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'GRVALUE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'GRVALUE_USD' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'GRVALUE_COCDECURR' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_USD' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_COCDECURR' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_CAL' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_COCDECURR' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_USD' )
-        OR to_upper( is_request-orderby-property ) = 'GRVALUE'
-        OR to_upper( is_request-orderby-property ) = 'GRVALUE_USD'
-        OR to_upper( is_request-orderby-property ) = 'GRVALUE_COCDECURR'
-        OR to_upper( is_request-orderby-property ) = 'INVVALUE'
-        OR to_upper( is_request-orderby-property ) = 'INVVALUE_USD'
-        OR to_upper( is_request-orderby-property ) = 'INVVALUE_COCDECURR'
-        OR to_upper( is_request-orderby-property ) = 'INVVALUE_CAL'
-        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED'
-        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_COCDECURR'
-        OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_USD' ).
-
-  ENDMETHOD.
-
-  METHOD should_load_statuses.
-
-    DATA(l_orderby_property) =
-      normalize_request_property( is_request-orderby-property ).
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-         is_select_field_requested( is_request = is_request i_field_name = 'STATUS' )
-      OR is_select_field_requested( is_request = is_request i_field_name = 'MARKASREVIEWED' )
-      OR is_select_field_requested( is_request = is_request i_field_name = 'REVIWED_BY' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'CHANGEDDATE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'CHANGEDTIME' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'CHANGED_ON' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'PO_CLOSURE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'POCLOSURE_FLAG' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'EDGEWTDAMT' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'ACCRUALMETHOD' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'TOTWRKCOMPAMT' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'TOTWRKCOMPAMT_USD' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'TOTWRKCOMPPER' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'TOTWRKCOMPAMT_COCDECURR' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_COCDECURR' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_USD' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'LASTMONTHWRKCOMP' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'STRAIGHTLINEMTHD' )
-        OR l_orderby_property = 'STATUS'
-        OR l_orderby_property = 'MARKASREVIEWED'
-        OR l_orderby_property = 'REVIWED_BY'
-        OR l_orderby_property = 'CHANGEDDATE'
-        OR l_orderby_property = 'CHANGEDTIME'
-        OR l_orderby_property = 'CHANGED_ON'
-        OR l_orderby_property = 'PO_CLOSURE'
-        OR l_orderby_property = 'POCLOSURE_FLAG'
-        OR l_orderby_property = 'EDGEWTDAMT'
-        OR l_orderby_property = 'ACCRUALMETHOD'
-        OR l_orderby_property = 'TOTWRKCOMPAMT'
-        OR l_orderby_property = 'TOTWRKCOMPAMT_COCDECURR'
-        OR l_orderby_property = 'TOTWRKCOMPAMT_USD'
-        OR l_orderby_property = 'TOTWRKCOMPPER'
-        OR l_orderby_property = 'AMOUNTACCRUED'
-        OR l_orderby_property = 'AMOUNTACCRUED_COCDECURR'
-        OR l_orderby_property = 'AMOUNTACCRUED_USD'
-        OR l_orderby_property = 'LASTMONTHWRKCOMP' ).
-
-  ENDMETHOD.
-
-  METHOD should_load_notifications.
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'LAST_NOTIF_ON' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'NOTIF_24_HR' )
-        OR to_upper( is_request-orderby-property ) = 'LAST_NOTIF_ON'
-        OR to_upper( is_request-orderby-property ) = 'NOTIF_24_HR' ).
-
-  ENDMETHOD.
-
-  METHOD should_load_exclusions.
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'RULETYPE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'RULETYPETEXT' )
-        OR to_upper( is_request-orderby-property ) = 'RULETYPE'
-        OR to_upper( is_request-orderby-property ) = 'RULETYPETEXT' ).
-
-  ENDMETHOD.
-
-  METHOD should_load_users.
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'USERNAME' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'FULL_NAME' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'DATFM' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'DECIMAL_FORMAT' )
-        OR to_upper( is_request-orderby-property ) = 'USERNAME'
-        OR to_upper( is_request-orderby-property ) = 'FULL_NAME' ).
-
-  ENDMETHOD.
-
-  METHOD should_load_accounts.
-
-    r_result = abap_true.
-
-    IF is_request-select_fields IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    r_result =
-      xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'GLACCOUNT' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'COSTCENTER' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'COSTCENTERDESC' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'MANAGEUNIT' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'INTERNALORDER' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'ASSETID' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'PROFITCENTER' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'BBP_ACC_NO' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'DISTPERCENTAGE' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'QUANTITY' )
-        OR to_upper( is_request-orderby-property ) = 'GLACCOUNT'
-        OR to_upper( is_request-orderby-property ) = 'COSTCENTER'
-        OR to_upper( is_request-orderby-property ) = 'COSTCENTERDESC'
-        OR to_upper( is_request-orderby-property ) = 'MANAGEUNIT'
-        OR to_upper( is_request-orderby-property ) = 'INTERNALORDER'
-        OR to_upper( is_request-orderby-property ) = 'ASSETID'
-        OR to_upper( is_request-orderby-property ) = 'PROFITCENTER'
-        OR to_upper( is_request-orderby-property ) = 'BBP_ACC_NO'
-        OR to_upper( is_request-orderby-property ) = 'DISTPERCENTAGE'
-        OR to_upper( is_request-orderby-property ) = 'QUANTITY' ).
-
-  ENDMETHOD.
-
-  METHOD sort_result_table.
+  METHOD apply_sort_and_paging.
 
     DATA(l_sort_property) =
       normalize_request_property( is_request-orderby-property ).
@@ -3498,55 +3210,44 @@ CONDENSE l_supplier.
       RETURN.
     ENDIF.
 
-    DATA lt_sortorder TYPE abap_sortorder_tab.
+    DATA(lo_table_descr) =
+      CAST cl_abap_tabledescr(
+        cl_abap_tabledescr=>describe_by_data( ct_result ) ).
 
-    APPEND VALUE #(
-      name       = l_sort_property
-      descending = is_request-orderby-descending ) TO lt_sortorder.
+    DATA(lo_line_descr) =
+      CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
 
-    IF l_sort_property <> 'PONUMBER'.
-      APPEND VALUE #( name = 'PONUMBER' ) TO lt_sortorder.
+    IF line_exists( lo_line_descr->components[ name = l_sort_property ] ).
+      IF l_sort_property = 'PONUMBER'.
+        IF is_request-orderby-descending = abap_true.
+          SORT ct_result BY ponumber DESCENDING itemno.
+        ELSE.
+          SORT ct_result BY ponumber ASCENDING itemno.
+        ENDIF.
+      ELSEIF l_sort_property = 'ITEMNO'.
+        IF is_request-orderby-descending = abap_true.
+          SORT ct_result BY itemno DESCENDING ponumber.
+        ELSE.
+          SORT ct_result BY itemno ASCENDING ponumber.
+        ENDIF.
+      ELSEIF is_request-orderby-descending = abap_true.
+        SORT ct_result BY (l_sort_property) DESCENDING ponumber itemno.
+      ELSE.
+        SORT ct_result BY (l_sort_property) ASCENDING ponumber itemno.
+      ENDIF.
+    ELSE.
+      SORT ct_result BY ponumber itemno.
     ENDIF.
 
-    IF l_sort_property <> 'ITEMNO'.
-      APPEND VALUE #( name = 'ITEMNO' ) TO lt_sortorder.
+    IF is_request-paging-top > 0.
+      DATA(l_first_tail_index) =
+        is_request-paging-skip + is_request-paging-top + 1.
+      DELETE ct_result FROM l_first_tail_index.
     ENDIF.
 
-    SORT ct_result BY (lt_sortorder).
-
-  ENDMETHOD.
-
-  METHOD apply_result_paging.
-
-    DATA:
-      lr_paged   TYPE REF TO data,
-      lv_index   TYPE i,
-      lv_written TYPE i.
-
-    FIELD-SYMBOLS:
-      <lt_paged>  TYPE ANY TABLE,
-      <ls_result> TYPE any.
-
-    CREATE DATA lr_paged LIKE ct_result.
-    ASSIGN lr_paged->* TO <lt_paged>.
-
-    LOOP AT ct_result ASSIGNING <ls_result>.
-      lv_index = lv_index + 1.
-
-      IF lv_index <= is_request-paging-skip.
-        CONTINUE.
-      ENDIF.
-
-      IF is_request-paging-top > 0
-         AND lv_written >= is_request-paging-top.
-        EXIT.
-      ENDIF.
-
-      INSERT <ls_result> INTO TABLE <lt_paged>.
-      lv_written = lv_written + 1.
-    ENDLOOP.
-
-    ct_result = <lt_paged>.
+    IF is_request-paging-skip > 0.
+      DELETE ct_result TO is_request-paging-skip.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -4093,24 +3794,6 @@ CONDENSE l_supplier.
         ROW_NUMBER() OVER
         (
           ORDER BY
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'PSTYPE' THEN candidate.pstype END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'PSTYPE' THEN candidate.pstype END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'PONUMBER' THEN LTRIM( candidate.ponumber, '0' ) END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'PONUMBER' THEN LTRIM( candidate.ponumber, '0' ) END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'ITEMNO' THEN LTRIM( candidate.itemno, '0' ) END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'ITEMNO' THEN LTRIM( candidate.itemno, '0' ) END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'SUPPLIERNAME' THEN LOWER( IFNULL( candidate.suppliername, '' ) ) END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'SUPPLIERNAME' THEN LOWER( IFNULL( candidate.suppliername, '' ) ) END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'SUPPLIERID' THEN LTRIM( candidate.supplierid, '0' ) END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'SUPPLIERID' THEN LTRIM( candidate.supplierid, '0' ) END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'POCURRENCY' THEN candidate.po_currency END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'POCURRENCY' THEN candidate.po_currency END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'POCREATEDAT' THEN candidate.pocreatedat END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'POCREATEDAT' THEN candidate.pocreatedat END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'EPNUMBER' THEN candidate.epnumber END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'EPNUMBER' THEN candidate.epnumber END DESC,
-            CASE WHEN :i_sort_desc = ' ' AND :i_sort_field = 'POLINEDESC' THEN LOWER( IFNULL( candidate.polinedescription, '' ) ) END ASC,
-            CASE WHEN :i_sort_desc = 'X' AND :i_sort_field = 'POLINEDESC' THEN LOWER( IFNULL( candidate.polinedescription, '' ) ) END DESC,
             candidate.ponumber,
             candidate.itemno,
             candidate.pstype

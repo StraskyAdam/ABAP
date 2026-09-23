@@ -3203,6 +3203,10 @@ CONDENSE l_supplier.
 
   METHOD apply_sort_and_paging.
 
+    FIELD-SYMBOLS:
+      <ls_result>     TYPE any,
+      <lv_supplierid> TYPE any.
+
     DATA(l_sort_property) =
       normalize_request_property( is_request-orderby-property ).
 
@@ -3218,6 +3222,16 @@ CONDENSE l_supplier.
       CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
 
     IF line_exists( lo_line_descr->components[ name = l_sort_property ] ).
+      IF l_sort_property = 'SUPPLIERID'.
+        LOOP AT ct_result ASSIGNING <ls_result>.
+          ASSIGN COMPONENT 'SUPPLIERID' OF STRUCTURE <ls_result>
+            TO <lv_supplierid>.
+          IF sy-subrc = 0.
+            <lv_supplierid> = |{ <lv_supplierid> ALPHA = IN }|.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
       IF l_sort_property = 'PONUMBER'.
         IF is_request-orderby-descending = abap_true.
           SORT ct_result BY ponumber DESCENDING itemno.
@@ -3247,6 +3261,16 @@ CONDENSE l_supplier.
 
     IF is_request-paging-skip > 0.
       DELETE ct_result TO is_request-paging-skip.
+    ENDIF.
+
+    IF l_sort_property = 'SUPPLIERID'.
+      LOOP AT ct_result ASSIGNING <ls_result>.
+        ASSIGN COMPONENT 'SUPPLIERID' OF STRUCTURE <ls_result>
+          TO <lv_supplierid>.
+        IF sy-subrc = 0.
+          <lv_supplierid> = |{ <lv_supplierid> ALPHA = OUT }|.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
 
   ENDMETHOD.

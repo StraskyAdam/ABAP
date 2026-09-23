@@ -23,6 +23,7 @@ private section.
   methods SHOULD_SKIP_CALCULATIONS
     importing
       !IT_SELECTED_PROPERTIES type STRINGTAB
+      !I_ORDERBY_PROPERTY type STRING
     returning
       value(R_RESULT) type ABAP_BOOL .
 ENDCLASS.
@@ -228,7 +229,8 @@ METHOD build_request.
 
   rs_request-skip_calculations =
     should_skip_calculations(
-      io_tech_request_context->get_select( ) ).
+      it_selected_properties = io_tech_request_context->get_select( )
+      i_orderby_property     = rs_request-orderby-property ).
 
 ENDMETHOD.
 
@@ -287,6 +289,13 @@ METHOD should_skip_calculations.
   r_result = abap_false.
 
   IF it_selected_properties IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  IF i_orderby_property IS NOT INITIAL
+     AND line_exists(
+       lt_calculation_fields[
+         table_line = to_upper( i_orderby_property ) ] ).
     RETURN.
   ENDIF.
 

@@ -31,6 +31,50 @@ METHOD build_request.
 
   CLEAR rs_request.
 
+  DATA(lt_supported_orderby) = VALUE stringtab(
+      ( `PSTYPE` )
+      ( `PONUMBER` )
+      ( `ITEMNO` )
+      ( `SUPPLIERNAME` )
+      ( `SUPPLIERID` )
+      ( `GLACCOUNT` )
+      ( `COSTCENTER` )
+      ( `COSTCENTERDESC` )
+      ( `MANAGEUNIT` )
+      ( `INTERNALORDER` )
+      ( `ASSETID` )
+      ( `PROFITCENTER` )
+      ( `POCURRENCY` )
+      ( `POCREATEDAT` )
+      ( `EPNUMBER` )
+      ( `POLINEDESC` )
+      ( `RULETYPE` )
+      ( `RULETYPETEXT` )
+      ( `EXCHANGERATE` )
+      ( `STATUS` )
+      ( `TOTWRKCOMPAMT` )
+      ( `TOTWRKCOMPAMT_USD` )
+      ( `TOTWRKCOMPAMT_COCDECURR` )
+      ( `TOTWRKCOMPPER` )
+      ( `AMOUNTACCRUED` )
+      ( `AMOUNTACCRUED_USD` )
+      ( `AMOUNTACCRUED_COCDECURR` )
+      ( `INVVALUE` )
+      ( `INVVALUE_USD` )
+      ( `INVVALUE_COCDECURR` )
+      ( `GRVALUE` )
+      ( `GRVALUE_USD` )
+      ( `GRVALUE_COCDECURR` )
+      ( `ACCRUALMETHOD` )
+      ( `MARKASREVIEWED` )
+      ( `LASTMONTHWRKCOMP` )
+      ( `LAST_NOTIF_ON` )
+      ( `NOTIF_24_HR` )
+      ( `REVIWED_BY` )
+      ( `BBP_ACC_NO` )
+      ( `DISTPERCENTAGE` )
+      ( `QUANTITY` ) ).
+
   " Parameters z openPOParameters(...)
 
   READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<ls_key>)
@@ -79,12 +123,25 @@ METHOD build_request.
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
 
-          APPEND VALUE #(
-            sign   = <ls_ponumber>-sign
-            option = <ls_ponumber>-option
-            low    = CONV ebeln( <ls_ponumber>-low )
-            high   = CONV ebeln( <ls_ponumber>-high )
-          ) TO rs_request-ponumber.
+          IF <ls_ponumber>-option = 'CP'.
+
+            APPEND VALUE #(
+              value = CONV zif_fi_das_dashboard=>t_text_500(
+                replace(
+                  val  = CONV string( <ls_ponumber>-low )
+                  sub  = '*'
+                  with = '' ) ) ) TO rs_request-po_contains.
+
+          ELSE.
+
+            APPEND VALUE #(
+              sign   = <ls_ponumber>-sign
+              option = <ls_ponumber>-option
+              low    = CONV ebeln( <ls_ponumber>-low )
+              high   = CONV ebeln( <ls_ponumber>-high )
+            ) TO rs_request-ponumber.
+
+          ENDIF.
 
         ENDLOOP.
 
@@ -93,12 +150,25 @@ METHOD build_request.
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_itemno>).
 
-          APPEND VALUE #(
-            sign   = <ls_itemno>-sign
-            option = <ls_itemno>-option
-            low    = CONV ebelp( <ls_itemno>-low )
-            high   = CONV ebelp( <ls_itemno>-high )
-          ) TO rs_request-itemno.
+          IF <ls_itemno>-option = 'CP'.
+
+            APPEND VALUE #(
+              value = CONV zif_fi_das_dashboard=>t_text_500(
+                replace(
+                  val  = CONV string( <ls_itemno>-low )
+                  sub  = '*'
+                  with = '' ) ) ) TO rs_request-item_contains.
+
+          ELSE.
+
+            APPEND VALUE #(
+              sign   = <ls_itemno>-sign
+              option = <ls_itemno>-option
+              low    = CONV ebelp( <ls_itemno>-low )
+              high   = CONV ebelp( <ls_itemno>-high )
+            ) TO rs_request-itemno.
+
+          ENDIF.
 
         ENDLOOP.
 
@@ -117,6 +187,36 @@ METHOD build_request.
     ENDCASE.
 
   ENDLOOP.
+
+  LOOP AT io_tech_request_context->get_orderby( )
+    ASSIGNING FIELD-SYMBOL(<ls_orderby>).
+
+    DATA(l_property) =
+      to_upper( CONV string( <ls_orderby>-property ) ).
+
+    IF line_exists( lt_supported_orderby[ table_line = l_property ] ).
+      rs_request-orderby-property = l_property.
+      rs_request-orderby-descending =
+        xsdbool(
+          to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
+    ENDIF.
+
+    EXIT.
+
+  ENDLOOP.
+
+  DATA(lt_selected_properties) =
+    io_tech_request_context->get_select( ).
+
+  LOOP AT lt_selected_properties ASSIGNING FIELD-SYMBOL(<lv_property>).
+
+    APPEND VALUE #(
+      name = to_upper( CONV string( <lv_property> ) ) ) TO rs_request-select_fields.
+
+  ENDLOOP.
+
+  SORT rs_request-select_fields BY name.
+  DELETE ADJACENT DUPLICATES FROM rs_request-select_fields COMPARING name.
 
 ENDMETHOD.
 

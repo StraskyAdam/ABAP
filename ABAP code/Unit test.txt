@@ -23,14 +23,18 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     TYPES:
       BEGIN OF ts_case,
-        fixture  TYPE string,
-        email    TYPE zif_fi_das_dashboard=>t_email,
-        poowner  TYPE zif_fi_das_dashboard=>t_poowner,
-        flow     TYPE zif_fi_das_dashboard=>t_operation,
-        pstype   TYPE zif_fi_das_dashboard=>t_pstype,
-        ponumber TYPE zif_fi_das_dashboard=>tr_ponumber,
-        itemno   TYPE zif_fi_das_dashboard=>tr_itemno,
-        supplier TYPE zif_fi_das_dashboard=>tt_supplier_filter,
+        fixture       TYPE string,
+        email         TYPE zif_fi_das_dashboard=>t_email,
+        poowner       TYPE zif_fi_das_dashboard=>t_poowner,
+        flow          TYPE zif_fi_das_dashboard=>t_operation,
+        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
+        ponumber      TYPE zif_fi_das_dashboard=>tr_ponumber,
+        itemno        TYPE zif_fi_das_dashboard=>tr_itemno,
+        po_contains   TYPE zif_fi_das_dashboard=>tt_contains_filter,
+        item_contains TYPE zif_fi_das_dashboard=>tt_contains_filter,
+        supplier      TYPE zif_fi_das_dashboard=>tt_supplier_filter,
+        orderby       TYPE string,
+        select_list   TYPE string,
       END OF ts_case,
 
       BEGIN OF ts_expected_index,
@@ -125,6 +129,20 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS test_selection
               FOR TESTING
       RAISING cx_static_check.
+
+    METHODS test_filter_po_contains
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_filter_item_contains
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_orderby_path
+              FOR TESTING.
+
+    METHODS test_select_path
+              FOR TESTING.
 
     METHODS test_y_format
    FOR TESTING
@@ -699,6 +717,138 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD test_filter_po_contains.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-selection.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-po_contains =
+      VALUE #(
+        (
+          value = '8000401022'
+        ) ).
+
+    ls_case-itemno =
+      VALUE #(
+        (
+          sign   = 'I'
+          option = 'EQ'
+          low    = '2'
+        ) ).
+
+    ls_case-supplier =
+      VALUE #(
+        (
+          value = 'Fuji'
+        ) ).
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  METHOD test_filter_item_contains.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture =
+      'xsa-selection.json'.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-ponumber =
+      VALUE #(
+        (
+          sign   = 'I'
+          option = 'EQ'
+          low    = '8000401022'
+        ) ).
+
+    ls_case-item_contains =
+      VALUE #(
+        (
+          value = '00002'
+        ) ).
+
+    ls_case-supplier =
+      VALUE #(
+        (
+          value = 'Fuji'
+        ) ).
+
+    run_paged_case(
+      is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  METHOD test_orderby_path.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'PSTYPE desc'.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        build_resource_path(
+          is_case = ls_case
+          i_skip  = 0 ) CS '$orderby=PSTYPE desc' ) ).
+
+  ENDMETHOD.
+
+  METHOD test_select_path.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-select_list = 'PONUMBER,POLINEDESC'.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        build_resource_path(
+          is_case = ls_case
+          i_skip  = 0 ) CS '$select=PONUMBER,POLINEDESC' ) ).
+
+  ENDMETHOD.
+
 
   METHOD test_y_format.
 
@@ -946,6 +1096,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       && |&$top={ mc_page_size }|
       && |&$skip={ i_skip }|.
 
+    IF is_case-orderby IS NOT INITIAL.
+      rv_path = rv_path && |&$orderby={ is_case-orderby }|.
+    ENDIF.
+
+    IF is_case-select_list IS NOT INITIAL.
+      rv_path = rv_path && |&$select={ is_case-select_list }|.
+    ENDIF.
+
     append_filter(
       EXPORTING
         is_case = is_case
@@ -1005,6 +1163,16 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         lv_part = |not ({ lv_part })|.
       ENDIF.
       APPEND lv_part TO lt_filters.
+    ENDLOOP.
+
+    LOOP AT is_case-po_contains ASSIGNING FIELD-SYMBOL(<ls_po_contains>).
+      lv_low = odata_quote( i_value = <ls_po_contains>-value ).
+      APPEND |substringof('{ lv_low }',PONUMBER)| TO lt_filters.
+    ENDLOOP.
+
+    LOOP AT is_case-item_contains ASSIGNING FIELD-SYMBOL(<ls_item_contains>).
+      lv_low = odata_quote( i_value = <ls_item_contains>-value ).
+      APPEND |substringof('{ lv_low }',ITEMNO)| TO lt_filters.
     ENDLOOP.
 
     LOOP AT is_case-supplier ASSIGNING FIELD-SYMBOL(<ls_supplier>).

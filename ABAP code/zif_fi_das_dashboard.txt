@@ -57,11 +57,33 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
     mc_initial_date TYPE d VALUE '00000000'.
 
   TYPES:
+    BEGIN OF ts_contains_filter,
+      value TYPE t_text_500,
+    END OF ts_contains_filter,
+
+    tt_contains_filter TYPE STANDARD TABLE OF ts_contains_filter
+      WITH EMPTY KEY.
+
+  TYPES:
     BEGIN OF ts_supplier_filter,
       value TYPE t_supplier,
     END OF ts_supplier_filter,
 
     tt_supplier_filter TYPE STANDARD TABLE OF ts_supplier_filter
+      WITH EMPTY KEY.
+
+  TYPES:
+    BEGIN OF ts_orderby,
+      property   TYPE t_text_500,
+      descending TYPE abap_bool,
+    END OF ts_orderby.
+
+  TYPES:
+    BEGIN OF ts_select_field,
+      name TYPE t_text_500,
+    END OF ts_select_field,
+
+    tt_select_field TYPE STANDARD TABLE OF ts_select_field
       WITH EMPTY KEY.
 
   TYPES:
@@ -78,7 +100,11 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
       pstype      TYPE t_pstype,
       ponumber    TYPE tr_ponumber,
       itemno      TYPE tr_itemno,
+      po_contains TYPE tt_contains_filter,
+      item_contains TYPE tt_contains_filter,
       supplier    TYPE tt_supplier_filter,
+      orderby     TYPE ts_orderby,
+      select_fields TYPE tt_select_field,
       paging      TYPE ts_paging,
     END OF ts_request.
 

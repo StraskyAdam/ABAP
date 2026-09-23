@@ -877,15 +877,22 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     DATA:
       ls_case         TYPE ts_case,
+      ls_case_asc     TYPE ts_case,
       lv_json_first   TYPE string,
       lv_json_second  TYPE string,
+      lv_json_asc     TYPE string,
       lv_total_count  TYPE int8,
       lv_first_po     TYPE string,
       lv_first_item   TYPE string,
       lv_second_po    TYPE string,
       lv_second_item  TYPE string,
+      lv_asc_po       TYPE string,
+      lv_asc_item     TYPE string,
       lv_first_amount TYPE string,
-      lv_second_amount TYPE string.
+      lv_second_amount TYPE string,
+      lv_asc_amount   TYPE string,
+      lv_first_key    TYPE string,
+      lv_second_key   TYPE string.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -897,6 +904,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-orderby = 'TOTWRKCOMPAMT desc'.
+
+    ls_case_asc = ls_case.
+    ls_case_asc-orderby = 'TOTWRKCOMPAMT asc'.
 
     fetch_gateway_page(
       EXPORTING
@@ -914,6 +924,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         e_json        = lv_json_second
         e_total_count = DATA(lv_total_count_skip1) ).
 
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case_asc
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_asc
+        e_total_count = DATA(lv_total_count_asc) ).
+
     read_first_result_key(
       EXPORTING
         i_json     = lv_json_first
@@ -928,6 +946,13 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         e_ponumber = lv_second_po
         e_itemno   = lv_second_item ).
 
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_asc
+      IMPORTING
+        e_ponumber = lv_asc_po
+        e_itemno   = lv_asc_item ).
+
     lv_first_amount =
       read_first_result_property(
         i_json     = lv_json_first
@@ -936,6 +961,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     lv_second_amount =
       read_first_result_property(
         i_json     = lv_json_second
+        i_property = 'TOTWRKCOMPAMT' ).
+
+    lv_asc_amount =
+      read_first_result_property(
+        i_json     = lv_json_asc
         i_property = 'TOTWRKCOMPAMT' ).
 
     cl_abap_unit_assert=>assert_not_initial(
@@ -948,7 +978,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       act = lv_total_count_skip1
       exp = lv_total_count ).
 
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_asc
+      exp = lv_total_count ).
+
     IF lv_total_count > 1.
+
+      lv_first_key = lv_first_po && lv_first_item.
+      lv_second_key = lv_second_po && lv_second_item.
 
       cl_abap_unit_assert=>assert_true(
         act = xsdbool(
@@ -956,11 +993,22 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           OR lv_first_item <> lv_second_item ) ).
 
       IF lv_first_amount IS NOT INITIAL
-         AND lv_second_amount IS NOT INITIAL.
+         AND lv_second_amount IS NOT INITIAL
+         AND lv_asc_amount IS NOT INITIAL.
         cl_abap_unit_assert=>assert_true(
           act = xsdbool(
             CONV decfloat34( lv_first_amount ) >=
             CONV decfloat34( lv_second_amount ) ) ).
+
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool(
+            CONV decfloat34( lv_asc_amount ) <=
+            CONV decfloat34( lv_first_amount ) ) ).
+      ENDIF.
+
+      IF lv_first_amount = lv_second_amount.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( lv_first_key < lv_second_key ) ).
       ENDIF.
 
     ENDIF.

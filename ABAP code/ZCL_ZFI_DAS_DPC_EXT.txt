@@ -70,7 +70,6 @@ METHOD build_request.
       ( `LASTMONTHWRKCOMP` )
       ( `LAST_NOTIF_ON` )
       ( `NOTIF_24_HR` )
-      ( `REVIEWED_BY` )
       ( `REVIWED_BY` )
       ( `BBP_ACC_NO` )
       ( `DISTPERCENTAGE` )
@@ -247,14 +246,17 @@ METHOD build_request.
     DATA(l_property) =
       to_upper( CONV string( <ls_orderby>-property ) ).
 
+    IF l_property = 'REVIEWED_BY'.
+      l_property = 'REVIWED_BY'.
+    ENDIF.
+
     IF line_exists( lt_supported_orderby[ table_line = l_property ] ).
       rs_request-orderby-property = l_property.
       rs_request-orderby-descending =
         xsdbool(
           to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
+      EXIT.
     ENDIF.
-
-    EXIT.
 
   ENDLOOP.
 
@@ -263,8 +265,15 @@ METHOD build_request.
 
   LOOP AT lt_selected_properties ASSIGNING FIELD-SYMBOL(<lv_property>).
 
+    DATA(l_selected_property) =
+      to_upper( CONV string( <lv_property> ) ).
+
+    IF l_selected_property = 'REVIEWED_BY'.
+      l_selected_property = 'REVIWED_BY'.
+    ENDIF.
+
     APPEND VALUE #(
-      name = to_upper( CONV string( <lv_property> ) ) ) TO rs_request-select_fields.
+      name = l_selected_property ) TO rs_request-select_fields.
 
   ENDLOOP.
 

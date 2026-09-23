@@ -3333,9 +3333,8 @@ CONDENSE l_supplier.
 
     r_result =
       xsdbool(
-           is_select_field_requested( is_request = is_request i_field_name = 'STATUS' )
-        OR is_select_field_requested( is_request = is_request i_field_name = 'MARKASREVIEWED' )
-      OR is_select_field_requested( is_request = is_request i_field_name = 'REVIEWED_BY' )
+         is_select_field_requested( is_request = is_request i_field_name = 'STATUS' )
+      OR is_select_field_requested( is_request = is_request i_field_name = 'MARKASREVIEWED' )
       OR is_select_field_requested( is_request = is_request i_field_name = 'REVIWED_BY' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'CHANGEDDATE' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'CHANGEDTIME' )
@@ -3355,7 +3354,6 @@ CONDENSE l_supplier.
         OR is_select_field_requested( is_request = is_request i_field_name = 'STRAIGHTLINEMTHD' )
         OR to_upper( is_request-orderby-property ) = 'STATUS'
         OR to_upper( is_request-orderby-property ) = 'MARKASREVIEWED'
-        OR to_upper( is_request-orderby-property ) = 'REVIEWED_BY'
         OR to_upper( is_request-orderby-property ) = 'REVIWED_BY'
         OR to_upper( is_request-orderby-property ) = 'CHANGEDDATE'
         OR to_upper( is_request-orderby-property ) = 'CHANGEDTIME'

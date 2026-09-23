@@ -346,6 +346,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_results
       IMPORTING
+        is_request       TYPE zif_fi_das_dashboard=>ts_request
         it_keys          TYPE tt_key
         is_context       TYPE ts_context
         i_mode           TYPE zif_fi_das_dashboard=>t_operation
@@ -834,7 +835,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
    IF lv_apply_sort_and_paging = abap_true.
      ls_effective_request-paging-skip = 0.
      ls_effective_request-paging-top = 0.
-     ls_effective_request-skip_calculations = abap_false.
    ENDIF.
 
    get_required_keys(
@@ -858,6 +858,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
    get_results(
      EXPORTING
+       is_request       = is_request
        it_keys          = lt_keys
        is_context       = ls_context
        i_mode           = i_mode
@@ -869,11 +870,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
    IF lv_apply_sort_and_paging = abap_true.
      FREE ls_context.
-     apply_sort_and_paging(
-       EXPORTING
-         is_request = is_request
-       CHANGING
-         ct_result  = ct_result ).
    ENDIF.
 
  ENDMETHOD.
@@ -965,14 +961,39 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA:
       ls_row        TYPE zif_fi_das_dashboard=>ts_result,
       ls_odata_row  TYPE zif_fi_das_dashboard=>ts_odata_result,
-      lr_target_row TYPE REF TO data.
-    FIELD-SYMBOLS <fs_target_row> TYPE any.
+      lr_target_row TYPE REF TO data,
+      lt_rows       TYPE STANDARD TABLE OF zif_fi_das_dashboard=>ts_result
+        WITH EMPTY KEY.
+    FIELD-SYMBOLS:
+      <fs_key>        TYPE ts_key,
+      <fs_target_row> TYPE any.
 
     CLEAR ct_result.
     CREATE DATA lr_target_row LIKE LINE OF ct_result.
     ASSIGN lr_target_row->* TO <fs_target_row>.
 
-    LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+    IF is_request-orderby-property IS INITIAL.
+      LOOP AT it_keys ASSIGNING <fs_key>.
+        ls_row = get_row(
+          is_key     = <fs_key>
+          is_context = is_context
+          i_mode     = i_mode
+          i_skip_calculations = i_skip_calculations ).
+        IF ls_row-ponumber IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        ls_odata_row = get_odata_row(
+          is_row           = ls_row
+          i_mode           = i_mode
+          i_decimal_format = i_decimal_format ).
+        CLEAR <fs_target_row>.
+        MOVE-CORRESPONDING ls_odata_row TO <fs_target_row>.
+        INSERT <fs_target_row> INTO TABLE ct_result.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_keys ASSIGNING <fs_key>.
       ls_row = get_row(
         is_key     = <fs_key>
         is_context = is_context
@@ -981,6 +1002,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       IF ls_row-ponumber IS INITIAL.
         CONTINUE.
       ENDIF.
+      INSERT ls_row INTO TABLE lt_rows.
+    ENDLOOP.
+
+    IF is_request-orderby-property IS NOT INITIAL.
+      apply_sort_and_paging(
+        EXPORTING
+          is_request = is_request
+        CHANGING
+          ct_result  = lt_rows ).
+    ENDIF.
+
+    LOOP AT lt_rows INTO ls_row.
       ls_odata_row = get_odata_row(
         is_row           = ls_row
         i_mode           = i_mode
@@ -1120,6 +1153,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     CLEAR rs_result.
     MOVE-CORRESPONDING is_row TO rs_result.
 
+    rs_result-supplierid = |{ is_row-supplierid ALPHA = OUT }|.
     rs_result-reviwed_by = is_row-reviewed_by.
     rs_result-invoice_currency = COND #(
       WHEN is_row-invoice_currency IS INITIAL THEN ` `
@@ -1698,7 +1732,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-region = is_detail-region.
     cs_result-cocdecurr = is_detail-company_code_currency.
     cs_result-pocreatedat = is_detail-po_created_at.
-    cs_result-supplierid = |{ is_detail-supplier_id ALPHA = OUT }|.
+    cs_result-supplierid = is_detail-supplier_id.
     cs_result-suppliername = is_detail-supplier_name.
     cs_result-polinedesc = is_detail-po_line_description.
     cs_result-pstype = is_detail-effective_pstype.
@@ -3191,21 +3225,16 @@ CONDENSE l_supplier.
     r_field_name = to_upper( i_field_name ).
 
 *--------------------------------------------------------------------*
-* OData consumers can send REVIEWED_BY while the historical SEGW
-* contract and result component remain REVIWED_BY. Normalize once at
-* the internal field-access boundary so the external API can stay clean.
+* OData consumers can send the historical REVIWED_BY name or the
+* corrected REVIEWED_BY name. Normalize once to the native row field.
 *--------------------------------------------------------------------*
-    IF r_field_name = 'REVIEWED_BY'.
-      r_field_name = 'REVIWED_BY'.
+    IF r_field_name = 'REVIWED_BY'.
+      r_field_name = 'REVIEWED_BY'.
     ENDIF.
 
   ENDMETHOD.
 
   METHOD apply_sort_and_paging.
-
-    FIELD-SYMBOLS:
-      <ls_result>     TYPE any,
-      <lv_supplierid> TYPE any.
 
     DATA(l_sort_property) =
       normalize_request_property( is_request-orderby-property ).
@@ -3222,16 +3251,6 @@ CONDENSE l_supplier.
       CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
 
     IF line_exists( lo_line_descr->components[ name = l_sort_property ] ).
-      IF l_sort_property = 'SUPPLIERID'.
-        LOOP AT ct_result ASSIGNING <ls_result>.
-          ASSIGN COMPONENT 'SUPPLIERID' OF STRUCTURE <ls_result>
-            TO <lv_supplierid>.
-          IF sy-subrc = 0.
-            <lv_supplierid> = |{ <lv_supplierid> ALPHA = IN }|.
-          ENDIF.
-        ENDLOOP.
-      ENDIF.
-
       IF l_sort_property = 'PONUMBER'.
         IF is_request-orderby-descending = abap_true.
           SORT ct_result BY ponumber DESCENDING itemno.
@@ -3261,16 +3280,6 @@ CONDENSE l_supplier.
 
     IF is_request-paging-skip > 0.
       DELETE ct_result TO is_request-paging-skip.
-    ENDIF.
-
-    IF l_sort_property = 'SUPPLIERID'.
-      LOOP AT ct_result ASSIGNING <ls_result>.
-        ASSIGN COMPONENT 'SUPPLIERID' OF STRUCTURE <ls_result>
-          TO <lv_supplierid>.
-        IF sy-subrc = 0.
-          <lv_supplierid> = |{ <lv_supplierid> ALPHA = OUT }|.
-        ENDIF.
-      ENDLOOP.
     ENDIF.
 
   ENDMETHOD.

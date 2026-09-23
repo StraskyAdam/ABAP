@@ -3,15 +3,7 @@ class ZCL_ZFI_DAS_DPC_EXT definition
   inheriting from ZCL_ZFI_DAS_DPC
   create public .
 
-  friends ltc_fi_das_dpc_request.
-
 public section.
-  methods SHOULD_SKIP_CALCULATIONS
-    importing
-      !IT_SELECTED_PROPERTIES type STRINGTAB
-      !I_ORDERBY_PROPERTY type STRING
-    returning
-      value(R_RESULT) type ABAP_BOOL .
 protected section.
 
   methods OPENPOTYPESET_GET_ENTITYSET
@@ -87,56 +79,34 @@ METHOD build_request.
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
 
-          IF <ls_ponumber>-option = 'CP'.
+          IF <ls_ponumber>-sign = 'I'
+             AND <ls_ponumber>-option = 'CP'.
 
-            DATA(l_ponumber_pattern) =
+            DATA(l_ponumber_contains) =
               CONV string( <ls_ponumber>-low ).
 
-            IF strlen( l_ponumber_pattern ) >= 2.
+            SHIFT l_ponumber_contains LEFT DELETING LEADING '*'.
+            SHIFT l_ponumber_contains RIGHT DELETING TRAILING '*'.
 
-              DATA(l_ponumber_last_offset) =
-                strlen( l_ponumber_pattern ) - 1.
-
-              DATA(l_ponumber_contains) =
-                substring(
-                  val = l_ponumber_pattern
-                  off = 1
-                  len = strlen( l_ponumber_pattern ) - 2 ).
-
-            ENDIF.
-
-            IF <ls_ponumber>-sign = 'I'
-               AND strlen( l_ponumber_pattern ) >= 2
-               AND l_ponumber_pattern NA '+'
-               AND l_ponumber_pattern(1) = '*'
-               AND l_ponumber_pattern+l_ponumber_last_offset(1) = '*'
+            IF <ls_ponumber>-low CS '*'
+               AND <ls_ponumber>-low NA '+'
+               AND l_ponumber_contains IS NOT INITIAL
                AND l_ponumber_contains NA '*'.
 
               APPEND VALUE #(
                 value = CONV zif_fi_das_dashboard=>t_text_500(
                   l_ponumber_contains ) ) TO rs_request-po_contains.
-
-            ELSE.
-
-              APPEND VALUE #(
-                sign   = <ls_ponumber>-sign
-                option = <ls_ponumber>-option
-                low    = CONV ebeln( <ls_ponumber>-low )
-                high   = CONV ebeln( <ls_ponumber>-high )
-              ) TO rs_request-ponumber.
+              CONTINUE.
 
             ENDIF.
-
-          ELSE.
-
-            APPEND VALUE #(
-              sign   = <ls_ponumber>-sign
-              option = <ls_ponumber>-option
-              low    = CONV ebeln( <ls_ponumber>-low )
-              high   = CONV ebeln( <ls_ponumber>-high )
-            ) TO rs_request-ponumber.
-
           ENDIF.
+
+          APPEND VALUE #(
+            sign   = <ls_ponumber>-sign
+            option = <ls_ponumber>-option
+            low    = CONV ebeln( <ls_ponumber>-low )
+            high   = CONV ebeln( <ls_ponumber>-high )
+          ) TO rs_request-ponumber.
 
         ENDLOOP.
 
@@ -145,56 +115,34 @@ METHOD build_request.
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_itemno>).
 
-          IF <ls_itemno>-option = 'CP'.
+          IF <ls_itemno>-sign = 'I'
+             AND <ls_itemno>-option = 'CP'.
 
-            DATA(l_itemno_pattern) =
+            DATA(l_itemno_contains) =
               CONV string( <ls_itemno>-low ).
 
-            IF strlen( l_itemno_pattern ) >= 2.
+            SHIFT l_itemno_contains LEFT DELETING LEADING '*'.
+            SHIFT l_itemno_contains RIGHT DELETING TRAILING '*'.
 
-              DATA(l_itemno_last_offset) =
-                strlen( l_itemno_pattern ) - 1.
-
-              DATA(l_itemno_contains) =
-                substring(
-                  val = l_itemno_pattern
-                  off = 1
-                  len = strlen( l_itemno_pattern ) - 2 ).
-
-            ENDIF.
-
-            IF <ls_itemno>-sign = 'I'
-               AND strlen( l_itemno_pattern ) >= 2
-               AND l_itemno_pattern NA '+'
-               AND l_itemno_pattern(1) = '*'
-               AND l_itemno_pattern+l_itemno_last_offset(1) = '*'
+            IF <ls_itemno>-low CS '*'
+               AND <ls_itemno>-low NA '+'
+               AND l_itemno_contains IS NOT INITIAL
                AND l_itemno_contains NA '*'.
 
               APPEND VALUE #(
                 value = CONV zif_fi_das_dashboard=>t_text_500(
                   l_itemno_contains ) ) TO rs_request-item_contains.
-
-            ELSE.
-
-              APPEND VALUE #(
-                sign   = <ls_itemno>-sign
-                option = <ls_itemno>-option
-                low    = CONV ebelp( <ls_itemno>-low )
-                high   = CONV ebelp( <ls_itemno>-high )
-              ) TO rs_request-itemno.
+              CONTINUE.
 
             ENDIF.
-
-          ELSE.
-
-            APPEND VALUE #(
-              sign   = <ls_itemno>-sign
-              option = <ls_itemno>-option
-              low    = CONV ebelp( <ls_itemno>-low )
-              high   = CONV ebelp( <ls_itemno>-high )
-            ) TO rs_request-itemno.
-
           ENDIF.
+
+          APPEND VALUE #(
+            sign   = <ls_itemno>-sign
+            option = <ls_itemno>-option
+            low    = CONV ebelp( <ls_itemno>-low )
+            high   = CONV ebelp( <ls_itemno>-high )
+          ) TO rs_request-itemno.
 
         ENDLOOP.
 
@@ -229,94 +177,15 @@ METHOD build_request.
         to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
   ENDIF.
 
-  DATA lt_selected_properties TYPE stringtab.
-
   LOOP AT io_tech_request_context->get_select( )
     ASSIGNING FIELD-SYMBOL(<lv_selected_property>).
-    APPEND CONV string( <lv_selected_property> ) TO lt_selected_properties.
+    APPEND VALUE #(
+      name = to_upper( CONV string( <lv_selected_property> ) ) )
+      TO rs_request-select_fields.
   ENDLOOP.
 
-  rs_request-skip_calculations =
-    should_skip_calculations(
-      it_selected_properties = lt_selected_properties
-      i_orderby_property     = CONV string( rs_request-orderby-property ) ).
-
-ENDMETHOD.
-
-
-METHOD should_skip_calculations.
-
-  DATA(lt_calculation_fields) = VALUE stringtab(
-    ( `USERNAME` )
-    ( `FULL_NAME` )
-    ( `DATFM` )
-    ( `DECIMAL_FORMAT` )
-    ( `GLACCOUNT` )
-    ( `COSTCENTER` )
-    ( `COSTCENTERDESC` )
-    ( `MANAGEUNIT` )
-    ( `INTERNALORDER` )
-    ( `ASSETID` )
-    ( `PROFITCENTER` )
-    ( `BBP_ACC_NO` )
-    ( `DISTPERCENTAGE` )
-    ( `GRVALUE` )
-    ( `GRVALUE_USD` )
-    ( `GRVALUE_COCDECURR` )
-    ( `INVVALUE` )
-    ( `INVVALUE_USD` )
-    ( `INVVALUE_COCDECURR` )
-    ( `INVVALUE_CAL` )
-    ( `STATUS` )
-    ( `MARKASREVIEWED` )
-    ( `REVIWED_BY` )
-    ( `REVIEWED_BY` )
-    ( `CHANGEDDATE` )
-    ( `CHANGEDTIME` )
-    ( `CHANGED_ON` )
-    ( `PO_CLOSURE` )
-    ( `POCLOSURE_FLAG` )
-    ( `EDGEWTDAMT` )
-    ( `ACCRUALMETHOD` )
-    ( `TOTWRKCOMPAMT` )
-    ( `TOTWRKCOMPAMT_USD` )
-    ( `TOTWRKCOMPPER` )
-    ( `TOTWRKCOMPAMT_COCDECURR` )
-    ( `AMOUNTACCRUED` )
-    ( `AMOUNTACCRUED_COCDECURR` )
-    ( `AMOUNTACCRUED_USD` )
-    ( `LASTMONTHWRKCOMP` )
-    ( `STRAIGHTLINEMTHD` )
-    ( `EXCHANGERATE` )
-    ( `POVALUE_USD` )
-    ( `POVALUE_COCO` )
-    ( `LAST_NOTIF_ON` )
-    ( `NOTIF_24_HR` )
-    ( `RULETYPE` )
-    ( `RULETYPETEXT` ) ).
-
-  r_result = abap_false.
-
-  IF it_selected_properties IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  IF i_orderby_property IS NOT INITIAL
-     AND line_exists(
-       lt_calculation_fields[
-         table_line = to_upper( i_orderby_property ) ] ).
-    RETURN.
-  ENDIF.
-
-  LOOP AT it_selected_properties ASSIGNING FIELD-SYMBOL(<lv_property>).
-    IF line_exists(
-         lt_calculation_fields[
-           table_line = to_upper( CONV string( <lv_property> ) ) ] ).
-      RETURN.
-    ENDIF.
-  ENDLOOP.
-
-  r_result = abap_true.
+  SORT rs_request-select_fields BY name.
+  DELETE ADJACENT DUPLICATES FROM rs_request-select_fields COMPARING name.
 
 ENDMETHOD.
 

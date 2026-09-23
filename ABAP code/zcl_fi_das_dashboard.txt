@@ -3,6 +3,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
   FINAL
   CREATE PUBLIC.
 
+  FRIENDS ltc_fi_das_dashboard_request.
+
   PUBLIC SECTION.
 
     INTERFACES zif_fi_das_dashboard.
@@ -379,9 +381,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(rs_result) TYPE zif_fi_das_dashboard=>ts_odata_result.
     METHODS get_context
       IMPORTING
-        is_request        TYPE zif_fi_das_dashboard=>ts_request
-        it_keys           TYPE tt_key
-        i_mode            TYPE zif_fi_das_dashboard=>t_operation
+        it_keys               TYPE tt_key
+        i_mode                TYPE zif_fi_das_dashboard=>t_operation
+        i_skip_calculations   TYPE abap_bool
       RETURNING
         VALUE(rs_context) TYPE ts_context
       RAISING
@@ -740,6 +742,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_field_name      TYPE string
       RETURNING
         VALUE(r_field_name) TYPE string.
+    METHODS should_skip_calculations
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(r_result) TYPE abap_bool.
     METHODS apply_sort_and_paging
       IMPORTING
        is_request TYPE zif_fi_das_dashboard=>ts_request
@@ -826,12 +833,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
    DATA ls_effective_request TYPE zif_fi_das_dashboard=>ts_request.
    DATA lv_apply_sort_and_paging TYPE abap_bool.
+   DATA lv_skip_calculations TYPE abap_bool.
 
    CLEAR:
      ct_result,
      cv_total_count.
 
    ls_effective_request = is_request.
+   lv_skip_calculations = should_skip_calculations( is_request ).
 
    lv_apply_sort_and_paging =
      xsdbool( is_request-orderby-property IS NOT INITIAL ).
@@ -856,9 +865,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
    DATA(ls_context) =
      get_context(
-       is_request = ls_effective_request
-       it_keys    = lt_keys
-       i_mode     = i_mode ).
+       it_keys             = lt_keys
+       i_mode              = i_mode
+       i_skip_calculations = lv_skip_calculations ).
 
    get_results(
      EXPORTING
@@ -866,7 +875,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
        it_keys          = lt_keys
        is_context       = ls_context
        i_mode           = i_mode
-       i_skip_calculations = ls_effective_request-skip_calculations
+       i_skip_calculations = lv_skip_calculations
        i_decimal_format = read_request_decimal_format(
          i_email = is_request-email )
      CHANGING
@@ -974,27 +983,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     CLEAR ct_result.
     CREATE DATA lr_target_row LIKE LINE OF ct_result.
     ASSIGN lr_target_row->* TO <fs_target_row>.
-
-    IF is_request-orderby-property IS INITIAL.
-      LOOP AT it_keys ASSIGNING <fs_key>.
-        ls_row = get_row(
-          is_key     = <fs_key>
-          is_context = is_context
-          i_mode     = i_mode
-          i_skip_calculations = i_skip_calculations ).
-        IF ls_row-ponumber IS INITIAL.
-          CONTINUE.
-        ENDIF.
-        ls_odata_row = get_odata_row(
-          is_row           = ls_row
-          i_mode           = i_mode
-          i_decimal_format = i_decimal_format ).
-        CLEAR <fs_target_row>.
-        MOVE-CORRESPONDING ls_odata_row TO <fs_target_row>.
-        INSERT <fs_target_row> INTO TABLE ct_result.
-      ENDLOOP.
-      RETURN.
-    ENDIF.
 
     LOOP AT it_keys ASSIGNING <fs_key>.
       ls_row = get_row(
@@ -1223,7 +1211,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     rs_context-details = get_details( it_keys ).
 
-    IF is_request-skip_calculations = abap_true.
+    IF i_skip_calculations = abap_true.
       RETURN.
     ENDIF.
 
@@ -3230,6 +3218,84 @@ CONDENSE l_supplier.
 *--------------------------------------------------------------------*
   ENDMETHOD.
 
+  METHOD should_skip_calculations.
+
+    DATA(lt_calculation_fields) = VALUE stringtab(
+      ( `USERNAME` )
+      ( `FULL_NAME` )
+      ( `DATFM` )
+      ( `DECIMAL_FORMAT` )
+      ( `GLACCOUNT` )
+      ( `COSTCENTER` )
+      ( `COSTCENTERDESC` )
+      ( `MANAGEUNIT` )
+      ( `INTERNALORDER` )
+      ( `ASSETID` )
+      ( `PROFITCENTER` )
+      ( `BBP_ACC_NO` )
+      ( `DISTPERCENTAGE` )
+      ( `GRVALUE` )
+      ( `GRVALUE_USD` )
+      ( `GRVALUE_COCDECURR` )
+      ( `INVVALUE` )
+      ( `INVVALUE_USD` )
+      ( `INVVALUE_COCDECURR` )
+      ( `INVVALUE_CAL` )
+      ( `STATUS` )
+      ( `MARKASREVIEWED` )
+      ( `REVIWED_BY` )
+      ( `REVIEWED_BY` )
+      ( `CHANGEDDATE` )
+      ( `CHANGEDTIME` )
+      ( `CHANGED_ON` )
+      ( `PO_CLOSURE` )
+      ( `POCLOSURE_FLAG` )
+      ( `EDGEWTDAMT` )
+      ( `ACCRUALMETHOD` )
+      ( `TOTWRKCOMPAMT` )
+      ( `TOTWRKCOMPAMT_USD` )
+      ( `TOTWRKCOMPPER` )
+      ( `TOTWRKCOMPAMT_COCDECURR` )
+      ( `AMOUNTACCRUED` )
+      ( `AMOUNTACCRUED_COCDECURR` )
+      ( `AMOUNTACCRUED_USD` )
+      ( `LASTMONTHWRKCOMP` )
+      ( `STRAIGHTLINEMTHD` )
+      ( `EXCHANGERATE` )
+      ( `POVALUE_USD` )
+      ( `POVALUE_COCO` )
+      ( `LAST_NOTIF_ON` )
+      ( `NOTIF_24_HR` )
+      ( `RULETYPE` )
+      ( `RULETYPETEXT` ) ).
+
+    r_result = abap_false.
+
+    IF is_request-select_fields IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF is_request-orderby-property IS NOT INITIAL
+       AND line_exists(
+         lt_calculation_fields[
+           table_line = to_upper(
+             CONV string( is_request-orderby-property ) ) ] ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_request-select_fields ASSIGNING FIELD-SYMBOL(<ls_select_field>).
+      IF line_exists(
+           lt_calculation_fields[
+             table_line = to_upper(
+               CONV string( <ls_select_field>-name ) ) ] ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    r_result = abap_true.
+
+  ENDMETHOD.
+
   METHOD apply_sort_and_paging.
 
     DATA(l_sort_property) =
@@ -3246,17 +3312,9 @@ CONDENSE l_supplier.
     DATA(lo_line_descr) =
       CAST cl_abap_structdescr( lo_table_descr->get_table_line_type( ) ).
 
-    IF NOT line_exists( lo_line_descr->components[ name = l_sort_property ] ).
-      CASE l_sort_property.
-        WHEN 'REVIEWED_BY'.
-          IF line_exists( lo_line_descr->components[ name = 'REVIWED_BY' ] ).
-            l_sort_property = 'REVIWED_BY'.
-          ENDIF.
-        WHEN 'REVIWED_BY'.
-          IF line_exists( lo_line_descr->components[ name = 'REVIEWED_BY' ] ).
-            l_sort_property = 'REVIEWED_BY'.
-          ENDIF.
-      ENDCASE.
+    IF l_sort_property = 'REVIEWED_BY'
+       AND line_exists( lo_line_descr->components[ name = 'REVIWED_BY' ] ).
+      l_sort_property = 'REVIWED_BY'.
     ENDIF.
 
     IF line_exists( lo_line_descr->components[ name = l_sort_property ] ).

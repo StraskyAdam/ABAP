@@ -79,6 +79,14 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
     END OF ts_orderby.
 
   TYPES:
+    BEGIN OF ts_select_field,
+      name TYPE t_text_500,
+    END OF ts_select_field,
+
+    tt_select_field TYPE STANDARD TABLE OF ts_select_field
+      WITH EMPTY KEY.
+
+  TYPES:
     BEGIN OF ts_paging,
       skip            TYPE i,
       top             TYPE i,
@@ -95,8 +103,8 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
       po_contains TYPE tt_contains_filter,
       item_contains TYPE tt_contains_filter,
       supplier    TYPE tt_supplier_filter,
+      select_fields TYPE tt_select_field,
       orderby     TYPE ts_orderby,
-      skip_calculations TYPE abap_bool,
       paging      TYPE ts_paging,
     END OF ts_request.
 

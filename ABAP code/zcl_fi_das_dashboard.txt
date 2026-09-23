@@ -2594,18 +2594,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     WHERE user_emailid = @i_email
       INTO @rs_role.
 
-    IF sy-subrc <> 0.
-
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        MESSAGE e012(zfi_das).
-
-    ENDIF.
+*    IF sy-subrc <> 0.
+*
+*      RAISE EXCEPTION TYPE zcx_fi_das_error
+*        MESSAGE e012(zfi_das).
+*
+*    ENDIF.
 
   ENDMETHOD.
 
   METHOD get_access_scope.
 
-    IF i_poowner = abap_true OR i_email = mc_percent_sign.
+    IF i_poowner = abap_true. " OR i_email = mc_percent_sign.
 
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_company_codes.
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_cost_centers.
@@ -2616,6 +2616,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
 
     DATA(ls_role) = get_role( i_email ).
+
 
     et_cost_centers = get_cost_centers( ls_role-cost_center ).
     et_company_codes = get_company_codes( ls_role-company_code ).

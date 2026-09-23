@@ -133,20 +133,24 @@ METHOD build_request.
               DATA(l_ponumber_last_offset) =
                 strlen( l_ponumber_pattern ) - 1.
 
+              DATA(l_ponumber_contains) =
+                substring(
+                  val = l_ponumber_pattern
+                  off = 1
+                  len = strlen( l_ponumber_pattern ) - 2 ).
+
             ENDIF.
 
             IF <ls_ponumber>-sign = 'I'
                AND strlen( l_ponumber_pattern ) >= 2
                AND l_ponumber_pattern NA '+'
                AND l_ponumber_pattern(1) = '*'
-               AND l_ponumber_pattern+l_ponumber_last_offset(1) = '*'.
+               AND l_ponumber_pattern+l_ponumber_last_offset(1) = '*'
+               AND l_ponumber_contains NA '*'.
 
               APPEND VALUE #(
                 value = CONV zif_fi_das_dashboard=>t_text_500(
-                  replace(
-                    val  = l_ponumber_pattern
-                    sub  = '*'
-                    with = '' ) ) ) TO rs_request-po_contains.
+                  l_ponumber_contains ) ) TO rs_request-po_contains.
 
             ELSE.
 
@@ -187,20 +191,24 @@ METHOD build_request.
               DATA(l_itemno_last_offset) =
                 strlen( l_itemno_pattern ) - 1.
 
+              DATA(l_itemno_contains) =
+                substring(
+                  val = l_itemno_pattern
+                  off = 1
+                  len = strlen( l_itemno_pattern ) - 2 ).
+
             ENDIF.
 
             IF <ls_itemno>-sign = 'I'
                AND strlen( l_itemno_pattern ) >= 2
                AND l_itemno_pattern NA '+'
                AND l_itemno_pattern(1) = '*'
-               AND l_itemno_pattern+l_itemno_last_offset(1) = '*'.
+               AND l_itemno_pattern+l_itemno_last_offset(1) = '*'
+               AND l_itemno_contains NA '*'.
 
               APPEND VALUE #(
                 value = CONV zif_fi_das_dashboard=>t_text_500(
-                  replace(
-                    val  = l_itemno_pattern
-                    sub  = '*'
-                    with = '' ) ) ) TO rs_request-item_contains.
+                  l_itemno_contains ) ) TO rs_request-item_contains.
 
             ELSE.
 

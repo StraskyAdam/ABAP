@@ -3334,6 +3334,9 @@ CONDENSE l_supplier.
         OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_USD' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_COCDECURR' )
         OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_CAL' )
+        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED' )
+        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_COCDECURR' )
+        OR is_select_field_requested( is_request = is_request i_field_name = 'AMOUNTACCRUED_USD' )
         OR to_upper( is_request-orderby-property ) = 'GRVALUE'
         OR to_upper( is_request-orderby-property ) = 'GRVALUE_USD'
         OR to_upper( is_request-orderby-property ) = 'GRVALUE_COCDECURR'

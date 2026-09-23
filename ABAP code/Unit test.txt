@@ -159,6 +159,10 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
+    METHODS test_reviewed_by_sort_smoke
+              FOR TESTING
+      RAISING cx_static_check.
+
     METHODS test_y_format
    FOR TESTING
       RAISING cx_static_check.
@@ -1156,6 +1160,75 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( lv_total_count >= 0 ) ).
+
+  ENDMETHOD.
+
+  METHOD test_reviewed_by_sort_smoke.
+
+    DATA:
+      ls_case          TYPE ts_case,
+      lv_json_first    TYPE string,
+      lv_json_second   TYPE string,
+      lv_total_count   TYPE int8,
+      lv_first_po      TYPE string,
+      lv_first_item    TYPE string,
+      lv_second_po     TYPE string,
+      lv_second_item   TYPE string.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'REVIEWED_BY asc'.
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_first
+        e_total_count = lv_total_count ).
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 1
+      IMPORTING
+        e_json        = lv_json_second
+        e_total_count = DATA(lv_total_count_skip1) ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_first
+      IMPORTING
+        e_ponumber = lv_first_po
+        e_itemno   = lv_first_item ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_second
+      IMPORTING
+        e_ponumber = lv_second_po
+        e_itemno   = lv_second_item ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_json_first ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_skip1
+      exp = lv_total_count ).
+
+    IF lv_total_count > 1.
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool(
+             lv_first_po <> lv_second_po
+          OR lv_first_item <> lv_second_item ) ).
+    ENDIF.
 
   ENDMETHOD.
 

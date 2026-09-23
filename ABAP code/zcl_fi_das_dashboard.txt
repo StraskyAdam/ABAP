@@ -3504,8 +3504,13 @@ CONDENSE l_supplier.
       name       = l_sort_property
       descending = is_request-orderby-descending ) TO lt_sortorder.
 
-    APPEND VALUE #( name = 'PONUMBER' ) TO lt_sortorder.
-    APPEND VALUE #( name = 'ITEMNO' ) TO lt_sortorder.
+    IF l_sort_property <> 'PONUMBER'.
+      APPEND VALUE #( name = 'PONUMBER' ) TO lt_sortorder.
+    ENDIF.
+
+    IF l_sort_property <> 'ITEMNO'.
+      APPEND VALUE #( name = 'ITEMNO' ) TO lt_sortorder.
+    ENDIF.
 
     SORT ct_result BY (lt_sortorder).
 

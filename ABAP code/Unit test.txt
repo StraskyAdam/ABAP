@@ -157,6 +157,9 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
+    METHODS test_bad_orderby_path
+              FOR TESTING.
+
     METHODS test_calc_orderby_smoke
               FOR TESTING
       RAISING cx_static_check.
@@ -1374,6 +1377,30 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
             |{ lv_second_vendor ALPHA = IN }| ) ).
       ENDIF.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD test_bad_orderby_path.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'UNSUPPORTED_FIELD asc'.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        build_resource_path(
+          is_case = ls_case
+          i_skip  = 0 ) CS '$orderby=UNSUPPORTED_FIELD asc' )
+      msg = 'Request builder should forward the first unsupported orderby field unchanged' ).
 
   ENDMETHOD.
 

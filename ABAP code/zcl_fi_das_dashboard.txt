@@ -3313,8 +3313,11 @@ CONDENSE l_supplier.
         OR is_select_field_requested( is_request = is_request i_field_name = 'INVVALUE_CAL' )
         OR to_upper( is_request-orderby-property ) = 'GRVALUE'
         OR to_upper( is_request-orderby-property ) = 'GRVALUE_USD'
+        OR to_upper( is_request-orderby-property ) = 'GRVALUE_COCDECURR'
         OR to_upper( is_request-orderby-property ) = 'INVVALUE'
         OR to_upper( is_request-orderby-property ) = 'INVVALUE_USD'
+        OR to_upper( is_request-orderby-property ) = 'INVVALUE_COCDECURR'
+        OR to_upper( is_request-orderby-property ) = 'INVVALUE_CAL'
         OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED'
         OR to_upper( is_request-orderby-property ) = 'AMOUNTACCRUED_USD' ).
 

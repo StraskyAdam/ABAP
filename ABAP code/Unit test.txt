@@ -248,6 +248,22 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
                 e_itemno      TYPE string
       RAISING   zcx_fi_das_error.
 
+    METHODS read_first_result_key
+      IMPORTING
+               i_json     TYPE string
+      EXPORTING
+               e_ponumber TYPE string
+               e_itemno   TYPE string
+      RAISING   zcx_fi_das_error.
+
+    METHODS read_first_result_property
+      IMPORTING
+               i_json         TYPE string
+               i_property     TYPE string
+      RETURNING
+               VALUE(rv_token) TYPE string
+      RAISING   zcx_fi_das_error.
+
     METHODS compare_actual_page
       IMPORTING
         i_fixture          TYPE string
@@ -860,9 +876,16 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   METHOD test_computed_orderby_smoke.
 
     DATA:
-      ls_case       TYPE ts_case,
-      lv_json       TYPE string,
-      lv_total_count TYPE int8.
+      ls_case         TYPE ts_case,
+      lv_json_first   TYPE string,
+      lv_json_second  TYPE string,
+      lv_total_count  TYPE int8,
+      lv_first_po     TYPE string,
+      lv_first_item   TYPE string,
+      lv_second_po    TYPE string,
+      lv_second_item  TYPE string,
+      lv_first_amount TYPE string,
+      lv_second_amount TYPE string.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -880,14 +903,67 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         is_case       = ls_case
         i_skip        = 0
       IMPORTING
-        e_json        = lv_json
+        e_json        = lv_json_first
         e_total_count = lv_total_count ).
 
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 1
+      IMPORTING
+        e_json        = lv_json_second
+        e_total_count = DATA(lv_total_count_skip1) ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_first
+      IMPORTING
+        e_ponumber = lv_first_po
+        e_itemno   = lv_first_item ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_second
+      IMPORTING
+        e_ponumber = lv_second_po
+        e_itemno   = lv_second_item ).
+
+    lv_first_amount =
+      read_first_result_property(
+        i_json     = lv_json_first
+        i_property = 'TOTWRKCOMPAMT' ).
+
+    lv_second_amount =
+      read_first_result_property(
+        i_json     = lv_json_second
+        i_property = 'TOTWRKCOMPAMT' ).
+
     cl_abap_unit_assert=>assert_not_initial(
-      act = lv_json ).
+      act = lv_json_first ).
 
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( lv_total_count >= 0 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_skip1
+      exp = lv_total_count ).
+
+    IF lv_total_count > 1.
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool(
+             lv_first_po <> lv_second_po
+          OR lv_first_item <> lv_second_item ) ).
+
+      IF lv_first_amount IS NOT INITIAL
+         AND lv_second_amount IS NOT INITIAL.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool(
+            CONV decfloat34( lv_first_amount ) >=
+            CONV decfloat34( lv_second_amount ) ) ).
+      ENDIF.
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -1773,6 +1849,95 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         lv_value_end + 1.
 
     ENDWHILE.
+
+  ENDMETHOD.
+
+  METHOD read_first_result_key.
+
+    DATA:
+      lv_array_from  TYPE i,
+      lv_array_to    TYPE i,
+      lv_object_from TYPE i,
+      lv_object_to   TYPE i.
+
+    find_results_array_bounds(
+      EXPORTING
+        i_json = i_json
+      IMPORTING
+        e_array_from = lv_array_from
+        e_array_to   = lv_array_to ).
+
+    lv_object_from =
+      skip_whitespace(
+        i_text     = i_json
+        i_position = lv_array_from + 1 ).
+
+    IF lv_object_from >= lv_array_to
+       OR i_json+lv_object_from(1) <> '{'.
+      RETURN.
+    ENDIF.
+
+    lv_object_to =
+      find_matching_end(
+        i_text  = i_json
+        i_start = lv_object_from
+        i_open  = '{'
+        i_close = '}' ).
+
+    read_json_row_key(
+      EXPORTING
+        i_json        = i_json
+        i_object_from = lv_object_from
+        i_object_to   = lv_object_to
+      IMPORTING
+        e_ponumber    = e_ponumber
+        e_itemno      = e_itemno ).
+
+  ENDMETHOD.
+
+  METHOD read_first_result_property.
+
+    DATA:
+      lv_array_from  TYPE i,
+      lv_array_to    TYPE i,
+      lv_object_from TYPE i,
+      lv_object_to   TYPE i.
+
+    find_results_array_bounds(
+      EXPORTING
+        i_json = i_json
+      IMPORTING
+        e_array_from = lv_array_from
+        e_array_to   = lv_array_to ).
+
+    lv_object_from =
+      skip_whitespace(
+        i_text     = i_json
+        i_position = lv_array_from + 1 ).
+
+    IF lv_object_from >= lv_array_to
+       OR i_json+lv_object_from(1) <> '{'.
+      RETURN.
+    ENDIF.
+
+    lv_object_to =
+      find_matching_end(
+        i_text  = i_json
+        i_start = lv_object_from
+        i_open  = '{'
+        i_close = '}' ).
+
+    rv_token =
+      VALUE #(
+        read_object_properties(
+          i_json        = i_json
+          i_object_from = lv_object_from
+          i_object_to   = lv_object_to )[
+            name = i_property ]-token OPTIONAL ).
+
+    rv_token =
+      unquote_json(
+        i_token = rv_token ).
 
   ENDMETHOD.
 

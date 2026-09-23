@@ -464,6 +464,11 @@ CLASS ltc_fi_das_dpc_request IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_false(
       act = lo_dpc_ext->should_skip_calculations(
+        it_selected_properties = VALUE stringtab( )
+        i_orderby_property     = `` ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = lo_dpc_ext->should_skip_calculations(
         it_selected_properties = VALUE stringtab(
           ( `PONUMBER` )
           ( `AMOUNTACCRUED` ) )

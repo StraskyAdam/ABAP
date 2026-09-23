@@ -6,6 +6,12 @@ class ZCL_ZFI_DAS_DPC_EXT definition
   friends ltc_fi_das_dpc_request.
 
 public section.
+  methods SHOULD_SKIP_CALCULATIONS
+    importing
+      !IT_SELECTED_PROPERTIES type STRINGTAB
+      !I_ORDERBY_PROPERTY type STRING
+    returning
+      value(R_RESULT) type ABAP_BOOL .
 protected section.
 
   methods OPENPOTYPESET_GET_ENTITYSET
@@ -22,12 +28,6 @@ private section.
       !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR optional
     returning
       value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
-  methods SHOULD_SKIP_CALCULATIONS
-    importing
-      !IT_SELECTED_PROPERTIES type STRINGTAB
-      !I_ORDERBY_PROPERTY type STRING
-    returning
-      value(R_RESULT) type ABAP_BOOL .
 ENDCLASS.
 
 
@@ -229,9 +229,16 @@ METHOD build_request.
         to_upper( CONV string( <ls_orderby>-order ) ) CS 'DESC' ).
   ENDIF.
 
+  DATA lt_selected_properties TYPE stringtab.
+
+  LOOP AT io_tech_request_context->get_select( )
+    ASSIGNING FIELD-SYMBOL(<lv_selected_property>).
+    APPEND CONV string( <lv_selected_property> ) TO lt_selected_properties.
+  ENDLOOP.
+
   rs_request-skip_calculations =
     should_skip_calculations(
-      it_selected_properties = io_tech_request_context->get_select( )
+      it_selected_properties = lt_selected_properties
       i_orderby_property     = rs_request-orderby-property ).
 
 ENDMETHOD.

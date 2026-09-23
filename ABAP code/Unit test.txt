@@ -2574,13 +2574,18 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         i_open  = '{'
         i_close = '}' ).
 
-    rv_token =
-      VALUE #(
-        read_object_properties(
-          i_json        = i_json
-          i_object_from = lv_object_from
-          i_object_to   = lv_object_to )[
-            name = i_property ]-token OPTIONAL ).
+    DATA(lt_properties) =
+      read_object_properties(
+        i_json        = i_json
+        i_object_from = lv_object_from
+        i_object_to   = lv_object_to ).
+
+    READ TABLE lt_properties ASSIGNING FIELD-SYMBOL(<ls_property>)
+      WITH TABLE KEY name = i_property.
+
+    IF sy-subrc = 0.
+      rv_token = <ls_property>-token.
+    ENDIF.
 
     rv_token =
       unquote_json(

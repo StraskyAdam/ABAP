@@ -152,15 +152,15 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
-    METHODS test_supplierid_orderby_paging_smoke
+    METHODS test_supplierid_sort_smoke
               FOR TESTING
       RAISING cx_static_check.
 
-    METHODS test_unsupported_orderby_compatibility
+    METHODS test_bad_orderby_compat
               FOR TESTING
       RAISING cx_static_check.
 
-    METHODS test_computed_orderby_paging_smoke
+    METHODS test_calc_orderby_smoke
               FOR TESTING
       RAISING cx_static_check.
 
@@ -171,7 +171,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS test_reviewed_by_path_alias
               FOR TESTING.
 
-    METHODS test_amountaccrued_select_smoke
+    METHODS test_accrued_select_smoke
               FOR TESTING
       RAISING cx_static_check.
 
@@ -460,6 +460,7 @@ CLASS ltc_fi_das_dashboard_request IMPLEMENTATION.
       NEW zcl_fi_das_dashboard( ).
 
     cl_abap_unit_assert=>assert_true(
+      msg = 'Basic value-help select should skip calculations'
       act = lo_dashboard->should_skip_calculations(
         VALUE zif_fi_das_dashboard=>ts_request(
           select_fields = VALUE #(
@@ -467,10 +468,12 @@ CLASS ltc_fi_das_dashboard_request IMPLEMENTATION.
             ( name = `POLINEDESC` ) ) ) ) ).
 
     cl_abap_unit_assert=>assert_false(
+      msg = 'Empty select must keep full calculation path'
       act = lo_dashboard->should_skip_calculations(
         VALUE zif_fi_das_dashboard=>ts_request( ) ) ).
 
     cl_abap_unit_assert=>assert_false(
+      msg = 'Calculated field in select must keep full calculation path'
       act = lo_dashboard->should_skip_calculations(
         VALUE zif_fi_das_dashboard=>ts_request(
           select_fields = VALUE #(
@@ -478,6 +481,7 @@ CLASS ltc_fi_das_dashboard_request IMPLEMENTATION.
             ( name = `AMOUNTACCRUED` ) ) ) ) ).
 
     cl_abap_unit_assert=>assert_false(
+      msg = 'Calculated orderby must keep full calculation path'
       act = lo_dashboard->should_skip_calculations(
         VALUE zif_fi_das_dashboard=>ts_request(
           select_fields = VALUE #(
@@ -1219,7 +1223,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD test_supplierid_orderby_paging_smoke.
+  METHOD test_supplierid_sort_smoke.
 
     DATA:
       ls_case          TYPE ts_case,
@@ -1315,7 +1319,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD test_unsupported_orderby_compatibility.
+  METHOD test_bad_orderby_compat.
 
     DATA:
       ls_default       TYPE ts_case,
@@ -1383,7 +1387,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD test_computed_orderby_paging_smoke.
+  METHOD test_calc_orderby_smoke.
 
     DATA:
       ls_case         TYPE ts_case,
@@ -1555,7 +1559,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD test_amountaccrued_select_smoke.
+  METHOD test_accrued_select_smoke.
 
     DATA:
       ls_case        TYPE ts_case,

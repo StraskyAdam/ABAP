@@ -70,7 +70,7 @@ METHOD build_request.
       ( `LASTMONTHWRKCOMP` )
       ( `LAST_NOTIF_ON` )
       ( `NOTIF_24_HR` )
-      ( `REVIWED_BY` )
+      ( `REVIEWED_BY` )
       ( `BBP_ACC_NO` )
       ( `DISTPERCENTAGE` )
       ( `QUANTITY` ) ).
@@ -248,8 +248,8 @@ METHOD build_request.
     DATA(l_property) =
       to_upper( CONV string( <ls_orderby>-property ) ).
 
-    IF l_property = 'REVIEWED_BY'.
-      l_property = 'REVIWED_BY'.
+    IF l_property = 'REVIWED_BY'.
+      l_property = 'REVIEWED_BY'.
     ENDIF.
 
     IF line_exists( lt_supported_orderby[ table_line = l_property ] ).
@@ -270,8 +270,8 @@ METHOD build_request.
     DATA(l_selected_property) =
       to_upper( CONV string( <lv_property> ) ).
 
-    IF l_selected_property = 'REVIEWED_BY'.
-      l_selected_property = 'REVIWED_BY'.
+    IF l_selected_property = 'REVIWED_BY'.
+      l_selected_property = 'REVIEWED_BY'.
     ENDIF.
 
     APPEND VALUE #(

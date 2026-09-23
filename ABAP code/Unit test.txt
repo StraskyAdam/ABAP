@@ -884,6 +884,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_json_first   TYPE string,
       lv_json_second  TYPE string,
       lv_json_asc     TYPE string,
+      lv_json_select  TYPE string,
       lv_total_count  TYPE int8,
       lv_first_po     TYPE string,
       lv_first_item   TYPE string,
@@ -891,11 +892,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_second_item  TYPE string,
       lv_asc_po       TYPE string,
       lv_asc_item     TYPE string,
+      lv_select_po    TYPE string,
+      lv_select_item  TYPE string,
       lv_first_amount TYPE string,
       lv_second_amount TYPE string,
       lv_asc_amount   TYPE string,
       lv_first_key    TYPE string,
-      lv_second_key   TYPE string.
+      lv_second_key   TYPE string,
+      ls_case_select  TYPE ts_case.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -910,6 +914,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     ls_case_asc = ls_case.
     ls_case_asc-orderby = 'TOTWRKCOMPAMT asc'.
+
+    ls_case_select = ls_case.
+    ls_case_select-select_list = 'PONUMBER'.
 
     fetch_gateway_page(
       EXPORTING
@@ -935,6 +942,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         e_json        = lv_json_asc
         e_total_count = DATA(lv_total_count_asc) ).
 
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case_select
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json_select
+        e_total_count = DATA(lv_total_count_select) ).
+
     read_first_result_key(
       EXPORTING
         i_json     = lv_json_first
@@ -955,6 +970,13 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IMPORTING
         e_ponumber = lv_asc_po
         e_itemno   = lv_asc_item ).
+
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_select
+      IMPORTING
+        e_ponumber = lv_select_po
+        e_itemno   = lv_select_item ).
 
     lv_first_amount =
       read_first_result_property(
@@ -985,6 +1007,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       act = lv_total_count_asc
       exp = lv_total_count ).
 
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_total_count_select
+      exp = lv_total_count ).
+
     IF lv_total_count > 1.
 
       lv_first_key = lv_first_po && lv_first_item.
@@ -994,6 +1020,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         act = xsdbool(
              lv_first_po <> lv_second_po
           OR lv_first_item <> lv_second_item ) ).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = lv_select_po && lv_select_item
+        exp = lv_first_po && lv_first_item ).
 
       IF lv_first_amount IS NOT INITIAL
          AND lv_second_amount IS NOT INITIAL

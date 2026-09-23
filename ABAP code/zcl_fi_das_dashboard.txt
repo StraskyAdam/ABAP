@@ -3253,6 +3253,11 @@ CONDENSE l_supplier.
 
     r_field_name = to_upper( i_field_name ).
 
+*--------------------------------------------------------------------*
+* OData consumers can send REVIEWED_BY while the historical SEGW
+* contract and result component remain REVIWED_BY. Normalize once at
+* the internal field-access boundary so the external API can stay clean.
+*--------------------------------------------------------------------*
     IF r_field_name = 'REVIEWED_BY'.
       r_field_name = 'REVIWED_BY'.
     ENDIF.
@@ -3480,14 +3485,17 @@ CONDENSE l_supplier.
 
   METHOD sort_result_table.
 
-    IF is_request-orderby-property IS INITIAL.
+    DATA(l_sort_property) =
+      normalize_request_property( is_request-orderby-property ).
+
+    IF l_sort_property IS INITIAL.
       RETURN.
     ENDIF.
 
     DATA lt_sortorder TYPE abap_sortorder_tab.
 
     APPEND VALUE #(
-      name       = is_request-orderby-property
+      name       = l_sort_property
       descending = is_request-orderby-descending ) TO lt_sortorder.
 
     APPEND VALUE #( name = 'PONUMBER' ) TO lt_sortorder.

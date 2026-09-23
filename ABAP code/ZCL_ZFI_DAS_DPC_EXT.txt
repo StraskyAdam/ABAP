@@ -70,6 +70,7 @@ METHOD build_request.
       ( `LASTMONTHWRKCOMP` )
       ( `LAST_NOTIF_ON` )
       ( `NOTIF_24_HR` )
+      ( `REVIEWED_BY` )
       ( `REVIWED_BY` )
       ( `BBP_ACC_NO` )
       ( `DISTPERCENTAGE` )
@@ -125,12 +126,38 @@ METHOD build_request.
 
           IF <ls_ponumber>-option = 'CP'.
 
-            APPEND VALUE #(
-              value = CONV zif_fi_das_dashboard=>t_text_500(
-                replace(
-                  val  = CONV string( <ls_ponumber>-low )
-                  sub  = '*'
-                  with = '' ) ) ) TO rs_request-po_contains.
+            DATA(l_ponumber_pattern) =
+              CONV string( <ls_ponumber>-low ).
+
+            IF strlen( l_ponumber_pattern ) >= 2.
+
+              DATA(l_ponumber_last_offset) =
+                strlen( l_ponumber_pattern ) - 1.
+
+            ENDIF.
+
+            IF strlen( l_ponumber_pattern ) >= 2
+               AND l_ponumber_pattern NA '+'
+               AND l_ponumber_pattern(1) = '*'
+               AND l_ponumber_pattern+l_ponumber_last_offset(1) = '*'.
+
+              APPEND VALUE #(
+                value = CONV zif_fi_das_dashboard=>t_text_500(
+                  replace(
+                    val  = l_ponumber_pattern
+                    sub  = '*'
+                    with = '' ) ) ) TO rs_request-po_contains.
+
+            ELSE.
+
+              APPEND VALUE #(
+                sign   = <ls_ponumber>-sign
+                option = <ls_ponumber>-option
+                low    = CONV ebeln( <ls_ponumber>-low )
+                high   = CONV ebeln( <ls_ponumber>-high )
+              ) TO rs_request-ponumber.
+
+            ENDIF.
 
           ELSE.
 
@@ -152,12 +179,38 @@ METHOD build_request.
 
           IF <ls_itemno>-option = 'CP'.
 
-            APPEND VALUE #(
-              value = CONV zif_fi_das_dashboard=>t_text_500(
-                replace(
-                  val  = CONV string( <ls_itemno>-low )
-                  sub  = '*'
-                  with = '' ) ) ) TO rs_request-item_contains.
+            DATA(l_itemno_pattern) =
+              CONV string( <ls_itemno>-low ).
+
+            IF strlen( l_itemno_pattern ) >= 2.
+
+              DATA(l_itemno_last_offset) =
+                strlen( l_itemno_pattern ) - 1.
+
+            ENDIF.
+
+            IF strlen( l_itemno_pattern ) >= 2
+               AND l_itemno_pattern NA '+'
+               AND l_itemno_pattern(1) = '*'
+               AND l_itemno_pattern+l_itemno_last_offset(1) = '*'.
+
+              APPEND VALUE #(
+                value = CONV zif_fi_das_dashboard=>t_text_500(
+                  replace(
+                    val  = l_itemno_pattern
+                    sub  = '*'
+                    with = '' ) ) ) TO rs_request-item_contains.
+
+            ELSE.
+
+              APPEND VALUE #(
+                sign   = <ls_itemno>-sign
+                option = <ls_itemno>-option
+                low    = CONV ebelp( <ls_itemno>-low )
+                high   = CONV ebelp( <ls_itemno>-high )
+              ) TO rs_request-itemno.
+
+            ENDIF.
 
           ELSE.
 

@@ -144,6 +144,14 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS test_select_path
               FOR TESTING.
 
+    METHODS test_computed_orderby_smoke
+              FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_value_help_select_smoke
+              FOR TESTING
+      RAISING cx_static_check.
+
     METHODS test_y_format
    FOR TESTING
       RAISING cx_static_check.
@@ -846,6 +854,83 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         build_resource_path(
           is_case = ls_case
           i_skip  = 0 ) CS '$select=PONUMBER,POLINEDESC' ) ).
+
+  ENDMETHOD.
+
+  METHOD test_computed_orderby_smoke.
+
+    DATA:
+      ls_case       TYPE ts_case,
+      lv_json       TYPE string,
+      lv_total_count TYPE int8.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-orderby = 'TOTWRKCOMPAMT desc'.
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json
+        e_total_count = lv_total_count ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_json ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_total_count >= 0 ) ).
+
+  ENDMETHOD.
+
+  METHOD test_value_help_select_smoke.
+
+    DATA:
+      ls_case        TYPE ts_case,
+      lv_json        TYPE string,
+      lv_total_count TYPE int8.
+
+    ls_case-email =
+      'adam.strasky@takeda.com'.
+
+    ls_case-flow =
+      zif_fi_das_dashboard=>mc_over.
+
+    ls_case-pstype =
+      zif_fi_das_dashboard=>mc_pstype_service.
+
+    ls_case-po_contains =
+      VALUE #(
+        (
+          value = '40102'
+        ) ).
+
+    ls_case-select_list = 'PONUMBER,POLINEDESC'.
+
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json
+        e_total_count = lv_total_count ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_json CS 'PONUMBER' ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( lv_json CS 'GRVALUE' ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_total_count >= 0 ) ).
 
   ENDMETHOD.
 

@@ -156,7 +156,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
-    METHODS test_unsupported_orderby_fallback
+    METHODS test_unsupported_orderby_compatibility
               FOR TESTING
       RAISING cx_static_check.
 
@@ -1314,7 +1314,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD test_unsupported_orderby_fallback.
+  METHOD test_unsupported_orderby_compatibility.
 
     DATA:
       ls_default       TYPE ts_case,

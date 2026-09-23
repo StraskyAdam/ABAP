@@ -105,7 +105,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_key,
 
       tt_key TYPE SORTED TABLE OF ts_key
-        WITH UNIQUE KEY ponumber itemno pstype.
+        WITH UNIQUE KEY ponumber itemno.
 
     TYPES:
       BEGIN OF ts_role,
@@ -2621,12 +2621,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     et_company_codes = get_company_codes( ls_role-company_code ).
     et_management_units = get_management_units( ls_role-management_unit ).
 
-    IF et_company_codes IS INITIAL OR et_cost_centers IS INITIAL OR et_management_units IS INITIAL.
-
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-         MESSAGE e013(zfi_das).
-
-    ENDIF.
+*    IF et_company_codes IS INITIAL OR et_cost_centers IS INITIAL OR et_management_units IS INITIAL.
+*
+*      RAISE EXCEPTION TYPE zcx_fi_das_error
+*         MESSAGE e013(zfi_das).
+*
+*    ENDIF.
 
   ENDMETHOD.
 
@@ -2781,8 +2781,8 @@ CONDENSE l_supplier.
   ENDMETHOD.
 
   METHOD read_exchange_rate.
+
     rs_rate-source_currency = i_source_currency.
-    rs_rate-rate = 1.
     READ TABLE mt_exchrt
       ASSIGNING FIELD-SYMBOL(<fs_exchrt>)
       WITH TABLE KEY
@@ -2791,6 +2791,11 @@ CONDENSE l_supplier.
     IF <fs_exchrt> IS ASSIGNED
        AND sy-subrc = 0.
       rs_rate-rate = <fs_exchrt>-exchange_rate.
+    ELSE.
+     RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e017(zfi_das)
+        WITH i_source_currency i_target_currency.
+
     ENDIF.
   ENDMETHOD.
 

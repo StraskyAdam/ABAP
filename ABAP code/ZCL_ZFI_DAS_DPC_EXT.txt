@@ -239,7 +239,7 @@ METHOD build_request.
   rs_request-skip_calculations =
     should_skip_calculations(
       it_selected_properties = lt_selected_properties
-      i_orderby_property     = rs_request-orderby-property ).
+      i_orderby_property     = CONV string( rs_request-orderby-property ) ).
 
 ENDMETHOD.
 

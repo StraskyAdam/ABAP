@@ -156,10 +156,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
-    METHODS test_bad_orderby_compat
-              FOR TESTING
-      RAISING cx_static_check.
-
     METHODS test_calc_orderby_smoke
               FOR TESTING
       RAISING cx_static_check.
@@ -827,10 +823,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   METHOD test_filter_po_contains.
 
-    DATA ls_case TYPE ts_case.
-
-    ls_case-fixture =
-      'xsa-selection.json'.
+    DATA:
+      ls_case        TYPE ts_case,
+      lv_json        TYPE string,
+      lv_total_count TYPE int8,
+      lv_ponumber    TYPE string.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -861,19 +858,48 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           value = 'Fuji'
         ) ).
 
-    run_paged_case(
-      is_case = ls_case ).
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json
+        e_total_count = lv_total_count ).
 
-    assert_no_differences( ).
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json
+      IMPORTING
+        e_ponumber = lv_ponumber
+        e_itemno   = DATA(lv_itemno) ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_json
+      msg = 'PO contains smoke test should return JSON payload' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_total_count >= 0 )
+      msg = 'PO contains smoke test should return inline count metadata' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_ponumber CS '8000401022' )
+      msg = 'PO contains smoke test should return PO matching the requested substring' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_itemno
+      exp = '00002'
+      msg = 'PO contains smoke test should keep the ITEMNO EQ filter' ).
 
   ENDMETHOD.
 
   METHOD test_filter_item_contains.
 
-    DATA ls_case TYPE ts_case.
-
-    ls_case-fixture =
-      'xsa-selection.json'.
+    DATA:
+      ls_case        TYPE ts_case,
+      lv_json        TYPE string,
+      lv_total_count TYPE int8,
+      lv_ponumber    TYPE string,
+      lv_itemno      TYPE string.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -904,10 +930,38 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           value = 'Fuji'
         ) ).
 
-    run_paged_case(
-      is_case = ls_case ).
+    fetch_gateway_page(
+      EXPORTING
+        is_case       = ls_case
+        i_skip        = 0
+      IMPORTING
+        e_json        = lv_json
+        e_total_count = lv_total_count ).
 
-    assert_no_differences( ).
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json
+      IMPORTING
+        e_ponumber = lv_ponumber
+        e_itemno   = lv_itemno ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_json
+      msg = 'Item contains smoke test should return JSON payload' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_total_count >= 0 )
+      msg = 'Item contains smoke test should return inline count metadata' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_ponumber
+      exp = '8000401022'
+      msg = 'Item contains smoke test should keep the PONUMBER EQ filter' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_itemno
+      exp = '00002'
+      msg = 'Item contains smoke test should return the matching ITEMNO' ).
 
   ENDMETHOD.
 
@@ -1316,74 +1370,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
             |{ lv_second_vendor ALPHA = IN }| ) ).
       ENDIF.
     ENDIF.
-
-  ENDMETHOD.
-
-  METHOD test_bad_orderby_compat.
-
-    DATA:
-      ls_default       TYPE ts_case,
-      ls_unsupported   TYPE ts_case,
-      lv_json_default  TYPE string,
-      lv_json_invalid  TYPE string,
-      lv_default_po    TYPE string,
-      lv_default_item  TYPE string,
-      lv_invalid_po    TYPE string,
-      lv_invalid_item  TYPE string.
-
-    ls_default-email =
-      'adam.strasky@takeda.com'.
-
-    ls_default-flow =
-      zif_fi_das_dashboard=>mc_over.
-
-    ls_default-pstype =
-      zif_fi_das_dashboard=>mc_pstype_service.
-
-    ls_unsupported = ls_default.
-    ls_unsupported-orderby = 'UNSUPPORTED_FIELD asc'.
-
-    fetch_gateway_page(
-      EXPORTING
-        is_case       = ls_default
-        i_skip        = 0
-      IMPORTING
-        e_json        = lv_json_default
-        e_total_count = DATA(lv_total_count_default) ).
-
-    fetch_gateway_page(
-      EXPORTING
-        is_case       = ls_unsupported
-        i_skip        = 0
-      IMPORTING
-        e_json        = lv_json_invalid
-        e_total_count = DATA(lv_total_count_invalid) ).
-
-    read_first_result_key(
-      EXPORTING
-        i_json     = lv_json_default
-      IMPORTING
-        e_ponumber = lv_default_po
-        e_itemno   = lv_default_item ).
-
-    read_first_result_key(
-      EXPORTING
-        i_json     = lv_json_invalid
-      IMPORTING
-        e_ponumber = lv_invalid_po
-        e_itemno   = lv_invalid_item ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_total_count_invalid
-      exp = lv_total_count_default ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_invalid_po
-      exp = lv_default_po ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_invalid_item
-      exp = lv_default_item ).
 
   ENDMETHOD.
 

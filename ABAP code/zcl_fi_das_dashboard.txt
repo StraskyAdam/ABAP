@@ -750,92 +750,93 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
-
+METHODS execute_request
+  IMPORTING
+    is_request      TYPE zif_fi_das_dashboard=>ts_request
+    i_mode          TYPE zif_fi_das_dashboard=>t_operation
+    i_excluded_only TYPE abap_bool
+  CHANGING
+    ct_result        TYPE ANY TABLE
+    cv_total_count   TYPE int8
+  RAISING
+    zcx_fi_das_error
+    cx_sy_conversion_error
+    cx_sy_open_sql_db.
 
 ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~over.
-    CLEAR: et_result, e_total_count.
-    get_required_keys(
-      EXPORTING
-        is_request      = is_request
-        i_mode          = zif_fi_das_dashboard=>mc_over
-        i_excluded_only = abap_false
-      IMPORTING
-        et_keys         = DATA(lt_keys)
-        e_total_count   = e_total_count ).
-    IF lt_keys IS INITIAL.
-      RETURN.
-    ENDIF.
-    DATA(ls_context) = get_context(
-      it_keys = lt_keys
-      i_mode  = zif_fi_das_dashboard=>mc_over ).
-    get_results(
-      EXPORTING
-        it_keys          = lt_keys
-        is_context       = ls_context
-        i_mode           = zif_fi_das_dashboard=>mc_over
-        i_decimal_format = read_request_decimal_format(
-          i_email = is_request-email )
-      CHANGING
-        ct_result        = et_result ).
+
+  execute_request(
+    EXPORTING
+      is_request      = is_request
+      i_mode          = zif_fi_das_dashboard=>mc_over
+      i_excluded_only = abap_false
+    CHANGING
+      ct_result        = et_result
+      cv_total_count   = e_total_count ).
+
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~under.
-    CLEAR: et_result, e_total_count.
-    get_required_keys(
-      EXPORTING
-        is_request      = is_request
-        i_mode          = zif_fi_das_dashboard=>mc_under
-        i_excluded_only = abap_false
-      IMPORTING
-        et_keys         = DATA(lt_keys)
-        e_total_count   = e_total_count ).
-    IF lt_keys IS INITIAL.
-      RETURN.
-    ENDIF.
-    DATA(ls_context) = get_context(
-      it_keys = lt_keys
-      i_mode  = zif_fi_das_dashboard=>mc_under ).
-    get_results(
-      EXPORTING
-        it_keys          = lt_keys
-        is_context       = ls_context
-        i_mode           = zif_fi_das_dashboard=>mc_under
-        i_decimal_format = read_request_decimal_format(
-          i_email = is_request-email )
-      CHANGING
-        ct_result        = et_result ).
+  execute_request(
+    EXPORTING
+      is_request      = is_request
+      i_mode          = zif_fi_das_dashboard=>mc_under
+      i_excluded_only = abap_false
+    CHANGING
+      ct_result        = et_result
+      cv_total_count   = e_total_count ).
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~exclude.
-    CLEAR: et_result, e_total_count.
-    get_required_keys(
-      EXPORTING
-        is_request      = is_request
-        i_mode          = zif_fi_das_dashboard=>mc_exclude
-        i_excluded_only = abap_true
-      IMPORTING
-        et_keys         = DATA(lt_keys)
-        e_total_count   = e_total_count ).
-    IF lt_keys IS INITIAL.
-      RETURN.
-    ENDIF.
-    DATA(ls_context) = get_context(
-      it_keys = lt_keys
-      i_mode  = zif_fi_das_dashboard=>mc_exclude ).
-    get_results(
-      EXPORTING
-        it_keys          = lt_keys
-        is_context       = ls_context
-        i_mode           = zif_fi_das_dashboard=>mc_exclude
-        i_decimal_format = read_request_decimal_format(
-          i_email = is_request-email )
-      CHANGING
-        ct_result        = et_result ).
+  execute_request(
+    EXPORTING
+      is_request      = is_request
+      i_mode          = zif_fi_das_dashboard=>mc_exclude
+      i_excluded_only = abap_true
+    CHANGING
+      ct_result        = et_result
+      cv_total_count   = e_total_count ).
   ENDMETHOD.
+
+  METHOD execute_request.
+
+  CLEAR:
+    ct_result,
+    cv_total_count.
+
+  get_required_keys(
+    EXPORTING
+      is_request      = is_request
+      i_mode          = i_mode
+      i_excluded_only = i_excluded_only
+    IMPORTING
+      et_keys         = DATA(lt_keys)
+      e_total_count   = cv_total_count ).
+
+  IF lt_keys IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  DATA(ls_context) =
+    get_context(
+      it_keys = lt_keys
+      i_mode  = i_mode ).
+
+  get_results(
+    EXPORTING
+      it_keys          = lt_keys
+      is_context       = ls_context
+      i_mode           = i_mode
+      i_decimal_format = read_request_decimal_format(
+        i_email = is_request-email )
+    CHANGING
+      ct_result        = ct_result ).
+
+ENDMETHOD.
 
   METHOD get_required_keys.
 

@@ -2784,7 +2784,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #(
-        value = |{ <fs_ponumber>-low ALPHA = IN }| ) TO rt_po_filter.
+        value = CONV zif_fi_das_dashboard=>t_text_500(
+          <fs_ponumber>-low ) ) TO rt_po_filter.
 
     ENDLOOP.
 
@@ -2822,7 +2823,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #(
-        value = |{ <fs_item>-low ALPHA = IN }| ) TO rt_item_filter.
+        value = CONV zif_fi_das_dashboard=>t_text_500(
+          <fs_item>-low ) ) TO rt_item_filter.
 
     ENDLOOP.
 

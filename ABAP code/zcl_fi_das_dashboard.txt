@@ -247,7 +247,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         po_closure        TYPE zfi_das_postatus-po_closure,
         wtd_amount        TYPE zfi_das_postatus-totalworkcompltodate,
         last_month_amount TYPE zfi_das_postatus-workcomplastmonthamt,
-        wtd_source_exists TYPE abap_bool,
       END OF ts_status,
 
       tt_status TYPE HASHED TABLE OF ts_status
@@ -862,10 +861,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(ls_request) = is_request.
 
-    " PSTYPE is the UI default sorter sent on every table load.
-    " Each request is already single-pstype filtered, so the sort
-    " is a no-op - keep the efficient AMDP paging path.
-    IF ls_request-orderby-property = mc_orderby_pstype.
+    " PSTYPE desc is the UI default sorter and matches the AMDP
+    " ORDER BY (pstype DESC, ponumber, itemno) - a no-op for all
+    " modes including exclude. Explicit ascending PSTYPE takes
+    " the full-processing path.
+    IF ls_request-orderby-property = mc_orderby_pstype
+       AND ls_request-orderby-descending = abap_true.
       CLEAR ls_request-orderby.
     ENDIF.
 
@@ -1396,8 +1397,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                  it_keys    = it_keys
                                  it_details = rs_context-details ).
     rs_context-statuses      = get_statuses( it_keys ).
+
+   IF i_mode <> zif_fi_das_dashboard=>mc_exclude.
     rs_context-notifications = get_notifications( it_keys ).
+    ENDIF.
+     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
     rs_context-exclusions    = get_exclusions( it_keys ).
+     ENDIF.
     rs_context-review_day    = get_review_day( ).
 
     read_users(
@@ -1684,14 +1690,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_statuses.
 
-    TYPES:BEGIN OF ts_wtd_key,
-            ponumber TYPE ebeln,
-            itemno   TYPE ebelp,
-          END OF ts_wtd_key,
-
-          tt_wtd_key TYPE HASHED TABLE OF ts_wtd_key WITH UNIQUE KEY ponumber itemno.
-
-    DATA lt_wtd_keys TYPE tt_wtd_key.
 
     IF it_keys IS INITIAL.
       RETURN.
@@ -1714,29 +1712,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
        FOR ALL ENTRIES IN @it_keys
      WHERE ponumber = @it_keys-ponumber AND
            lineitem = @it_keys-itemno
-      INTO TABLE @DATA(lt_statuses).
+      INTO TABLE @rt_statuses.
 
-* Open SQL maps SQL NULL numeric fields to ABAP initial values.
-* Preserve distinction between NULL and 0.00.
 
-    SELECT
-      ponumber,
-      lineitem AS itemno
-    FROM zfi_das_postatus
-      FOR ALL ENTRIES IN @it_keys
-    WHERE ponumber = @it_keys-ponumber AND
-          lineitem = @it_keys-itemno AND
-          totalworkcompltodate IS NOT NULL
-     INTO TABLE @lt_wtd_keys.
-
-    LOOP AT lt_statuses ASSIGNING FIELD-SYMBOL(<fs_status>).
-
-      DATA(l_wtd_source_exists) = xsdbool( line_exists( lt_wtd_keys[ ponumber = <fs_status>-ponumber
-                                                                     itemno   = <fs_status>-itemno ] ) ).
-      INSERT VALUE #( BASE CORRESPONDING #( <fs_status> )
-                      wtd_source_exists = l_wtd_source_exists ) INTO TABLE rt_statuses.
-
-    ENDLOOP.
 
   ENDMETHOD.
 
@@ -2057,23 +2035,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 * For Service rows, an existing zero WTD source remains a supplied
 * value and must not be treated as absent.
 *--------------------------------------------------------------------*
-    IF is_status-wtd_source_exists = abap_true
-       AND (
-         is_status-wtd_amount <> 0
-         OR i_pstype = zif_fi_das_dashboard=>mc_pstype_service
-       ).
+*    IF is_status-wtd_source_exists = abap_true
+*       AND (
+*         is_status-wtd_amount <> 0
+*         OR i_pstype = zif_fi_das_dashboard=>mc_pstype_service
+*       ).
+*
+*      cs_result-edgewtdamt =
+*        is_status-wtd_amount.
+*
+*      cs_state-edgewtdamt_supplied =
+*        abap_true.
+*
+*    ELSE.
+*
+*      CLEAR cs_result-edgewtdamt.
+*
+*    ENDIF.
 
-      cs_result-edgewtdamt =
-        is_status-wtd_amount.
-
-      cs_state-edgewtdamt_supplied =
-        abap_true.
-
-    ELSE.
-
-      CLEAR cs_result-edgewtdamt.
-
-    ENDIF.
+ cs_result-edgewtdamt = is_status-wtd_amount.
 
     lv_closure =
       is_status-po_closure.
@@ -3973,9 +3953,9 @@ METHOD get_keys
         ROW_NUMBER() OVER
         (
           ORDER BY
+            candidate.pstype DESC,
             candidate.ponumber,
-            candidate.itemno,
-            candidate.pstype
+            candidate.itemno
         ) AS row_number_value
 
       FROM :lt_filtered AS candidate;

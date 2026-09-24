@@ -430,6 +430,11 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS generic_unknown_prop_no_dump   FOR TESTING.
     METHODS generic_with_sort_and_paging   FOR TESTING.
 
+    " M1: PSTYPE sort handling per mode
+    METHODS pstype_sort_noop_for_over     FOR TESTING.
+    METHODS pstype_sort_kept_for_exclude  FOR TESTING.
+    METHODS pstype_sort_desc_mixed_rows   FOR TESTING.
+
 
 ENDCLASS.
 
@@ -881,6 +886,8 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
+
+
   METHOD generic_with_sort_and_paging.
 
     " Full pipeline order: filter -> sort -> page.
@@ -918,6 +925,90 @@ CLASS ltc_request_processing IMPLEMENTATION.
       exp = 'Charlie' ).
 
   ENDMETHOD.
+
+    METHOD pstype_sort_noop_for_over.
+
+    " Over/under: single-pstype dataset, PSTYPE sorter is a no-op
+    " and must not trigger the full-processing path. Verified via
+    " derive path: orderby cleared -> skip_calculations possible.
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      select  = `PONUMBER,POLINEDESC`
+      orderby = VALUE #( property = `PSTYPE` descending = abap_true ) ).
+
+    " Simulate the execute_request normalisation for a non-exclude
+    " mode: PSTYPE orderby is cleared before derivation.
+    CLEAR ls_request-orderby.
+
+    cl_abap_unit_assert=>assert_true(
+      act = mo_cut->derive_skip_calculations( ls_request )
+      msg = 'Cleared PSTYPE sorter must keep the value-help skip' ).
+
+  ENDMETHOD.
+
+  METHOD pstype_sort_kept_for_exclude.
+
+    " Exclude mixes material+service rows: PSTYPE desc is a real
+    " sort. apply_sort_and_paging must order service ('9') first.
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '9' )
+      ( ponumber = '8000000003' itemno = '00001' pstype = '0' ) ).
+
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      orderby = VALUE #( property   = `PSTYPE`
+                         descending = abap_true ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-pstype
+      exp = '9'
+      msg = 'Service rows must sort before material on PSTYPE desc' ).
+
+    " Tie-breaker keeps PONUMBER order inside the same pstype.
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-ponumber
+      exp = '8000000001' ).
+
+  ENDMETHOD.
+
+  METHOD pstype_sort_desc_mixed_rows.
+
+    " Paging window on the PSTYPE-sorted mixed set: window must be
+    " applied AFTER the sort (xsodata order of operations).
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '9' )
+      ( ponumber = '8000000003' itemno = '00001' pstype = '9' ) ).
+
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      orderby = VALUE #( property   = `PSTYPE`
+                         descending = abap_true )
+      paging  = VALUE #( skip = 2 top = 1 ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    " Sorted: 9(8000000002), 9(8000000003), 0(8000000001)
+    " -> window [3..3] = the material row.
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-pstype
+      exp = '0' ).
+
+  ENDMETHOD.
+
+
 
 ENDCLASS.
 

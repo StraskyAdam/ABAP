@@ -53,16 +53,44 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
     mc_percent_sign TYPE c LENGTH 1 VALUE '%',
     mc_comma TYPE c LENGTH 1 VALUE ',',
 
-
     mc_initial_date TYPE d VALUE '00000000'.
 
+*--------------------------------------------------------------------*
+* Contains filters. Value lengths follow the source fields: a
+* substring longer than the field itself can never match.
+*--------------------------------------------------------------------*
   TYPES:
-    BEGIN OF ts_supplier_filter,
-      value TYPE t_supplier,
-    END OF ts_supplier_filter,
+    BEGIN OF ts_po_contains,
+      value TYPE ebeln,
+    END OF ts_po_contains,
 
-    tt_supplier_filter TYPE STANDARD TABLE OF ts_supplier_filter
+    tt_po_contains TYPE STANDARD TABLE OF ts_po_contains
       WITH EMPTY KEY.
+
+  TYPES:
+    BEGIN OF ts_item_contains,
+      value TYPE ebelp,
+    END OF ts_item_contains,
+
+    tt_item_contains TYPE STANDARD TABLE OF ts_item_contains
+      WITH EMPTY KEY.
+
+  TYPES:
+    BEGIN OF ts_supplier_contains,
+      value TYPE t_supplier,
+    END OF ts_supplier_contains,
+
+    tt_supplier_contains TYPE STANDARD TABLE OF ts_supplier_contains
+      WITH EMPTY KEY.
+
+*--------------------------------------------------------------------*
+* First $orderby entry. Evaluation happens in the dashboard class.
+*--------------------------------------------------------------------*
+  TYPES:
+    BEGIN OF ts_orderby,
+      property   TYPE string,
+      descending TYPE abap_bool,
+    END OF ts_orderby.
 
   TYPES:
     BEGIN OF ts_paging,
@@ -72,15 +100,40 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
     END OF ts_paging.
 
   TYPES:
+    BEGIN OF ts_generic_filter,
+      property TYPE string,
+      option   TYPE ddoption,     " EQ / CP
+      low      TYPE t_text_500,
+      high     TYPE t_text_500,
+    END OF ts_generic_filter,
+
+    tt_generic_filter TYPE STANDARD TABLE OF ts_generic_filter
+      WITH EMPTY KEY.
+
+  " v ts_request doplniť za supplier_contains:
+
+
+*--------------------------------------------------------------------*
+* Request contract. SELECT carries the raw $select list; the
+* dashboard derives its own processing decisions from it.
+*--------------------------------------------------------------------*
+  TYPES:
     BEGIN OF ts_request,
-      email       TYPE t_email,
-      poowner     TYPE t_poowner,
-      pstype      TYPE t_pstype,
-      ponumber    TYPE tr_ponumber,
-      itemno      TYPE tr_itemno,
-      supplier    TYPE tt_supplier_filter,
-      paging      TYPE ts_paging,
+      email             TYPE t_email,
+      poowner           TYPE t_poowner,
+      pstype            TYPE t_pstype,
+      ponumber          TYPE tr_ponumber,
+      itemno            TYPE tr_itemno,
+      po_contains       TYPE tt_po_contains,
+      item_contains     TYPE tt_item_contains,
+      supplier_contains TYPE tt_supplier_contains,
+      generic_filters   TYPE tt_generic_filter,
+      orderby           TYPE ts_orderby,
+      select            TYPE string,
+      paging            TYPE ts_paging,
     END OF ts_request.
+
+* ... ts_shared a všetko nižšie BEZ ZMENY ...
 
 *--------------------------------------------------------------------*
 * Native business row used internally during calculation.

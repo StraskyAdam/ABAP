@@ -10,8 +10,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
   PRIVATE SECTION.
 
-
-
     TYPES:
       t_amount_precision TYPE p LENGTH 16 DECIMALS 8,
       t_amount_high      TYPE p LENGTH 16 DECIMALS 14,
@@ -79,6 +77,22 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_rule_text_po             TYPE string VALUE 'Purchase Order',
       mc_rule_text_vendor         TYPE string VALUE 'Vendor',
       mc_rule_text_internal_order TYPE string VALUE 'Internal Order'.
+
+    CONSTANTS:
+      " Fields fully served by APPLY_DETAIL. A $select restricted to
+      " these fields (value-help request) skips all calculations.
+      mc_detail_fields TYPE string
+        VALUE `PONUMBER,ITEMNO,POLINEDESC,SUPPLIERID,SUPPLIERNAME`,
+
+      " PSTYPE orderby is a no-op: every request is single-pstype
+      " filtered and the AMDP order already includes pstype.
+      mc_orderby_pstype TYPE string VALUE `PSTYPE`,
+
+      mc_sort_ponumber TYPE string VALUE `PONUMBER`,
+      mc_sort_itemno   TYPE string VALUE `ITEMNO`,
+
+      mc_sign_include TYPE ddsign VALUE 'I',
+      mc_option_equal TYPE ddoption VALUE 'EQ'.
 
 * Presence information retained for future metadata-driven OData NULL mapping.
 * ABAP initial values cannot distinguish an absent source value from an
@@ -302,14 +316,18 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES:
       BEGIN OF ts_amdp_po_filter,
-        value TYPE ebeln,
+        value        TYPE ebeln,
+        pattern      TYPE c LENGTH 12,   " ebeln + leading/trailing %
+        value_length TYPE i,             " 0 = EQ, >0 = LIKE
       END OF ts_amdp_po_filter,
 
       tt_amdp_po_filter TYPE STANDARD TABLE OF ts_amdp_po_filter
         WITH EMPTY KEY,
 
       BEGIN OF ts_amdp_item_filter,
-        value TYPE ebelp,
+        value        TYPE ebelp,
+        pattern      TYPE c LENGTH 7,    " ebelp + leading/trailing %
+        value_length TYPE i,
       END OF ts_amdp_item_filter,
 
       tt_amdp_item_filter TYPE STANDARD TABLE OF ts_amdp_item_filter
@@ -344,23 +362,27 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_results
       IMPORTING
-        it_keys          TYPE tt_key
-        is_context       TYPE ts_context
-        i_mode           TYPE zif_fi_das_dashboard=>t_operation
-        i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
+        it_keys             TYPE tt_key
+        is_context          TYPE ts_context
+        i_mode              TYPE zif_fi_das_dashboard=>t_operation
+        i_decimal_format    TYPE zif_fi_das_dashboard=>t_decimal_format
+        i_skip_calculations TYPE abap_bool DEFAULT abap_false
       CHANGING
-        ct_result        TYPE ANY TABLE
+        ct_result           TYPE ANY TABLE
       RAISING
         zcx_fi_das_error.
+
     METHODS get_row
       IMPORTING
-        is_key        TYPE ts_key
-        is_context    TYPE ts_context
-        i_mode        TYPE zif_fi_das_dashboard=>t_operation
+        is_key              TYPE ts_key
+        is_context          TYPE ts_context
+        i_mode              TYPE zif_fi_das_dashboard=>t_operation
+        i_skip_calculations TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_row) TYPE zif_fi_das_dashboard=>ts_result
+        VALUE(rs_row)       TYPE zif_fi_das_dashboard=>ts_result
       RAISING
         zcx_fi_das_error.
+
     METHODS get_odata_row
       IMPORTING
         is_row           TYPE zif_fi_das_dashboard=>ts_result
@@ -368,12 +390,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
       RETURNING
         VALUE(rs_result) TYPE zif_fi_das_dashboard=>ts_odata_result.
+
     METHODS get_context
       IMPORTING
-        it_keys           TYPE tt_key
-        i_mode            TYPE zif_fi_das_dashboard=>t_operation
+        it_keys             TYPE tt_key
+        i_mode              TYPE zif_fi_das_dashboard=>t_operation
+        i_skip_calculations TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_context) TYPE ts_context
+        VALUE(rs_context)   TYPE ts_context
       RAISING
         zcx_fi_das_error
         cx_sy_open_sql_db.
@@ -443,12 +467,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_detail TYPE ts_source_detail
       CHANGING
         cs_result TYPE zif_fi_das_dashboard=>ts_result.
+
     METHODS apply_user
       IMPORTING
         is_user   TYPE ts_user
       CHANGING
         cs_result TYPE zif_fi_das_dashboard=>ts_result
         cs_state  TYPE ts_row_state.
+
     METHODS apply_account
       IMPORTING
         is_account TYPE ts_account_aggregate
@@ -512,6 +538,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_exclusion TYPE ts_exclusion_aggregate
       CHANGING
         cs_result    TYPE zif_fi_das_dashboard=>ts_result.
+
     METHODS calculate_accrual
       IMPORTING
         is_detail        TYPE ts_source_detail
@@ -538,6 +565,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_review_day          TYPE i
       RETURNING
         VALUE(r_review_action) TYPE t_review_action.
+
     METHODS calculate_visible_status
       IMPORTING
         is_status    TYPE ts_status
@@ -604,16 +632,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_value         TYPE string
       RETURNING
         VALUE(rt_scope) TYPE tt_company_scope.
+
     METHODS get_cost_centers
       IMPORTING
         i_value         TYPE string
       RETURNING
         VALUE(rt_scope) TYPE tt_cost_center_scope.
+
     METHODS get_management_units
       IMPORTING
         i_value         TYPE string
       RETURNING
         VALUE(rt_scope) TYPE tt_management_scope.
+
     METHODS get_po_filter
       IMPORTING
         is_request          TYPE zif_fi_das_dashboard=>ts_request
@@ -669,9 +700,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(rv_factor) TYPE t_amount_precision.
 
-
-
-
     METHODS read_request_decimal_format
       IMPORTING
         i_email                  TYPE zif_fi_das_dashboard=>t_email
@@ -680,10 +708,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
           TYPE zif_fi_das_dashboard=>t_decimal_format
       RAISING
         cx_sy_open_sql_db.
-
-
-
-
 
     METHODS get_threshold
       RETURNING
@@ -715,16 +739,30 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_method       TYPE zif_fi_das_dashboard=>t_accrual_method
       RETURNING
         VALUE(r_text) TYPE zif_fi_das_dashboard=>t_accrual_method.
+
     METHODS get_pstype_text
       IMPORTING
         i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
       RETURNING
         VALUE(r_text) TYPE char10.
+
     METHODS get_rule_text
       IMPORTING
         i_rule_type   TYPE t_rule_type
       RETURNING
         VALUE(r_text) TYPE string.
+
+    METHODS derive_skip_calculations
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(r_result) TYPE abap_bool.
+
+    METHODS apply_sort_and_paging
+      IMPORTING
+        is_request TYPE zif_fi_das_dashboard=>ts_request
+      CHANGING
+        ct_result  TYPE STANDARD TABLE.
 
     CLASS-METHODS get_keys
       IMPORTING
@@ -750,93 +788,287 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
-METHODS execute_request
-  IMPORTING
-    is_request      TYPE zif_fi_das_dashboard=>ts_request
-    i_mode          TYPE zif_fi_das_dashboard=>t_operation
-    i_excluded_only TYPE abap_bool
-  CHANGING
-    ct_result        TYPE ANY TABLE
-    cv_total_count   TYPE int8
-  RAISING
-    zcx_fi_das_error
-    cx_sy_conversion_error
-    cx_sy_open_sql_db.
+    METHODS execute_request
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+        i_excluded_only TYPE abap_bool
+      CHANGING
+        ct_result        TYPE ANY TABLE
+        cv_total_count   TYPE int8
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+
+      METHODS apply_generic_filter
+      IMPORTING
+        is_request TYPE zif_fi_das_dashboard=>ts_request
+      CHANGING
+        ct_result  TYPE STANDARD TABLE.
 
 ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-  METHOD zif_fi_das_dashboard~over.
+    METHOD zif_fi_das_dashboard~over.
 
-  execute_request(
-    EXPORTING
-      is_request      = is_request
-      i_mode          = zif_fi_das_dashboard=>mc_over
-      i_excluded_only = abap_false
-    CHANGING
-      ct_result        = et_result
-      cv_total_count   = e_total_count ).
+    execute_request(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_over
+        i_excluded_only = abap_false
+      CHANGING
+        ct_result        = et_result
+        cv_total_count   = e_total_count ).
 
   ENDMETHOD.
+
 
   METHOD zif_fi_das_dashboard~under.
-  execute_request(
-    EXPORTING
-      is_request      = is_request
-      i_mode          = zif_fi_das_dashboard=>mc_under
-      i_excluded_only = abap_false
-    CHANGING
-      ct_result        = et_result
-      cv_total_count   = e_total_count ).
+
+    execute_request(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_under
+        i_excluded_only = abap_false
+      CHANGING
+        ct_result        = et_result
+        cv_total_count   = e_total_count ).
+
   ENDMETHOD.
 
+
   METHOD zif_fi_das_dashboard~exclude.
-  execute_request(
-    EXPORTING
-      is_request      = is_request
-      i_mode          = zif_fi_das_dashboard=>mc_exclude
-      i_excluded_only = abap_true
-    CHANGING
-      ct_result        = et_result
-      cv_total_count   = e_total_count ).
+
+    execute_request(
+      EXPORTING
+        is_request      = is_request
+        i_mode          = zif_fi_das_dashboard=>mc_exclude
+        i_excluded_only = abap_true
+      CHANGING
+        ct_result        = et_result
+        cv_total_count   = e_total_count ).
+
   ENDMETHOD.
+
 
   METHOD execute_request.
 
-  CLEAR:
-    ct_result,
-    cv_total_count.
+    CLEAR:
+      ct_result,
+      cv_total_count.
 
-  get_required_keys(
-    EXPORTING
-      is_request      = is_request
-      i_mode          = i_mode
-      i_excluded_only = i_excluded_only
-    IMPORTING
-      et_keys         = DATA(lt_keys)
-      e_total_count   = cv_total_count ).
+    DATA(ls_request) = is_request.
 
-  IF lt_keys IS INITIAL.
-    RETURN.
-  ENDIF.
+    " PSTYPE is the UI default sorter sent on every table load.
+    " Each request is already single-pstype filtered, so the sort
+    " is a no-op - keep the efficient AMDP paging path.
+    IF ls_request-orderby-property = mc_orderby_pstype.
+      CLEAR ls_request-orderby.
+    ENDIF.
 
-  DATA(ls_context) =
-    get_context(
-      it_keys = lt_keys
-      i_mode  = i_mode ).
+    " Full processing (full key set, ABAP post-processing) is needed
+    " when a real $orderby or a generic column filter is present:
+    " xsodata filters and sorts before LIMIT/OFFSET.
+    DATA(l_full_processing) =
+      xsdbool( ls_request-orderby-property IS NOT INITIAL
+               OR ls_request-generic_filters IS NOT INITIAL ).
 
-  get_results(
-    EXPORTING
-      it_keys          = lt_keys
-      is_context       = ls_context
-      i_mode           = i_mode
-      i_decimal_format = read_request_decimal_format(
-        i_email = is_request-email )
-    CHANGING
-      ct_result        = ct_result ).
+    IF l_full_processing = abap_true.
+      CLEAR: ls_request-paging-skip,
+             ls_request-paging-top.
+    ENDIF.
 
-ENDMETHOD.
+    " Generic filters may reference calculated columns - never skip.
+    DATA(l_skip_calculations) = COND abap_bool(
+      WHEN ls_request-generic_filters IS NOT INITIAL
+      THEN abap_false
+      ELSE derive_skip_calculations( ls_request ) ).
+
+    get_required_keys(
+      EXPORTING
+        is_request      = ls_request
+        i_mode          = i_mode
+        i_excluded_only = i_excluded_only
+      IMPORTING
+        et_keys         = DATA(lt_keys)
+        e_total_count   = cv_total_count ).
+
+    IF lt_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_context) =
+      get_context(
+        it_keys             = lt_keys
+        i_mode              = i_mode
+        i_skip_calculations = l_skip_calculations ).
+
+    get_results(
+      EXPORTING
+        it_keys             = lt_keys
+        is_context          = ls_context
+        i_mode              = i_mode
+        i_decimal_format    = read_request_decimal_format(
+          i_email = is_request-email )
+        i_skip_calculations = l_skip_calculations
+      CHANGING
+        ct_result           = ct_result ).
+
+    IF l_full_processing = abap_true.
+
+      apply_generic_filter(
+        EXPORTING
+          is_request = is_request
+        CHANGING
+          ct_result  = ct_result ).
+
+      " Filtered count - the same value xsodata returns as
+      " $inlinecount after applying $filter.
+      cv_total_count = lines( ct_result ).
+
+      apply_sort_and_paging(
+        EXPORTING
+          is_request = is_request
+        CHANGING
+          ct_result  = ct_result ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+    METHOD apply_generic_filter.
+
+    " Applies Column Settings filters on any result column, in place.
+    " Entries for the same property combine with OR, different
+    " properties combine with AND - the same way the OData $filter
+    " is composed. Unknown properties are ignored (no dump).
+
+    IF is_request-generic_filters IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA lr_row TYPE REF TO data.
+    CREATE DATA lr_row LIKE LINE OF ct_result.
+
+    DATA(lo_struct) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
+
+    " Distinct properties that exist on the result row.
+    DATA lt_properties TYPE stringtab.
+
+    LOOP AT is_request-generic_filters
+      ASSIGNING FIELD-SYMBOL(<ls_check>).
+
+      IF line_exists( lo_struct->components[
+                        name = <ls_check>-property ] )
+         AND NOT line_exists( lt_properties[
+                                table_line = <ls_check>-property ] ).
+        APPEND <ls_check>-property TO lt_properties.
+      ENDIF.
+
+    ENDLOOP.
+
+    IF lt_properties IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(l_index) = lines( ct_result ).
+
+    WHILE l_index > 0.
+
+      ASSIGN ct_result[ l_index ] TO FIELD-SYMBOL(<ls_row>).
+
+      DATA(l_row_matches) = abap_true.
+
+      LOOP AT lt_properties ASSIGNING FIELD-SYMBOL(<l_property>).
+
+        ASSIGN COMPONENT <l_property>
+          OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<l_value>).
+
+        DATA(l_value_string) = |{ <l_value> }|.
+
+        DATA(l_property_matches) = abap_false.
+
+        " OR across the tokens of one property.
+        LOOP AT is_request-generic_filters
+          ASSIGNING FIELD-SYMBOL(<ls_filter>)
+          WHERE property = <l_property>.
+
+          CASE <ls_filter>-option.
+
+            WHEN mc_option_equal.
+              IF condense( l_value_string )
+                 = condense( CONV string( <ls_filter>-low ) ).
+                l_property_matches = abap_true.
+                EXIT.
+              ENDIF.
+
+            WHEN 'CP'.
+              IF to_upper( l_value_string )
+                 CS to_upper( condense(
+                      CONV string( <ls_filter>-low ) ) ).
+                l_property_matches = abap_true.
+                EXIT.
+              ENDIF.
+
+            WHEN 'BT'.
+              IF l_value_string >= <ls_filter>-low
+                 AND l_value_string <= <ls_filter>-high.
+                l_property_matches = abap_true.
+                EXIT.
+              ENDIF.
+
+          ENDCASE.
+
+        ENDLOOP.
+
+        IF l_property_matches = abap_false.
+          l_row_matches = abap_false.
+          EXIT.
+        ENDIF.
+
+      ENDLOOP.
+
+      IF l_row_matches = abap_false.
+        DELETE ct_result INDEX l_index.
+      ENDIF.
+
+      l_index = l_index - 1.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+   METHOD derive_skip_calculations.
+
+    " Calculations are skipped only for narrow value-help selects:
+    " a non-empty $select whose every field is a plain detail field.
+    " Any $orderby needs the full row, so it disables the skip.
+
+    r_result = abap_false.
+
+    IF is_request-select IS INITIAL
+       OR is_request-orderby-property IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    SPLIT is_request-select
+      AT zif_fi_das_dashboard=>mc_comma
+      INTO TABLE DATA(lt_fields).
+
+    LOOP AT lt_fields ASSIGNING FIELD-SYMBOL(<l_field>).
+      IF NOT mc_detail_fields CS <l_field>.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    r_result = abap_true.
+
+  ENDMETHOD.
 
   METHOD get_required_keys.
 
@@ -875,7 +1107,6 @@ ENDMETHOD.
         e_total_count       = e_total_count ).
 
   ENDMETHOD.
-
 
   METHOD validate_request.
 
@@ -922,10 +1153,8 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD get_results.
-    DATA:
-      ls_row        TYPE zif_fi_das_dashboard=>ts_result,
-      ls_odata_row  TYPE zif_fi_das_dashboard=>ts_odata_result,
-      lr_target_row TYPE REF TO data.
+
+    DATA lr_target_row TYPE REF TO data.
     FIELD-SYMBOLS <fs_target_row> TYPE any.
 
     CLEAR ct_result.
@@ -933,26 +1162,33 @@ ENDMETHOD.
     ASSIGN lr_target_row->* TO <fs_target_row>.
 
     LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
-      ls_row = get_row(
-        is_key     = <fs_key>
-        is_context = is_context
-        i_mode     = i_mode ).
+
+      DATA(ls_row) = get_row(
+        is_key              = <fs_key>
+        is_context          = is_context
+        i_mode              = i_mode
+        i_skip_calculations = i_skip_calculations ).
+
       IF ls_row-ponumber IS INITIAL.
         CONTINUE.
       ENDIF.
-      ls_odata_row = get_odata_row(
+
+      DATA(ls_odata_row) = get_odata_row(
         is_row           = ls_row
         i_mode           = i_mode
         i_decimal_format = i_decimal_format ).
+
       CLEAR <fs_target_row>.
       MOVE-CORRESPONDING ls_odata_row TO <fs_target_row>.
       INSERT <fs_target_row> INTO TABLE ct_result.
+
     ENDLOOP.
+
   ENDMETHOD.
 
   METHOD get_row.
 
-    DATA ls_state TYPE ts_row_state.
+   DATA ls_state TYPE ts_row_state.
 
     CLEAR rs_row.
 
@@ -970,6 +1206,12 @@ ENDMETHOD.
         is_detail = <ls_detail>
       CHANGING
         cs_result = rs_row ).
+
+    " Value-help request: detail fields are complete and the
+    " context tables are empty - nothing else to apply.
+    IF i_skip_calculations = abap_true.
+      RETURN.
+    ENDIF.
 
     apply_user(
       EXPORTING
@@ -1075,6 +1317,7 @@ ENDMETHOD.
     CLEAR rs_result.
     MOVE-CORRESPONDING is_row TO rs_result.
 
+    rs_result-supplierid = |{ is_row-supplierid ALPHA = OUT }|.
     rs_result-reviwed_by = is_row-reviewed_by.
     rs_result-invoice_currency = COND #(
       WHEN is_row-invoice_currency IS INITIAL THEN ` `
@@ -1137,29 +1380,29 @@ ENDMETHOD.
     ENDIF.
   ENDMETHOD.
 
-  METHOD get_context.
-
-    get_exchrt( ).
+    METHOD get_context.
 
     rs_context-details = get_details( it_keys ).
 
-    rs_context-accounts = get_accounts( it_keys ).
-
-    rs_context-history = get_history( it_keys    = it_keys
-                                      it_details = rs_context-details ).
-
-    rs_context-statuses = get_statuses( it_keys ).
-
-    rs_context-notifications = get_notifications( it_keys = it_keys ).
-
-    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
-      rs_context-exclusions = get_exclusions( it_keys ).
+    " Value-help request: only detail data is needed.
+    IF i_skip_calculations = abap_true.
+      RETURN.
     ENDIF.
 
-    read_users( EXPORTING it_details = rs_context-details
-                IMPORTING et_users = rs_context-users  ).
+    get_exchrt( ).
 
-    rs_context-review_day = get_review_day( ).
+    rs_context-accounts      = get_accounts( it_keys ).
+    rs_context-history       = get_history(
+                                 it_keys    = it_keys
+                                 it_details = rs_context-details ).
+    rs_context-statuses      = get_statuses( it_keys ).
+    rs_context-notifications = get_notifications( it_keys ).
+    rs_context-exclusions    = get_exclusions( it_keys ).
+    rs_context-review_day    = get_review_day( ).
+
+    read_users(
+      EXPORTING it_details = rs_context-details
+      IMPORTING et_users   = rs_context-users ).
 
   ENDMETHOD.
 
@@ -1652,7 +1895,7 @@ ENDMETHOD.
     cs_result-region = is_detail-region.
     cs_result-cocdecurr = is_detail-company_code_currency.
     cs_result-pocreatedat = is_detail-po_created_at.
-    cs_result-supplierid = |{ is_detail-supplier_id ALPHA = OUT }|.
+    cs_result-supplierid = is_detail-supplier_id.
     cs_result-suppliername = is_detail-supplier_name.
     cs_result-polinedesc = is_detail-po_line_description.
     cs_result-pstype = is_detail-effective_pstype.
@@ -2701,74 +2944,100 @@ ENDMETHOD.
 
   ENDMETHOD.
 
-  METHOD get_po_filter.
+METHOD get_po_filter.
 
-    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<fs_ponumber>).
+    " Exact tokens from the SmartFilterBar.
+    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
 
-      IF <fs_ponumber>-sign <> rsmds_c_sign-including OR <fs_ponumber>-option <> rsmds_c_option-equal.
-
+      IF <ls_ponumber>-sign <> mc_sign_include
+         OR <ls_ponumber>-option <> mc_option_equal.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e010(zfi_das).
-
+          MESSAGE e009(zfi_das).
       ENDIF.
 
-      APPEND VALUE #( value = |{ <fs_ponumber>-low ALPHA = IN }| ) TO rt_po_filter.
+      APPEND VALUE #(
+        value        = <ls_ponumber>-low
+        value_length = 0
+      ) TO rt_po_filter.
 
     ENDLOOP.
 
-    SORT rt_po_filter BY value.
-    DELETE ADJACENT DUPLICATES FROM rt_po_filter COMPARING value.
+    " Contains patterns from the value help. XSA exposes PONUMBER
+    " LTRIM'd, so the LIKE in AMDP runs on LTRIM(ponumber, '0').
+    LOOP AT is_request-po_contains ASSIGNING FIELD-SYMBOL(<ls_contains>).
+
+      DATA(l_po_pattern) =
+        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
+        |{ condense( CONV string( <ls_contains>-value ) ) }| &&
+        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
+
+      APPEND VALUE #(
+        pattern      = l_po_pattern
+        value_length = strlen( l_po_pattern )
+      ) TO rt_po_filter.
+
+    ENDLOOP.
 
   ENDMETHOD.
 
-  METHOD get_item_filter.
+   METHOD get_item_filter.
 
-    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<fs_item>).
+    " Exact tokens from the SmartFilterBar.
+    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<ls_itemno>).
 
-      IF <fs_item>-sign <> rsmds_c_sign-including OR <fs_item>-option <> rsmds_c_option-equal.
-
+      IF <ls_itemno>-sign <> mc_sign_include
+         OR <ls_itemno>-option <> mc_option_equal.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e011(zfi_das).
-
+          MESSAGE e009(zfi_das).
       ENDIF.
 
-      APPEND VALUE #( value = |{ <fs_item>-low ALPHA = IN }| ) TO rt_item_filter.
+      APPEND VALUE #(
+        value        = <ls_itemno>-low
+        value_length = 0
+      ) TO rt_item_filter.
 
     ENDLOOP.
 
-    SORT rt_item_filter BY value.
-    DELETE ADJACENT DUPLICATES FROM rt_item_filter COMPARING value.
+    " Contains patterns from the value help. XSA exposes ITEMNO as
+    " stored, so the LIKE in AMDP runs on the FULL value -
+    " searching '00002' must match ITEMNO '00002'.
+    LOOP AT is_request-item_contains ASSIGNING FIELD-SYMBOL(<ls_contains>).
+
+      DATA(l_item_pattern) =
+        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
+        |{ condense( CONV string( <ls_contains>-value ) ) }| &&
+        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
+
+      APPEND VALUE #(
+        pattern      = l_item_pattern
+        value_length = strlen( l_item_pattern )
+      ) TO rt_item_filter.
+
+    ENDLOOP.
 
   ENDMETHOD.
 
 
   METHOD get_supplier_filter.
 
-    LOOP AT is_request-supplier ASSIGNING FIELD-SYMBOL(<fs_supplier>).
+    " Pattern must be lowercase: the AMDP predicate compares
+    " LOWER( suppliername ) LIKE value.
 
-      DATA(l_supplier) = CONV string( <fs_supplier>-value ).
+    LOOP AT is_request-supplier_contains
+      ASSIGNING FIELD-SYMBOL(<ls_supplier>).
 
-      SHIFT l_supplier LEFT DELETING LEADING space.
-      SHIFT l_supplier RIGHT DELETING TRAILING space.
+      DATA(l_supplier_pattern) =
+        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
+        |{ to_lower( condense( CONV string( <ls_supplier>-value ) ) ) }| &&
+        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
 
-      IF l_supplier IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      SHIFT l_supplier LEFT DELETING LEADING '*'.
-
-SHIFT l_supplier RIGHT DELETING TRAILING '*'.
-CONDENSE l_supplier.
-
-      TRANSLATE l_supplier TO LOWER CASE.
-
-      APPEND VALUE #( value        = l_supplier
-                      value_length = strlen( l_supplier ) ) TO rt_supplier_filter.
+      APPEND VALUE #(
+        value        = CONV zif_fi_das_dashboard=>t_supplier(
+                         l_supplier_pattern )
+        value_length = strlen( l_supplier_pattern )
+      ) TO rt_supplier_filter.
 
     ENDLOOP.
-
-    SORT rt_supplier_filter BY value value_length.
-    DELETE ADJACENT DUPLICATES FROM rt_supplier_filter COMPARING value value_length.
 
   ENDMETHOD.
 
@@ -3103,7 +3372,49 @@ CONDENSE l_supplier.
         WHEN mc_rule_internal_order  THEN mc_rule_text_internal_order ).
 
   ENDMETHOD.
-  METHOD get_keys
+
+  METHOD apply_sort_and_paging.
+
+    " Called only when a real $orderby is active. Sorts and pages
+    " IN PLACE on the single result table - no copies are created.
+
+    DATA lr_row TYPE REF TO data.
+    CREATE DATA lr_row LIKE LINE OF ct_result.
+
+    DATA(lo_struct) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
+
+    " Unknown property keeps the stable AMDP order - no dump.
+    IF line_exists( lo_struct->components[
+                      name = is_request-orderby-property ] ).
+
+      IF is_request-orderby-descending = abap_true.
+        SORT ct_result BY (is_request-orderby-property) DESCENDING
+                          (mc_sort_ponumber) ASCENDING
+                          (mc_sort_itemno)   ASCENDING.
+      ELSE.
+        SORT ct_result BY (is_request-orderby-property) ASCENDING
+                          (mc_sort_ponumber) ASCENDING
+                          (mc_sort_itemno)   ASCENDING.
+      ENDIF.
+
+    ENDIF.
+
+    " Paging window [skip+1 .. skip+top]: delete the tail first,
+    " then the head - index-range deletes without table copies.
+    DATA(l_skip) = is_request-paging-skip.
+    DATA(l_top)  = is_request-paging-top.
+
+    IF l_top > 0 AND lines( ct_result ) > l_skip + l_top.
+      DELETE ct_result FROM l_skip + l_top + 1.
+    ENDIF.
+
+    IF l_skip > 0.
+      DELETE ct_result TO l_skip.
+    ENDIF.
+
+  ENDMETHOD.
+METHOD get_keys
   BY DATABASE PROCEDURE
   FOR HDB
   LANGUAGE SQLSCRIPT
@@ -3139,7 +3450,12 @@ CONDENSE l_supplier.
         b.itemcompanycode,
         b.companycode,
         b.pocurrency AS po_currency,
-        b.netvalue
+        b.netvalue,
+        b.suppliername,
+        b.supplierid,
+        b.pocreatedat,
+        b.epnumber,
+        b.polinedescription
 
       FROM zifidaspobase AS b
 
@@ -3226,22 +3542,49 @@ CONDENSE l_supplier.
           )
         )
 
+        -- PONUMBER: EQ block AND contains block. Tokens within a
+        -- block combine with OR; the blocks combine with AND, the
+        -- same way the OData $filter is composed.
         AND
         (
           NOT EXISTS
               (
                 SELECT 1
                   FROM :it_po_filter
+                 WHERE value_length = 0
               )
 
           OR EXISTS
               (
                 SELECT 1
                   FROM :it_po_filter AS filter_po
-                 WHERE filter_po.value = b.ponumber
+                 WHERE filter_po.value_length = 0
+                   AND filter_po.value = b.ponumber
               )
         )
 
+        AND
+        (
+          NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_po_filter
+                 WHERE value_length > 0
+              )
+
+          -- Pattern arrives ready-made as %value% from ABAP.
+
+          OR EXISTS
+              (
+                SELECT 1
+                  FROM :it_po_filter AS filter_po
+                 WHERE filter_po.value_length > 0
+                   AND LTRIM( b.ponumber, '0' ) LIKE filter_po.pattern
+              )
+        )
+
+        -- Supplier pattern arrives ready-made as %value% from ABAP
+        -- (lowercase); match is case-insensitive.
         AND
         (
           NOT EXISTS
@@ -3256,14 +3599,7 @@ CONDENSE l_supplier.
                   FROM :it_supplier_filter AS filter_supplier
                  WHERE filter_supplier.value_length > 0
                    AND LOWER( IFNULL( b.suppliername, '' ) )
-                       LIKE
-                         '%' ||
-                         SUBSTRING(
-                           filter_supplier.value,
-                           1,
-                           filter_supplier.value_length
-                         ) ||
-                         '%'
+                       LIKE filter_supplier.value
               )
         )
 
@@ -3345,7 +3681,12 @@ CONDENSE l_supplier.
           candidate.itemcompanycode,
           candidate.companycode,
           candidate.po_currency,
-          candidate.netvalue
+          candidate.netvalue,
+          candidate.suppliername,
+          candidate.supplierid,
+          candidate.pocreatedat,
+          candidate.epnumber,
+          candidate.polinedescription
         FROM :lt_base_candidates AS candidate;
 
     ELSE
@@ -3359,7 +3700,12 @@ CONDENSE l_supplier.
           candidate.itemcompanycode,
           candidate.companycode,
           candidate.po_currency,
-          candidate.netvalue
+          candidate.netvalue,
+          candidate.suppliername,
+          candidate.supplierid,
+          candidate.pocreatedat,
+          candidate.epnumber,
+          candidate.polinedescription
 
         FROM :lt_base_candidates AS candidate
 
@@ -3470,7 +3816,12 @@ CONDENSE l_supplier.
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
-        candidate.poowner_email
+        candidate.poowner_email,
+        candidate.suppliername,
+        candidate.supplierid,
+        candidate.pocreatedat,
+        candidate.epnumber,
+        candidate.polinedescription
 
       FROM :lt_scoped_candidates AS candidate
 
@@ -3502,7 +3853,12 @@ CONDENSE l_supplier.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.suppliername,
+          candidate.supplierid,
+          candidate.pocreatedat,
+          candidate.epnumber,
+          candidate.polinedescription
 
         FROM :lt_threshold_classified AS candidate
 
@@ -3521,7 +3877,12 @@ CONDENSE l_supplier.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.suppliername,
+          candidate.supplierid,
+          candidate.pocreatedat,
+          candidate.epnumber,
+          candidate.polinedescription
 
         FROM :lt_threshold_classified AS candidate
 
@@ -3536,28 +3897,59 @@ CONDENSE l_supplier.
 
     END IF;
 
+    -- ITEMNO: EQ block AND contains block. LIKE runs on the FULL
+    -- value: XSA exposes ITEMNO as stored, so searching '00002'
+    -- must match ITEMNO '00002'. Pattern arrives ready-made as
+    -- %value% from ABAP.
     lt_filtered =
       SELECT DISTINCT
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
-        candidate.poowner_email
+        candidate.poowner_email,
+        candidate.suppliername,
+        candidate.supplierid,
+        candidate.pocreatedat,
+        candidate.epnumber,
+        candidate.polinedescription
 
       FROM :lt_exclusion_applied AS candidate
 
       WHERE
-        NOT EXISTS
-            (
-              SELECT 1
-                FROM :it_item_filter
-            )
+        (
+          NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_item_filter
+                 WHERE value_length = 0
+              )
 
-        OR EXISTS
-            (
-              SELECT 1
-                FROM :it_item_filter AS filter_item
-               WHERE filter_item.value = candidate.itemno
-            );
+          OR EXISTS
+              (
+                SELECT 1
+                  FROM :it_item_filter AS filter_item
+                 WHERE filter_item.value_length = 0
+                   AND filter_item.value = candidate.itemno
+              )
+        )
+
+        AND
+        (
+          NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_item_filter
+                 WHERE value_length > 0
+              )
+
+          OR EXISTS
+              (
+                SELECT 1
+                  FROM :it_item_filter AS filter_item
+                 WHERE filter_item.value_length > 0
+                   AND candidate.itemno LIKE filter_item.pattern
+              )
+        );
 
     IF :i_count_requested = 'X' THEN
 

@@ -1,221 +1,221 @@
 This XML file does not appear to have any style information associated with it. The document tree is shown below.
 <edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:sap="http://www.sap.com/Protocols/SAPData" Version="1.0">
 <edmx:DataServices m:DataServiceVersion="2.0">
-<Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="ZFI_DAS_SRV" xml:lang="en" sap:schema-version="1">
+<Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="ZFI_DAS_SRV" xml:lang="sk" sap:schema-version="1">
 <EntityType Name="openPOType" sap:content-version="1">
 <Key>
 <PropertyRef Name="PONUMBER"/>
 <PropertyRef Name="ITEMNO"/>
 </Key>
-<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:label="POOWNER_EMAIL" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Company Code" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:label="PURCHASINGUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="REGION" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false" sap:semantics="currency-code"/>
-<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="GLACCOUNT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="COSTCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="PSTYPE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="PROFITCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="EPNUMBER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:label="STATUS" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="LASTMONTHWRKCOMP" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="STRAIGHTLINEMTHD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_COCO" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:label="ACCRUALMETHOD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="PO_PREPARER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Time Stamp" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="PSTYPE_TEXT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:label="EXCHANGERATE_DEC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="EXCHANGERATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="PO_CLOSURE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:label="DOCUMENTDATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:label="POCLOSURE_FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="CHECKFLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:label="ZACTIVITYNBR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="DISTPERCENTAGE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:label="TOTWRKCOMPPER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="TOTWRKCOMPPER_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="MARKASREVIEWED" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="EDGEWTDAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:label="Field of type TIMS" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:label="REVIWED_BY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="BBP_ACC_NO" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PURCHASINGORGANIZATION" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Purchasing Org." sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ORDERQUANTITY" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="ORDERQUANTITY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="TOTWRKCOMPAMT_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="TOTWRKCOMPAMT_USD_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="AMOUNTACCRUED_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="AMOUNTACCRUED_USD_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="USERNAME" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="User" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="FULL_NAME" Type="Edm.String" MaxLength="80" sap:unicode="false" sap:label="Full Name" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DECIMAL_FORMAT" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DECIMAL_FORMAT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DATFM" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DATFM" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_CAL" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_CAL" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="LAST_NOTIF_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Time Stamp" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="NOTIF_24_HR" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="NOTIF_24_HR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Účtovný okruh" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Mena" sap:creatable="false" sap:updatable="false" sap:semantics="currency-code"/>
+<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Nákup.doklad" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Položka" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Dodávateľ" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Vyznačenie času" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PURCHASINGORGANIZATION" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Nákup.organiz." sap:creatable="false" sap:updatable="false"/>
+<Property Name="ORDERQUANTITY" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="USERNAME" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="Užívateľ" sap:creatable="false" sap:updatable="false"/>
+<Property Name="FULL_NAME" Type="Edm.String" MaxLength="80" sap:unicode="false" sap:label="Celé meno" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DECIMAL_FORMAT" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DATFM" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_CAL" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="LAST_NOTIF_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Vyznačenie času" sap:creatable="false" sap:updatable="false"/>
+<Property Name="NOTIF_24_HR" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
 </EntityType>
 <EntityType Name="thresholdType" sap:content-version="1">
 <Key>
 <PropertyRef Name="PONUMBER"/>
 <PropertyRef Name="ITEMNO"/>
 </Key>
-<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:label="POOWNER_EMAIL" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Company Code" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:label="PURCHASINGUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="REGION" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false" sap:semantics="currency-code"/>
-<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="GLACCOUNT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="COSTCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="PSTYPE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="PROFITCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="EPNUMBER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:label="STATUS" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="LASTMONTHWRKCOMP" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="STRAIGHTLINEMTHD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_COCO" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:label="ACCRUALMETHOD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="PO_PREPARER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Time Stamp" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="PSTYPE_TEXT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:label="EXCHANGERATE_DEC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="EXCHANGERATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="PO_CLOSURE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:label="DOCUMENTDATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:label="POCLOSURE_FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="CHECKFLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:label="ZACTIVITYNBR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="DISTPERCENTAGE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:label="TOTWRKCOMPPER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="TOTWRKCOMPPER_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="MARKASREVIEWED" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="EDGEWTDAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:label="Field of type TIMS" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:label="REVIWED_BY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="BBP_ACC_NO" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PURCHASINGORGANIZATION" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Purchasing Org." sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ORDERQUANTITY" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="ORDERQUANTITY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="TOTWRKCOMPAMT_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="TOTWRKCOMPAMT_USD_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="AMOUNTACCRUED_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="AMOUNTACCRUED_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="AMOUNTACCRUED_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="AMOUNTACCRUED_USD_CHAR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="USERNAME" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="User" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="FULL_NAME" Type="Edm.String" MaxLength="80" sap:unicode="false" sap:label="Full Name" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DECIMAL_FORMAT" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DECIMAL_FORMAT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DATFM" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DATFM" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_CAL" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_CAL" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Účtovný okruh" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Mena" sap:creatable="false" sap:updatable="false" sap:semantics="currency-code"/>
+<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Nákup.doklad" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Položka" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Dodávateľ" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Vyznačenie času" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PURCHASINGORGANIZATION" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Nákup.organiz." sap:creatable="false" sap:updatable="false"/>
+<Property Name="ORDERQUANTITY" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="AMOUNTACCRUED_USD_CHAR" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="USERNAME" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="Užívateľ" sap:creatable="false" sap:updatable="false"/>
+<Property Name="FULL_NAME" Type="Edm.String" MaxLength="80" sap:unicode="false" sap:label="Celé meno" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DECIMAL_FORMAT" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DATFM" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_CAL" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
 </EntityType>
 <EntityType Name="exclusionPOType" sap:content-version="1">
 <Key>
 <PropertyRef Name="PONUMBER"/>
 <PropertyRef Name="ITEMNO"/>
 </Key>
-<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:label="POOWNER_EMAIL" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="RULETYPE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="RULETYPE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Company Code" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="RULETYPETEXT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="RULETYPETEXT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COSTCENTERDESC" Type="Edm.String" MaxLength="40" sap:unicode="false" sap:label="COSTCENTERDESC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:label="PURCHASINGUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="REGION" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false" sap:semantics="currency-code"/>
-<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="GLACCOUNT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="COSTCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="PSTYPE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="PROFITCENTER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="EPNUMBER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:label="STATUS" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="LASTMONTHWRKCOMP" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="STRAIGHTLINEMTHD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_COCO" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:label="ACCRUALMETHOD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="PO_PREPARER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Time Stamp" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="PSTYPE_TEXT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:label="EXCHANGERATE_DEC" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="EXCHANGERATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="PO_CLOSURE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:label="DOCUMENTDATE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:label="POCLOSURE_FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="CHECKFLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="INVVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="GRVALUE_USD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:label="ZACTIVITYNBR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="DISTPERCENTAGE" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPPER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="POOWNER_EMAIL" Type="Edm.String" MaxLength="255" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="RULETYPE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COMPANYCODE" Type="Edm.String" MaxLength="4" sap:unicode="false" sap:label="Účtovný okruh" sap:creatable="false" sap:updatable="false"/>
+<Property Name="RULETYPETEXT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COSTCENTERDESC" Type="Edm.String" MaxLength="40" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PURCHASINGUNIT" Type="Edm.String" MaxLength="25" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="REGION" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COCDECURR" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="Mena" sap:creatable="false" sap:updatable="false" sap:semantics="currency-code"/>
+<Property Name="GLACCOUNT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COSTCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Nákup.doklad" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Položka" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Dodávateľ" sap:creatable="false" sap:updatable="false"/>
+<Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Dátum" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PROFITCENTER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EPNUMBER" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STATUS" Type="Edm.String" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="LASTMONTHWRKCOMP" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_COCO" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_PREPARER" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGED_ON" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Vyznačenie času" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PSTYPE_TEXT" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE_DEC" Type="Edm.Decimal" Precision="9" Scale="6" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EXCHANGERATE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPAMT_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="PO_CLOSURE" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DOCUMENTDATE" Type="Edm.String" MaxLength="8" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCLOSURE_FLAG" Type="Edm.Int32" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHECKFLAG" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="INVVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="GRVALUE_USD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="ZACTIVITYNBR" Type="Edm.String" MaxLength="200" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DISTPERCENTAGE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
+<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false"/>
 </EntityType>
 <EntityType Name="openPOParametersType" sap:content-version="1">
 <Key>

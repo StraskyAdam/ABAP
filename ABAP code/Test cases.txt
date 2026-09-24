@@ -69,3 +69,12 @@ GET /sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@
 /openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('',PONUMBER)&$top=10
 /openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('XXXNEEXISTUJE',SUPPLIERNAME)&$inlinecount=allpages&$top=10
 /openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=SUPPLIERNAME asc&$skip=999999&$top=100&$inlinecount=allpages
+
+== EDGE PAGING/COUNT ==
+/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$top=0&$inlinecount=allpages
+/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$skip=999999&$top=100
+/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$top=5
+-- posledny: BEZ $inlinecount -> response NESMIE obsahovat __count
+== INVOICE_CURRENCY ==
+/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$select=PONUMBER,INVOICE_CURRENCY,POCURRENCY&$top=50
+-- porovnat s XSA: mena posledneho invoice, fallback ako v SF_getInvoiceCurrency

@@ -51,9 +51,7 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
 
     mc_asterisk_sign TYPE c LENGTH 1 VALUE '*',
     mc_percent_sign TYPE c LENGTH 1 VALUE '%',
-    mc_comma TYPE c LENGTH 1 VALUE ',',
-
-    mc_initial_date TYPE d VALUE '00000000'.
+    mc_comma TYPE c LENGTH 1 VALUE ','.
 
 *--------------------------------------------------------------------*
 * Contains filters. Value lengths follow the source fields: a

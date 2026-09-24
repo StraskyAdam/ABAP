@@ -620,7 +620,7 @@ CLASS lcl_application IMPLEMENTATION.
         value =
           CONV zif_fi_das_dashboard=>t_supplier(
             ls_supplier-low )
-      ) TO rs_request-supplier.
+      ) TO rs_request-supplier_contains.
 
     ENDLOOP.
 

@@ -254,7 +254,13 @@ METHOD exclusionposet_get_entityset.
 
   et_entityset = CORRESPONDING #( lt_result ).
 
-  es_response_context-inlinecount = lv_count.
+    " xsodata returns __count only when $inlinecount=allpages was
+    " requested; mirror that exactly.
+    IF io_tech_request_context->has_inlinecount( ) = abap_true.
+      es_response_context-inlinecount = lv_count.
+    ELSE.
+      CLEAR es_response_context-inlinecount.
+    ENDIF.
 
 ENDMETHOD.
 
@@ -296,7 +302,13 @@ METHOD openpotypeset_get_entityset.
 
   et_entityset = CORRESPONDING #( lt_result ).
 
-  es_response_context-inlinecount = lv_count.
+    " xsodata returns __count only when $inlinecount=allpages was
+    " requested; mirror that exactly.
+    IF io_tech_request_context->has_inlinecount( ) = abap_true.
+      es_response_context-inlinecount = lv_count.
+    ELSE.
+      CLEAR es_response_context-inlinecount.
+    ENDIF.
 
 ENDMETHOD.
 
@@ -320,7 +332,13 @@ METHOD thresholdset_get_entityset.
 
   et_entityset = CORRESPONDING #( lt_result ).
 
-  es_response_context-inlinecount = lv_count.
+      " xsodata returns __count only when $inlinecount=allpages was
+    " requested; mirror that exactly.
+    IF io_tech_request_context->has_inlinecount( ) = abap_true.
+      es_response_context-inlinecount = lv_count.
+    ELSE.
+      CLEAR es_response_context-inlinecount.
+    ENDIF.
 
 ENDMETHOD.
 ENDCLASS.

@@ -14,12 +14,29 @@ protected section.
     redefinition .
 private section.
 
+  constants:
+    MC_PROPERTY_PONUMBER     type STRING value 'PONUMBER',
+    MC_PROPERTY_ITEMNO       type STRING value 'ITEMNO',
+    MC_PROPERTY_SUPPLIERNAME type STRING value 'SUPPLIERNAME',
+    MC_KEY_EMAIL             type STRING value 'IP_EMAIL',
+    MC_KEY_PSTYPE            type STRING value 'IP_PSTYPE',
+    MC_KEY_POOWNER           type STRING value 'IP_POOWNER',
+    MC_SIGN_INCLUDE          type DDSIGN value 'I',
+    MC_OPTION_CONTAINS       type DDOPTION value 'CP',
+    MC_ORDER_DESCENDING      type STRING value 'DESC'.
+
   methods BUILD_REQUEST
     importing
       !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
       !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR optional
     returning
       value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+
+  methods GET_CONTAINS_VALUE
+    importing
+      !I_PATTERN type CSEQUENCE
+    returning
+      value(R_VALUE) type STRING .
 ENDCLASS.
 
 
@@ -34,21 +51,21 @@ METHOD build_request.
   " Parameters z openPOParameters(...)
 
   READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<ls_key>)
-    WITH KEY name = 'IP_EMAIL'.
+    WITH KEY name = mc_key_email.
 
   IF sy-subrc = 0.
     rs_request-email = <ls_key>-value.
   ENDIF.
 
   READ TABLE it_key_tab ASSIGNING <ls_key>
-    WITH KEY name = 'IP_PSTYPE'.
+    WITH KEY name = mc_key_pstype.
 
   IF sy-subrc = 0.
     rs_request-pstype = <ls_key>-value.
   ENDIF.
 
   READ TABLE it_key_tab ASSIGNING <ls_key>
-    WITH KEY name = 'IP_POOWNER'.
+    WITH KEY name = mc_key_poowner.
 
   IF sy-subrc = 0.
     rs_request-poowner = <ls_key>-value.
@@ -74,64 +91,159 @@ METHOD build_request.
 
     CASE to_upper( <ls_filter>-property ).
 
-      WHEN 'PONUMBER'.
+      WHEN mc_property_ponumber.
 
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
 
-          APPEND VALUE #(
-            sign   = <ls_ponumber>-sign
-            option = <ls_ponumber>-option
-            low    = CONV ebeln( <ls_ponumber>-low )
-            high   = CONV ebeln( <ls_ponumber>-high )
-          ) TO rs_request-ponumber.
+          IF <ls_ponumber>-option = mc_option_contains
+             AND <ls_ponumber>-sign = mc_sign_include.
+
+            DATA(l_po_contains) =
+              get_contains_value( <ls_ponumber>-low ).
+
+            IF l_po_contains IS NOT INITIAL.
+              APPEND VALUE #( value = l_po_contains )
+                TO rs_request-po_contains.
+            ENDIF.
+
+          ELSE.
+
+            APPEND VALUE #(
+              sign   = <ls_ponumber>-sign
+              option = <ls_ponumber>-option
+              low    = CONV ebeln( <ls_ponumber>-low )
+              high   = CONV ebeln( <ls_ponumber>-high )
+            ) TO rs_request-ponumber.
+
+          ENDIF.
 
         ENDLOOP.
 
-      WHEN 'ITEMNO'.
+      WHEN mc_property_itemno.
 
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_itemno>).
 
-          APPEND VALUE #(
-            sign   = <ls_itemno>-sign
-            option = <ls_itemno>-option
-            low    = CONV ebelp( <ls_itemno>-low )
-            high   = CONV ebelp( <ls_itemno>-high )
-          ) TO rs_request-itemno.
+          IF <ls_itemno>-option = mc_option_contains
+             AND <ls_itemno>-sign = mc_sign_include.
+
+            DATA(l_item_contains) =
+              get_contains_value( <ls_itemno>-low ).
+
+            IF l_item_contains IS NOT INITIAL.
+              APPEND VALUE #( value = l_item_contains )
+                TO rs_request-item_contains.
+            ENDIF.
+
+          ELSE.
+
+            APPEND VALUE #(
+              sign   = <ls_itemno>-sign
+              option = <ls_itemno>-option
+              low    = CONV ebelp( <ls_itemno>-low )
+              high   = CONV ebelp( <ls_itemno>-high )
+            ) TO rs_request-itemno.
+
+          ENDIF.
 
         ENDLOOP.
 
-      WHEN 'SUPPLIERNAME'.
+      WHEN mc_property_suppliername.
 
         LOOP AT <ls_filter>-select_options
           ASSIGNING FIELD-SYMBOL(<ls_supplier>).
 
-          APPEND VALUE #(
-            value = CONV zif_fi_das_dashboard=>t_supplier(
-                      <ls_supplier>-low )
-          ) TO rs_request-supplier.
+          DATA(l_supplier_contains) =
+            get_contains_value( <ls_supplier>-low ).
+
+          IF l_supplier_contains IS NOT INITIAL.
+            APPEND VALUE #(
+              value = CONV zif_fi_das_dashboard=>t_supplier(
+                        l_supplier_contains )
+            ) TO rs_request-supplier_contains.
+          ENDIF.
 
         ENDLOOP.
+
+      WHEN OTHERS.
+
+        " Column Settings "Filter..." on any other column: pass it
+        " through generically, evaluation happens in the dashboard.
+        LOOP AT <ls_filter>-select_options
+          ASSIGNING FIELD-SYMBOL(<ls_generic>).
+
+          IF <ls_generic>-sign <> mc_sign_include.
+            CONTINUE.
+          ENDIF.
+
+          IF <ls_generic>-option = mc_option_contains.
+
+            DATA(l_generic_contains) =
+              get_contains_value( <ls_generic>-low ).
+
+            IF l_generic_contains IS NOT INITIAL.
+              APPEND VALUE #(
+                property = to_upper( <ls_filter>-property )
+                option   = mc_option_contains
+                low      = CONV zif_fi_das_dashboard=>t_text_500(
+                             l_generic_contains )
+              ) TO rs_request-generic_filters.
+            ENDIF.
+
+          ELSE.
+
+            APPEND VALUE #(
+              property = to_upper( <ls_filter>-property )
+              option   = <ls_generic>-option
+              low      = CONV zif_fi_das_dashboard=>t_text_500(
+                           <ls_generic>-low )
+              high     = CONV zif_fi_das_dashboard=>t_text_500(
+                           <ls_generic>-high )
+            ) TO rs_request-generic_filters.
+
+          ENDIF.
+
+        ENDLOOP.
+
 
     ENDCASE.
 
   ENDLOOP.
+
+  " $orderby - first entry only, evaluation happens in the dashboard
+
+  DATA(lt_orderby) = io_tech_request_context->get_orderby( ).
+
+  READ TABLE lt_orderby INTO DATA(ls_orderby) INDEX 1.
+
+  IF sy-subrc = 0.
+    rs_request-orderby-property =
+      to_upper( ls_orderby-property ).
+    rs_request-orderby-descending =
+      xsdbool( to_upper( ls_orderby-order ) CS mc_order_descending ).
+  ENDIF.
+
+  " $select - raw comma-separated list, evaluation happens
+  " in the dashboard
+
+  rs_request-select = to_upper(
+    concat_lines_of(
+      table = io_tech_request_context->get_select( )
+      sep   = zif_fi_das_dashboard=>mc_comma ) ).
 
 ENDMETHOD.
 
 
 METHOD exclusionposet_get_entityset.
 
-  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
-        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
 
-  ls_request = build_request(
+  DATA(ls_request) = build_request(
     io_tech_request_context = io_tech_request_context
     it_key_tab              = it_key_tab ).
 
-  CREATE OBJECT lo_dashboard
-    TYPE zcl_fi_das_dashboard.
+  lo_dashboard = NEW zcl_fi_das_dashboard( ).
 
   lo_dashboard->exclude(
     EXPORTING
@@ -147,17 +259,33 @@ METHOD exclusionposet_get_entityset.
 ENDMETHOD.
 
 
+METHOD get_contains_value.
+
+* Reduce a CP pattern to its literal characters. The UI sends only
+* *value* patterns; stripping wildcards makes any pattern safe
+* without ever rejecting the request. Inner spaces are preserved
+* (supplier names), only leading/trailing whitespace is removed.
+
+  r_value = i_pattern.
+
+  REPLACE ALL OCCURRENCES OF
+    zif_fi_das_dashboard=>mc_asterisk_sign IN r_value WITH ``.
+  REPLACE ALL OCCURRENCES OF '+' IN r_value WITH ``.
+
+  CONDENSE r_value.
+
+ENDMETHOD.
+
+
 METHOD openpotypeset_get_entityset.
 
-  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
-        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
 
-  ls_request = build_request(
+  DATA(ls_request) = build_request(
     io_tech_request_context = io_tech_request_context
     it_key_tab              = it_key_tab ).
 
-  CREATE OBJECT lo_dashboard
-    TYPE zcl_fi_das_dashboard.
+  lo_dashboard = NEW zcl_fi_das_dashboard( ).
 
   lo_dashboard->over(
     EXPORTING
@@ -175,15 +303,13 @@ ENDMETHOD.
 
 METHOD thresholdset_get_entityset.
 
-  DATA: ls_request   TYPE zif_fi_das_dashboard=>ts_request,
-        lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
 
-  ls_request = build_request(
+  DATA(ls_request) = build_request(
     io_tech_request_context = io_tech_request_context
     it_key_tab              = it_key_tab ).
 
-  CREATE OBJECT lo_dashboard
-    TYPE zcl_fi_das_dashboard.
+  lo_dashboard = NEW zcl_fi_das_dashboard( ).
 
   lo_dashboard->under(
     EXPORTING

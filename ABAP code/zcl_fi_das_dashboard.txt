@@ -50,7 +50,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_calculation_decimals TYPE i VALUE 8,
       mc_percentage_decimals  TYPE i VALUE 1,
       mc_stl_split_day        TYPE i VALUE 15,
-      mc_stl_current_day      TYPE i VALUE 7,
       mc_stl_grace_day        TYPE i VALUE 6.
 
     CONSTANTS:
@@ -94,21 +93,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_sign_include TYPE ddsign VALUE 'I',
       mc_option_equal TYPE ddoption VALUE 'EQ'.
 
-* Presence information retained for future metadata-driven OData NULL mapping.
-* ABAP initial values cannot distinguish an absent source value from an
-* explicitly supplied initial value. The state remains private.
-    TYPES:
-      BEGIN OF ts_row_state,
-        grvalue_usd_supplied  TYPE abap_bool,
-        invvalue_usd_supplied TYPE abap_bool,
-        invvalue_cal_supplied TYPE abap_bool,
-        edgewtdamt_supplied   TYPE abap_bool,
-        lastmonth_supplied    TYPE abap_bool,
-        notification_supplied TYPE abap_bool,
-        reviewed_by_supplied  TYPE abap_bool,
-        manageunit_supplied   TYPE abap_bool,
-        user_supplied         TYPE abap_bool,
-      END OF ts_row_state.
+
 
     TYPES:
       BEGIN OF ts_key,
@@ -161,17 +146,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_source_detail,
         ponumber              TYPE ebeln,
         itemno                TYPE ebelp,
-        original_pstype       TYPE zif_fi_das_dashboard=>t_pstype,
         effective_pstype      TYPE zif_fi_das_dashboard=>t_pstype,
         work_start_date       TYPE d,
         work_end_date         TYPE d,
-        item_company_code     TYPE bukrs,
-        net_value             TYPE t_amount_precision,
         gross_value           TYPE t_amount_precision,
         net_price             TYPE t_amount_precision,
         price_unit            TYPE ekpo-peinh,
         order_quantity        TYPE ekpo-menge,
-        po_requestor          TYPE zif_fi_das_dashboard=>t_email,
         po_preparer           TYPE zif_fi_das_dashboard=>t_email,
         service_amount        TYPE t_service_amount,
         service_percentage    TYPE ekpo-zserv_perc,
@@ -226,8 +207,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         invoice_value         TYPE t_amount_precision,
         invoice_local         TYPE t_amount_precision,
         invoice_usd           TYPE t_amount_precision,
-        gr_source_exists      TYPE abap_bool,
-        invoice_source_exists TYPE abap_bool,
       END OF ts_history_aggregate,
 
       tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate
@@ -239,7 +218,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         itemno            TYPE ebelp,
         status            TYPE zfi_das_postatus-status,
         accrual_method    TYPE zfi_das_postatus-accrualmethod,
-        mark_as_reviewed  TYPE zfi_das_postatus-markasreviewed,
         changed_date      TYPE zfi_das_postatus-changeddate,
         changed_time      TYPE zfi_das_postatus-changedtime,
         changed_on        TYPE zfi_das_postatus-changed_on,
@@ -471,22 +449,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_user   TYPE ts_user
       CHANGING
-        cs_result TYPE zif_fi_das_dashboard=>ts_result
-        cs_state  TYPE ts_row_state.
+        cs_result TYPE zif_fi_das_dashboard=>ts_result.
 
     METHODS apply_account
       IMPORTING
         is_account TYPE ts_account_aggregate
       CHANGING
-        cs_result  TYPE zif_fi_das_dashboard=>ts_result
-        cs_state   TYPE ts_row_state.
+        cs_result  TYPE zif_fi_das_dashboard=>ts_result.
 
     METHODS apply_history
       IMPORTING
         is_history TYPE ts_history_aggregate
       CHANGING
-        cs_result  TYPE zif_fi_das_dashboard=>ts_result
-        cs_state   TYPE ts_row_state.
+        cs_result  TYPE zif_fi_das_dashboard=>ts_result.
 
     METHODS apply_status
       IMPORTING
@@ -496,7 +471,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_review_day          TYPE i
       CHANGING
         cs_result             TYPE zif_fi_das_dashboard=>ts_result
-        cs_state              TYPE ts_row_state
       RETURNING
         VALUE(rs_calculation) TYPE ts_calculation
       RAISING
@@ -528,7 +502,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_notification TYPE ts_notification
       CHANGING
         cs_result       TYPE zif_fi_das_dashboard=>ts_result
-        cs_state        TYPE ts_row_state
       RAISING
         cx_sy_conversion_error.
 
@@ -1189,7 +1162,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_row.
 
-   DATA ls_state TYPE ts_row_state.
 
     CLEAR rs_row.
 
@@ -1223,8 +1195,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                 i_email = <ls_detail>-poowner_email )
             ] OPTIONAL )
       CHANGING
-        cs_result = rs_row
-        cs_state  = ls_state ).
+        cs_result = rs_row ).
 
     apply_account(
       EXPORTING
@@ -1235,8 +1206,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               itemno   = is_key-itemno
             ] OPTIONAL )
       CHANGING
-        cs_result = rs_row
-        cs_state  = ls_state ).
+        cs_result = rs_row ).
 
     apply_history(
       EXPORTING
@@ -1247,8 +1217,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               itemno   = is_key-itemno
             ] OPTIONAL )
       CHANGING
-        cs_result = rs_row
-        cs_state  = ls_state ).
+        cs_result = rs_row ).
 
     DATA(ls_calculation) =
       apply_status(
@@ -1263,8 +1232,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           i_mode       = i_mode
           i_review_day = is_context-review_day
         CHANGING
-          cs_result    = rs_row
-          cs_state     = ls_state ).
+          cs_result    = rs_row ).
 
     apply_calculation(
       EXPORTING
@@ -1292,8 +1260,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               itemno   = is_key-itemno
             ] OPTIONAL )
       CHANGING
-        cs_result = rs_row
-        cs_state  = ls_state ).
+        cs_result = rs_row ).
 
     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
 
@@ -1421,11 +1388,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     SELECT
       ponumber,
       itemno,
-      pstype                 AS original_pstype,
       workstartdateraw       AS work_start_date,
       workenddateraw         AS work_end_date,
-      itemcompanycode        AS item_company_code,
-      netvalue               AS net_value,
       grossvalue             AS gross_value,
       netprice               AS net_price,
       priceunit              AS price_unit,
@@ -1470,7 +1434,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_accounts.
+METHOD get_accounts.
 
     IF it_keys IS INITIAL.
       RETURN.
@@ -1665,7 +1629,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                       i_source_currency = <fs_detail>-po_currency
                                                                       i_keep_precision  = abap_true ).
 
-        <fs_aggregate>-gr_source_exists = abap_true.
+
 
       ELSE.
 
@@ -1680,7 +1644,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                       i_amount          = l_invoice_amount
                                                                       i_source_currency = <fs_detail>-po_currency ).
 
-        <fs_aggregate>-invoice_source_exists = abap_true.
+
 
       ENDIF.
 
@@ -1700,7 +1664,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       lineitem               AS itemno,
       status,
       accrualmethod         AS accrual_method,
-      markasreviewed        AS mark_as_reviewed,
       changeddate           AS changed_date,
       changedtime           AS changed_time,
       changed_on,
@@ -1797,7 +1760,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD read_users
+METHOD read_users
    BY DATABASE PROCEDURE
    FOR HDB
    LANGUAGE SQLSCRIPT
@@ -1909,7 +1872,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-full_name = is_user-full_name.
     cs_result-decimal_format = is_user-decimal_format.
     cs_result-datfm = is_user-date_format.
-    cs_state-user_supplied = abap_true.
 
   ENDMETHOD.
 
@@ -1942,8 +1904,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-distpercentage =
       is_account-dist_percentage.
 
-    cs_state-manageunit_supplied =
-      xsdbool( is_account-management_unit_count > 0 ).
 
   ENDMETHOD.
 
@@ -1971,11 +1931,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-invvalue_usd =
       is_history-invoice_usd.
 
-    cs_state-grvalue_usd_supplied =
-      is_history-gr_source_exists.
 
-    cs_state-invvalue_usd_supplied =
-      is_history-invoice_source_exists.
 
   ENDMETHOD.
 
@@ -2023,8 +1979,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-reviewed_by =
       is_status-reviewed_by.
 
-    cs_state-reviewed_by_supplied =
-      abap_true.
 
     cs_result-changed_on =
       zcl_fi_das_utility=>utc_to_cet_timestamp(
@@ -2206,8 +2160,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       zcl_fi_das_utility=>utc_to_cet_timestamp(
         i_timestamp = is_notification-last_notif_on ).
 
-    cs_state-notification_supplied =
-      abap_true.
+
 
     IF zcl_fi_das_utility=>is_current_utc_day(
          i_timestamp = is_notification-last_notif_on ) = abap_true.

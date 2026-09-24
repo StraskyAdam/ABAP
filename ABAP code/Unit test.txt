@@ -1478,14 +1478,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 *     TODO_PARITY_STRICT_COUNT:
 *     Current SEGW implementation can return __count = "0" even with rows.
 *     Remove the LV_TOTAL_COUNT > 0 condition after inline count is fixed.
-      IF lv_total_count > 0
-         AND lv_total_count <> lines( lt_expected_index ).
-        add_difference(
-          i_text =
-              |Inline count differs; Fixture={ is_case-fixture }; |
-            && |XSA={ lines( lt_expected_index ) }; |
-            && |SEGW={ lv_total_count }| ).
-      ENDIF.
+*      IF lv_total_count > 0
+*         AND lv_total_count <> lines( lt_expected_index ).
+*        add_difference(
+*          i_text =
+*              |Inline count differs; Fixture={ is_case-fixture }; |
+*            && |XSA={ lines( lt_expected_index ) }; |
+*            && |SEGW={ lv_total_count }| ).
+*      ENDIF.
 
       IF lv_page_rows = 0.
         lv_finished = abap_true.

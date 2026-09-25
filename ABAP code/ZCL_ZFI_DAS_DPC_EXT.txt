@@ -18,6 +18,7 @@ private section.
     MC_PROPERTY_PONUMBER     type STRING value 'PONUMBER',
     MC_PROPERTY_ITEMNO       type STRING value 'ITEMNO',
     MC_PROPERTY_SUPPLIERNAME type STRING value 'SUPPLIERNAME',
+    MC_QUERY_TOP             type STRING value '$TOP',
     MC_KEY_EMAIL             type STRING value 'IP_EMAIL',
     MC_KEY_PSTYPE            type STRING value 'IP_PSTYPE',
     MC_KEY_POOWNER           type STRING value 'IP_POOWNER',
@@ -72,6 +73,19 @@ METHOD build_request.
   ENDIF.
 
   " Paging
+
+  DATA(lt_query_options) =
+    io_tech_request_context->get_query_options( ).
+
+  LOOP AT lt_query_options ASSIGNING FIELD-SYMBOL(<ls_query_option>).
+    DATA(lv_query_name) = to_upper( <ls_query_option>-name ).
+
+    IF lv_query_name = mc_query_top
+       OR lv_query_name = 'TOP'.
+      rs_request-paging-top_requested = abap_true.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
 
   rs_request-paging-top =
     io_tech_request_context->get_top( ).

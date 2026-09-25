@@ -1760,58 +1760,140 @@ METHOD get_accounts.
 
   ENDMETHOD.
 
-METHOD read_users
-   BY DATABASE PROCEDURE
-   FOR HDB
-   LANGUAGE SQLSCRIPT
-   OPTIONS READ-ONLY
-   USING usr21
-         adrp
-         adr6
-         usr01
-         usr02.
+   METHOD read_users
+    BY DATABASE PROCEDURE
+    FOR HDB
+    LANGUAGE SQLSCRIPT
+    OPTIONS READ-ONLY
+    USING usr21
+          adrp
+          adr6
+          usr01
+          usr02.
 
-    lt_requested = SELECT DISTINCT LOWER( TRIM( poowner_email ) ) AS email
-                     FROM :it_details
-                   WHERE poowner_email IS NOT NULL AND
-                         TRIM( poowner_email ) <> '';
+    lt_requested =
+      SELECT DISTINCT
+        LOWER( TRIM( poowner_email ) ) AS email
+      FROM :it_details
+      WHERE poowner_email IS NOT NULL
+        AND TRIM( poowner_email ) <> '';
 
-    lt_candidates = SELECT
-                      LOWER( email.smtp_addr ) AS email,
-                      user_data.bname          AS username,
-                      person.name_text         AS full_name,
-                      user_defaults.dcpfm      AS decimal_format,
-                      user_defaults.datfm      AS date_format
-                    FROM usr21 AS user_data
+    lt_candidates =
+      SELECT
+        LOWER( TRIM( email.smtp_addr ) ) AS email,
+        user_data.bname                  AS username,
+        person.name_text                 AS full_name,
+        user_defaults.dcpfm              AS decimal_format,
+        user_defaults.datfm              AS date_format,
 
-                    INNER JOIN adrp AS person  ON person.persnumber = user_data.persnumber
+        /*
+         * Primary-key fields in the same source-projection order
+         * as CV_getAllUserDetails:
+         *
+         * 1. USR01
+         * 2. USR21
+         * 3. ADR6
+         * 4. ADRP
+         * 5. USR02
+         *
+         * CLIENT/MANDT is omitted because it is constant within
+         * the current ABAP client and is not exposed by the XSA
+         * calculation-view projections.
+         */
 
-                    INNER JOIN adr6 AS email ON  email.persnumber = user_data.persnumber AND
-                                                 email.addrnumber = user_data.addrnumber
+        /* USR01 primary key */
+        user_defaults.bname              AS usr01_bname,
 
-                    INNER JOIN usr01 AS user_defaults ON user_defaults.bname = user_data.bname
+        /* USR21 primary key */
+        user_data.bname                  AS usr21_bname,
 
-                    INNER JOIN usr02 AS user_logon ON user_logon.bname = user_data.bname
+        /* ADR6 primary key */
+        email.addrnumber                 AS adr6_addrnumber,
+        email.persnumber                 AS adr6_persnumber,
+        email.date_from                  AS adr6_date_from,
+        email.consnumber                 AS adr6_consnumber,
 
-                    INNER JOIN :lt_requested AS requested ON requested.email = LOWER( TRIM( email.smtp_addr ) )
+        /* ADRP primary key */
+        person.persnumber                AS adrp_persnumber,
+        person.date_from                 AS adrp_date_from,
+        person.nation                    AS adrp_nation,
 
-                     WHERE user_logon.ustyp = 'A' AND
-                           user_logon.class NOT LIKE '%RPA%' AND
-                           user_logon.gltgv < CURRENT_DATE AND
-                           user_logon.gltgb >= CURRENT_DATE AND
-                           SUBSTRING( user_data.bname, 1, 1 )
-                             NOT IN ( '0', '1', '2', '3', '4','5', '6', '7', '8', '9' );
+        /* USR02 primary key */
+        user_logon.bname                 AS usr02_bname
 
-    et_users = SELECT email, username, full_name, decimal_format, date_format
-      FROM (  SELECT email, username, full_name, decimal_format,date_format,
+      FROM usr21 AS user_data
+
+      INNER JOIN adrp AS person
+        ON person.persnumber = user_data.persnumber
+
+      INNER JOIN adr6 AS email
+        ON  email.persnumber = user_data.persnumber
+        AND email.addrnumber = user_data.addrnumber
+
+      INNER JOIN usr01 AS user_defaults
+        ON user_defaults.bname = user_data.bname
+
+      INNER JOIN usr02 AS user_logon
+        ON user_logon.bname = user_data.bname
+
+      INNER JOIN :lt_requested AS requested
+        ON requested.email =
+           LOWER( TRIM( email.smtp_addr ) )
+
+      WHERE user_logon.ustyp = 'A'
+        AND user_logon.class NOT LIKE '%RPA%'
+        AND user_logon.gltgv < CURRENT_DATE
+        AND user_logon.gltgb >= CURRENT_DATE
+        AND SUBSTRING( user_data.bname, 1, 1 )
+              NOT IN (
+                '0', '1', '2', '3', '4',
+                '5', '6', '7', '8', '9'
+              );
+
+    et_users =
+      SELECT
+        email,
+        username,
+        full_name,
+        decimal_format,
+        date_format
+      FROM
+      (
+        SELECT
+          email,
+          username,
+          full_name,
+          decimal_format,
+          date_format,
+
           ROW_NUMBER() OVER
           (
             PARTITION BY email
-            ORDER BY USERNAME
-          ) AS row_number
+            ORDER BY
+              /* USR01 primary key */
+              usr01_bname DESC,
+
+              /* USR21 primary key */
+              usr21_bname DESC,
+
+              /* ADR6 primary key */
+              adr6_addrnumber DESC,
+              adr6_persnumber DESC,
+*              adr6_date_from DESC,
+*              adr6_consnumber DESC,
+
+              /* ADRP primary key */
+              adrp_persnumber DESC,
+*              adrp_date_from DESC,
+*              adrp_nation DESC,
+
+              /* USR02 primary key */
+              usr02_bname DESC
+          ) AS row_number_value
+
         FROM :lt_candidates
       )
-      WHERE row_number = 1;
+      WHERE row_number_value = 1;
 
   ENDMETHOD.
 

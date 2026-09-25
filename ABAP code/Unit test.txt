@@ -38,6 +38,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
         orderby_desc  TYPE abap_bool,
         select_list   TYPE string,
         top           TYPE i,
+        top_specified TYPE abap_bool,
         inlinecount   TYPE abap_bool,
       END OF ts_case,
 
@@ -1559,6 +1560,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-top = 1.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1626,6 +1628,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-top = 1.
+    ls_case-top_specified = abap_true.
 
     get_gateway_response(
       EXPORTING
@@ -1667,6 +1670,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case-top = 1.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1717,6 +1721,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case_full-top = 1.
+    ls_case_full-top_specified = abap_true.
     ls_case_full-inlinecount = abap_true.
 
     ls_case_zero = ls_case_full.
@@ -1768,6 +1773,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-select_list = 'PONUMBER,POLINEDESC'.
     ls_case-po_contains = VALUE #( ( value = '40102' ) ).
     ls_case-top = 50.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1815,6 +1821,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-select_list = 'ITEMNO'.
     ls_case-item_contains = VALUE #( ( value = '00002' ) ).
     ls_case-top = 50.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1861,6 +1868,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-select_list = 'SUPPLIERID,SUPPLIERNAME'.
     ls_case-supplier = VALUE #( ( value = 'Fuji' ) ).
     ls_case-top = 50.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1911,6 +1919,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         low      = 'JPY' ) ).
     ls_case-orderby = 'SUPPLIERNAME'.
     ls_case-top = 100.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -1986,6 +1995,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-orderby = 'PSTYPE'.
     ls_case-orderby_desc = abap_true.
     ls_case-top = 100.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -2030,6 +2040,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     ls_case-orderby = 'PSTYPE'.
     ls_case-top = 100.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -2065,10 +2076,8 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_json_unknown TYPE string,
       lv_count_base   TYPE int8,
       lv_count_unknown TYPE int8,
-      lv_po_base      TYPE string,
-      lv_item_base    TYPE string,
-      lv_po_unknown   TYPE string,
-      lv_item_unknown TYPE string.
+      lt_base_index   TYPE tt_expected_index,
+      lt_unknown_index TYPE tt_expected_index.
 
     ls_case_base-email =
       'adam.strasky@takeda.com'.
@@ -2080,6 +2089,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       zif_fi_das_dashboard=>mc_pstype_service.
 
     ls_case_base-top = 5.
+    ls_case_base-top_specified = abap_true.
     ls_case_base-inlinecount = abap_true.
 
     ls_case_unknown = ls_case_base.
@@ -2109,27 +2119,29 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       exp = get_result_count( lv_json_base )
       msg = 'Unknown $orderby must keep the same page size as the baseline request' ).
 
-    read_first_result_key(
-      EXPORTING
-        i_json     = lv_json_base
-      IMPORTING
-        e_ponumber = lv_po_base
-        e_itemno   = lv_item_base ).
+    lt_base_index =
+      build_expected_index(
+        i_json = lv_json_base ).
 
-    read_first_result_key(
-      EXPORTING
-        i_json     = lv_json_unknown
-      IMPORTING
-        e_ponumber = lv_po_unknown
-        e_itemno   = lv_item_unknown ).
+    lt_unknown_index =
+      build_expected_index(
+        i_json = lv_json_unknown ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lv_po_unknown
-      exp = lv_po_base ).
+      act = lines( lt_unknown_index )
+      exp = lines( lt_base_index )
+      msg = 'Unknown $orderby must keep the same row set size as the baseline request' ).
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_item_unknown
-      exp = lv_item_base ).
+    LOOP AT lt_unknown_index ASSIGNING FIELD-SYMBOL(<ls_unknown>).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool(
+          line_exists(
+            lt_base_index[
+              ponumber = <ls_unknown>-ponumber
+              itemno   = <ls_unknown>-itemno ] ) )
+        msg =
+          |Unknown $orderby must not change the returned key set: { <ls_unknown>-ponumber }/{ <ls_unknown>-itemno }| ).
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -2151,6 +2163,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     ls_case-supplier = VALUE #( ( value = 'ZZZ_NO_SUCH_SUPPLIER_20260925' ) ).
     ls_case-top = 10.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -2181,7 +2194,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_row_index   TYPE i,
       lv_object_from TYPE i,
       lv_object_to   TYPE i,
-      lv_pstype      TYPE string.
+      lv_pstype      TYPE string,
+      lv_has_material TYPE abap_bool,
+      lv_has_service  TYPE abap_bool.
 
     ls_case-email =
       'adam.strasky@takeda.com'.
@@ -2192,7 +2207,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ls_case-pstype =
       zif_fi_das_dashboard=>mc_pstype_all.
 
-    ls_case-top = 50.
+    ls_case-select_list = 'PONUMBER,ITEMNO,PSTYPE'.
+    ls_case-top = mc_page_size.
+    ls_case-top_specified = abap_true.
     ls_case-inlinecount = abap_true.
 
     get_gateway_response(
@@ -2242,7 +2259,27 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         act = xsdbool( lv_pstype = '0' OR lv_pstype = '9' )
         msg = 'IP_PSTYPE=* must only return material or service PSTYPE values' ).
 
+      IF lv_pstype = '0'.
+        lv_has_material = abap_true.
+      ELSEIF lv_pstype = '9'.
+        lv_has_service = abap_true.
+      ENDIF.
+
     ENDWHILE.
+
+    IF lv_count > 0.
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( lv_row_count > 0 )
+        msg = 'IP_PSTYPE=* must return at least one row on the fetched page when count > 0' ).
+
+      IF lv_count = lv_row_count.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool(
+            lv_has_material = abap_true
+            AND lv_has_service = abap_true )
+          msg = 'IP_PSTYPE=* must return both material and service rows' ).
+      ENDIF.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -2382,9 +2419,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       execute_gateway_get(
         i_resource_path = lv_path ).
 
-    e_inline_count =
-      read_inline_count(
-        i_json = e_json ).
+    IF is_case-inlinecount = abap_true
+       OR is_case-fixture IS NOT INITIAL.
+
+      e_inline_count =
+        read_inline_count(
+          i_json = e_json ).
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -2395,14 +2437,16 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_poowner TYPE string,
       lv_pstype  TYPE string,
       lv_top     TYPE i,
-      lv_orderby TYPE string.
+      lv_orderby TYPE string,
+      lv_orderby_upper TYPE string,
+      lv_orderby_direction TYPE string.
 
     lv_email = odata_quote( i_value = is_case-email ).
     lv_poowner = odata_quote( i_value = is_case-poowner ).
     lv_pstype = odata_quote( i_value = is_case-pstype ).
     lv_top = mc_page_size.
 
-    IF is_case-fixture IS INITIAL.
+    IF is_case-top_specified = abap_true.
       lv_top = is_case-top.
     ELSEIF is_case-top > 0.
       lv_top = is_case-top.
@@ -2439,19 +2483,36 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       rv_path = rv_path && |&$inlinecount=allpages|.
     ENDIF.
 
-    rv_path =
-        rv_path
-      && |&$top={ lv_top }|
-      && |&$skip={ i_skip }|.
+    IF ( is_case-top_specified = abap_true AND is_case-top > 0 )
+       OR ( is_case-top_specified = abap_true
+            AND is_case-top = 0
+            AND is_case-fixture IS INITIAL )
+       OR is_case-fixture IS NOT INITIAL.
+      rv_path = rv_path && |&$top={ lv_top }|.
+    ENDIF.
+
+    rv_path = rv_path && |&$skip={ i_skip }|.
 
     IF is_case-orderby IS NOT INITIAL.
 
-      lv_orderby = is_case-orderby.
+      lv_orderby = trim_text( is_case-orderby ).
+      lv_orderby_upper = to_upper( trim_text( lv_orderby ) ).
 
-      IF lv_orderby NS space
-         AND is_case-orderby_desc = abap_true.
-        lv_orderby = lv_orderby && ` desc`.
+      IF is_case-orderby_desc = abap_true
+         AND lv_orderby_upper NP '* DESC'
+         AND lv_orderby_upper NP '* DESCENDING'
+         AND lv_orderby_upper NP '* ASC'
+         AND lv_orderby_upper NP '* ASCENDING'.
+        lv_orderby_direction = ` desc`.
       ENDIF.
+
+      lv_orderby = lv_orderby && lv_orderby_direction.
+
+      cl_http_utility=>escape_url(
+        EXPORTING
+          unescaped = lv_orderby
+        RECEIVING
+          escaped   = lv_orderby ).
 
       rv_path = rv_path && |&$orderby={ lv_orderby }|.
 
@@ -2541,16 +2602,32 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_low = odata_quote( i_value = <ls_generic_filter>-low ).
       lv_high = odata_quote( i_value = <ls_generic_filter>-high ).
 
+      CASE <ls_generic_filter>-property.
+        WHEN 'COMPANYCODE'
+          OR 'ITEMNO'
+          OR 'PONUMBER'
+          OR 'POCURRENCY'
+          OR 'POLINEDESC'
+          OR 'PSTYPE'
+          OR 'SUPPLIERID'
+          OR 'SUPPLIERNAME'.
+        WHEN OTHERS.
+          CONTINUE.
+      ENDCASE.
+
+      lv_low = |'{ lv_low }'|.
+      lv_high = |'{ lv_high }'|.
+
       CASE <ls_generic_filter>-option.
         WHEN 'EQ'.
-          lv_part = |{ <ls_generic_filter>-property } eq '{ lv_low }'|.
+          lv_part = |{ <ls_generic_filter>-property } eq { lv_low }|.
         WHEN 'BT'.
           lv_part =
-              |({ <ls_generic_filter>-property } ge '{ lv_low }' and |
-            && |{ <ls_generic_filter>-property } le '{ lv_high }')|.
+              |({ <ls_generic_filter>-property } ge { lv_low } and |
+            && |{ <ls_generic_filter>-property } le { lv_high })|.
         WHEN 'CP'.
           lv_part =
-            |substringof('{ lv_low }',{ <ls_generic_filter>-property })|.
+            |substringof({ lv_low },{ <ls_generic_filter>-property })|.
         WHEN OTHERS.
           CONTINUE.
       ENDCASE.
@@ -2684,7 +2761,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_array_from TYPE i,
       lv_array_to   TYPE i,
       lv_position   TYPE i,
-      lv_object_to  TYPE i,
+      lv_value_end  TYPE i,
       lv_char       TYPE char1.
 
     find_results_array_bounds(
@@ -2714,22 +2791,13 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      IF lv_char <> '{'.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-              |Unexpected character in results array at offset { lv_position }|.
-      ENDIF.
-
-      lv_object_to =
-        find_matching_end(
+      lv_value_end =
+        read_json_value_end(
           i_text  = i_json
-          i_start = lv_position
-          i_open  = '{'
-          i_close = '}' ).
+          i_start = lv_position ).
 
       rv_count = rv_count + 1.
-      lv_position = lv_object_to + 1.
+      lv_position = lv_value_end.
 
     ENDWHILE.
 
@@ -2819,7 +2887,16 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_object_from TYPE i,
       lv_object_to   TYPE i,
       lv_previous    TYPE string,
-      lv_current     TYPE string.
+      lv_current     TYPE string,
+      lv_previous_i  TYPE i,
+      lv_current_i   TYPE i.
+
+    IF i_property <> 'PSTYPE'
+       AND i_property <> 'SUPPLIERNAME'.
+      cl_abap_unit_assert=>fail(
+        msg =
+          |assert_rows_sorted supports only PSTYPE and SUPPLIERNAME, not { i_property }| ).
+    ENDIF.
 
     lv_row_count =
       get_result_count( i_json ).
@@ -2852,13 +2929,38 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       ENDIF.
 
       lv_current =
-        to_upper(
-          unquote_json(
-            i_token = <ls_property>-token ) ).
+        unquote_json(
+          i_token = <ls_property>-token ).
 
-      IF lv_previous IS NOT INITIAL.
+      IF lv_row_index > 1.
 
-        IF i_descending = abap_true.
+        IF i_property = 'PSTYPE'
+           AND lv_previous IS NOT INITIAL
+           AND lv_current IS NOT INITIAL.
+
+          lv_previous_i =
+            CONV i( lv_previous ).
+
+          lv_current_i =
+            CONV i( lv_current ).
+
+          IF i_descending = abap_true.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_i >= lv_current_i )
+              msg =
+                |Rows must be sorted descending by { i_property }| ).
+
+          ELSE.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_i <= lv_current_i )
+              msg =
+                |Rows must be sorted ascending by { i_property }| ).
+
+          ENDIF.
+
+        ELSEIF i_descending = abap_true.
 
           cl_abap_unit_assert=>assert_true(
             act = xsdbool( lv_previous >= lv_current )
@@ -3086,7 +3188,8 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_array_to   TYPE i,
       lv_position   TYPE i,
       lv_found      TYPE i,
-      lv_char       TYPE char1.
+      lv_char       TYPE char1,
+      lv_value_end  TYPE i.
 
     IF i_index <= 0.
       RAISE EXCEPTION TYPE zcx_fi_das_error
@@ -3121,27 +3224,26 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      IF lv_char <> '{'.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-              |Unexpected character in results array at offset { lv_position }|.
-      ENDIF.
-
       lv_found = lv_found + 1.
-      e_object_from = lv_position.
-      e_object_to =
-        find_matching_end(
+      lv_value_end =
+        read_json_value_end(
           i_text  = i_json
-          i_start = e_object_from
-          i_open  = '{'
-          i_close = '}' ).
+          i_start = lv_position ).
 
       IF lv_found = i_index.
+        IF lv_char <> '{'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_reason =
+                |Result row { i_index } is not a JSON object|.
+        ENDIF.
+
+        e_object_from = lv_position.
+        e_object_to = lv_value_end - 1.
         RETURN.
       ENDIF.
 
-      lv_position = e_object_to + 1.
+      lv_position = lv_value_end.
 
     ENDWHILE.
 

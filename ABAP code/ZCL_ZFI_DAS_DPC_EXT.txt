@@ -18,6 +18,7 @@ private section.
     MC_PROPERTY_PONUMBER     type STRING value 'PONUMBER',
     MC_PROPERTY_ITEMNO       type STRING value 'ITEMNO',
     MC_PROPERTY_SUPPLIERNAME type STRING value 'SUPPLIERNAME',
+    MC_QUERY_TOP             type STRING value '$TOP',
     MC_KEY_EMAIL             type STRING value 'IP_EMAIL',
     MC_KEY_PSTYPE            type STRING value 'IP_PSTYPE',
     MC_KEY_POOWNER           type STRING value 'IP_POOWNER',
@@ -72,6 +73,31 @@ METHOD build_request.
   ENDIF.
 
   " Paging
+
+  DATA(lv_request_uri) = VALUE string( ).
+
+  TRY.
+      DATA(lo_request_context) =
+        CAST /iwbep/cl_mgw_request( io_tech_request_context ).
+
+      DATA(ls_request_details) =
+        lo_request_context->get_request_details( ).
+
+      lv_request_uri = VALUE #(
+        ls_request_details-technical_request-request_header[
+          name = '~request_uri'
+        ]-value OPTIONAL ).
+
+    CATCH cx_sy_move_cast_error.
+      CLEAR lv_request_uri.
+  ENDTRY.
+
+  DATA(lv_request_uri_upper) = to_upper( lv_request_uri ).
+
+  IF lv_request_uri_upper CS '$TOP='
+     OR lv_request_uri_upper CS '%24TOP='.
+    rs_request-paging-top_requested = abap_true.
+  ENDIF.
 
   rs_request-paging-top =
     io_tech_request_context->get_top( ).

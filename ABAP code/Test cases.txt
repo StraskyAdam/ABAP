@@ -1,80 +1,325 @@
-/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=PONUMBER eq '8000401022' and ITEMNO eq '00002' and substringof('Fuji',SUPPLIERNAME)
-/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
+DAS SEGW OData Manual Test URLs
+==================================
+
+Common parameters
+-----------------
+IP_EMAIL='adam.strasky@takeda.com'
+IP_POOWNER=''
+
+Base service
+------------
+/sap/opu/odata/sap/ZFI_DAS_SRV
+
+
+1. BASIC DATA LOADING
+=====================
+
+1.1 Over, material
+------------------
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
+
+1.2 Over, service
+-----------------
 /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
+
+1.3 Under, material
+-------------------
 /sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
+
+1.4 Under, service
+------------------
 /sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
 
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100&$skip=0&$inlinecount=allpages
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100&$skip=100&$inlinecount=allpages
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=PONUMBER eq '8000401022' and ITEMNO eq '00002' and substringof('Fuji',SUPPLIERNAME) eq true&$inlinecount=allpages
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
-
-GET /sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
+1.5 Exclusion
+-------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100
 
 
-== CONTAINS FILTRE (value helpy) ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('40102',PONUMBER)&$select=PONUMBER,POLINEDESC&$top=1000
-/openPOParameters(IP_PSTYPE='0',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('00002',ITEMNO)&$select=ITEMNO&$top=1000
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('Fuji',SUPPLIERNAME)&$select=SUPPLIERID,SUPPLIERNAME&$top=1000
-/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('Lee Hecht',SUPPLIERNAME)&$select=SUPPLIERID,SUPPLIERNAME&$top=1000
+2. PAGING
+=========
 
-== EQ FILTRE (SmartFilterBar tokeny) ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=PONUMBER eq '8002077142'&$inlinecount=allpages&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=PONUMBER eq '8002077142' and ITEMNO eq '00010'&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=(PONUMBER eq '8002077142' or PONUMBER eq '8002077289') and substringof('Hitachi',SUPPLIERNAME)&$inlinecount=allpages&$top=100
+2.1 First page
+--------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100&$skip=0&$inlinecount=allpages
 
-== ORDERBY (default + user sort) ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=PSTYPE desc&$skip=0&$top=100&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=SUPPLIERNAME asc&$skip=0&$top=100&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=SUPPLIERNAME asc&$skip=100&$top=100&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=AMOUNTACCRUED desc&$skip=0&$top=100&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=REVIWED_BY desc&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=NOT_A_COLUMN asc&$top=100
+2.2 Second page
+---------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=100&$skip=100&$inlinecount=allpages
 
-== GENERIC COLUMN FILTRE (Column Settings "Filter...") ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=COMPANYCODE eq '2028'&$inlinecount=allpages&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=POCURRENCY eq 'JPY'&$inlinecount=allpages&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('Local Support',POLINEDESC)&$inlinecount=allpages&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=POCURRENCY eq 'JPY' and COMPANYCODE eq '2028'&$inlinecount=allpages&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=POCURRENCY eq 'JPY'&$orderby=SUPPLIERNAME asc&$skip=0&$top=100&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=SUPPLIERID eq '426870'&$inlinecount=allpages&$top=100
+2.3 Skip beyond result set
+--------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$skip=999999&$top=100&$inlinecount=allpages
 
-== COUNTY (tab badge) ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$inlinecount=allpages&$top=1
-/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$inlinecount=allpages&$top=1
-/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$inlinecount=allpages&$top=1
-/exclusionPOParameters(IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$inlinecount=allpages&$top=1
+Expected:
+- The second page must not contain rows from the first page.
+- The request with skip 999999 must return an empty results array.
+- __count must remain the same across pages.
 
-== APPROVE FLOW (dávkové čítanie) ==
-/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$inlinecount=allpages&$top=1000
-/openPOParameters(IP_PSTYPE='*',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$top=1000
 
-== SELECT / SKIP CALCULATIONS ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$select=PONUMBER,POLINEDESC&$top=10
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$select=PONUMBER,STATUS&$top=10
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$select=REVIWED_BY,PONUMBER&$top=10
+3. COUNTS FOR TAB BADGES
+========================
 
-== EDGE CASES ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('',PONUMBER)&$top=10
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$filter=substringof('XXXNEEXISTUJE',SUPPLIERNAME)&$inlinecount=allpages&$top=10
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$orderby=SUPPLIERNAME asc&$skip=999999&$top=100&$inlinecount=allpages
+3.1 Over, service
+-----------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
 
-== EDGE PAGING/COUNT ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$top=0&$inlinecount=allpages
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$skip=999999&$top=100
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$top=5
--- posledny: BEZ $inlinecount -> response NESMIE obsahovat __count
-== INVOICE_CURRENCY ==
-/openPOParameters(IP_PSTYPE='9',IP_EMAIL='user@takeda.com',IP_POOWNER='X')/Results?$select=PONUMBER,INVOICE_CURRENCY,POCURRENCY&$top=50
--- porovnat s XSA: mena posledneho invoice, fallback ako v SF_getInvoiceCurrency
+3.2 Over, material
+------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
+
+3.3 Under, service
+------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
+
+3.4 Under, material
+-------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
+
+3.5 Exclusion
+-------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1
+
+
+4. SMARTFILTERBAR EQ FILTERS
+============================
+
+4.1 PO number
+-------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=PONUMBER eq '8002077142'&$inlinecount=allpages&$top=100
+
+4.2 PO number and item number
+-----------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=PONUMBER eq '8002077142' and ITEMNO eq '00010'&$inlinecount=allpages
+
+4.3 Multiple PO values and supplier filter
+-------------------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=(PONUMBER eq '8002077142' or PONUMBER eq '8002077289') and substringof('Hitachi',SUPPLIERNAME)&$inlinecount=allpages&$top=100
+
+4.4 Specific parity case
+------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=PONUMBER eq '8000401022' and ITEMNO eq '00002' and substringof('Fuji',SUPPLIERNAME)&$inlinecount=allpages
+
+
+5. CONTAINS FILTERS AND VALUE HELPS
+==================================
+
+5.1 PO value help
+-----------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('40102',PONUMBER)&$select=PONUMBER,POLINEDESC&$top=1000
+
+5.2 Item value help
+-------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='0',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('00002',ITEMNO)&$select=ITEMNO&$top=1000
+
+5.3 Supplier value help, over
+-----------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('Fuji',SUPPLIERNAME)&$select=SUPPLIERID,SUPPLIERNAME&$top=1000
+
+5.4 Supplier value help, under
+------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('Lee Hecht',SUPPLIERNAME)&$select=SUPPLIERID,SUPPLIERNAME&$top=1000
+
+
+6. GENERIC COLUMN FILTERS
+=========================
+
+6.1 Company code
+----------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=COMPANYCODE eq '2028'&$inlinecount=allpages&$top=100
+
+6.2 PO currency
+---------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=POCURRENCY eq 'JPY'&$inlinecount=allpages&$top=100
+
+6.3 PO description contains
+---------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('Local Support',POLINEDESC)&$inlinecount=allpages&$top=100
+
+6.4 Combined filters
+--------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=POCURRENCY eq 'JPY' and COMPANYCODE eq '2028'&$inlinecount=allpages&$top=100
+
+6.5 Supplier ID
+---------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=SUPPLIERID eq '426870'&$inlinecount=allpages&$top=100
+
+6.6 Filter, sort and paging together
+------------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=POCURRENCY eq 'JPY'&$orderby=SUPPLIERNAME asc&$skip=0&$top=100&$inlinecount=allpages
+
+
+7. USER SORTING
+===============
+
+7.1 Supplier ascending, first page
+----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=SUPPLIERNAME asc&$skip=0&$top=100&$inlinecount=allpages
+
+7.2 Supplier ascending, second page
+-----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=SUPPLIERNAME asc&$skip=100&$top=100&$inlinecount=allpages
+
+7.3 Amount accrued descending
+-----------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=AMOUNTACCRUED desc&$skip=0&$top=100&$inlinecount=allpages
+
+7.4 Reviewed by descending
+--------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=REVIWED_BY desc&$top=100
+
+7.5 Unknown property
+--------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=NOT_A_COLUMN asc&$top=100
+
+Expected:
+- The request must not dump.
+- The unknown property is ignored.
+- The base result order remains unchanged.
+
+
+8. PSTYPE SORTING
+=================
+
+8.1 Over/under with a single PSTYPE
+-----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=PSTYPE desc&$skip=0&$top=100&$inlinecount=allpages
+
+Expected:
+- The sort must not change the order because over/under contains one PSTYPE only.
+
+8.2 Exclusion, PSTYPE descending, first page
+--------------------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=PSTYPE desc&$skip=0&$top=100&$inlinecount=allpages
+
+8.3 Exclusion, PSTYPE descending, second page
+---------------------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=PSTYPE desc&$skip=100&$top=100&$inlinecount=allpages
+
+Expected:
+- Service rows (9) appear before material rows (0).
+- __count is identical on both pages.
+- There are no duplicates between pages.
+
+8.4 Exclusion, PSTYPE ascending
+-------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/exclusionPOParameters(IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=PSTYPE asc&$skip=0&$top=100&$inlinecount=allpages
+
+Expected:
+- Material rows (0) appear before service rows (9).
+
+
+9. SELECT AND SKIP CALCULATIONS
+==============================
+
+9.1 Simple fields only
+----------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=PONUMBER,POLINEDESC&$top=10
+
+Expected:
+- Calculations may be skipped.
+
+9.2 Calculated STATUS field
+---------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=PONUMBER,STATUS&$top=10
+
+Expected:
+- Calculations must not be skipped.
+
+9.3 Reviewed by
+---------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=REVIWED_BY,PONUMBER&$top=10
+
+9.4 Invoice currency
+--------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$select=PONUMBER,INVOICE_CURRENCY,POCURRENCY&$top=50
+
+Expected:
+- INVOICE_CURRENCY matches the last relevant invoice.
+- The fallback matches SF_getInvoiceCurrency logic.
+
+
+10. APPROVE FLOW AND BATCH READING
+==================================
+
+10.1 Under service
+------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/thresholdParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$inlinecount=allpages&$top=1000
+
+10.2 Open PO for all PSTYPE values
+----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='*',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=1000
+
+Note:
+- Test 10.2 is valid only if the backend supports IP_PSTYPE='*'.
+
+
+11. EDGE CASES
+==============
+
+11.1 Empty contains expression
+------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('',PONUMBER)&$top=10
+
+Expected behavior must be defined explicitly:
+- The empty filter is ignored, or
+- The empty filter matches all rows.
+
+11.2 Non-existent supplier
+---------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$filter=substringof('XXXNEEXISTUJE',SUPPLIERNAME)&$inlinecount=allpages&$top=10
+
+Expected:
+- Empty results array.
+- __count = "0".
+
+11.3 Skip beyond sorted result set
+----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$orderby=SUPPLIERNAME asc&$skip=999999&$top=100&$inlinecount=allpages
+
+Expected:
+- Empty results array.
+- __count contains the total count before paging.
+
+
+12. EDGE PAGING AND COUNT
+=========================
+
+12.1 Top zero
+-------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=0&$inlinecount=allpages
+
+12.2 High skip without inline count
+-----------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$skip=999999&$top=100
+
+12.3 Request without inline count
+---------------------------------
+/sap/opu/odata/sap/ZFI_DAS_SRV/openPOParameters(IP_PSTYPE='9',IP_EMAIL='adam.strasky@takeda.com',IP_POOWNER='')/Results?$top=5
+
+Expected for test 12.3:
+- The response must not contain __count.
+
+
+13. P2 BUSINESS BOUNDARIES
+==========================
+
+These cases require specific purchase orders with prepared test data.
+
+13.1 Threshold equality
+-----------------------
+Condition:
+- PO total equals threshold exactly.
+
+Expected:
+- The PO belongs to the under tab.
+- The PO does not belong to the over tab.
+
+13.2 Review day boundary
+------------------------
+Condition:
+- The PO was reviewed in the previous month.
+- Compare execution on day 6 and day 7 of the current month.
+
+Expected:
+- Day 6: review is kept.
+- Day 7: review is reset.

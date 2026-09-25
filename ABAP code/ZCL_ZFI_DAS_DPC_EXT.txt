@@ -18,6 +18,7 @@ private section.
     MC_PROPERTY_PONUMBER     type STRING value 'PONUMBER',
     MC_PROPERTY_ITEMNO       type STRING value 'ITEMNO',
     MC_PROPERTY_SUPPLIERNAME type STRING value 'SUPPLIERNAME',
+    MC_QUERY_TOP             type STRING value '$TOP',
     MC_KEY_EMAIL             type STRING value 'IP_EMAIL',
     MC_KEY_PSTYPE            type STRING value 'IP_PSTYPE',
     MC_KEY_POOWNER           type STRING value 'IP_POOWNER',
@@ -49,7 +50,6 @@ METHOD build_request.
   CLEAR rs_request.
 
   " Parameters z openPOParameters(...)
-
   READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<ls_key>)
     WITH KEY name = mc_key_email.
 
@@ -72,6 +72,30 @@ METHOD build_request.
   ENDIF.
 
   " Paging
+  DATA(lv_request_uri) = VALUE string( ).
+
+  TRY.
+      DATA(lo_request_context) =
+        CAST /iwbep/cl_mgw_request( io_tech_request_context ).
+
+      DATA(ls_request_details) =
+        lo_request_context->get_request_details( ).
+
+      lv_request_uri = VALUE #(
+        ls_request_details-technical_request-request_header[
+          name = '~request_uri'
+        ]-value OPTIONAL ).
+
+    CATCH cx_sy_move_cast_error.
+      CLEAR lv_request_uri.
+  ENDTRY.
+
+  DATA(lv_request_uri_upper) = to_upper( lv_request_uri ).
+
+  IF lv_request_uri_upper CS '$TOP='
+     OR lv_request_uri_upper CS '%24TOP='.
+    rs_request-paging-top_requested = abap_true.
+  ENDIF.
 
   rs_request-paging-top =
     io_tech_request_context->get_top( ).
@@ -83,136 +107,135 @@ METHOD build_request.
     io_tech_request_context->has_inlinecount( ).
 
   " OData filtre
+  IF io_tech_request_context->get_filter( ) IS BOUND.
+    DATA(lt_filters) =
+      io_tech_request_context->get_filter( )->get_filter_select_options( ).
 
-  DATA(lt_filters) =
-    io_tech_request_context->get_filter( )->get_filter_select_options( ).
+    LOOP AT lt_filters ASSIGNING FIELD-SYMBOL(<ls_filter>).
 
-  LOOP AT lt_filters ASSIGNING FIELD-SYMBOL(<ls_filter>).
+      CASE to_upper( <ls_filter>-property ).
 
-    CASE to_upper( <ls_filter>-property ).
+        WHEN mc_property_ponumber.
 
-      WHEN mc_property_ponumber.
+          LOOP AT <ls_filter>-select_options
+            ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
 
-        LOOP AT <ls_filter>-select_options
-          ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
+            IF <ls_ponumber>-option = mc_option_contains
+               AND <ls_ponumber>-sign = mc_sign_include.
 
-          IF <ls_ponumber>-option = mc_option_contains
-             AND <ls_ponumber>-sign = mc_sign_include.
+              DATA(l_po_contains) =
+                get_contains_value( <ls_ponumber>-low ).
 
-            DATA(l_po_contains) =
-              get_contains_value( <ls_ponumber>-low ).
+              IF l_po_contains IS NOT INITIAL.
+                APPEND VALUE #( value = l_po_contains )
+                  TO rs_request-po_contains.
+              ENDIF.
 
-            IF l_po_contains IS NOT INITIAL.
-              APPEND VALUE #( value = l_po_contains )
-                TO rs_request-po_contains.
+            ELSE.
+
+              APPEND VALUE #(
+                sign   = <ls_ponumber>-sign
+                option = <ls_ponumber>-option
+                low    = CONV ebeln( <ls_ponumber>-low )
+                high   = CONV ebeln( <ls_ponumber>-high )
+              ) TO rs_request-ponumber.
+
             ENDIF.
 
-          ELSE.
+          ENDLOOP.
 
-            APPEND VALUE #(
-              sign   = <ls_ponumber>-sign
-              option = <ls_ponumber>-option
-              low    = CONV ebeln( <ls_ponumber>-low )
-              high   = CONV ebeln( <ls_ponumber>-high )
-            ) TO rs_request-ponumber.
+        WHEN mc_property_itemno.
 
-          ENDIF.
+          LOOP AT <ls_filter>-select_options
+            ASSIGNING FIELD-SYMBOL(<ls_itemno>).
 
-        ENDLOOP.
+            IF <ls_itemno>-option = mc_option_contains
+               AND <ls_itemno>-sign = mc_sign_include.
 
-      WHEN mc_property_itemno.
+              DATA(l_item_contains) =
+                get_contains_value( <ls_itemno>-low ).
 
-        LOOP AT <ls_filter>-select_options
-          ASSIGNING FIELD-SYMBOL(<ls_itemno>).
+              IF l_item_contains IS NOT INITIAL.
+                APPEND VALUE #( value = l_item_contains )
+                  TO rs_request-item_contains.
+              ENDIF.
 
-          IF <ls_itemno>-option = mc_option_contains
-             AND <ls_itemno>-sign = mc_sign_include.
+            ELSE.
 
-            DATA(l_item_contains) =
-              get_contains_value( <ls_itemno>-low ).
+              APPEND VALUE #(
+                sign   = <ls_itemno>-sign
+                option = <ls_itemno>-option
+                low    = CONV ebelp( <ls_itemno>-low )
+                high   = CONV ebelp( <ls_itemno>-high )
+              ) TO rs_request-itemno.
 
-            IF l_item_contains IS NOT INITIAL.
-              APPEND VALUE #( value = l_item_contains )
-                TO rs_request-item_contains.
             ENDIF.
 
-          ELSE.
+          ENDLOOP.
 
-            APPEND VALUE #(
-              sign   = <ls_itemno>-sign
-              option = <ls_itemno>-option
-              low    = CONV ebelp( <ls_itemno>-low )
-              high   = CONV ebelp( <ls_itemno>-high )
-            ) TO rs_request-itemno.
+        WHEN mc_property_suppliername.
 
-          ENDIF.
+          LOOP AT <ls_filter>-select_options
+            ASSIGNING FIELD-SYMBOL(<ls_supplier>).
 
-        ENDLOOP.
+            DATA(l_supplier_contains) =
+              get_contains_value( <ls_supplier>-low ).
 
-      WHEN mc_property_suppliername.
+            IF l_supplier_contains IS NOT INITIAL.
+              APPEND VALUE #(
+                value = CONV zif_fi_das_dashboard=>t_supplier(
+                          l_supplier_contains )
+              ) TO rs_request-supplier_contains.
+            ENDIF.
 
-        LOOP AT <ls_filter>-select_options
-          ASSIGNING FIELD-SYMBOL(<ls_supplier>).
+          ENDLOOP.
 
-          DATA(l_supplier_contains) =
-            get_contains_value( <ls_supplier>-low ).
+        WHEN OTHERS.
 
-          IF l_supplier_contains IS NOT INITIAL.
-            APPEND VALUE #(
-              value = CONV zif_fi_das_dashboard=>t_supplier(
-                        l_supplier_contains )
-            ) TO rs_request-supplier_contains.
-          ENDIF.
+          " Column Settings "Filter..." on any other column: pass it
+          " through generically, evaluation happens in the dashboard.
+          LOOP AT <ls_filter>-select_options
+            ASSIGNING FIELD-SYMBOL(<ls_generic>).
 
-        ENDLOOP.
+            IF <ls_generic>-sign <> mc_sign_include.
+              CONTINUE.
+            ENDIF.
 
-      WHEN OTHERS.
+            IF <ls_generic>-option = mc_option_contains.
 
-        " Column Settings "Filter..." on any other column: pass it
-        " through generically, evaluation happens in the dashboard.
-        LOOP AT <ls_filter>-select_options
-          ASSIGNING FIELD-SYMBOL(<ls_generic>).
+              DATA(l_generic_contains) =
+                get_contains_value( <ls_generic>-low ).
 
-          IF <ls_generic>-sign <> mc_sign_include.
-            CONTINUE.
-          ENDIF.
+              IF l_generic_contains IS NOT INITIAL.
+                APPEND VALUE #(
+                  property = to_upper( <ls_filter>-property )
+                  option   = mc_option_contains
+                  low      = CONV zif_fi_das_dashboard=>t_text_500(
+                               l_generic_contains )
+                ) TO rs_request-generic_filters.
+              ENDIF.
 
-          IF <ls_generic>-option = mc_option_contains.
+            ELSE.
 
-            DATA(l_generic_contains) =
-              get_contains_value( <ls_generic>-low ).
-
-            IF l_generic_contains IS NOT INITIAL.
               APPEND VALUE #(
                 property = to_upper( <ls_filter>-property )
-                option   = mc_option_contains
+                option   = <ls_generic>-option
                 low      = CONV zif_fi_das_dashboard=>t_text_500(
-                             l_generic_contains )
+                             <ls_generic>-low )
+                high     = CONV zif_fi_das_dashboard=>t_text_500(
+                             <ls_generic>-high )
               ) TO rs_request-generic_filters.
+
             ENDIF.
 
-          ELSE.
+          ENDLOOP.
 
-            APPEND VALUE #(
-              property = to_upper( <ls_filter>-property )
-              option   = <ls_generic>-option
-              low      = CONV zif_fi_das_dashboard=>t_text_500(
-                           <ls_generic>-low )
-              high     = CONV zif_fi_das_dashboard=>t_text_500(
-                           <ls_generic>-high )
-            ) TO rs_request-generic_filters.
+      ENDCASE.
 
-          ENDIF.
-
-        ENDLOOP.
-
-
-    ENDCASE.
-
-  ENDLOOP.
+    ENDLOOP.
+  ENDIF.
 
   " $orderby - first entry only, evaluation happens in the dashboard
-
   DATA(lt_orderby) = io_tech_request_context->get_orderby( ).
 
   READ TABLE lt_orderby INTO DATA(ls_orderby) INDEX 1.
@@ -226,7 +249,6 @@ METHOD build_request.
 
   " $select - raw comma-separated list, evaluation happens
   " in the dashboard
-
   rs_request-select = to_upper(
     concat_lines_of(
       table = io_tech_request_context->get_select( )

@@ -94,6 +94,7 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
     BEGIN OF ts_paging,
       skip            TYPE i,
       top             TYPE i,
+      top_requested   TYPE abap_bool,
       count_requested TYPE abap_bool,
     END OF ts_paging.
 

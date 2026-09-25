@@ -535,6 +535,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         i_changed_date        TYPE d
         i_review_day          TYPE i
+        i_current_date TYPE d OPTIONAL
       RETURNING
         VALUE(r_review_action) TYPE t_review_action.
 
@@ -744,6 +745,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
         VALUE(i_excluded_only)     TYPE abap_bool
         VALUE(i_count_requested)   TYPE abap_bool
+        VALUE(i_top_requested)     TYPE abap_bool
         VALUE(i_skip)              TYPE i
         VALUE(i_top)               TYPE i
         VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
@@ -852,7 +854,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     IF l_full_processing = abap_true.
       CLEAR: ls_request-paging-skip,
-             ls_request-paging-top.
+            ls_request-paging-top,
+            ls_request-paging-top_requested.
     ENDIF.
 
     " Generic filters may reference calculated columns - never skip.
@@ -1066,6 +1069,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_poowner           = is_request-poowner
         i_excluded_only     = i_excluded_only
         i_count_requested   = is_request-paging-count_requested
+        i_top_requested     = is_request-paging-top_requested
         i_skip              = is_request-paging-skip
         i_top               = is_request-paging-top
         i_threshold_usd     = get_threshold( )
@@ -2604,6 +2608,7 @@ METHOD get_accounts.
 
   METHOD get_review_action.
     DATA:
+      lv_current_date   TYPE d,
       lv_current_day    TYPE i,
       lv_changed_day    TYPE i,
       lv_current_month  TYPE i,
@@ -2618,9 +2623,14 @@ METHOD get_accounts.
       RETURN.
     ENDIF.
 
-    lv_current_day = sy-datum+6(2).
-    lv_current_month = sy-datum+4(2).
-    lv_current_year = sy-datum+0(4).
+    lv_current_date = COND #(
+      WHEN i_current_date IS INITIAL
+      THEN sy-datum
+      ELSE i_current_date ).
+
+    lv_current_day = lv_current_date+6(2).
+    lv_current_month = lv_current_date+4(2).
+    lv_current_year = lv_current_date+0(4).
     lv_changed_day = i_changed_date+6(2).
     lv_changed_month = i_changed_date+4(2).
     lv_changed_year = i_changed_date+0(4).
@@ -2629,7 +2639,7 @@ METHOD get_accounts.
       r_review_action = mc_review_action_reset.
 
       IF lv_current_day BETWEEN 1 AND 6.
-        lv_previous_month = sy-datum - lv_current_day.
+        lv_previous_month = lv_current_date - lv_current_day.
         IF i_changed_date+0(6) = lv_previous_month+0(6).
           r_review_action = mc_review_action_keep.
         ENDIF.
@@ -3420,6 +3430,12 @@ METHOD get_po_filter.
     DATA(l_skip) = is_request-paging-skip.
     DATA(l_top)  = is_request-paging-top.
 
+    IF is_request-paging-top_requested = abap_true
+       AND l_top = 0.
+      CLEAR ct_result.
+      RETURN.
+    ENDIF.
+
     IF l_top > 0 AND lines( ct_result ) > l_skip + l_top.
       DELETE ct_result FROM l_skip + l_top + 1.
     ENDIF.
@@ -4008,8 +4024,10 @@ METHOD get_keys
 
         AND
         (
-          :i_top = 0
-          OR numbered.row_number_value <= :i_skip + :i_top
+             ( :i_top_requested = ''
+               AND :i_top = 0 )
+          OR ( :i_top > 0
+               AND numbered.row_number_value <= :i_skip + :i_top )
         )
 
       ORDER BY numbered.row_number_value;

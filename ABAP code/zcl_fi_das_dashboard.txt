@@ -895,7 +895,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       CHANGING
         ct_result           = ct_result ).
 
-    IF is_full_processing_required( Ls_request ) = abap_true.
+    IF is_full_processing_required( ls_request ) = abap_true.
 
       apply_generic_filter(
         EXPORTING

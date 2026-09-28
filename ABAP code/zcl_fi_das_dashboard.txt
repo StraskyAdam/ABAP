@@ -18,34 +18,34 @@ CLASS zcl_fi_das_dashboard DEFINITION
       t_review_action    TYPE c LENGTH 1.
 
     CONSTANTS:
-      mc_yes                 TYPE c LENGTH 1 VALUE 'X',
-      mc_currency_jpy        TYPE waers VALUE 'JPY',
-      mc_currency_vnd        TYPE waers VALUE 'VND',
+      mc_yes                  TYPE c LENGTH 1 VALUE 'X',
+      mc_currency_jpy         TYPE waers VALUE 'JPY',
+      mc_currency_vnd         TYPE waers VALUE 'VND',
 
-      mc_bewtp_e             TYPE ekbe-bewtp VALUE 'E',
-      mc_bewtp_q             TYPE ekbe-bewtp VALUE 'Q',
-      mc_bewtp_n             TYPE ekbe-bewtp VALUE 'N',
-      mc_vgabe_2             TYPE ekbe-vgabe VALUE '2',
-      mc_vgabe_3             TYPE ekbe-vgabe VALUE '3',
-      mc_credit_indicator    TYPE ekbe-shkzg VALUE 'H',
+      mc_bewtp_e              TYPE ekbe-bewtp VALUE 'E',
+      mc_bewtp_q              TYPE ekbe-bewtp VALUE 'Q',
+      mc_bewtp_n              TYPE ekbe-bewtp VALUE 'N',
+      mc_vgabe_2              TYPE ekbe-vgabe VALUE '2',
+      mc_vgabe_3              TYPE ekbe-vgabe VALUE '3',
+      mc_credit_indicator     TYPE ekbe-shkzg VALUE 'H',
 
-      mc_rule_gl             TYPE t_rule_type VALUE 'GL',
-      mc_rule_cost_center    TYPE t_rule_type VALUE 'CC',
-      mc_rule_profit_center  TYPE t_rule_type VALUE 'PC',
-      mc_rule_po             TYPE t_rule_type VALUE 'PO',
-      mc_rule_vendor         TYPE t_rule_type VALUE 'VD',
-      mc_rule_internal_order TYPE t_rule_type VALUE 'IV',
+      mc_rule_gl              TYPE t_rule_type VALUE 'GL',
+      mc_rule_cost_center     TYPE t_rule_type VALUE 'CC',
+      mc_rule_profit_center   TYPE t_rule_type VALUE 'PC',
+      mc_rule_po              TYPE t_rule_type VALUE 'PO',
+      mc_rule_vendor          TYPE t_rule_type VALUE 'VD',
+      mc_rule_internal_order  TYPE t_rule_type VALUE 'IV',
 
-      mc_config_japan_brazil TYPE zfi_das_conf_val-config_name
+      mc_config_japan_brazil  TYPE zfi_das_conf_val-config_name
         VALUE 'Japan_Brazil',
-      mc_config_review_day   TYPE zfi_das_conf_val-config_name
+      mc_config_review_day    TYPE zfi_das_conf_val-config_name
         VALUE 'ACCRUAL_REVIEW_DATE',
 
-      mc_format_decimal_dot  TYPE xudcpfm VALUE 'X',
-      mc_null                TYPE string VALUE 'NULL',
-      mc_asterisk_sign       TYPE c LENGTH 1 VALUE '*',
-      mc_percent_sign        TYPE c LENGTH 1 VALUE '%',
-      mc_comma               TYPE c LENGTH 1 VALUE ',',
+      mc_format_decimal_dot   TYPE xudcpfm VALUE 'X',
+      mc_null                 TYPE string VALUE 'NULL',
+      mc_asterisk_sign        TYPE c LENGTH 1 VALUE '*',
+      mc_percent_sign         TYPE c LENGTH 1 VALUE '%',
+      mc_comma                TYPE c LENGTH 1 VALUE ',',
       mc_amount_decimals      TYPE i VALUE 2,
       mc_calculation_decimals TYPE i VALUE 8,
       mc_percentage_decimals  TYPE i VALUE 1,
@@ -80,18 +80,18 @@ CLASS zcl_fi_das_dashboard DEFINITION
     CONSTANTS:
       " Fields fully served by APPLY_DETAIL. A $select restricted to
       " these fields (value-help request) skips all calculations.
-      mc_detail_fields TYPE string
+      mc_value_help_fields TYPE string
         VALUE `PONUMBER,ITEMNO,POLINEDESC,SUPPLIERID,SUPPLIERNAME`,
 
       " PSTYPE orderby is a no-op: every request is single-pstype
       " filtered and the AMDP order already includes pstype.
-      mc_orderby_pstype TYPE string VALUE `PSTYPE`,
+      mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
 
-      mc_sort_ponumber TYPE string VALUE `PONUMBER`,
-      mc_sort_itemno   TYPE string VALUE `ITEMNO`,
+      mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
+      mc_sort_itemno       TYPE string VALUE `ITEMNO`,
 
-      mc_sign_include TYPE ddsign VALUE 'I',
-      mc_option_equal TYPE ddoption VALUE 'EQ'.
+      mc_sign_include      TYPE ddsign VALUE 'I',
+      mc_option_equal      TYPE ddoption VALUE 'EQ'.
 
 
 
@@ -200,13 +200,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES:
       BEGIN OF ts_history_aggregate,
-        ponumber              TYPE ebeln,
-        itemno                TYPE ebelp,
-        gr_value              TYPE t_amount_high,
-        gr_value_usd          TYPE t_amount_high,
-        invoice_value         TYPE t_amount_precision,
-        invoice_local         TYPE t_amount_precision,
-        invoice_usd           TYPE t_amount_precision,
+        ponumber      TYPE ebeln,
+        itemno        TYPE ebelp,
+        gr_value      TYPE t_amount_high,
+        gr_value_usd  TYPE t_amount_high,
+        invoice_value TYPE t_amount_precision,
+        invoice_local TYPE t_amount_precision,
+        invoice_usd   TYPE t_amount_precision,
       END OF ts_history_aggregate,
 
       tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate
@@ -318,16 +318,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
       tt_amdp_supplier_filter TYPE STANDARD TABLE OF ts_amdp_supplier_filter
         WITH EMPTY KEY.
 
-    METHODS get_required_keys
+************************************************
+
+    METHODS execute_request
       IMPORTING
         is_request      TYPE zif_fi_das_dashboard=>ts_request
         i_mode          TYPE zif_fi_das_dashboard=>t_operation
-        i_excluded_only TYPE abap_bool
-      EXPORTING
-        et_keys         TYPE tt_key
-        e_total_count   TYPE int8
+        i_excluded_only TYPE abap_bool DEFAULT abap_false
+      CHANGING
+        ct_result       TYPE ANY TABLE
+        c_total_count   TYPE int8
       RAISING
         zcx_fi_das_error
+        cx_sy_conversion_error
         cx_sy_open_sql_db.
 
     METHODS validate_request
@@ -337,26 +340,173 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    METHODS adjust_request
+      IMPORTING
+                is_request        TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING VALUE(rs_request) TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS get_email
+      IMPORTING
+        i_email        TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
+
+    METHODS remove_default_sorting
+      CHANGING
+        cs_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS is_full_processing_required
+      IMPORTING
+                is_request                           TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING VALUE(r_is_full_processing_required) TYPE abap_bool.
+
+    METHODS set_full_processing
+      CHANGING
+        cs_request               TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(r_full_processing) TYPE xsdboolean.
+
+    METHODS should_skip_calculations
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(r_result) TYPE abap_bool.
+
+    METHODS get_required_keys
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+        i_excluded_only TYPE abap_bool
+      EXPORTING
+        et_keys         TYPE tt_key
+        e_total_count   TYPE int8
+      RAISING
+        cx_sy_open_sql_db
+        zcx_fi_das_error.
+
+    METHODS get_access_scope
+      IMPORTING
+        i_email             TYPE zif_fi_das_dashboard=>t_email
+        i_poowner           TYPE abap_bool
+      EXPORTING
+        et_company_codes    TYPE tt_company_scope
+        et_cost_centers     TYPE tt_cost_center_scope
+        et_management_units TYPE tt_management_scope.
+
+    METHODS get_role
+      IMPORTING
+        i_email        TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(rs_role) TYPE ts_role.
+
+    METHODS get_company_codes
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_company_scope.
+
+    METHODS get_cost_centers
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_cost_center_scope.
+
+    METHODS get_management_units
+      IMPORTING
+        i_value         TYPE string
+      RETURNING
+        VALUE(rt_scope) TYPE tt_management_scope.
+
+    METHODS get_pstype
+      IMPORTING
+        is_request      TYPE zif_fi_das_dashboard=>ts_request
+        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+      RETURNING
+        VALUE(r_pstype) TYPE zif_fi_das_dashboard=>t_pstype.
+
+    METHODS get_threshold
+      RETURNING
+        VALUE(r_threshold_usd) TYPE zfi_das_thresh-po_threshold
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_japan_brazil
+      RETURNING
+        VALUE(rt_company_codes) TYPE tt_company_scope
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS create_contains_pattern
+      IMPORTING
+        i_value          TYPE string
+      RETURNING
+        VALUE(r_pattern) TYPE string.
+
+    METHODS get_po_filter
+      IMPORTING
+        is_request          TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_po_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_po_filter
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_item_filter
+      IMPORTING
+        is_request            TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_item_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_item_filter
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_supplier_filter
+      IMPORTING
+        is_request                TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rt_supplier_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_supplier_filter.
+
+    CLASS-METHODS get_keys
+      IMPORTING
+        VALUE(i_mode)              TYPE zif_fi_das_dashboard=>t_operation
+        VALUE(i_pstype)            TYPE zif_fi_das_dashboard=>t_pstype
+        VALUE(i_email)             TYPE zif_fi_das_dashboard=>t_email
+        VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
+        VALUE(i_excluded_only)     TYPE abap_bool
+        VALUE(i_count_requested)   TYPE abap_bool
+        VALUE(i_top_requested)     TYPE abap_bool
+        VALUE(i_skip)              TYPE i
+        VALUE(i_top)               TYPE i
+        VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
+        VALUE(it_japan_brazil)     TYPE tt_company_scope
+        VALUE(it_company_codes)    TYPE tt_company_scope
+        VALUE(it_cost_centers)     TYPE tt_cost_center_scope
+        VALUE(it_management_units) TYPE tt_management_scope
+        VALUE(it_po_filter)        TYPE tt_amdp_po_filter
+        VALUE(it_item_filter)      TYPE tt_amdp_item_filter
+        VALUE(it_supplier_filter)  TYPE tt_amdp_supplier_filter
+      EXPORTING
+        VALUE(et_keys)             TYPE tt_key
+        VALUE(e_total_count)       TYPE int8.
+
     METHODS get_results
       IMPORTING
-        it_keys             TYPE tt_key
-        is_context          TYPE ts_context
-        i_mode              TYPE zif_fi_das_dashboard=>t_operation
-        i_decimal_format    TYPE zif_fi_das_dashboard=>t_decimal_format
-        i_skip_calculations TYPE abap_bool DEFAULT abap_false
+        it_keys          TYPE tt_key
+        is_context       TYPE ts_context
+        i_mode           TYPE zif_fi_das_dashboard=>t_operation
+        i_decimal_format TYPE zif_fi_das_dashboard=>t_decimal_format
+        is_request       TYPE zif_fi_das_dashboard=>ts_request
       CHANGING
-        ct_result           TYPE ANY TABLE
+        ct_result        TYPE ANY TABLE
       RAISING
         zcx_fi_das_error.
 
     METHODS get_row
       IMPORTING
-        is_key              TYPE ts_key
-        is_context          TYPE ts_context
-        i_mode              TYPE zif_fi_das_dashboard=>t_operation
-        i_skip_calculations TYPE abap_bool DEFAULT abap_false
+        is_key        TYPE ts_key
+        is_context    TYPE ts_context
+        i_mode        TYPE zif_fi_das_dashboard=>t_operation
+        is_request    TYPE zif_fi_das_dashboard=>ts_request
       RETURNING
-        VALUE(rs_row)       TYPE zif_fi_das_dashboard=>ts_result
+        VALUE(rs_row) TYPE zif_fi_das_dashboard=>ts_result
       RAISING
         zcx_fi_das_error.
 
@@ -370,11 +520,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_context
       IMPORTING
-        it_keys             TYPE tt_key
-        i_mode              TYPE zif_fi_das_dashboard=>t_operation
-        i_skip_calculations TYPE abap_bool DEFAULT abap_false
+        it_keys           TYPE tt_key
+        i_mode            TYPE zif_fi_das_dashboard=>t_operation
+        is_request        TYPE zif_fi_das_dashboard=>ts_request
       RETURNING
-        VALUE(rs_context)   TYPE ts_context
+        VALUE(rs_context) TYPE ts_context
       RAISING
         zcx_fi_das_error
         cx_sy_open_sql_db.
@@ -533,9 +683,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_review_action
       IMPORTING
-        i_changed_date        TYPE d
-        i_review_day          TYPE i
-        i_current_date TYPE d OPTIONAL
+        i_changed_date         TYPE d
+        i_review_day           TYPE i
+        i_current_date         TYPE d OPTIONAL
       RETURNING
         VALUE(r_review_action) TYPE t_review_action.
 
@@ -580,72 +730,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS get_role
-      IMPORTING
-        i_email        TYPE zif_fi_das_dashboard=>t_email
-      RETURNING
-        VALUE(rs_role) TYPE ts_role
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_access_scope
-      IMPORTING
-        i_email             TYPE zif_fi_das_dashboard=>t_email
-        i_poowner           TYPE abap_bool
-      EXPORTING
-        et_company_codes    TYPE tt_company_scope
-        et_cost_centers     TYPE tt_cost_center_scope
-        et_management_units TYPE tt_management_scope
-      RAISING
-        zcx_fi_das_error.
-
-
-    METHODS get_company_codes
-      IMPORTING
-        i_value         TYPE string
-      RETURNING
-        VALUE(rt_scope) TYPE tt_company_scope.
-
-    METHODS get_cost_centers
-      IMPORTING
-        i_value         TYPE string
-      RETURNING
-        VALUE(rt_scope) TYPE tt_cost_center_scope.
-
-    METHODS get_management_units
-      IMPORTING
-        i_value         TYPE string
-      RETURNING
-        VALUE(rt_scope) TYPE tt_management_scope.
-
-    METHODS get_po_filter
-      IMPORTING
-        is_request          TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_po_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_po_filter
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_item_filter
-      IMPORTING
-        is_request            TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_item_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_item_filter
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_supplier_filter
-      IMPORTING
-        is_request                TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_supplier_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_supplier_filter.
-
-    METHODS get_email
-      IMPORTING
-        i_email        TYPE zif_fi_das_dashboard=>t_email
-      RETURNING
-        VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
-
     METHODS read_exchange_rate
       IMPORTING
         i_source_currency TYPE waers
@@ -658,11 +742,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS convert_to_usd
       IMPORTING
-        i_amount               TYPE t_amount_precision
-        i_source_currency      TYPE waers
-        i_keep_precision       TYPE abap_bool DEFAULT abap_false
+        i_amount          TYPE t_amount_precision
+        i_source_currency TYPE waers
+        i_keep_precision  TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rv_amount)       TYPE zif_fi_das_dashboard=>t_amount
+        VALUE(rv_amount)  TYPE zif_fi_das_dashboard=>t_amount
       RAISING
         zcx_fi_das_error
         cx_sy_open_sql_db.
@@ -682,11 +766,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         cx_sy_open_sql_db.
 
-    METHODS get_threshold
-      RETURNING
-        VALUE(r_threshold_usd) TYPE zfi_das_thresh-po_threshold
-      RAISING
-        zcx_fi_das_error.
+
 
     METHODS get_review_day
       RETURNING
@@ -694,28 +774,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS get_japan_brazil
-      RETURNING
-        VALUE(rt_company_codes) TYPE tt_company_scope
-      RAISING
-        zcx_fi_das_error.
 
-    METHODS get_pstype
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_mode          TYPE zif_fi_das_dashboard=>t_operation
-      RETURNING
-        VALUE(r_pstype) TYPE zif_fi_das_dashboard=>t_pstype.
+
+
 
     METHODS get_accrual_method_text
       IMPORTING
-        i_method       TYPE zif_fi_das_dashboard=>t_accrual_method
+        i_method      TYPE zif_fi_das_dashboard=>t_accrual_method
       RETURNING
         VALUE(r_text) TYPE zif_fi_das_dashboard=>t_accrual_method.
 
     METHODS get_pstype_text
       IMPORTING
-        i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+        i_pstype      TYPE zif_fi_das_dashboard=>t_pstype
       RETURNING
         VALUE(r_text) TYPE char10.
 
@@ -725,11 +796,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_text) TYPE string.
 
-    METHODS derive_skip_calculations
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_result) TYPE abap_bool.
+
 
     METHODS apply_sort_and_paging
       IMPORTING
@@ -737,46 +804,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
       CHANGING
         ct_result  TYPE STANDARD TABLE.
 
-    CLASS-METHODS get_keys
-      IMPORTING
-        VALUE(i_mode)              TYPE zif_fi_das_dashboard=>t_operation
-        VALUE(i_pstype)            TYPE zif_fi_das_dashboard=>t_pstype
-        VALUE(i_email)             TYPE zif_fi_das_dashboard=>t_email
-        VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
-        VALUE(i_excluded_only)     TYPE abap_bool
-        VALUE(i_count_requested)   TYPE abap_bool
-        VALUE(i_top_requested)     TYPE abap_bool
-        VALUE(i_skip)              TYPE i
-        VALUE(i_top)               TYPE i
-        VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
-        VALUE(it_japan_brazil)     TYPE tt_company_scope
-        VALUE(it_company_codes)    TYPE tt_company_scope
-        VALUE(it_cost_centers)     TYPE tt_cost_center_scope
-        VALUE(it_management_units) TYPE tt_management_scope
-        VALUE(it_po_filter)        TYPE tt_amdp_po_filter
-        VALUE(it_item_filter)      TYPE tt_amdp_item_filter
-        VALUE(it_supplier_filter)  TYPE tt_amdp_supplier_filter
-      EXPORTING
-        VALUE(et_keys)             TYPE tt_key
-        VALUE(e_total_count)       TYPE int8.
+
 
     DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
-    METHODS execute_request
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_mode          TYPE zif_fi_das_dashboard=>t_operation
-        i_excluded_only TYPE abap_bool
-      CHANGING
-        ct_result        TYPE ANY TABLE
-        cv_total_count   TYPE int8
-      RAISING
-        zcx_fi_das_error
-        cx_sy_conversion_error
-        cx_sy_open_sql_db.
 
 
-      METHODS apply_generic_filter
+
+    METHODS apply_generic_filter
       IMPORTING
         is_request TYPE zif_fi_das_dashboard=>ts_request
       CHANGING
@@ -786,19 +821,17 @@ ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-    METHOD zif_fi_das_dashboard~over.
+  METHOD zif_fi_das_dashboard~over.
 
     execute_request(
       EXPORTING
         is_request      = is_request
         i_mode          = zif_fi_das_dashboard=>mc_over
-        i_excluded_only = abap_false
       CHANGING
-        ct_result        = et_result
-        cv_total_count   = e_total_count ).
+        ct_result       = et_result
+        c_total_count   = e_total_count ).
 
   ENDMETHOD.
-
 
   METHOD zif_fi_das_dashboard~under.
 
@@ -806,13 +839,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       EXPORTING
         is_request      = is_request
         i_mode          = zif_fi_das_dashboard=>mc_under
-        i_excluded_only = abap_false
       CHANGING
-        ct_result        = et_result
-        cv_total_count   = e_total_count ).
+        ct_result       = et_result
+        c_total_count   = e_total_count ).
 
   ENDMETHOD.
-
 
   METHOD zif_fi_das_dashboard~exclude.
 
@@ -822,47 +853,17 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_mode          = zif_fi_das_dashboard=>mc_exclude
         i_excluded_only = abap_true
       CHANGING
-        ct_result        = et_result
-        cv_total_count   = e_total_count ).
+        ct_result       = et_result
+        c_total_count   = e_total_count ).
 
   ENDMETHOD.
 
-
   METHOD execute_request.
 
-    CLEAR:
-      ct_result,
-      cv_total_count.
+    validate_request( is_request = is_request
+                      i_mode     = i_mode ).
 
-    DATA(ls_request) = is_request.
-
-    " PSTYPE desc is the UI default sorter and matches the AMDP
-    " ORDER BY (pstype DESC, ponumber, itemno) - a no-op for all
-    " modes including exclude. Explicit ascending PSTYPE takes
-    " the full-processing path.
-    IF ls_request-orderby-property = mc_orderby_pstype
-       AND ls_request-orderby-descending = abap_true.
-      CLEAR ls_request-orderby.
-    ENDIF.
-
-    " Full processing (full key set, ABAP post-processing) is needed
-    " when a real $orderby or a generic column filter is present:
-    " xsodata filters and sorts before LIMIT/OFFSET.
-    DATA(l_full_processing) =
-      xsdbool( ls_request-orderby-property IS NOT INITIAL
-               OR ls_request-generic_filters IS NOT INITIAL ).
-
-    IF l_full_processing = abap_true.
-      CLEAR: ls_request-paging-skip,
-            ls_request-paging-top,
-            ls_request-paging-top_requested.
-    ENDIF.
-
-    " Generic filters may reference calculated columns - never skip.
-    DATA(l_skip_calculations) = COND abap_bool(
-      WHEN ls_request-generic_filters IS NOT INITIAL
-      THEN abap_false
-      ELSE derive_skip_calculations( ls_request ) ).
+    DATA(ls_request) = adjust_request( is_request ).
 
     get_required_keys(
       EXPORTING
@@ -871,7 +872,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_excluded_only = i_excluded_only
       IMPORTING
         et_keys         = DATA(lt_keys)
-        e_total_count   = cv_total_count ).
+        e_total_count   = c_total_count ).
 
     IF lt_keys IS INITIAL.
       RETURN.
@@ -881,7 +882,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       get_context(
         it_keys             = lt_keys
         i_mode              = i_mode
-        i_skip_calculations = l_skip_calculations ).
+        is_request = ls_request ).
 
     get_results(
       EXPORTING
@@ -890,11 +891,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_mode              = i_mode
         i_decimal_format    = read_request_decimal_format(
           i_email = is_request-email )
-        i_skip_calculations = l_skip_calculations
+       is_request = ls_request
       CHANGING
         ct_result           = ct_result ).
 
-    IF l_full_processing = abap_true.
+    IF is_full_processing_required( ls_request ) = abap_true.
 
       apply_generic_filter(
         EXPORTING
@@ -904,7 +905,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       " Filtered count - the same value xsodata returns as
       " $inlinecount after applying $filter.
-      cv_total_count = lines( ct_result ).
+      c_total_count = lines( ct_result ).
 
       apply_sort_and_paging(
         EXPORTING
@@ -917,7 +918,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
 
-    METHOD apply_generic_filter.
+  METHOD apply_generic_filter.
 
     " Applies Column Settings filters on any result column, in place.
     " Entries for the same property combine with OR, different
@@ -1020,27 +1021,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-   METHOD derive_skip_calculations.
+  METHOD should_skip_calculations.
 
-    " Calculations are skipped only for narrow value-help selects:
-    " a non-empty $select whose every field is a plain detail field.
-    " Any $orderby needs the full row, so it disables the skip.
-
+*   Skip calculations only for value helps
     r_result = abap_false.
 
-    IF is_request-select IS INITIAL
-       OR is_request-orderby-property IS NOT INITIAL.
+    IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
       RETURN.
     ENDIF.
 
-    SPLIT is_request-select
-      AT zif_fi_das_dashboard=>mc_comma
-      INTO TABLE DATA(lt_fields).
+    LOOP AT zcl_fi_das_utility=>split_list( is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-    LOOP AT lt_fields ASSIGNING FIELD-SYMBOL(<l_field>).
-      IF NOT mc_detail_fields CS <l_field>.
+      IF NOT mc_value_help_fields CS <f_value>.
         RETURN.
       ENDIF.
+
     ENDLOOP.
 
     r_result = abap_true.
@@ -1049,12 +1044,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_required_keys.
 
-    validate_request( is_request = is_request
-                      i_mode     = i_mode ).
-
-    DATA(l_email) = get_email( is_request-email ).
-
-    get_access_scope( EXPORTING i_email   = l_email
+    get_access_scope( EXPORTING i_email   = is_request-email
                                 i_poowner = is_request-poowner
                       IMPORTING et_cost_centers = DATA(lt_cost_centers)
                                 et_company_codes = DATA(lt_company_codes)
@@ -1065,7 +1055,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_mode              = i_mode
         i_pstype            = get_pstype( is_request = is_request
                                           i_mode     = i_mode )
-        i_email             = l_email
+        i_email             = is_request-email
         i_poowner           = is_request-poowner
         i_excluded_only     = i_excluded_only
         i_count_requested   = is_request-paging-count_requested
@@ -1145,7 +1135,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         is_key              = <fs_key>
         is_context          = is_context
         i_mode              = i_mode
-        i_skip_calculations = i_skip_calculations ).
+         is_request      =  is_request  ).
 
       IF ls_row-ponumber IS INITIAL.
         CONTINUE.
@@ -1186,7 +1176,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     " Value-help request: detail fields are complete and the
     " context tables are empty - nothing else to apply.
-    IF i_skip_calculations = abap_true.
+    IF should_skip_calculations( is_request ) = abap_true.
       RETURN.
     ENDIF.
 
@@ -1352,12 +1342,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-    METHOD get_context.
+  METHOD get_context.
 
     rs_context-details = get_details( it_keys ).
 
     " Value-help request: only detail data is needed.
-    IF i_skip_calculations = abap_true.
+    IF should_skip_calculations( is_request ) = abap_true.
       RETURN.
     ENDIF.
 
@@ -1369,12 +1359,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                  it_details = rs_context-details ).
     rs_context-statuses      = get_statuses( it_keys ).
 
-   IF i_mode <> zif_fi_das_dashboard=>mc_exclude.
-    rs_context-notifications = get_notifications( it_keys ).
+    IF i_mode <> zif_fi_das_dashboard=>mc_exclude.
+      rs_context-notifications = get_notifications( it_keys ).
     ENDIF.
-     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
-    rs_context-exclusions    = get_exclusions( it_keys ).
-     ENDIF.
+    IF i_mode = zif_fi_das_dashboard=>mc_exclude.
+      rs_context-exclusions    = get_exclusions( it_keys ).
+    ENDIF.
     rs_context-review_day    = get_review_day( ).
 
     read_users(
@@ -1438,7 +1428,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-METHOD get_accounts.
+  METHOD get_accounts.
 
     IF it_keys IS INITIAL.
       RETURN.
@@ -1764,16 +1754,16 @@ METHOD get_accounts.
 
   ENDMETHOD.
 
-   METHOD read_users
-    BY DATABASE PROCEDURE
-    FOR HDB
-    LANGUAGE SQLSCRIPT
-    OPTIONS READ-ONLY
-    USING usr21
-          adrp
-          adr6
-          usr01
-          usr02.
+  METHOD read_users
+   BY DATABASE PROCEDURE
+   FOR HDB
+   LANGUAGE SQLSCRIPT
+   OPTIONS READ-ONLY
+   USING usr21
+         adrp
+         adr6
+         usr01
+         usr02.
 
     lt_requested =
       SELECT DISTINCT
@@ -2093,7 +2083,7 @@ METHOD get_accounts.
 *
 *    ENDIF.
 
- cs_result-edgewtdamt = is_status-wtd_amount.
+    cs_result-edgewtdamt = is_status-wtd_amount.
 
     lv_closure =
       is_status-po_closure.
@@ -2855,7 +2845,6 @@ METHOD get_accounts.
 
   ENDMETHOD.
 
-
   METHOD get_role.
 
     SELECT SINGLE company_code, cost_center, management_unit
@@ -2863,58 +2852,41 @@ METHOD get_accounts.
     WHERE user_emailid = @i_email
       INTO @rs_role.
 
-*    IF sy-subrc <> 0.
-*
-*      RAISE EXCEPTION TYPE zcx_fi_das_error
-*        MESSAGE e012(zfi_das).
-*
-*    ENDIF.
+    IF sy-subrc <> 0.
+      CLEAR rs_role.
+    ENDIF.
 
   ENDMETHOD.
 
   METHOD get_access_scope.
 
-    IF i_poowner = abap_true. " OR i_email = mc_percent_sign.
+    IF i_poowner = abap_true OR i_email = mc_percent_sign.
 
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_company_codes.
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_cost_centers.
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_management_units.
-
       RETURN.
 
     ENDIF.
 
     DATA(ls_role) = get_role( i_email ).
 
-
     et_cost_centers = get_cost_centers( ls_role-cost_center ).
     et_company_codes = get_company_codes( ls_role-company_code ).
     et_management_units = get_management_units( ls_role-management_unit ).
-
-*    IF et_company_codes IS INITIAL OR et_cost_centers IS INITIAL OR et_management_units IS INITIAL.
-*
-*      RAISE EXCEPTION TYPE zcx_fi_das_error
-*         MESSAGE e013(zfi_das).
-*
-*    ENDIF.
 
   ENDMETHOD.
 
   METHOD get_company_codes.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      CONDENSE <fv_value>.
-      <fv_value> = to_upper( <fv_value> ).
-
-      IF <fv_value> IS INITIAL.
-        CONTINUE.
-
-      ELSEIF <fv_value> = mc_asterisk_sign.
+      IF <f_value> = mc_asterisk_sign.
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
-      ELSE.
-        INSERT VALUE #( value = CONV bukrs( <fv_value> ) ) INTO TABLE rt_scope.
+      ELSEIF <f_value> IS NOT INITIAL.
+        <f_value> = to_upper( <f_value> ).
+        INSERT VALUE #( value = CONV bukrs( <f_value> ) ) INTO TABLE rt_scope.
       ENDIF.
 
     ENDLOOP.
@@ -2923,22 +2895,17 @@ METHOD get_accounts.
 
   METHOD get_cost_centers.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      CONDENSE <fv_value>.
-      <fv_value> = to_upper( <fv_value> ).
-
-      IF <fv_value> IS INITIAL.
-        CONTINUE.
-
-      ELSEIF <fv_value> = mc_asterisk_sign.
+      IF <f_value> = mc_asterisk_sign.
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
-      ELSEIF <fv_value> = mc_null.
+      ELSEIF <f_value> = mc_null.
         INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
 
-      ELSE.
-        INSERT VALUE #( value = |{ CONV kostl( <fv_value> ) ALPHA = IN }| ) INTO TABLE rt_scope.
+      ELSEIF <f_value> IS NOT INITIAL.
+        <f_value> = to_upper( <f_value> ).
+        INSERT VALUE #( value = |{ CONV kostl( <f_value> ) ALPHA = IN }| ) INTO TABLE rt_scope.
       ENDIF.
 
     ENDLOOP.
@@ -2947,122 +2914,92 @@ METHOD get_accounts.
 
   METHOD get_management_units.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<fv_value>).
+    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      CONDENSE <fv_value>.
-      <fv_value> = to_upper( <fv_value> ).
-
-      IF <fv_value> IS INITIAL.
-        CONTINUE.
-
-      ELSEIF <fv_value> = mc_asterisk_sign.
+      IF <f_value> = mc_asterisk_sign.
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
-      ELSEIF <fv_value> = mc_null.
+      ELSEIF <f_value> = mc_null.
         INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
 
-      ELSE.
-        INSERT VALUE #( value = CONV csks-zzrptun( <fv_value> ) ) INTO TABLE rt_scope.
+      ELSEIF <f_value> IS NOT INITIAL.
+        <f_value> = to_upper( <f_value> ).
+        INSERT VALUE #( value = CONV csks-zzrptun( <f_value> ) ) INTO TABLE rt_scope.
       ENDIF.
 
     ENDLOOP.
 
   ENDMETHOD.
 
-METHOD get_po_filter.
+  METHOD get_po_filter.
 
-    " Exact tokens from the SmartFilterBar.
-    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
+    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<fs_ponumber>).
 
-      IF <ls_ponumber>-sign <> mc_sign_include
-         OR <ls_ponumber>-option <> mc_option_equal.
+      IF <fs_ponumber>-sign <> mc_sign_include OR <fs_ponumber>-option <> mc_option_equal.
+
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e009(zfi_das).
+            MESSAGE e010(zfi_das).
+
       ENDIF.
 
-      APPEND VALUE #(
-        value        = <ls_ponumber>-low
-        value_length = 0
-      ) TO rt_po_filter.
+      APPEND VALUE #( value = <fs_ponumber>-low ) TO rt_po_filter.
 
     ENDLOOP.
 
-    " Contains patterns from the value help. XSA exposes PONUMBER
-    " LTRIM'd, so the LIKE in AMDP runs on LTRIM(ponumber, '0').
-    LOOP AT is_request-po_contains ASSIGNING FIELD-SYMBOL(<ls_contains>).
+    LOOP AT is_request-po_contains ASSIGNING FIELD-SYMBOL(<fs_contains>).
 
-      DATA(l_po_pattern) =
-        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
-        |{ condense( CONV string( <ls_contains>-value ) ) }| &&
-        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
+      DATA(l_pattern) = create_contains_pattern( CONV #( <fs_contains>-value ) ).
 
-      APPEND VALUE #(
-        pattern      = l_po_pattern
-        value_length = strlen( l_po_pattern )
-      ) TO rt_po_filter.
+      APPEND VALUE #( pattern = l_pattern
+                      value_length = strlen( l_pattern ) ) TO rt_po_filter.
 
     ENDLOOP.
 
   ENDMETHOD.
 
-   METHOD get_item_filter.
+  METHOD get_item_filter.
 
-    " Exact tokens from the SmartFilterBar.
-    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<ls_itemno>).
+    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<fs_itemno>).
 
-      IF <ls_itemno>-sign <> mc_sign_include
-         OR <ls_itemno>-option <> mc_option_equal.
+      IF <fs_itemno>-sign <> mc_sign_include OR <fs_itemno>-option <> mc_option_equal.
+
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e009(zfi_das).
+            MESSAGE e010(zfi_das).
+
       ENDIF.
 
-      APPEND VALUE #(
-        value        = <ls_itemno>-low
-        value_length = 0
-      ) TO rt_item_filter.
+      APPEND VALUE #( value = <fs_itemno>-low ) TO rt_item_filter.
 
     ENDLOOP.
 
-    " Contains patterns from the value help. XSA exposes ITEMNO as
-    " stored, so the LIKE in AMDP runs on the FULL value -
-    " searching '00002' must match ITEMNO '00002'.
-    LOOP AT is_request-item_contains ASSIGNING FIELD-SYMBOL(<ls_contains>).
+    LOOP AT is_request-item_contains ASSIGNING FIELD-SYMBOL(<l_contains>).
 
-      DATA(l_item_pattern) =
-        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
-        |{ condense( CONV string( <ls_contains>-value ) ) }| &&
-        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
+      DATA(l_pattern) = create_contains_pattern( CONV #( <l_contains>-value ) ).
 
-      APPEND VALUE #(
-        pattern      = l_item_pattern
-        value_length = strlen( l_item_pattern )
-      ) TO rt_item_filter.
+      APPEND VALUE #( pattern = l_pattern
+                      value_length = strlen( l_pattern ) ) TO rt_item_filter.
 
     ENDLOOP.
 
   ENDMETHOD.
-
 
   METHOD get_supplier_filter.
 
-    " Pattern must be lowercase: the AMDP predicate compares
-    " LOWER( suppliername ) LIKE value.
+    LOOP AT is_request-supplier_contains ASSIGNING FIELD-SYMBOL(<fs_supplier>).
 
-    LOOP AT is_request-supplier_contains
-      ASSIGNING FIELD-SYMBOL(<ls_supplier>).
+      DATA(l_pattern) = to_lower( create_contains_pattern( CONV #( <fs_supplier>-value ) ) ).
 
-      DATA(l_supplier_pattern) =
-        |{ zif_fi_das_dashboard=>mc_percent_sign }| &&
-        |{ to_lower( condense( CONV string( <ls_supplier>-value ) ) ) }| &&
-        |{ zif_fi_das_dashboard=>mc_percent_sign }|.
-
-      APPEND VALUE #(
-        value        = CONV zif_fi_das_dashboard=>t_supplier(
-                         l_supplier_pattern )
-        value_length = strlen( l_supplier_pattern )
-      ) TO rt_supplier_filter.
+      APPEND VALUE #( value        = CONV zif_fi_das_dashboard=>t_supplier( l_pattern )
+                      value_length = strlen( l_pattern ) ) TO rt_supplier_filter.
 
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD create_contains_pattern.
+
+    DATA(l_value) = condense( i_value ).
+    r_pattern = |{ zif_fi_das_dashboard=>mc_percent_sign }| && l_value && |{ zif_fi_das_dashboard=>mc_percent_sign }|.
 
   ENDMETHOD.
 
@@ -3088,9 +3025,9 @@ METHOD get_po_filter.
        AND sy-subrc = 0.
       rs_rate-rate = <fs_exchrt>-exchange_rate.
     ELSE.
-     RAISE EXCEPTION TYPE zcx_fi_das_error
-        MESSAGE e017(zfi_das)
-        WITH i_source_currency i_target_currency.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+         MESSAGE e017(zfi_das)
+         WITH i_source_currency i_target_currency.
 
     ENDIF.
   ENDMETHOD.
@@ -3281,10 +3218,6 @@ METHOD get_po_filter.
 
   ENDMETHOD.
 
-
-
-
-
   METHOD get_threshold.
 
     SELECT SINGLE po_threshold
@@ -3342,18 +3275,9 @@ METHOD get_po_filter.
 
     ENDIF.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value     = CONV string( l_config_value )
-                                            i_delimiter = mc_comma ) ASSIGNING FIELD-SYMBOL(<fv_value>).
-
-      CONDENSE <fv_value> NO-GAPS.
-
-      IF <fv_value> IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      INSERT VALUE #( value = CONV bukrs( <fv_value> ) ) INTO TABLE rt_company_codes.
-
-    ENDLOOP.
+    rt_company_codes = VALUE #( FOR l_company_code IN zcl_fi_das_utility=>split_list(
+                                                        i_value = CONV string( l_config_value ) )
+                                    ( value = CONV bukrs( l_company_code ) ) ).
 
   ENDMETHOD.
 
@@ -3445,19 +3369,19 @@ METHOD get_po_filter.
     ENDIF.
 
   ENDMETHOD.
-METHOD get_keys
-  BY DATABASE PROCEDURE
-  FOR HDB
-  LANGUAGE SQLSCRIPT
-  OPTIONS READ-ONLY
-  USING
-    zifidaspobase
-    ekpo
-    ekko
-    ekkn
-    csks
-    zfi_das_po_excl
-    zfi_das_exchrt.
+  METHOD get_keys
+    BY DATABASE PROCEDURE
+    FOR HDB
+    LANGUAGE SQLSCRIPT
+    OPTIONS READ-ONLY
+    USING
+      zifidaspobase
+      ekpo
+      ekko
+      ekkn
+      csks
+      zfi_das_po_excl
+      zfi_das_exchrt.
 
     lt_base_candidates =
       SELECT
@@ -4033,5 +3957,46 @@ METHOD get_keys
       ORDER BY numbered.row_number_value;
 
   ENDMETHOD.
+
+  METHOD remove_default_sorting.
+
+*   Default PSTYPE DESC sorting is already applied by AMDP
+    IF cs_request-orderby-property = mc_orderby_pstype AND cs_request-orderby-descending = abap_true.
+      CLEAR cs_request-orderby.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD is_full_processing_required.
+
+*   Generic sorting or filtering requires the full result set
+    r_is_full_processing_required = xsdbool( is_request-orderby-property IS NOT INITIAL OR
+                                             is_request-generic_filters  IS NOT INITIAL ).
+  ENDMETHOD.
+
+
+  METHOD set_full_processing.
+
+    IF is_full_processing_required( cs_request ) = abap_true.
+      CLEAR: cs_request-paging-skip,
+             cs_request-paging-top,
+             cs_request-paging-top_requested.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD adjust_request.
+
+    rs_request = is_request.
+
+    rs_request-email = get_email( rs_request-email ).
+
+    remove_default_sorting( CHANGING cs_request = rs_request ).
+
+    set_full_processing( CHANGING cs_request = rs_request ).
+
+  ENDMETHOD.
+
+
 
 ENDCLASS.

@@ -411,20 +411,10 @@ ENDMETHOD.
 
   METHOD normalize_email.
 
-    DATA lv_email TYPE string.
+  r_email = to_lower( condense( val  = CONV string( i_email )
+                                from = space ) ).
 
-    lv_email =
-      i_email.
-
-    SHIFT lv_email LEFT DELETING LEADING space.
-    SHIFT lv_email RIGHT DELETING TRAILING space.
-
-    TRANSLATE lv_email TO LOWER CASE.
-
-    r_email =
-      lv_email.
-
-  ENDMETHOD.
+ENDMETHOD.
 
 
   METHOD parse_percentage.
@@ -481,35 +471,17 @@ ENDMETHOD.
   ENDMETHOD.
 
 
-  METHOD split_list.
+METHOD split_list.
 
-    DATA:
-      lt_parts TYPE STANDARD TABLE OF string WITH EMPTY KEY,
-      lv_part  TYPE string.
+  SPLIT i_value AT i_delimiter INTO TABLE DATA(lt_parts).
 
-    IF i_value IS INITIAL.
-      RETURN.
-    ENDIF.
+  rt_values = VALUE #( FOR l_part IN lt_parts
+                        LET l_trimmed = condense( l_part ) IN
+                          ( l_trimmed ) ).
 
-    SPLIT i_value
-      AT i_delimiter
-      INTO TABLE lt_parts.
+  DELETE rt_values WHERE table_line IS INITIAL.
 
-    LOOP AT lt_parts INTO lv_part.
-
-      SHIFT lv_part LEFT DELETING LEADING space.
-      SHIFT lv_part RIGHT DELETING TRAILING space.
-
-      IF lv_part IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      APPEND lv_part
-        TO rt_values.
-
-    ENDLOOP.
-
-  ENDMETHOD.
+ENDMETHOD.
 
 
   METHOD trim_delimiters.

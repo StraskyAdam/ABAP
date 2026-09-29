@@ -361,9 +361,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS set_full_processing
       CHANGING
-        cs_request               TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_full_processing) TYPE xsdboolean.
+        cs_request               TYPE zif_fi_das_dashboard=>ts_request.
 
     METHODS should_skip_calculations
       IMPORTING
@@ -882,8 +880,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           it_keys             = lt_keys
           is_context          = ls_context
           i_mode              = i_mode
-          i_decimal_format    = read_request_decimal_format(
-            i_email = is_request-email )
+          i_decimal_format    = read_request_decimal_format( i_email = ls_request-email )
          is_request = ls_request
         CHANGING
           ct_result           = ct_result ).
@@ -1015,26 +1012,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD should_skip_calculations.
+   METHOD should_skip_calculations.
 
-*   Skip calculations only for value helps
-    r_result = abap_false.
+*    Skip calculations only for value helps
+     r_result = abap_false.
 
-    IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
-      RETURN.
-    ENDIF.
+     IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
+       RETURN.
+     ENDIF.
 
-    LOOP AT zcl_fi_das_utility=>split_list( is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
+     DATA(lt_value_help_fields) = zcl_fi_das_utility=>split_list( i_value = mc_value_help_fields ).
 
-      IF NOT mc_value_help_fields CS <f_value>.
-        RETURN.
-      ENDIF.
+     LOOP AT zcl_fi_das_utility=>split_list( i_value = is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-    ENDLOOP.
+       DATA(l_field) = to_upper( condense( <f_value> ) ).
 
-    r_result = abap_true.
+       IF NOT line_exists( lt_value_help_fields[ table_line = l_field ] ).
+         RETURN.
+       ENDIF.
 
-  ENDMETHOD.
+     ENDLOOP.
+
+     r_result = abap_true.
+
+   ENDMETHOD.
 
   METHOD get_required_keys.
 

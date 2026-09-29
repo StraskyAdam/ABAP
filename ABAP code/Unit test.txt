@@ -74,7 +74,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     CONSTANTS:
       mc_mime_root TYPE string VALUE '/SAP/PUBLIC/DAS/',
-      mc_max_log   TYPE i VALUE 500,
+      mc_max_log   TYPE i VALUE 5000,
 
 *     Single paging limit for Over, Under and Exclude.
 *     Reduce this value when the productive system has a smaller heap.
@@ -262,6 +262,84 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
    METHODS test_under_supplier_help
             FOR TESTING
      RAISING cx_static_check.
+
+    " ---- Scope NULL / wildcard matrix -------------------------------
+   METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+   METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+       METHODS test_scope_18
+      FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_scope_19
+      FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_scope_20
+      FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_scope_21
+      FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_scope_22
+      FOR TESTING
+      RAISING cx_static_check.
+
+    METHODS test_scope_23
+      FOR TESTING
+      RAISING cx_static_check.
+
+
+
+    METHODS test_scope_24
+      FOR TESTING
+      RAISING cx_static_check.
+
+      METHODS test_scope_25
+      FOR TESTING
+      RAISING cx_static_check.
+          METHODS test_scope_26
+      FOR TESTING
+      RAISING cx_static_check.
+          METHODS test_scope_27
+      FOR TESTING
+      RAISING cx_static_check.
+          METHODS test_scope_28
+      FOR TESTING
+      RAISING cx_static_check.
+          METHODS test_scope_29
+      FOR TESTING
+      RAISING cx_static_check.
+          METHODS test_scope_30
+      FOR TESTING
+      RAISING cx_static_check.
+
+
+   METHODS run_scope_case
+     IMPORTING
+       i_number TYPE n
+     RAISING
+       zcx_fi_das_error
+       cx_sy_conversion_error
+       cx_sy_open_sql_db.
+
+
 
 
     METHODS run_paged_case
@@ -666,7 +744,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       select = `PONUMBER,POLINEDESC` ).
 
     cl_abap_unit_assert=>assert_true(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'PO value-help select must skip calculations' ).
 
   ENDMETHOD.
@@ -678,7 +756,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       select = `ITEMNO` ).
 
     cl_abap_unit_assert=>assert_true(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Item value-help select must skip calculations' ).
 
   ENDMETHOD.
@@ -690,7 +768,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       select = `SUPPLIERID,SUPPLIERNAME` ).
 
     cl_abap_unit_assert=>assert_true(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Supplier value-help select must skip calculations' ).
 
   ENDMETHOD.
@@ -701,7 +779,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( ).
 
     cl_abap_unit_assert=>assert_false(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Empty select must compute everything' ).
 
   ENDMETHOD.
@@ -713,7 +791,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       select = `PONUMBER,STATUS` ).
 
     cl_abap_unit_assert=>assert_false(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Select containing STATUS must compute everything' ).
 
   ENDMETHOD.
@@ -726,7 +804,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( property = `SUPPLIERNAME` ) ).
 
     cl_abap_unit_assert=>assert_false(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Orderby must disable calculation skipping' ).
 
   ENDMETHOD.
@@ -1193,7 +1271,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     CLEAR ls_request-orderby.
 
     cl_abap_unit_assert=>assert_true(
-      act = mo_cut->derive_skip_calculations( ls_request )
+      act = mo_cut->should_skip_calculations( ls_request )
       msg = 'Cleared PSTYPE sorter must keep the value-help skip' ).
 
   ENDMETHOD.
@@ -1310,6 +1388,200 @@ ENDCLASS.
 
 
 CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
+
+*----------------------------------------------------------------------
+* Scope NULL / wildcard matrix
+* Users xsa-null-NN@takeda.com must exist in ZFI_DAS role table
+* (ABAP) and in XSA with identical COMPANY_CODE / MANAGEMENT_UNIT /
+* COST_CENTER. Fixture: xsa-scope-NN.json (Over, Service, no owner).
+*----------------------------------------------------------------------
+
+  METHOD run_scope_case.
+
+    DATA ls_case TYPE ts_case.
+
+    ls_case-fixture = |xsa-scope-{ i_number }.json|.
+    ls_case-email   = |xsa-null-{ i_number }@takeda.com|.
+    ls_case-flow    = zif_fi_das_dashboard=>mc_over.
+    ls_case-pstype  = zif_fi_das_dashboard=>mc_pstype_service.
+
+    run_paged_case( is_case = ls_case ).
+
+    assert_no_differences( ).
+
+  ENDMETHOD.
+
+  " CC=NULL, MU=*
+  METHOD test_scope_01.
+    run_scope_case( '01' ).
+  ENDMETHOD.
+
+  " CC=*, MU=NULL
+  METHOD test_scope_02.
+    run_scope_case( '02' ).
+  ENDMETHOD.
+
+  " CC=NULL, MU=NULL
+  METHOD test_scope_03.
+    run_scope_case( '03' ).
+  ENDMETHOD.
+
+  " CC=8036490216, MU=NULL
+  METHOD test_scope_04.
+    run_scope_case( '04' ).
+  ENDMETHOD.
+
+  " CC=NULL, MU=EM_HM_DI
+  METHOD test_scope_05.
+    run_scope_case( '05' ).
+  ENDMETHOD.
+
+  " CC=8036490216, MU=EM_HM_DI
+  METHOD test_scope_06.
+    run_scope_case( '06' ).
+  ENDMETHOD.
+
+  " CC=*, MU=MU_VBU_I,VBD,NULL
+  METHOD test_scope_07.
+    run_scope_case( '07' ).
+  ENDMETHOD.
+
+  " CC=*, MU=*,NULL
+  METHOD test_scope_08.
+    run_scope_case( '08' ).
+  ENDMETHOD.
+
+  " CC=8036490216, MU=EM_HM_DI,NULL
+  METHOD test_scope_09.
+    run_scope_case( '09' ).
+  ENDMETHOD.
+
+  " CC=8036490216,9701219, MU=NULL
+  METHOD test_scope_10.
+    run_scope_case( '10' ).
+  ENDMETHOD.
+
+  " CC=8036490216,9701219, MU=EM_HM_DI,HM_DI
+  METHOD test_scope_11.
+    run_scope_case( '11' ).
+  ENDMETHOD.
+
+  " CC=8036490216,9701219, MU=*
+  METHOD test_scope_12.
+    run_scope_case( '12' ).
+  ENDMETHOD.
+
+  " CC=8036490216, MU=*,NULL
+  METHOD test_scope_13.
+    run_scope_case( '13' ).
+  ENDMETHOD.
+
+  " CC=*, MU=EM_HM_DI,HM_DI
+  METHOD test_scope_14.
+    run_scope_case( '14' ).
+  ENDMETHOD.
+
+  " BUKRS=*, CC=NULL, MU=NULL
+  METHOD test_scope_15.
+    run_scope_case( '15' ).
+  ENDMETHOD.
+
+  " BUKRS=*, CC=*, MU=*
+  METHOD test_scope_16.
+    run_scope_case( '16' ).
+  ENDMETHOD.
+
+  " CC=8036490216,NULL, MU=MU_VBU_I,NULL,VBD (parser: NULL inside list)
+  METHOD test_scope_17.
+    run_scope_case( '17' ).
+  ENDMETHOD.
+
+   METHOD test_scope_18.
+
+    run_scope_case( '18' ).
+
+  ENDMETHOD.
+
+
+  METHOD test_scope_19.
+
+    run_scope_case( '19' ).
+
+  ENDMETHOD.
+
+
+  METHOD test_scope_20.
+
+    run_scope_case( '20' ).
+
+  ENDMETHOD.
+
+
+  METHOD test_scope_21.
+
+    run_scope_case( '21' ).
+
+  ENDMETHOD.
+
+
+  METHOD test_scope_22.
+
+    run_scope_case( '22' ).
+
+  ENDMETHOD.
+
+
+  METHOD test_scope_23.
+
+    run_scope_case( '23' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_24.
+
+    run_scope_case( '24' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_25.
+
+    run_scope_case( '25' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_26.
+
+    run_scope_case( '26' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_27.
+
+    run_scope_case( '27' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_28.
+
+    run_scope_case( '28' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_29.
+
+    run_scope_case( '29' ).
+
+  ENDMETHOD.
+
+    METHOD test_scope_30.
+
+    run_scope_case( '30' ).
+
+  ENDMETHOD.
+
+
+
+
 
   METHOD setup.
 
@@ -6173,6 +6445,8 @@ ENDMETHOD.
       msg = lv_text ).
 
   ENDMETHOD.
+
+
 
 
 

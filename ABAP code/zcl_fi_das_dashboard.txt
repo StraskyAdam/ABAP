@@ -324,7 +324,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_request      TYPE zif_fi_das_dashboard=>ts_request
         i_mode          TYPE zif_fi_das_dashboard=>t_operation
-        i_excluded_only TYPE abap_bool DEFAULT abap_false
       CHANGING
         ct_result       TYPE ANY TABLE
         c_total_count   TYPE int8
@@ -362,9 +361,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS set_full_processing
       CHANGING
-        cs_request               TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(r_full_processing) TYPE xsdboolean.
+        cs_request               TYPE zif_fi_das_dashboard=>ts_request.
 
     METHODS should_skip_calculations
       IMPORTING
@@ -376,7 +373,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_request      TYPE zif_fi_das_dashboard=>ts_request
         i_mode          TYPE zif_fi_das_dashboard=>t_operation
-        i_excluded_only TYPE abap_bool
       EXPORTING
         et_keys         TYPE tt_key
         e_total_count   TYPE int8
@@ -470,7 +466,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_pstype)            TYPE zif_fi_das_dashboard=>t_pstype
         VALUE(i_email)             TYPE zif_fi_das_dashboard=>t_email
         VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
-        VALUE(i_excluded_only)     TYPE abap_bool
         VALUE(i_count_requested)   TYPE abap_bool
         VALUE(i_top_requested)     TYPE abap_bool
         VALUE(i_skip)              TYPE i
@@ -486,6 +481,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       EXPORTING
         VALUE(et_keys)             TYPE tt_key
         VALUE(e_total_count)       TYPE int8.
+
+     METHODS get_context
+       IMPORTING
+         it_keys           TYPE tt_key
+         i_mode            TYPE zif_fi_das_dashboard=>t_operation
+         is_request        TYPE zif_fi_das_dashboard=>ts_request
+       RETURNING
+         VALUE(rs_context) TYPE ts_context
+       RAISING
+         zcx_fi_das_error
+         cx_sy_open_sql_db.
 
     METHODS get_results
       IMPORTING
@@ -518,16 +524,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(rs_result) TYPE zif_fi_das_dashboard=>ts_odata_result.
 
-    METHODS get_context
-      IMPORTING
-        it_keys           TYPE tt_key
-        i_mode            TYPE zif_fi_das_dashboard=>t_operation
-        is_request        TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rs_context) TYPE ts_context
-      RAISING
-        zcx_fi_das_error
-        cx_sy_open_sql_db.
+
 
     METHODS get_details
       IMPORTING
@@ -579,7 +576,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         cx_sy_open_sql_db.
 
-    METHODS read_users
+    METHODS get_users
       IMPORTING
         VALUE(it_details) TYPE tt_source_detail
       EXPORTING
@@ -851,7 +848,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       EXPORTING
         is_request      = is_request
         i_mode          = zif_fi_das_dashboard=>mc_exclude
-        i_excluded_only = abap_true
       CHANGING
         ct_result       = et_result
         c_total_count   = e_total_count ).
@@ -869,50 +865,45 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       EXPORTING
         is_request      = ls_request
         i_mode          = i_mode
-        i_excluded_only = i_excluded_only
       IMPORTING
         et_keys         = DATA(lt_keys)
         e_total_count   = c_total_count ).
 
-    IF lt_keys IS INITIAL.
-      RETURN.
-    ENDIF.
+    IF lt_keys IS NOT INITIAL.
 
-    DATA(ls_context) =
-      get_context(
-        it_keys             = lt_keys
-        i_mode              = i_mode
-        is_request = ls_request ).
+      DATA(ls_context) = get_context( i_mode     = i_mode
+                                      it_keys    = lt_keys
+                                      is_request = ls_request ).
 
-    get_results(
-      EXPORTING
-        it_keys             = lt_keys
-        is_context          = ls_context
-        i_mode              = i_mode
-        i_decimal_format    = read_request_decimal_format(
-          i_email = is_request-email )
-       is_request = ls_request
-      CHANGING
-        ct_result           = ct_result ).
-
-    IF is_full_processing_required( ls_request ) = abap_true.
-
-      apply_generic_filter(
+      get_results(
         EXPORTING
-          is_request = is_request
+          it_keys             = lt_keys
+          is_context          = ls_context
+          i_mode              = i_mode
+          i_decimal_format    = read_request_decimal_format( i_email = ls_request-email )
+         is_request = ls_request
         CHANGING
-          ct_result  = ct_result ).
+          ct_result           = ct_result ).
 
-      " Filtered count - the same value xsodata returns as
-      " $inlinecount after applying $filter.
-      c_total_count = lines( ct_result ).
+      IF is_full_processing_required( ls_request ) = abap_true.
 
-      apply_sort_and_paging(
-        EXPORTING
-          is_request = is_request
-        CHANGING
-          ct_result  = ct_result ).
+        apply_generic_filter(
+          EXPORTING
+            is_request = is_request
+          CHANGING
+            ct_result  = ct_result ).
 
+        " Filtered count - the same value xsodata returns as
+        " $inlinecount after applying $filter.
+        c_total_count = lines( ct_result ).
+
+        apply_sort_and_paging(
+          EXPORTING
+            is_request = is_request
+          CHANGING
+            ct_result  = ct_result ).
+
+      ENDIF.
     ENDIF.
 
   ENDMETHOD.
@@ -1021,26 +1012,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD should_skip_calculations.
+   METHOD should_skip_calculations.
 
-*   Skip calculations only for value helps
-    r_result = abap_false.
+*    Skip calculations only for value helps
+     r_result = abap_false.
 
-    IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
-      RETURN.
-    ENDIF.
+     IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
+       RETURN.
+     ENDIF.
 
-    LOOP AT zcl_fi_das_utility=>split_list( is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
+     DATA(lt_value_help_fields) = zcl_fi_das_utility=>split_list( i_value = mc_value_help_fields ).
 
-      IF NOT mc_value_help_fields CS <f_value>.
-        RETURN.
-      ENDIF.
+     LOOP AT zcl_fi_das_utility=>split_list( i_value = is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-    ENDLOOP.
+       DATA(l_field) = to_upper( condense( <f_value> ) ).
 
-    r_result = abap_true.
+       IF NOT line_exists( lt_value_help_fields[ table_line = l_field ] ).
+         RETURN.
+       ENDIF.
 
-  ENDMETHOD.
+     ENDLOOP.
+
+     r_result = abap_true.
+
+   ENDMETHOD.
 
   METHOD get_required_keys.
 
@@ -1057,7 +1052,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                           i_mode     = i_mode )
         i_email             = is_request-email
         i_poowner           = is_request-poowner
-        i_excluded_only     = i_excluded_only
         i_count_requested   = is_request-paging-count_requested
         i_top_requested     = is_request-paging-top_requested
         i_skip              = is_request-paging-skip
@@ -1346,30 +1340,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     rs_context-details = get_details( it_keys ).
 
-    " Value-help request: only detail data is needed.
     IF should_skip_calculations( is_request ) = abap_true.
       RETURN.
     ENDIF.
 
     get_exchrt( ).
 
-    rs_context-accounts      = get_accounts( it_keys ).
-    rs_context-history       = get_history(
-                                 it_keys    = it_keys
-                                 it_details = rs_context-details ).
-    rs_context-statuses      = get_statuses( it_keys ).
+    rs_context-accounts = get_accounts( it_keys ).
+    rs_context-history = get_history( it_keys    = it_keys
+                                      it_details = rs_context-details ).
+
+    rs_context-statuses = get_statuses( it_keys ).
 
     IF i_mode <> zif_fi_das_dashboard=>mc_exclude.
       rs_context-notifications = get_notifications( it_keys ).
     ENDIF.
+
     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
       rs_context-exclusions    = get_exclusions( it_keys ).
     ENDIF.
+
     rs_context-review_day    = get_review_day( ).
 
-    read_users(
-      EXPORTING it_details = rs_context-details
-      IMPORTING et_users   = rs_context-users ).
+    get_users( EXPORTING it_details = rs_context-details
+               IMPORTING et_users   = rs_context-users ).
 
   ENDMETHOD.
 
@@ -1754,7 +1748,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD read_users
+  METHOD get_users
    BY DATABASE PROCEDURE
    FOR HDB
    LANGUAGE SQLSCRIPT
@@ -2879,14 +2873,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_company_codes.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
+    DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
-      IF <f_value> = mc_asterisk_sign.
+    DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
+
+    LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
+
+      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
+
         <f_value> = to_upper( <f_value> ).
         INSERT VALUE #( value = CONV bukrs( <f_value> ) ) INTO TABLE rt_scope.
+
       ENDIF.
 
     ENDLOOP.
@@ -2895,17 +2896,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_cost_centers.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
+    DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
-      IF <f_value> = mc_asterisk_sign.
-        INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
+    DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
+
+    LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
+
+      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+
+        INSERT VALUE #(  wildcard = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> = mc_null.
+
         INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
+
         <f_value> = to_upper( <f_value> ).
         INSERT VALUE #( value = |{ CONV kostl( <f_value> ) ALPHA = IN }| ) INTO TABLE rt_scope.
+
       ENDIF.
 
     ENDLOOP.
@@ -2914,17 +2923,24 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_management_units.
 
-    LOOP AT zcl_fi_das_utility=>split_list( i_value ) ASSIGNING FIELD-SYMBOL(<f_value>).
+    DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
-      IF <f_value> = mc_asterisk_sign.
+    DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
+
+    LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
+
+      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> = mc_null.
+
         INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
-        <f_value> = to_upper( <f_value> ).
+
         INSERT VALUE #( value = CONV csks-zzrptun( <f_value> ) ) INTO TABLE rt_scope.
+
       ENDIF.
 
     ENDLOOP.
@@ -3376,220 +3392,146 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     OPTIONS READ-ONLY
     USING
       zifidaspobase
-      ekpo
-      ekko
       ekkn
       csks
       zfi_das_po_excl
       zfi_das_exchrt.
 
+    DECLARE lc_empty_string     CONSTANT NVARCHAR(1) = '';
+    DECLARE lc_space            CONSTANT NVARCHAR(1) = ' ';
+    DECLARE lc_true             CONSTANT NVARCHAR(1) = 'X';
+    DECLARE lc_false            CONSTANT NVARCHAR(1) = '';
+    DECLARE lc_zero             CONSTANT NVARCHAR(1) = '0';
+    DECLARE lc_all              CONSTANT NVARCHAR(1) = '*';
+
+    DECLARE lc_pstype_material  CONSTANT NVARCHAR(1) = '0';
+    DECLARE lc_pstype_service   CONSTANT NVARCHAR(1) = '9';
+
+    DECLARE lc_currency_jpy     CONSTANT NVARCHAR(3) = 'JPY';
+    DECLARE lc_currency_vnd     CONSTANT NVARCHAR(3) = 'VND';
+
+    DECLARE lc_mode_over        CONSTANT NVARCHAR(1) = '1';
+    DECLARE lc_mode_under       CONSTANT NVARCHAR(1) = '2';
+    DECLARE lc_mode_all         CONSTANT NVARCHAR(1) = '3';
+
+    DECLARE lc_initial_date     CONSTANT NVARCHAR(8) = '00000000';
+
+    DECLARE lv_excluded_only    NVARCHAR(1) = CASE WHEN :i_mode = :lc_mode_all THEN :lc_true
+                                                                               ELSE :lc_false END;
+
     lt_base_candidates =
       SELECT
-        b.ponumber,
-        b.itemno,
+        base.ponumber,
+        base.itemno,
 
         CASE
-          WHEN b.pstype = '0'
-           AND b.workstartdateraw <> '00000000'
+          WHEN base.pstype = :lc_pstype_material
+           AND base.workstartdateraw <> :lc_initial_date
            AND EXISTS
-               (
-                 SELECT 1
-                   FROM :it_japan_brazil AS jb
-                  WHERE jb.value = b.itemcompanycode
-               )
-          THEN '9'
-          ELSE b.pstype
+           (
+             SELECT 1
+               FROM :it_japan_brazil AS japan_brazil
+              WHERE japan_brazil.value = base.itemcompanycode
+           )
+          THEN :lc_pstype_service
+          ELSE base.pstype
         END AS pstype,
 
-        LOWER( b.porequestor ) AS poowner_email,
-        b.itemcompanycode,
-        b.companycode,
-        b.pocurrency AS po_currency,
-        b.netvalue,
-        b.suppliername,
-        b.supplierid,
-        b.pocreatedat,
-        b.epnumber,
-        b.polinedescription
+        LOWER( base.porequestor ) AS poowner_email,
+        base.companycode,
+        base.pocurrency,
+        base.netvalue
 
-      FROM zifidaspobase AS b
+      FROM zifidaspobase AS base
 
-      INNER JOIN ekpo AS source_ekpo
-        ON  source_ekpo.ebeln = b.ponumber
-        AND source_ekpo.ebelp = b.itemno
-
-      INNER JOIN ekko AS source_ekko
-        ON source_ekko.ebeln = b.ponumber
-
-      WHERE b.finalinvoiceindicator IN ( ' ', '' )
-        AND b.deletionindicator IN ( ' ', '' )
-        AND b.documenttype = 'ZARP'
-
-        AND source_ekko.bsart = 'ZARP'
-        AND source_ekko.reason_code IN ( ' ', '' )
-        AND source_ekko.ebeln BETWEEN '8000000000' AND '8999999999'
-
-        AND source_ekko.bukrs IN
+      WHERE
         (
-          '2028', '6305', '9930', '2720', '1076', '3383', '6960',
-          '3390', '3387', '3310', '3312', '8036', '3317', '2787',
-          '3316', '3032', '3345', '3385', '3347', '3311', '3318',
-          '1380', '9202', '3314', '3381', '3389', '3392', '3393',
-          '3315', '3000', '9970', '7070', '6067', '2776', '8011',
-          '1500', '9971', '8035', '2805', '8290', '4037', '2030',
-          '7430', '8083', '7420', '4840', '8088', '9207', '8800',
-          '9090', '2785', '3025', '9991', '8081', '6999', '8262',
-          '2775', '2772', '8085', '8130', '8087', '9093', '2808',
-          '5052', '8131', '1350', '1523', '1538', '8291', '9210',
-          '4850', '1532', '7072', '2807', '7076', '9995', '2025',
-          '1106', '2022', '2771', '2773', '2774', '2798', '2901',
-          '2936', '2950', '2953', '3033', '5056', '5951', '5955',
-          '6057', '6058', '6061', '6062', '6064', '6068', '6356',
-          '6358', '6372', '6377', '6379', '8086', '8261', '9730',
-          '9732', '9734', '9928', '9962', '9963', '9966', '9980',
-          '9983', '9986', '9989', '9990', '2780', '2810', '9922',
-          '2820', '2021', '6979'
+          NOT EXISTS
+          (
+            SELECT 1
+              FROM :it_po_filter AS po_filter
+             WHERE po_filter.value_length = 0
+          )
+          OR EXISTS
+          (
+            SELECT 1
+              FROM :it_po_filter AS po_filter
+             WHERE po_filter.value_length = 0
+               AND po_filter.value = base.ponumber
+          )
         )
-
-        AND source_ekpo.pstyp IN ( '0', '9' )
-        AND source_ekpo.erekz IN ( ' ', '' )
-        AND source_ekpo.loekz IN ( ' ', '' )
-        AND source_ekpo.ebeln BETWEEN '8000000000' AND '8999999999'
 
         AND
         (
-          source_ekpo.bukrs IN
+          NOT EXISTS
           (
-            '2028', '6305', '9930', '2720', '3383', '2810', '6960',
-            '2025', '3390', '3387', '3310', '3312', '8036', '3317',
-            '2787', '3316', '3032', '3389', '3345', '3385', '3347',
-            '3311', '3318', '1380', '9202', '3314', '3381', '3392',
-            '3393', '3315', '3000', '9970', '7070', '6067', '2776',
-            '8011', '1500', '9971', '8035', '2805', '8290', '4037',
-            '2030', '7430', '8083', '7420', '4840', '8088', '9207',
-            '8800', '9090', '2785', '3025', '9991', '8081', '6999',
-            '8262', '2775', '2772', '8085', '8130', '8087', '9093',
-            '2808', '5052', '8131', '1350', '1523', '1538', '8291',
-            '9210', '4850', '1532', '7072', '2807', '7076', '9995',
-            '1076', '1106', '2022', '2771', '2773', '2774', '2798',
-            '2901', '2936', '2950', '2953', '3033', '5056', '5951',
-            '5955', '6057', '6058', '6061', '6062', '6064', '6068',
-            '6356', '6358', '6372', '6377', '6379', '8086', '8261',
-            '9730', '9732', '9734', '9928', '9962', '9963', '9966',
-            '9980', '9983', '9986', '9989', '9990', '9922', '2820',
-            '2021', '6979'
+            SELECT 1
+              FROM :it_po_filter AS po_filter
+             WHERE po_filter.value_length > 0
           )
-
-          OR
+          OR EXISTS
           (
-            source_ekpo.bukrs = '2780'
+            SELECT 1
+              FROM :it_po_filter AS po_filter
+             WHERE po_filter.value_length > 0
+               AND LTRIM( base.ponumber, :lc_zero )
+                   LIKE po_filter.pattern
+          )
+        )
 
-            AND
+        AND
+        (
+          NOT EXISTS
+          (
+            SELECT 1
+              FROM :it_supplier_filter
+          )
+          OR EXISTS
+          (
+            SELECT 1
+              FROM :it_supplier_filter AS supplier_filter
+             WHERE supplier_filter.value_length > 0
+               AND LOWER(
+                     IFNULL(
+                       base.suppliername,
+                       :lc_empty_string
+                     )
+                   ) LIKE supplier_filter.value
+          )
+        )
+
+        AND
+        (
+             :i_poowner <> :lc_true
+          OR LOWER( base.porequestor ) LIKE :i_email
+          OR LOWER( base.popreparer )  LIKE :i_email
+        )
+
+        AND
+        (
+          (
+            :i_pstype IN
             (
-              source_ekpo.xersy IN ( ' ', '' )
-
-              OR
-              (
-                source_ekpo.xersy = 'X'
-                AND source_ekpo.zstart_date <> '00000000'
-              )
+              :lc_pstype_service,
+              :lc_all
             )
-          )
-        )
-
-        -- PONUMBER: EQ block AND contains block. Tokens within a
-        -- block combine with OR; the blocks combine with AND, the
-        -- same way the OData $filter is composed.
-        AND
-        (
-          NOT EXISTS
-              (
-                SELECT 1
-                  FROM :it_po_filter
-                 WHERE value_length = 0
-              )
-
-          OR EXISTS
-              (
-                SELECT 1
-                  FROM :it_po_filter AS filter_po
-                 WHERE filter_po.value_length = 0
-                   AND filter_po.value = b.ponumber
-              )
-        )
-
-        AND
-        (
-          NOT EXISTS
-              (
-                SELECT 1
-                  FROM :it_po_filter
-                 WHERE value_length > 0
-              )
-
-          -- Pattern arrives ready-made as %value% from ABAP.
-
-          OR EXISTS
-              (
-                SELECT 1
-                  FROM :it_po_filter AS filter_po
-                 WHERE filter_po.value_length > 0
-                   AND LTRIM( b.ponumber, '0' ) LIKE filter_po.pattern
-              )
-        )
-
-        -- Supplier pattern arrives ready-made as %value% from ABAP
-        -- (lowercase); match is case-insensitive.
-        AND
-        (
-          NOT EXISTS
-              (
-                SELECT 1
-                  FROM :it_supplier_filter
-              )
-
-          OR EXISTS
-              (
-                SELECT 1
-                  FROM :it_supplier_filter AS filter_supplier
-                 WHERE filter_supplier.value_length > 0
-                   AND LOWER( IFNULL( b.suppliername, '' ) )
-                       LIKE filter_supplier.value
-              )
-        )
-
-        AND
-        (
-          :i_poowner <> 'X'
-          OR LOWER( b.porequestor ) LIKE :i_email
-          OR LOWER( b.popreparer ) LIKE :i_email
-        )
-
-        AND
-        (
-          (
-            :i_pstype IN ( '9', '*' )
-
             AND
             (
               (
-                b.pstype = '9'
-                AND b.workstartdateraw <> '00000000'
-                AND b.workenddateraw <> '00000000'
+                base.pstype = :lc_pstype_service
+                AND base.workstartdateraw <> :lc_initial_date
+                AND base.workenddateraw   <> :lc_initial_date
               )
-
               OR
-
               (
-                b.pstype = '0'
-                AND b.workstartdateraw <> '00000000'
-
+                base.pstype = :lc_pstype_material
+                AND base.workstartdateraw <> :lc_initial_date
                 AND EXISTS
-                    (
-                      SELECT 1
-                        FROM :it_japan_brazil AS jb
-                       WHERE jb.value = b.itemcompanycode
-                    )
+                (
+                  SELECT 1
+                    FROM :it_japan_brazil AS japan_brazil
+                   WHERE japan_brazil.value = base.itemcompanycode
+                )
               )
             )
           )
@@ -3597,35 +3539,35 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           OR
 
           (
-            :i_pstype IN ( '0', '*' )
-            AND b.pstype = '0'
-
+            :i_pstype IN
+            (
+              :lc_pstype_material,
+              :lc_all
+            )
+            AND base.pstype = :lc_pstype_material
             AND
             (
               NOT EXISTS
-                  (
-                    SELECT 1
-                      FROM :it_japan_brazil AS jb
-                     WHERE jb.value = b.itemcompanycode
-                  )
-
-              OR
-
               (
-                b.workstartdateraw = '00000000'
-
+                SELECT 1
+                  FROM :it_japan_brazil AS japan_brazil
+                 WHERE japan_brazil.value = base.itemcompanycode
+              )
+              OR
+              (
+                base.workstartdateraw = :lc_initial_date
                 AND EXISTS
-                    (
-                      SELECT 1
-                        FROM :it_japan_brazil AS jb
-                       WHERE jb.value = b.itemcompanycode
-                    )
+                (
+                  SELECT 1
+                    FROM :it_japan_brazil AS japan_brazil
+                   WHERE japan_brazil.value = base.itemcompanycode
+                )
               )
             )
           )
         );
 
-    IF :i_poowner = 'X' THEN
+    IF :i_poowner = :lc_true THEN
 
       lt_scoped_candidates =
         SELECT
@@ -3633,15 +3575,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.itemno,
           candidate.pstype,
           candidate.poowner_email,
-          candidate.itemcompanycode,
           candidate.companycode,
-          candidate.po_currency,
-          candidate.netvalue,
-          candidate.suppliername,
-          candidate.supplierid,
-          candidate.pocreatedat,
-          candidate.epnumber,
-          candidate.polinedescription
+          candidate.pocurrency,
+          candidate.netvalue
         FROM :lt_base_candidates AS candidate;
 
     ELSE
@@ -3652,178 +3588,195 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.itemno,
           candidate.pstype,
           candidate.poowner_email,
-          candidate.itemcompanycode,
           candidate.companycode,
-          candidate.po_currency,
-          candidate.netvalue,
-          candidate.suppliername,
-          candidate.supplierid,
-          candidate.pocreatedat,
-          candidate.epnumber,
-          candidate.polinedescription
-
+          candidate.pocurrency,
+          candidate.netvalue
         FROM :lt_base_candidates AS candidate
-
         LEFT OUTER JOIN ekkn AS account
           ON  account.ebeln = candidate.ponumber
           AND account.ebelp = candidate.itemno
-
         LEFT OUTER JOIN csks AS cost_center
           ON  cost_center.kostl = account.kostl
           AND cost_center.kokrs = account.kokrs
           AND cost_center.datbi >= CURRENT_DATE
+        WHERE
 
-        WHERE EXISTS
-              (
-                SELECT 1
-                  FROM :it_company_codes AS scope_company
-                 WHERE scope_company.wildcard = 'X'
-                    OR scope_company.value = candidate.companycode
-              )
+          EXISTS
+          (
+            SELECT 1
+              FROM :it_company_codes AS scope_company
+             WHERE scope_company.wildcard = :lc_true
+                OR scope_company.value = candidate.companycode
+          )
 
-          AND EXISTS
-              (
-                SELECT 1
-                  FROM :it_cost_centers AS scope_cost
-                 WHERE scope_cost.wildcard = 'X'
-                    OR scope_cost.value = account.kostl
-                    OR
-                    (
-                      scope_cost.is_null = 'X'
-                      AND
-                      (
-                        account.kostl IS NULL
-                        OR account.kostl = ''
-                        OR account.kostl = ' '
-                      )
-                    )
-              )
+          AND NOT EXISTS
+          (
+            SELECT 1
+              FROM :it_cost_centers AS scope_cost_null
+             WHERE scope_cost_null.is_null = :lc_true
+          )
 
           AND
           (
-            cost_center.zzrptun IS NULL
-            OR cost_center.zzrptun = ''
-            OR cost_center.zzrptun = ' '
+            (
+              EXISTS
+              (
+                SELECT 1
+                  FROM :it_cost_centers AS scope_cost
+                 WHERE scope_cost.wildcard = :lc_true
+                   AND scope_cost.is_null = :lc_false
+              )
+              AND account.kostl IS NOT NULL
+            )
+
+            OR
+
+            EXISTS
+            (
+              SELECT 1
+                FROM :it_cost_centers AS scope_cost
+               WHERE scope_cost.wildcard = :lc_false
+                 AND scope_cost.is_null = :lc_false
+                 AND LTRIM( account.kostl, :lc_zero )
+                     = LTRIM( scope_cost.value, :lc_zero )
+            )
+          )
+
+          AND
+          (
+               cost_center.zzrptun = :lc_empty_string
+            OR cost_center.zzrptun = :lc_space
+
+            OR
+            (
+              EXISTS
+              (
+                SELECT 1
+                  FROM :it_management_units AS scope_management
+                 WHERE scope_management.wildcard = :lc_true
+              )
+              AND NOT EXISTS
+              (
+                SELECT 1
+                  FROM :it_management_units AS scope_management_null
+                 WHERE scope_management_null.is_null = :lc_true
+              )
+            )
+
+            OR
+            (
+              cost_center.zzrptun IS NULL
+              AND EXISTS
+              (
+                SELECT 1
+                  FROM :it_management_units AS scope_management_null
+                 WHERE scope_management_null.is_null = :lc_true
+              )
+            )
 
             OR EXISTS
-                (
-                  SELECT 1
-                    FROM :it_management_units AS scope_management
-                   WHERE scope_management.wildcard = 'X'
-                      OR scope_management.value = cost_center.zzrptun
-                      OR
-                      (
-                        scope_management.is_null = 'X'
-                        AND
-                        (
-                          cost_center.zzrptun IS NULL
-                          OR cost_center.zzrptun = ''
-                          OR cost_center.zzrptun = ' '
-                        )
-                      )
-                )
+            (
+              SELECT 1
+                FROM :it_management_units AS scope_management
+               WHERE scope_management.wildcard = :lc_false
+                 AND scope_management.is_null  = :lc_false
+                 AND LTRIM( scope_management.value, :lc_zero )
+                     = cost_center.zzrptun
+            )
           );
 
     END IF;
 
-    lt_po_totals =
-      SELECT
-        candidate.ponumber,
-        candidate.pstype,
-        MAX( candidate.companycode ) AS companycode,
-        MAX( candidate.po_currency ) AS po_currency,
+    IF :i_mode = :lc_mode_all AND :lv_excluded_only <> :lc_true THEN
 
-        SUM(
-          CASE
-            WHEN candidate.po_currency IN ( 'JPY', 'VND' )
-            THEN candidate.netvalue * 100
-            ELSE candidate.netvalue
-          END
-        ) AS po_threshold_total
+      lt_threshold_classified =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_scoped_candidates AS candidate;
 
-      FROM :lt_scoped_candidates AS candidate
+    ELSE
 
-      GROUP BY
-        candidate.ponumber,
-        candidate.pstype;
+      lt_po_totals =
+        SELECT
+          candidate.ponumber,
+          candidate.pstype,
+          candidate.pocurrency,
+          SUM(
+            CASE
+              WHEN candidate.pocurrency IN
+                   (
+                     :lc_currency_jpy,
+                     :lc_currency_vnd
+                   )
+              THEN candidate.netvalue * 100
+              ELSE candidate.netvalue
+            END
+          ) AS po_total
+        FROM :lt_scoped_candidates AS candidate
+        GROUP BY
+          candidate.ponumber,
+          candidate.pstype,
+          candidate.pocurrency;
 
-    lt_po_threshold =
-      SELECT
-        total.companycode,
-        total.ponumber,
-        total.pstype,
-        total.po_currency,
-        total.po_threshold_total,
+      lt_po_threshold =
+        SELECT
+          total.ponumber,
+          total.pstype,
+          total.po_total,
+          ROUND(
+            :i_threshold_usd
+            * CAST(
+                1 / exchange_rate.exchange_rate
+                AS DECIMAL(15,6)
+              ),
+            2
+          ) AS threshold_converted
+        FROM :lt_po_totals AS total
+        INNER JOIN zfi_das_exchrt AS exchange_rate
+          ON exchange_rate.source_curr = total.pocurrency;
 
-        ROUND(
-          :i_threshold_usd
-          * ( 1 / exchange_rate.exchange_rate ),
-          2
-        ) AS threshold_in_po_currency
+      lt_threshold_classified =
+        SELECT DISTINCT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_scoped_candidates AS candidate
+        INNER JOIN :lt_po_threshold AS threshold
+          ON  threshold.ponumber = candidate.ponumber
+          AND threshold.pstype   = candidate.pstype
+        WHERE
+             :lv_excluded_only = :lc_true
+          OR (
+               :i_mode = :lc_mode_over
+               AND threshold.po_total > threshold.threshold_converted
+             )
+          OR (
+               :i_mode = :lc_mode_under
+               AND threshold.po_total <= threshold.threshold_converted
+             );
 
-      FROM :lt_po_totals AS total
+    END IF;
 
-      INNER JOIN zfi_das_exchrt AS exchange_rate
-        ON exchange_rate.source_curr = total.po_currency;
-
-    lt_threshold_classified =
-      SELECT
-        candidate.ponumber,
-        candidate.itemno,
-        candidate.pstype,
-        candidate.poowner_email,
-        candidate.suppliername,
-        candidate.supplierid,
-        candidate.pocreatedat,
-        candidate.epnumber,
-        candidate.polinedescription
-
-      FROM :lt_scoped_candidates AS candidate
-
-      INNER JOIN :lt_po_threshold AS threshold
-        ON  threshold.ponumber = candidate.ponumber
-        AND threshold.pstype = candidate.pstype
-
-      WHERE
-        (
-          :i_mode = '1'
-          AND threshold.po_threshold_total >
-              threshold.threshold_in_po_currency
-        )
-
-        OR
-
-        (
-          :i_mode = '2'
-          AND threshold.po_threshold_total <=
-              threshold.threshold_in_po_currency
-        )
-
-        OR :i_mode = '3';
-
-    IF :i_excluded_only = 'X' THEN
+    IF :lv_excluded_only = :lc_true THEN
 
       lt_exclusion_applied =
         SELECT
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email,
-          candidate.suppliername,
-          candidate.supplierid,
-          candidate.pocreatedat,
-          candidate.epnumber,
-          candidate.polinedescription
-
+          candidate.poowner_email
         FROM :lt_threshold_classified AS candidate
-
         WHERE EXISTS
-              (
-                SELECT 1
-                  FROM zfi_das_po_excl AS exclusion
-                 WHERE exclusion.ponumber = candidate.ponumber
-                   AND exclusion.itemno = candidate.itemno
-              );
+        (
+          SELECT 1
+            FROM zfi_das_po_excl AS exclusion
+           WHERE exclusion.ponumber = candidate.ponumber
+             AND exclusion.itemno   = candidate.itemno
+        );
 
     ELSE
 
@@ -3832,90 +3785,67 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email,
-          candidate.suppliername,
-          candidate.supplierid,
-          candidate.pocreatedat,
-          candidate.epnumber,
-          candidate.polinedescription
-
+          candidate.poowner_email
         FROM :lt_threshold_classified AS candidate
-
         WHERE NOT EXISTS
-              (
-                SELECT 1
-                  FROM zfi_das_po_excl AS exclusion
-                 WHERE exclusion.ponumber = candidate.ponumber
-                   AND exclusion.itemno = candidate.itemno
-                   AND exclusion.pstype = candidate.pstype
-              );
+        (
+          SELECT 1
+            FROM zfi_das_po_excl AS exclusion
+           WHERE exclusion.ponumber = candidate.ponumber
+             AND exclusion.itemno   = candidate.itemno
+             AND exclusion.pstype   = candidate.pstype
+        );
 
     END IF;
 
-    -- ITEMNO: EQ block AND contains block. LIKE runs on the FULL
-    -- value: XSA exposes ITEMNO as stored, so searching '00002'
-    -- must match ITEMNO '00002'. Pattern arrives ready-made as
-    -- %value% from ABAP.
     lt_filtered =
       SELECT DISTINCT
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
-        candidate.poowner_email,
-        candidate.suppliername,
-        candidate.supplierid,
-        candidate.pocreatedat,
-        candidate.epnumber,
-        candidate.polinedescription
-
+        candidate.poowner_email
       FROM :lt_exclusion_applied AS candidate
-
       WHERE
         (
           NOT EXISTS
-              (
-                SELECT 1
-                  FROM :it_item_filter
-                 WHERE value_length = 0
-              )
-
+          (
+            SELECT 1
+              FROM :it_item_filter AS item_filter
+             WHERE item_filter.value_length = 0
+          )
           OR EXISTS
-              (
-                SELECT 1
-                  FROM :it_item_filter AS filter_item
-                 WHERE filter_item.value_length = 0
-                   AND filter_item.value = candidate.itemno
-              )
+          (
+            SELECT 1
+              FROM :it_item_filter AS item_filter
+             WHERE item_filter.value_length = 0
+               AND item_filter.value = candidate.itemno
+          )
         )
 
         AND
+
         (
           NOT EXISTS
-              (
-                SELECT 1
-                  FROM :it_item_filter
-                 WHERE value_length > 0
-              )
-
+          (
+            SELECT 1
+              FROM :it_item_filter AS item_filter
+             WHERE item_filter.value_length > 0
+          )
           OR EXISTS
-              (
-                SELECT 1
-                  FROM :it_item_filter AS filter_item
-                 WHERE filter_item.value_length > 0
-                   AND candidate.itemno LIKE filter_item.pattern
-              )
+          (
+            SELECT 1
+              FROM :it_item_filter AS item_filter
+             WHERE item_filter.value_length > 0
+               AND candidate.itemno LIKE item_filter.pattern
+          )
         );
 
-    IF :i_count_requested = 'X' THEN
-
+    IF :i_count_requested = :lc_true THEN
       SELECT COUNT(*)
         INTO e_total_count
         FROM :lt_filtered;
-
     ELSE
-
       e_total_count = 0;
-
     END IF;
 
     lt_numbered =
@@ -3924,37 +3854,38 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         candidate.itemno,
         candidate.pstype,
         candidate.poowner_email,
-
         ROW_NUMBER() OVER
         (
           ORDER BY
             candidate.pstype DESC,
-            candidate.ponumber,
-            candidate.itemno
+            candidate.ponumber ASC,
+            candidate.itemno ASC
         ) AS row_number_value
-
       FROM :lt_filtered AS candidate;
 
-    et_keys =
-      SELECT
-        numbered.ponumber,
-        numbered.itemno,
-        numbered.pstype,
-        numbered.poowner_email
+    IF :i_top_requested = :lc_empty_string THEN
+      et_keys =
+        SELECT
+          numbered.ponumber,
+          numbered.itemno,
+          numbered.pstype,
+          numbered.poowner_email
+        FROM :lt_numbered AS numbered
+        WHERE numbered.row_number_value > :i_skip
+        ORDER BY numbered.row_number_value;
 
-      FROM :lt_numbered AS numbered
-
-      WHERE numbered.row_number_value > :i_skip
-
-        AND
-        (
-             ( :i_top_requested = ''
-               AND :i_top = 0 )
-          OR ( :i_top > 0
-               AND numbered.row_number_value <= :i_skip + :i_top )
-        )
-
-      ORDER BY numbered.row_number_value;
+    ELSE
+      et_keys =
+        SELECT
+          numbered.ponumber,
+          numbered.itemno,
+          numbered.pstype,
+          numbered.poowner_email
+        FROM :lt_numbered AS numbered
+        WHERE numbered.row_number_value > :i_skip
+          AND numbered.row_number_value <= :i_skip + :i_top
+        ORDER BY numbered.row_number_value;
+    END IF;
 
   ENDMETHOD.
 

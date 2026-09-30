@@ -521,6 +521,86 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error
         cx_sy_open_sql_db.
 
+    METHODS get_statuses
+      IMPORTING
+        it_keys            TYPE tt_key
+      RETURNING
+        VALUE(rt_statuses) TYPE tt_status
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_notifications
+      IMPORTING
+        it_keys                 TYPE tt_key
+      RETURNING
+        VALUE(rt_notifications) TYPE tt_notification
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_exclusions
+      IMPORTING
+        it_keys              TYPE tt_key
+      RETURNING
+        VALUE(rt_exclusions) TYPE tt_exclusion_aggregate
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_users
+      IMPORTING
+        VALUE(it_details) TYPE tt_source_detail
+      EXPORTING
+        VALUE(et_users)   TYPE tt_user
+      RAISING
+        cx_amdp_error.
+
+    METHODS get_history_cutoff_date
+      RETURNING
+        VALUE(rv_cutoff_date) TYPE d.
+
+    METHODS get_currency_factor
+      IMPORTING
+        i_currency       TYPE waers
+      RETURNING
+        VALUE(rv_factor) TYPE t_amount_precision.
+
+    METHODS convert_to_usd
+      IMPORTING
+        i_amount          TYPE t_amount_precision
+        i_source_currency TYPE waers
+        i_keep_precision  TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rv_amount)  TYPE zif_fi_das_dashboard=>t_amount
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS read_exchange_rate
+      IMPORTING
+        i_source_currency TYPE waers
+        i_target_currency TYPE waers DEFAULT zif_fi_das_dashboard=>mc_currency_usd
+      RETURNING
+        VALUE(rs_rate)    TYPE ts_exchange_rate
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_pstype_text
+      IMPORTING
+        i_pstype      TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING
+        VALUE(r_text) TYPE char10.
+
+    METHODS get_rule_text
+      IMPORTING
+        i_rule_type   TYPE t_rule_type
+      RETURNING
+        VALUE(r_text) TYPE string.
+
+    METHODS get_review_day
+      RETURNING
+        VALUE(r_review_day) TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+
 
     METHODS get_results
       IMPORTING
@@ -561,37 +641,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS get_statuses
-      IMPORTING
-        it_keys            TYPE tt_key
-      RETURNING
-        VALUE(rt_statuses) TYPE tt_status
-      RAISING
-        cx_sy_open_sql_db.
 
-    METHODS get_notifications
-      IMPORTING
-        it_keys                 TYPE tt_key
-      RETURNING
-        VALUE(rt_notifications) TYPE tt_notification
-      RAISING
-        cx_sy_open_sql_db.
 
-    METHODS get_exclusions
-      IMPORTING
-        it_keys              TYPE tt_key
-      RETURNING
-        VALUE(rt_exclusions) TYPE tt_exclusion_aggregate
-      RAISING
-        cx_sy_open_sql_db.
 
-    METHODS get_users
-      IMPORTING
-        VALUE(it_details) TYPE tt_source_detail
-      EXPORTING
-        VALUE(et_users)   TYPE tt_user
-      RAISING
-        cx_amdp_error.
+
+
+
+
 
 
 
@@ -730,38 +786,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS get_history_cutoff_date
-      RETURNING
-        VALUE(rv_cutoff_date) TYPE d
-      RAISING
-        zcx_fi_das_error.
 
-    METHODS read_exchange_rate
-      IMPORTING
-        i_source_currency TYPE waers
-        i_target_currency TYPE waers DEFAULT zif_fi_das_dashboard=>mc_currency_usd
-      RETURNING
-        VALUE(rs_rate)    TYPE ts_exchange_rate
-      RAISING
-        zcx_fi_das_error
-        cx_sy_open_sql_db.
 
-    METHODS convert_to_usd
-      IMPORTING
-        i_amount          TYPE t_amount_precision
-        i_source_currency TYPE waers
-        i_keep_precision  TYPE abap_bool DEFAULT abap_false
-      RETURNING
-        VALUE(rv_amount)  TYPE zif_fi_das_dashboard=>t_amount
-      RAISING
-        zcx_fi_das_error
-        cx_sy_open_sql_db.
 
-    METHODS get_currency_factor
-      IMPORTING
-        i_currency       TYPE waers
-      RETURNING
-        VALUE(rv_factor) TYPE t_amount_precision.
+
+
+
+
 
     METHODS read_request_decimal_format
       IMPORTING
@@ -774,11 +805,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS get_review_day
-      RETURNING
-        VALUE(r_review_day) TYPE i
-      RAISING
-        zcx_fi_das_error.
+
 
 
 
@@ -790,17 +817,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_text) TYPE zif_fi_das_dashboard=>t_accrual_method.
 
-    METHODS get_pstype_text
-      IMPORTING
-        i_pstype      TYPE zif_fi_das_dashboard=>t_pstype
-      RETURNING
-        VALUE(r_text) TYPE char10.
 
-    METHODS get_rule_text
-      IMPORTING
-        i_rule_type   TYPE t_rule_type
-      RETURNING
-        VALUE(r_text) TYPE string.
 
 
 
@@ -1367,10 +1384,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
 
     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
-      rs_context-exclusions    = get_exclusions( it_keys ).
+      rs_context-exclusions = get_exclusions( it_keys ).
     ENDIF.
 
-    rs_context-review_day    = get_review_day( ).
+    rs_context-review_day = get_review_day( ).
 
     get_users( EXPORTING it_details = rs_context-details
                IMPORTING et_users   = rs_context-users ).
@@ -1589,14 +1606,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ASSIGN it_details[ ponumber = <fs_history>-ponumber
                          itemno   = <fs_history>-itemno ] TO FIELD-SYMBOL(<fs_detail>).
 
-      IF sy-subrc <> 0.
+      IF <fs_detail> IS NOT ASSIGNED OR sy-subrc <> 0.
         CONTINUE.
       ENDIF.
 
       ASSIGN rt_history[ ponumber = <fs_history>-ponumber
                          itemno   = <fs_history>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
 
-      IF sy-subrc <> 0.
+      IF <fs_aggregate> IS NOT ASSIGNED OR sy-subrc <> 0.
 
         INSERT VALUE #( ponumber = <fs_history>-ponumber
                         itemno   = <fs_history>-itemno ) INTO TABLE rt_history ASSIGNING <fs_aggregate>.
@@ -1615,7 +1632,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         ENDIF.
 
         DATA(l_gr_amount) = CONV t_amount_precision( <fs_history>-quantity * <fs_detail>-net_price /
-                                                      <fs_detail>-price_unit * l_sign  ).
+                                                     <fs_detail>-price_unit * l_sign  ).
 
         <fs_aggregate>-gr_value = <fs_aggregate>-gr_value + l_gr_amount * l_currency_factor.
 
@@ -1624,23 +1641,17 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                       i_source_currency = <fs_detail>-po_currency
                                                                       i_keep_precision  = abap_true ).
 
-
-
       ELSE.
 
         DATA(l_invoice_amount) = CONV t_amount_precision( <fs_history>-amount * l_sign  ).
 
         <fs_aggregate>-invoice_value = <fs_aggregate>-invoice_value + l_invoice_amount * l_currency_factor.
 
-        <fs_aggregate>-invoice_local = <fs_aggregate>-invoice_local + <fs_history>-local_amount
-                                        * l_currency_factor * l_sign.
+        <fs_aggregate>-invoice_local = <fs_aggregate>-invoice_local + <fs_history>-local_amount * l_currency_factor * l_sign.
 
         <fs_aggregate>-invoice_usd = <fs_aggregate>-invoice_usd + convert_to_usd(
                                                                       i_amount          = l_invoice_amount
                                                                       i_source_currency = <fs_detail>-po_currency ).
-
-
-
       ENDIF.
 
     ENDLOOP.
@@ -1649,30 +1660,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_statuses.
 
+    IF it_keys IS NOT INITIAL.
 
-    IF it_keys IS INITIAL.
-      RETURN.
+      SELECT
+        ponumber,
+        lineitem              AS itemno,
+        status,
+        accrualmethod         AS accrual_method,
+        changeddate           AS changed_date,
+        changedtime           AS changed_time,
+        changed_on,
+        reviewed_by,
+        po_closure,
+        totalworkcompltodate  AS wtd_amount,
+        workcomplastmonthamt  AS last_month_amount
+      FROM zfi_das_postatus
+         FOR ALL ENTRIES IN @it_keys
+      WHERE ponumber = @it_keys-ponumber AND
+            lineitem = @it_keys-itemno
+         INTO TABLE @rt_statuses.
+
+      IF sy-subrc <> 0.
+        CLEAR rt_statuses.
+      ENDIF.
     ENDIF.
-
-    SELECT
-      ponumber,
-      lineitem               AS itemno,
-      status,
-      accrualmethod         AS accrual_method,
-      changeddate           AS changed_date,
-      changedtime           AS changed_time,
-      changed_on,
-      reviewed_by,
-      po_closure,
-      totalworkcompltodate  AS wtd_amount,
-      workcomplastmonthamt  AS last_month_amount
-     FROM zfi_das_postatus
-       FOR ALL ENTRIES IN @it_keys
-     WHERE ponumber = @it_keys-ponumber AND
-           lineitem = @it_keys-itemno
-      INTO TABLE @rt_statuses.
-
-
 
   ENDMETHOD.
 
@@ -1684,7 +1695,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     SELECT
       ponumber,
-      lineitem AS itemno,
+      lineitem  AS itemno,
       changedon AS last_notif_on
     FROM zfi_das_po_audit
       FOR ALL ENTRIES IN @it_keys
@@ -1697,7 +1708,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ASSIGN rt_notifications[ ponumber = <fs_notification>-ponumber
                                itemno   = <fs_notification>-itemno ] TO FIELD-SYMBOL(<fs_result>).
 
-      IF sy-subrc <> 0.
+      IF <fs_result> IS NOT ASSIGNED OR sy-subrc <> 0.
 
         INSERT VALUE #( ponumber      = <fs_notification>-ponumber
                         itemno        = <fs_notification>-itemno
@@ -1707,7 +1718,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ENDIF.
 
       IF <fs_notification>-last_notif_on > <fs_result>-last_notif_on.
-        <fs_result>-last_notif_on =  <fs_notification>-last_notif_on.
+        <fs_result>-last_notif_on = <fs_notification>-last_notif_on.
       ENDIF.
 
     ENDLOOP.
@@ -1734,7 +1745,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ASSIGN rt_exclusions[ ponumber = <fs_exclusion>-ponumber
                             itemno   = <fs_exclusion>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
 
-      IF sy-subrc <> 0.
+      IF <fs_aggregate> IS NOT ASSIGNED OR sy-subrc <> 0.
 
         INSERT VALUE #( ponumber = <fs_exclusion>-ponumber
                         itemno   = <fs_exclusion>-itemno  ) INTO TABLE rt_exclusions ASSIGNING <fs_aggregate>.
@@ -1748,7 +1759,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       <fs_aggregate>-ruletypetext = zcl_fi_das_utility=>append_delimited(
                                       i_current      = <fs_aggregate>-ruletypetext
-                                      i_value        =  get_rule_text( CONV t_rule_type(  <fs_exclusion>-ruletype )  )
+                                      i_value        = get_rule_text( CONV t_rule_type( <fs_exclusion>-ruletype )  )
                                       i_skip_initial = abap_true ).
 
     ENDLOOP.
@@ -1766,12 +1777,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
          usr01
          usr02.
 
+    DECLARE lc_empty_string     CONSTANT NVARCHAR(1)  = '';
+    DECLARE lc_user_type_dialog CONSTANT NVARCHAR(1)  = 'A';
+    DECLARE lc_rpa_pattern      CONSTANT NVARCHAR(5)  = '%RPA%';
+    DECLARE lc_numeric_chars    CONSTANT NVARCHAR(10) = '0123456789';
+
     lt_requested =
       SELECT DISTINCT
         LOWER( TRIM( poowner_email ) ) AS email
       FROM :it_details
-      WHERE poowner_email IS NOT NULL
-        AND TRIM( poowner_email ) <> '';
+      WHERE poowner_email IS NOT NULL AND TRIM( poowner_email ) <> :lc_empty_string;
 
     lt_candidates =
       SELECT
@@ -1780,78 +1795,33 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
         user_defaults.datfm              AS date_format,
-
-        /*
-         * Primary-key fields in the same source-projection order
-         * as CV_getAllUserDetails:
-         *
-         * 1. USR01
-         * 2. USR21
-         * 3. ADR6
-         * 4. ADRP
-         * 5. USR02
-         *
-         * CLIENT/MANDT is omitted because it is constant within
-         * the current ABAP client and is not exposed by the XSA
-         * calculation-view projections.
-         */
-
-        /* USR01 primary key */
         user_defaults.bname              AS usr01_bname,
-
-        /* USR21 primary key */
         user_data.bname                  AS usr21_bname,
-
-        /* ADR6 primary key */
         email.addrnumber                 AS adr6_addrnumber,
         email.persnumber                 AS adr6_persnumber,
-        email.date_from                  AS adr6_date_from,
-        email.consnumber                 AS adr6_consnumber,
-
-        /* ADRP primary key */
         person.persnumber                AS adrp_persnumber,
-        person.date_from                 AS adrp_date_from,
-        person.nation                    AS adrp_nation,
-
-        /* USR02 primary key */
         user_logon.bname                 AS usr02_bname
-
       FROM usr21 AS user_data
 
-      INNER JOIN adrp AS person
-        ON person.persnumber = user_data.persnumber
+      INNER JOIN adrp AS person ON person.persnumber = user_data.persnumber
 
-      INNER JOIN adr6 AS email
-        ON  email.persnumber = user_data.persnumber
-        AND email.addrnumber = user_data.addrnumber
+      INNER JOIN adr6 AS email ON email.persnumber = user_data.persnumber AND
+                                  email.addrnumber = user_data.addrnumber
 
-      INNER JOIN usr01 AS user_defaults
-        ON user_defaults.bname = user_data.bname
+      INNER JOIN usr01 AS user_defaults ON user_defaults.bname = user_data.bname
 
-      INNER JOIN usr02 AS user_logon
-        ON user_logon.bname = user_data.bname
+      INNER JOIN usr02 AS user_logon ON user_logon.bname = user_data.bname
 
-      INNER JOIN :lt_requested AS requested
-        ON requested.email =
-           LOWER( TRIM( email.smtp_addr ) )
+      INNER JOIN :lt_requested AS requested ON requested.email = LOWER( TRIM( email.smtp_addr ) )
 
-      WHERE user_logon.ustyp = 'A'
-        AND user_logon.class NOT LIKE '%RPA%'
-        AND user_logon.gltgv < CURRENT_DATE
-        AND user_logon.gltgb >= CURRENT_DATE
-        AND SUBSTRING( user_data.bname, 1, 1 )
-              NOT IN (
-                '0', '1', '2', '3', '4',
-                '5', '6', '7', '8', '9'
-              );
+      WHERE user_logon.ustyp = :lc_user_type_dialog AND
+            user_logon.class NOT LIKE :lc_rpa_pattern AND
+            user_logon.gltgv < CURRENT_DATE AND
+            user_logon.gltgb >= CURRENT_DATE AND
+            LOCATE( :lc_numeric_chars, SUBSTRING( user_data.bname, 1, 1 ) ) = 0;
 
     et_users =
-      SELECT
-        email,
-        username,
-        full_name,
-        decimal_format,
-        date_format
+      SELECT email, username, full_name, decimal_format,date_format
       FROM
       (
         SELECT
@@ -1860,34 +1830,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           full_name,
           decimal_format,
           date_format,
-
           ROW_NUMBER() OVER
           (
             PARTITION BY email
             ORDER BY
-              /* USR01 primary key */
-              usr01_bname DESC,
-
-              /* USR21 primary key */
               usr21_bname DESC,
-
-              /* ADR6 primary key */
               adr6_addrnumber DESC,
-              adr6_persnumber DESC,
-*              adr6_date_from DESC,
-*              adr6_consnumber DESC,
-
-              /* ADRP primary key */
-              adrp_persnumber DESC,
-*              adrp_date_from DESC,
-*              adrp_nation DESC,
-
-              /* USR02 primary key */
-              usr02_bname DESC
+              adr6_persnumber DESC
           ) AS row_number_value
 
-        FROM :lt_candidates
-      )
+        FROM :lt_candidates )
       WHERE row_number_value = 1;
 
   ENDMETHOD.
@@ -2830,22 +2782,19 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       e_total_months = 1.
     ENDIF.
   ENDMETHOD.
+
   METHOD get_history_cutoff_date.
 
-    DATA(lv_first_of_month) =
-      CONV d( sy-datum(6) && mc_first_day_of_month ).
+    DATA(l_first_of_month) = CONV d( sy-datum(6) && mc_first_day_of_month ).
 
-    IF sy-datum+6(2) <= mc_first_half_month_day .
+    IF sy-datum+6(2) <= mc_first_half_month_day.
 
-      rv_cutoff_date = lv_first_of_month - 1.
+      rv_cutoff_date = l_first_of_month - 1.
 
     ELSE.
 
-      DATA(lv_next_month) =
-        CONV d( lv_first_of_month + mc_next_month_offset ).
-
-      rv_cutoff_date =
-        CONV d( lv_next_month(6) && mc_first_day_of_month ) - 1.
+      DATA(l_next_month) = CONV d( l_first_of_month + mc_next_month_offset ).
+      rv_cutoff_date = CONV d( l_next_month(6) && mc_first_day_of_month ) - 1.
 
     ENDIF.
 
@@ -3041,100 +2990,63 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD read_exchange_rate.
+METHOD read_exchange_rate.
 
-    rs_rate-source_currency = i_source_currency.
-    READ TABLE mt_exchrt
-      ASSIGNING FIELD-SYMBOL(<fs_exchrt>)
-      WITH TABLE KEY
-        source_curr = i_source_currency
-        target_curr = i_target_currency.
-    IF <fs_exchrt> IS ASSIGNED
-       AND sy-subrc = 0.
-      rs_rate-rate = <fs_exchrt>-exchange_rate.
-    ELSE.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-         MESSAGE e017(zfi_das)
-         WITH i_source_currency i_target_currency.
+  rs_rate-source_currency = i_source_currency.
 
-    ENDIF.
-  ENDMETHOD.
+  READ TABLE mt_exchrt ASSIGNING FIELD-SYMBOL(<l_exchange_rate>) WITH TABLE KEY source_curr = i_source_currency
+                                                                                target_curr = i_target_currency.
 
-  METHOD convert_to_usd.
+  IF sy-subrc <> 0 OR <l_exchange_rate> IS NOT ASSIGNED.
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      MESSAGE e017(zfi_das) WITH i_source_currency i_target_currency.
+  ENDIF.
 
-    DATA:
-      ls_rate          TYPE ts_exchange_rate,
-      lv_source_amount TYPE t_amount_precision,
-      lv_usd_amount    TYPE decfloat34.
+  rs_rate-rate = <l_exchange_rate>-exchange_rate.
 
-    CLEAR rv_amount.
+ENDMETHOD.
 
-*--------------------------------------------------------------------*
-* XSA SF_ConvertCurrency first converts the source input to a
-* two-decimal amount before multiplying by the exchange rate.
-*
-* The full-precision option is used only by the GR USD path, where
-* XSA does not call SF_ConvertCurrency.
-*--------------------------------------------------------------------*
-    IF i_keep_precision = abap_true.
+METHOD convert_to_usd.
 
-      lv_source_amount =
-        i_amount.
+  DATA: l_rate          TYPE ts_exchange_rate,
+        l_source_amount TYPE t_amount_precision,
+        l_usd_amount    TYPE decfloat34.
 
-    ELSE.
+  CLEAR rv_amount.
 
-      lv_source_amount =
-        CONV t_amount_precision(
-          CONV t_amount_precision(
-            zcl_fi_das_utility=>truncate_decimal(
-              i_value    = CONV decfloat34( i_amount )
-              i_decimals = mc_amount_decimals ) ) ).
+  IF i_keep_precision = abap_true.
+    l_source_amount = i_amount.
+  ELSE.
+    l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( i_amount )
+                                                            i_decimals = mc_amount_decimals  ).
+  ENDIF.
 
-    ENDIF.
+  IF l_source_amount IS INITIAL.
+    RETURN.
+  ENDIF.
 
-    IF lv_source_amount IS INITIAL.
-      RETURN.
-    ENDIF.
+* Apply the historical currency factor before conversion.
+  l_source_amount = l_source_amount * get_currency_factor( i_currency = i_source_currency ).
 
-*--------------------------------------------------------------------*
-* Raw JPY/VND source values need the XSA historical factor of 100.
-*
-*--------------------------------------------------------------------*
-    lv_source_amount =
-        lv_source_amount
-      * get_currency_factor(
-          i_currency = i_source_currency ).
+  l_rate = read_exchange_rate( i_source_currency = i_source_currency ).
 
-    ls_rate =
-      read_exchange_rate(
-        i_source_currency = i_source_currency ).
+  l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate-rate ).
 
-    lv_usd_amount =
-        CONV decfloat34(
-          lv_source_amount )
-      * CONV decfloat34(
-          ls_rate-rate ).
+  rv_amount = round( val  = l_usd_amount
+                     dec  = mc_amount_decimals
+                     mode = cl_abap_math=>round_half_up  ).
 
-    rv_amount =
-      CONV zif_fi_das_dashboard=>t_amount(
-        round(
-          val  = lv_usd_amount
-          dec  = mc_amount_decimals
-          mode = cl_abap_math=>round_half_up ) ).
-
-  ENDMETHOD.
-
+ENDMETHOD.
 
   METHOD get_currency_factor.
 
-    rv_factor =
-      COND t_amount_precision(
-        WHEN i_currency = mc_currency_jpy
-          OR i_currency = mc_currency_vnd
-        THEN 100
-        ELSE 1 ).
+    rv_factor = COND t_amount_precision(  WHEN i_currency = mc_currency_jpy OR
+                                               i_currency = mc_currency_vnd
+                                            THEN 100
+                                            ELSE 1 ).
 
   ENDMETHOD.
+
   METHOD read_request_decimal_format.
 
     TYPES:
@@ -3337,6 +3249,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         r_text = zif_fi_das_dashboard=>mc_pstype_service_text.
     ENDCASE.
   ENDMETHOD.
+
   METHOD get_rule_text.
 
     r_text =
@@ -3346,7 +3259,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         WHEN mc_rule_profit_center THEN mc_rule_text_profit_center
         WHEN mc_rule_po THEN mc_rule_text_po
         WHEN mc_rule_vendor THEN mc_rule_text_vendor
-        WHEN mc_rule_internal_order  THEN mc_rule_text_internal_order ).
+        WHEN mc_rule_internal_order THEN mc_rule_text_internal_order ).
 
   ENDMETHOD.
 

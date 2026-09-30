@@ -18,39 +18,39 @@ CLASS zcl_fi_das_dashboard DEFINITION
       t_review_action    TYPE c LENGTH 1.
 
     CONSTANTS:
-      mc_yes                  TYPE c LENGTH 1 VALUE 'X',
-      mc_currency_jpy         TYPE waers VALUE 'JPY',
-      mc_currency_vnd         TYPE waers VALUE 'VND',
+      mc_yes                    TYPE c LENGTH 1 VALUE 'X',
+      mc_currency_jpy           TYPE waers VALUE 'JPY',
+      mc_currency_vnd           TYPE waers VALUE 'VND',
 
-      mc_bewtp_e              TYPE ekbe-bewtp VALUE 'E',
-      mc_bewtp_q              TYPE ekbe-bewtp VALUE 'Q',
-      mc_bewtp_n              TYPE ekbe-bewtp VALUE 'N',
-      mc_vgabe_2              TYPE ekbe-vgabe VALUE '2',
-      mc_vgabe_3              TYPE ekbe-vgabe VALUE '3',
-      mc_credit_indicator     TYPE ekbe-shkzg VALUE 'H',
+      mc_bewtp_e                TYPE ekbe-bewtp VALUE 'E',
+      mc_bewtp_q                TYPE ekbe-bewtp VALUE 'Q',
+      mc_bewtp_n                TYPE ekbe-bewtp VALUE 'N',
+      mc_vgabe_2                TYPE ekbe-vgabe VALUE '2',
+      mc_vgabe_3                TYPE ekbe-vgabe VALUE '3',
+      mc_credit_indicator       TYPE ekbe-shkzg VALUE 'H',
 
-      mc_rule_gl              TYPE t_rule_type VALUE 'GL',
-      mc_rule_cost_center     TYPE t_rule_type VALUE 'CC',
-      mc_rule_profit_center   TYPE t_rule_type VALUE 'PC',
-      mc_rule_po              TYPE t_rule_type VALUE 'PO',
-      mc_rule_vendor          TYPE t_rule_type VALUE 'VD',
-      mc_rule_internal_order  TYPE t_rule_type VALUE 'IV',
+      mc_rule_gl                TYPE t_rule_type VALUE 'GL',
+      mc_rule_cost_center       TYPE t_rule_type VALUE 'CC',
+      mc_rule_profit_center     TYPE t_rule_type VALUE 'PC',
+      mc_rule_po                TYPE t_rule_type VALUE 'PO',
+      mc_rule_vendor            TYPE t_rule_type VALUE 'VD',
+      mc_rule_internal_order    TYPE t_rule_type VALUE 'IV',
 
-      mc_config_japan_brazil  TYPE zfi_das_conf_val-config_name
+      mc_config_japan_brazil    TYPE zfi_das_conf_val-config_name
         VALUE 'Japan_Brazil',
-      mc_config_review_day    TYPE zfi_das_conf_val-config_name
+      mc_config_review_day      TYPE zfi_das_conf_val-config_name
         VALUE 'ACCRUAL_REVIEW_DATE',
 
-      mc_format_decimal_dot   TYPE xudcpfm VALUE 'X',
-      mc_null                 TYPE string VALUE 'NULL',
-      mc_asterisk_sign        TYPE c LENGTH 1 VALUE '*',
-      mc_percent_sign         TYPE c LENGTH 1 VALUE '%',
-      mc_comma                TYPE c LENGTH 1 VALUE ',',
-      mc_amount_decimals      TYPE i VALUE 2,
-      mc_calculation_decimals TYPE i VALUE 8,
-      mc_percentage_decimals  TYPE i VALUE 1,
-      mc_stl_split_day        TYPE i VALUE 15,
-      mc_stl_grace_day        TYPE i VALUE 6.
+      mc_default_decimal_format TYPE xudcpfm VALUE 'X',
+      mc_null                   TYPE string VALUE 'NULL',
+      mc_asterisk_sign          TYPE c LENGTH 1 VALUE '*',
+      mc_percent_sign           TYPE c LENGTH 1 VALUE '%',
+      mc_comma                  TYPE c LENGTH 1 VALUE ',',
+      mc_amount_decimals        TYPE i VALUE 2,
+      mc_calculation_decimals   TYPE i VALUE 8,
+      mc_percentage_decimals    TYPE i VALUE 1,
+      mc_stl_split_day          TYPE i VALUE 15,
+      mc_stl_grace_day          TYPE i VALUE 6.
 
     CONSTANTS:
 
@@ -93,7 +93,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_sign_include      TYPE ddsign VALUE 'I',
       mc_option_equal      TYPE ddoption VALUE 'EQ'.
 
-
+    CONSTANTS:
+      mc_user_type_dialog TYPE usr02-ustyp VALUE 'A',
+      mc_rpa_pattern      TYPE string VALUE '%RPA%',
+      mc_digit_chars      TYPE string VALUE '0123456789'.
 
     TYPES:
       BEGIN OF ts_key,
@@ -573,7 +576,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS read_exchange_rate
+    METHODS get_exchange_rate
       IMPORTING
         i_source_currency TYPE waers
         i_target_currency TYPE waers DEFAULT zif_fi_das_dashboard=>mc_currency_usd
@@ -600,7 +603,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-
+    METHODS get_decimal_format
+      IMPORTING
+        i_email                  TYPE zif_fi_das_dashboard=>t_email
+      RETURNING
+        VALUE(rv_decimal_format)
+          TYPE zif_fi_das_dashboard=>t_decimal_format
+      RAISING
+        cx_sy_open_sql_db.
 
     METHODS get_results
       IMPORTING
@@ -633,9 +643,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(rs_result) TYPE zif_fi_das_dashboard=>ts_odata_result.
 
+    METHODS apply_generic_filter
+      IMPORTING
+        is_request TYPE zif_fi_das_dashboard=>ts_request
+      CHANGING
+        ct_result  TYPE STANDARD TABLE.
 
-
-
+    METHODS apply_sort_and_paging
+      IMPORTING
+        is_request TYPE zif_fi_das_dashboard=>ts_request
+      CHANGING
+        ct_result  TYPE STANDARD TABLE.
 
 
 
@@ -794,14 +812,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS read_request_decimal_format
-      IMPORTING
-        i_email                  TYPE zif_fi_das_dashboard=>t_email
-      RETURNING
-        VALUE(rv_decimal_format)
-          TYPE zif_fi_das_dashboard=>t_decimal_format
-      RAISING
-        cx_sy_open_sql_db.
+
 
 
 
@@ -821,11 +832,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS apply_sort_and_paging
-      IMPORTING
-        is_request TYPE zif_fi_das_dashboard=>ts_request
-      CHANGING
-        ct_result  TYPE STANDARD TABLE.
+
 
 
 
@@ -834,11 +841,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS apply_generic_filter
-      IMPORTING
-        is_request TYPE zif_fi_das_dashboard=>ts_request
-      CHANGING
-        ct_result  TYPE STANDARD TABLE.
+
 
   ENDCLASS.
 
@@ -897,19 +900,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     IF lt_keys IS NOT INITIAL.
 
-      DATA(ls_context) = get_context( i_mode     = i_mode
-                                      it_keys    = lt_keys
-                                      is_request = ls_request ).
-
       get_results(
         EXPORTING
-          it_keys             = lt_keys
-          is_context          = ls_context
-          i_mode              = i_mode
-          i_decimal_format    = read_request_decimal_format( i_email = ls_request-email )
-         is_request = ls_request
+          i_mode           = i_mode
+          it_keys          = lt_keys
+          is_request       = ls_request
+          is_context       = get_context( i_mode     = i_mode
+                                          it_keys    = lt_keys
+                                          is_request = ls_request )
+
+          i_decimal_format = get_decimal_format( ls_request-email )
         CHANGING
-          ct_result           = ct_result ).
+          ct_result        = ct_result ).
 
       IF is_full_processing_required( ls_request ) = abap_true.
 
@@ -935,133 +937,210 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD apply_generic_filter.
+ METHOD apply_generic_filter.
 
-    " Applies Column Settings filters on any result column, in place.
-    " Entries for the same property combine with OR, different
-    " properties combine with AND - the same way the OData $filter
-    " is composed. Unknown properties are ignored (no dump).
+  " Same-property filters use OR.
+  " Different properties use AND.
+  " Unknown properties are ignored.
 
-    IF is_request-generic_filters IS INITIAL.
-      RETURN.
+  TYPES:
+    BEGIN OF ts_prepared_filter,
+      option TYPE ddoption,
+      low    TYPE string,
+      high   TYPE string,
+    END OF ts_prepared_filter,
+
+    tt_prepared_filter TYPE STANDARD TABLE OF ts_prepared_filter
+      WITH EMPTY KEY,
+
+    BEGIN OF ts_property_filter,
+      property  TYPE string,
+      component TYPE i,
+      has_cp    TYPE abap_bool,
+      filters   TYPE tt_prepared_filter,
+    END OF ts_property_filter,
+
+    tt_property_filter TYPE HASHED TABLE OF ts_property_filter
+      WITH UNIQUE KEY property.
+
+
+  DATA:
+    lt_property_filters TYPE tt_property_filter,
+    lr_row              TYPE REF TO data.
+
+  IF is_request-generic_filters IS INITIAL
+     OR ct_result IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  CREATE DATA lr_row LIKE LINE OF ct_result.
+
+  DATA(lo_struct) = CAST cl_abap_structdescr(
+    cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
+
+* Prepare and normalize filters once
+  LOOP AT is_request-generic_filters ASSIGNING FIELD-SYMBOL(<fs_filter>).
+
+    READ TABLE lo_struct->components TRANSPORTING NO FIELDS WITH KEY name = <fs_filter>-property.
+
+    IF sy-subrc <> 0.
+      CONTINUE.
     ENDIF.
 
-    DATA lr_row TYPE REF TO data.
-    CREATE DATA lr_row LIKE LINE OF ct_result.
+    DATA(l_component) = sy-tabix.
 
-    DATA(lo_struct) = CAST cl_abap_structdescr(
-      cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
+    ASSIGN lt_property_filters[ property = <fs_filter>-property ] TO FIELD-SYMBOL(<fs_property_filter>).
 
-    " Distinct properties that exist on the result row.
-    DATA lt_properties TYPE stringtab.
+    IF sy-subrc <> 0 OR <fs_property_filter> IS NOT ASSIGNED.
 
-    LOOP AT is_request-generic_filters
-      ASSIGNING FIELD-SYMBOL(<ls_check>).
+      INSERT VALUE #( property  = <fs_filter>-property
+                      component = l_component ) INTO TABLE lt_property_filters ASSIGNING <fs_property_filter>.
 
-      IF line_exists( lo_struct->components[
-                        name = <ls_check>-property ] )
-         AND NOT line_exists( lt_properties[
-                                table_line = <ls_check>-property ] ).
-        APPEND <ls_check>-property TO lt_properties.
+      IF sy-subrc <> 0 OR <fs_property_filter> IS NOT ASSIGNED.
+        CONTINUE.
       ENDIF.
 
-    ENDLOOP.
-
-    IF lt_properties IS INITIAL.
-      RETURN.
     ENDIF.
 
-    DATA(l_index) = lines( ct_result ).
+    CASE <fs_filter>-option.
 
-    WHILE l_index > 0.
+      WHEN rsmds_c_option-equal.
 
-      ASSIGN ct_result[ l_index ] TO FIELD-SYMBOL(<ls_row>).
+        APPEND VALUE #( option = <fs_filter>-option
+                       low    = condense( CONV string( <fs_filter>-low ) ) ) TO <fs_property_filter>-filters.
 
-      DATA(l_row_matches) = abap_true.
+      WHEN rsmds_c_option-contains_pattern.
 
-      LOOP AT lt_properties ASSIGNING FIELD-SYMBOL(<l_property>).
+        APPEND VALUE #( option = <fs_filter>-option
+                        low    = to_upper( condense( CONV string( <fs_filter>-low ) ) ) ) TO <fs_property_filter>-filters.
 
-        ASSIGN COMPONENT <l_property>
-          OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<l_value>).
+        <fs_property_filter>-has_cp = abap_true.
 
-        DATA(l_value_string) = |{ <l_value> }|.
+      WHEN rsmds_c_option-between.
 
-        DATA(l_property_matches) = abap_false.
+        APPEND VALUE #( option = <fs_filter>-option
+                        low    = CONV string( <fs_filter>-low )
+                        high   = CONV string( <fs_filter>-high ) ) TO <fs_property_filter>-filters.
+    ENDCASE.
 
-        " OR across the tokens of one property.
-        LOOP AT is_request-generic_filters
-          ASSIGNING FIELD-SYMBOL(<ls_filter>)
-          WHERE property = <l_property>.
+  ENDLOOP.
 
-          CASE <ls_filter>-option.
+  IF lt_property_filters IS INITIAL.
+    RETURN.
+  ENDIF.
 
-            WHEN mc_option_equal.
-              IF condense( l_value_string )
-                 = condense( CONV string( <ls_filter>-low ) ).
-                l_property_matches = abap_true.
-                EXIT.
-              ENDIF.
+  " Delete backwards so remaining indexes stay valid.
+  DATA(l_index) = lines( ct_result ).
 
-            WHEN 'CP'.
-              IF to_upper( l_value_string )
-                 CS to_upper( condense(
-                      CONV string( <ls_filter>-low ) ) ).
-                l_property_matches = abap_true.
-                EXIT.
-              ENDIF.
+  WHILE l_index > 0.
 
-            WHEN 'BT'.
-              IF l_value_string >= <ls_filter>-low
-                 AND l_value_string <= <ls_filter>-high.
-                l_property_matches = abap_true.
-                EXIT.
-              ENDIF.
+    ASSIGN ct_result[ l_index ]
+      TO FIELD-SYMBOL(<ls_row>).
 
-          ENDCASE.
+    IF sy-subrc <> 0 OR <ls_row> IS NOT ASSIGNED.
+      l_index = l_index - 1.
+      CONTINUE.
+    ENDIF.
 
-        ENDLOOP.
+    DATA(l_row_matches) = abap_true.
 
-        IF l_property_matches = abap_false.
-          l_row_matches = abap_false.
+    LOOP AT lt_property_filters
+      ASSIGNING <fs_property_filter>.
+
+      ASSIGN COMPONENT <fs_property_filter>-component
+        OF STRUCTURE <ls_row>
+        TO FIELD-SYMBOL(<l_component_value>).
+
+      IF sy-subrc <> 0 OR <l_component_value> IS NOT ASSIGNED.
+        l_row_matches = abap_false.
+        EXIT.
+      ENDIF.
+
+      DATA(l_value) = |{ <l_component_value> }|.
+
+      DATA(l_value_condensed) = COND string(
+        WHEN <fs_property_filter>-filters IS NOT INITIAL
+        THEN condense( l_value ) ).
+
+      DATA(l_value_upper) = COND string(
+        WHEN <fs_property_filter>-has_cp = abap_true
+        THEN to_upper( l_value ) ).
+
+      DATA(l_property_matches) = abap_false.
+
+      LOOP AT <fs_property_filter>-filters
+        ASSIGNING FIELD-SYMBOL(<fs_prepared_filter>).
+
+        CASE <fs_prepared_filter>-option.
+
+          WHEN mc_option_equal.
+
+            IF l_value_condensed = <fs_prepared_filter>-low.
+              l_property_matches = abap_true.
+            ENDIF.
+
+          WHEN rsmds_c_option-contains_pattern.
+
+            IF l_value_upper CS <fs_prepared_filter>-low.
+              l_property_matches = abap_true.
+            ENDIF.
+
+          WHEN rsmds_c_option-between.
+
+            IF l_value >= <fs_prepared_filter>-low
+               AND l_value <= <fs_prepared_filter>-high.
+              l_property_matches = abap_true.
+            ENDIF.
+
+        ENDCASE.
+
+        IF l_property_matches = abap_true.
           EXIT.
         ENDIF.
 
       ENDLOOP.
 
-      IF l_row_matches = abap_false.
-        DELETE ct_result INDEX l_index.
+      IF l_property_matches = abap_false.
+        l_row_matches = abap_false.
+        EXIT.
       ENDIF.
 
-      l_index = l_index - 1.
+    ENDLOOP.
 
-    ENDWHILE.
+    IF l_row_matches = abap_false.
+      DELETE ct_result INDEX l_index.
+    ENDIF.
 
-  ENDMETHOD.
+    l_index = l_index - 1.
 
-   METHOD should_skip_calculations.
+  ENDWHILE.
+
+ENDMETHOD.
+
+  METHOD should_skip_calculations.
 
 *    Skip calculations only for value helps
-     r_result = abap_false.
+    r_result = abap_false.
 
-     IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
-       RETURN.
-     ENDIF.
+    IF is_full_processing_required( is_request ) = abap_true OR is_request-select IS INITIAL.
+      RETURN.
+    ENDIF.
 
-     DATA(lt_value_help_fields) = zcl_fi_das_utility=>split_list( i_value = mc_value_help_fields ).
+    DATA(lt_value_help_fields) = zcl_fi_das_utility=>split_list( i_value = mc_value_help_fields ).
 
-     LOOP AT zcl_fi_das_utility=>split_list( i_value = is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
+    LOOP AT zcl_fi_das_utility=>split_list( i_value = is_request-select ) ASSIGNING FIELD-SYMBOL(<f_value>).
 
-       DATA(l_field) = to_upper( condense( <f_value> ) ).
+      DATA(l_field) = to_upper( condense( <f_value> ) ).
 
-       IF NOT line_exists( lt_value_help_fields[ table_line = l_field ] ).
-         RETURN.
-       ENDIF.
+      IF NOT line_exists( lt_value_help_fields[ table_line = l_field ] ).
+        RETURN.
+      ENDIF.
 
-     ENDLOOP.
+    ENDLOOP.
 
-     r_result = abap_true.
+    r_result = abap_true.
 
-   ENDMETHOD.
+  ENDMETHOD.
 
   METHOD get_required_keys.
 
@@ -1142,33 +1221,27 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_results.
 
-    DATA lr_target_row TYPE REF TO data.
-    FIELD-SYMBOLS <fs_target_row> TYPE any.
-
-    CLEAR ct_result.
-    CREATE DATA lr_target_row LIKE LINE OF ct_result.
-    ASSIGN lr_target_row->* TO <fs_target_row>.
+    DATA lr_result TYPE REF TO data.
+    CREATE DATA lr_result LIKE LINE OF ct_result.
+    ASSIGN lr_result->* TO FIELD-SYMBOL(<fs_result>).
 
     LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
 
-      DATA(ls_row) = get_row(
-        is_key              = <fs_key>
-        is_context          = is_context
-        i_mode              = i_mode
-         is_request      =  is_request  ).
+      DATA(ls_row) = get_row( i_mode     = i_mode
+                              is_key     = <fs_key>
+                              is_context = is_context
+                              is_request = is_request ).
 
-      IF ls_row-ponumber IS INITIAL.
-        CONTINUE.
+      IF ls_row IS NOT INITIAL.
+
+        DATA(ls_odata_row) = get_odata_row( i_mode           = i_mode
+                                            is_row           = ls_row
+                                            i_decimal_format = i_decimal_format ).
+
+        CLEAR <fs_result>.
+        MOVE-CORRESPONDING ls_odata_row TO <fs_result>.
+        INSERT <fs_result> INTO TABLE ct_result.
       ENDIF.
-
-      DATA(ls_odata_row) = get_odata_row(
-        is_row           = ls_row
-        i_mode           = i_mode
-        i_decimal_format = i_decimal_format ).
-
-      CLEAR <fs_target_row>.
-      MOVE-CORRESPONDING ls_odata_row TO <fs_target_row>.
-      INSERT <fs_target_row> INTO TABLE ct_result.
 
     ENDLOOP.
 
@@ -2114,7 +2187,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       lv_amount TYPE t_amount_precision.
 
     ls_rate =
-      read_exchange_rate(
+      get_exchange_rate(
         i_source_currency = is_detail-po_currency ).
 
     cs_result-exchangerate =
@@ -2990,53 +3063,53 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-METHOD read_exchange_rate.
+  METHOD get_exchange_rate.
 
-  rs_rate-source_currency = i_source_currency.
+    rs_rate-source_currency = i_source_currency.
 
-  READ TABLE mt_exchrt ASSIGNING FIELD-SYMBOL(<l_exchange_rate>) WITH TABLE KEY source_curr = i_source_currency
-                                                                                target_curr = i_target_currency.
+    READ TABLE mt_exchrt ASSIGNING FIELD-SYMBOL(<l_exchange_rate>) WITH TABLE KEY source_curr = i_source_currency
+                                                                                  target_curr = i_target_currency.
 
-  IF sy-subrc <> 0 OR <l_exchange_rate> IS NOT ASSIGNED.
-    RAISE EXCEPTION TYPE zcx_fi_das_error
-      MESSAGE e017(zfi_das) WITH i_source_currency i_target_currency.
-  ENDIF.
+    IF sy-subrc <> 0 OR <l_exchange_rate> IS NOT ASSIGNED.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e017(zfi_das) WITH i_source_currency i_target_currency.
+    ENDIF.
 
-  rs_rate-rate = <l_exchange_rate>-exchange_rate.
+    rs_rate-rate = <l_exchange_rate>-exchange_rate.
 
-ENDMETHOD.
+  ENDMETHOD.
 
-METHOD convert_to_usd.
+  METHOD convert_to_usd.
 
-  DATA: l_rate          TYPE ts_exchange_rate,
-        l_source_amount TYPE t_amount_precision,
-        l_usd_amount    TYPE decfloat34.
+    DATA: l_rate          TYPE ts_exchange_rate,
+          l_source_amount TYPE t_amount_precision,
+          l_usd_amount    TYPE decfloat34.
 
-  CLEAR rv_amount.
+    CLEAR rv_amount.
 
-  IF i_keep_precision = abap_true.
-    l_source_amount = i_amount.
-  ELSE.
-    l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( i_amount )
-                                                            i_decimals = mc_amount_decimals  ).
-  ENDIF.
+    IF i_keep_precision = abap_true.
+      l_source_amount = i_amount.
+    ELSE.
+      l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( i_amount )
+                                                              i_decimals = mc_amount_decimals  ).
+    ENDIF.
 
-  IF l_source_amount IS INITIAL.
-    RETURN.
-  ENDIF.
+    IF l_source_amount IS INITIAL.
+      RETURN.
+    ENDIF.
 
 * Apply the historical currency factor before conversion.
-  l_source_amount = l_source_amount * get_currency_factor( i_currency = i_source_currency ).
+    l_source_amount = l_source_amount * get_currency_factor( i_currency = i_source_currency ).
 
-  l_rate = read_exchange_rate( i_source_currency = i_source_currency ).
+    l_rate = get_exchange_rate( i_source_currency = i_source_currency ).
 
-  l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate-rate ).
+    l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate-rate ).
 
-  rv_amount = round( val  = l_usd_amount
-                     dec  = mc_amount_decimals
-                     mode = cl_abap_math=>round_half_up  ).
+    rv_amount = round( val  = l_usd_amount
+                       dec  = mc_amount_decimals
+                       mode = cl_abap_math=>round_half_up  ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD get_currency_factor.
 
@@ -3047,114 +3120,43 @@ ENDMETHOD.
 
   ENDMETHOD.
 
-  METHOD read_request_decimal_format.
+  METHOD get_decimal_format.
 
-    TYPES:
-      BEGIN OF ts_user_format,
-        bname TYPE xubname,
-        dcpfm TYPE xudcpfm,
-      END OF ts_user_format,
+    rv_decimal_format = mc_default_decimal_format.
 
-      tt_user_format TYPE STANDARD TABLE OF ts_user_format
-        WITH EMPTY KEY.
+    DATA(l_email) = CONV ad_smtpadr( zcl_fi_das_utility=>normalize_email( i_email ) ).
 
-    DATA:
-      lv_email      TYPE ad_smtpadr,
-      lt_candidates TYPE tt_user_format,
-      ls_candidate  TYPE ts_user_format,
-      lv_first_char TYPE c LENGTH 1.
-
-*--------------------------------------------------------------------*
-* XSA behavior:
-*
-* TF_getOpenPOFinal / TF_getOpenThresholdPO / TF_getExclusionPOFinal
-* obtain DECIMAL_FORMAT from CV_getUserDetails by IP_EMAIL.
-*
-* CV_getUserDetails contains a row only when the e-mail can be joined
-* to a valid dialog user. If there is no row, XSA executes:
-*
-*   IF lv_delimiter IS NULL THEN
-*     lv_delimiter = 'X';
-*   END IF;
-*
-* Therefore:
-* - no valid XSA user row -> X (1,234.56)
-* - valid row with blank DCPFM -> blank (1.234,56)
-*
-* Do not use POOWNER to decide the formatting.
-*--------------------------------------------------------------------*
-    rv_decimal_format =
-      mc_format_decimal_dot.
-
-    lv_email =
-      CONV ad_smtpadr(
-        zcl_fi_das_utility=>normalize_email(
-          i_email = i_email ) ).
-
-    IF lv_email IS INITIAL.
+    IF l_email IS INITIAL.
       RETURN.
     ENDIF.
 
-*--------------------------------------------------------------------*
-* Reproduce CV_getAllUserDetails:
-*
-* - USR21 / ADR6 link by person and address number
-* - USR01 defaults
-* - active dialog user from USR02
-* - not an RPA account
-*
-* The BNAME first-character condition is applied below because it is
-* safer for the supported Open SQL release than using SUBSTRING in SQL.
-*--------------------------------------------------------------------*
     SELECT DISTINCT
-      user_data~bname,
-      user_defaults~dcpfm
+           user_data~bname,
+           user_defaults~dcpfm
       FROM usr21 AS user_data
-      INNER JOIN adr6 AS email
-        ON  email~persnumber = user_data~persnumber
-        AND email~addrnumber = user_data~addrnumber
-      INNER JOIN usr01 AS user_defaults
-        ON user_defaults~bname = user_data~bname
-      INNER JOIN usr02 AS logon_data
-        ON logon_data~bname = user_data~bname
-      WHERE email~smtp_addr = @lv_email
-        AND logon_data~ustyp = 'A'
-        AND logon_data~class NOT LIKE '%RPA%'
-        AND logon_data~gltgv < @sy-datum
-        AND logon_data~gltgb >= @sy-datum
-      ORDER BY user_data~bname
-      INTO TABLE @lt_candidates.
+    INNER JOIN adr6 AS email
+        ON email~persnumber = user_data~persnumber AND
+           email~addrnumber = user_data~addrnumber
+    INNER JOIN usr01 AS user_defaults ON user_defaults~bname = user_data~bname
+    INNER JOIN usr02 AS logon_data ON logon_data~bname = user_data~bname
+      WHERE email~smtp_addr = @l_email AND
+            logon_data~ustyp = @mc_user_type_dialog AND
+            logon_data~class NOT LIKE @mc_rpa_pattern AND
+            logon_data~gltgv <= @sy-datum AND
+            logon_data~gltgb >= @sy-datum
+    ORDER BY user_data~bname
+      INTO TABLE @DATA(lt_candidates).
 
-    LOOP AT lt_candidates
-      INTO ls_candidate.
+    LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<fs_candidate>).
 
-      lv_first_char =
-        ls_candidate-bname+0(1).
-
-      IF lv_first_char CO '0123456789'.
+      IF <fs_candidate>-bname+0(1) CO mc_digit_chars.
         CONTINUE.
       ENDIF.
 
-*------------------------------------------------------------------*
-* A valid XSA user row exists. Assign DCPFM even when it is blank.
-* This intentionally overwrites the X fallback with blank for the
-* European XSA format: grouping '.', decimal ','.
-*------------------------------------------------------------------*
-      rv_decimal_format =
-        ls_candidate-dcpfm.
-
+      rv_decimal_format = <fs_candidate>-dcpfm.
       RETURN.
 
     ENDLOOP.
-
-*--------------------------------------------------------------------*
-* No valid user candidate: retain XSA fallback X.
-*
-* This is the required path for
-* patricia-tiemi.oshiro@takeda.com when ADR6 has an e-mail address but
-* no usable USR21 -> ADR6 -> USR01/USR02 identity chain exists.
-*--------------------------------------------------------------------*
-    FREE lt_candidates.
 
   ENDMETHOD.
 

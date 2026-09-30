@@ -84,11 +84,14 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
 *--------------------------------------------------------------------*
 * First $orderby entry. Evaluation happens in the dashboard class.
 *--------------------------------------------------------------------*
-  TYPES:
+ TYPES:
     BEGIN OF ts_orderby,
       property   TYPE string,
       descending TYPE abap_bool,
-    END OF ts_orderby.
+    END OF ts_orderby,
+
+    tt_orderby TYPE STANDARD TABLE OF ts_orderby
+      WITH EMPTY KEY.
 
   TYPES:
     BEGIN OF ts_paging,
@@ -101,7 +104,8 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
   TYPES:
     BEGIN OF ts_generic_filter,
       property TYPE string,
-      option   TYPE ddoption,     " EQ / CP
+      sign     TYPE ddsign,
+      option   TYPE ddoption,
       low      TYPE t_text_500,
       high     TYPE t_text_500,
     END OF ts_generic_filter,
@@ -127,7 +131,7 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
       item_contains     TYPE tt_item_contains,
       supplier_contains TYPE tt_supplier_contains,
       generic_filters   TYPE tt_generic_filter,
-      orderby           TYPE ts_orderby,
+      orderby           TYPE tt_orderby,
       select            TYPE string,
       paging            TYPE ts_paging,
     END OF ts_request.
@@ -384,7 +388,7 @@ INTERFACE zif_fi_das_dashboard PUBLIC.
       et_result     TYPE tt_over
       e_total_count TYPE int8
     RAISING
-      zcx_fi_das_error
+          zcx_fi_das_error
       cx_sy_conversion_error
       cx_sy_open_sql_db.
 

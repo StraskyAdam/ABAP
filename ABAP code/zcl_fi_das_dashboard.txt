@@ -322,11 +322,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS execute_request
       IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+        is_request    TYPE zif_fi_das_dashboard=>ts_request
+        i_mode        TYPE zif_fi_das_dashboard=>t_operation
       CHANGING
-        ct_result       TYPE ANY TABLE
-        c_total_count   TYPE int8
+        ct_result     TYPE ANY TABLE
+        c_total_count TYPE int8
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
@@ -361,7 +361,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS set_full_processing
       CHANGING
-        cs_request               TYPE zif_fi_das_dashboard=>ts_request.
+        cs_request TYPE zif_fi_das_dashboard=>ts_request.
 
     METHODS should_skip_calculations
       IMPORTING
@@ -371,11 +371,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_required_keys
       IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_mode          TYPE zif_fi_das_dashboard=>t_operation
+        is_request    TYPE zif_fi_das_dashboard=>ts_request
+        i_mode        TYPE zif_fi_das_dashboard=>t_operation
       EXPORTING
-        et_keys         TYPE tt_key
-        e_total_count   TYPE int8
+        et_keys       TYPE tt_key
+        e_total_count TYPE int8
       RAISING
         cx_sy_open_sql_db
         zcx_fi_das_error.
@@ -482,16 +482,45 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(et_keys)             TYPE tt_key
         VALUE(e_total_count)       TYPE int8.
 
-     METHODS get_context
-       IMPORTING
-         it_keys           TYPE tt_key
-         i_mode            TYPE zif_fi_das_dashboard=>t_operation
-         is_request        TYPE zif_fi_das_dashboard=>ts_request
-       RETURNING
-         VALUE(rs_context) TYPE ts_context
-       RAISING
-         zcx_fi_das_error
-         cx_sy_open_sql_db.
+    METHODS get_context
+      IMPORTING
+        it_keys           TYPE tt_key
+        i_mode            TYPE zif_fi_das_dashboard=>t_operation
+        is_request        TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(rs_context) TYPE ts_context
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS get_details
+      IMPORTING
+        it_keys           TYPE tt_key
+      RETURNING
+        VALUE(rt_details) TYPE tt_source_detail
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_exchrt.
+
+    METHODS get_accounts
+      IMPORTING
+        it_keys            TYPE tt_key
+      RETURNING
+        VALUE(rt_accounts) TYPE tt_account_aggregate
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS get_history
+      IMPORTING
+        it_keys           TYPE tt_key
+        it_details        TYPE tt_source_detail
+      RETURNING
+        VALUE(rt_history) TYPE tt_history_aggregate
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
 
     METHODS get_results
       IMPORTING
@@ -526,31 +555,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS get_details
-      IMPORTING
-        it_keys           TYPE tt_key
-      RETURNING
-        VALUE(rt_details) TYPE tt_source_detail
-      RAISING
-        cx_sy_open_sql_db.
 
-    METHODS get_accounts
-      IMPORTING
-        it_keys            TYPE tt_key
-      RETURNING
-        VALUE(rt_accounts) TYPE tt_account_aggregate
-      RAISING
-        cx_sy_open_sql_db.
 
-    METHODS get_history
-      IMPORTING
-        it_keys           TYPE tt_key
-        it_details        TYPE tt_source_detail
-      RETURNING
-        VALUE(rt_history) TYPE tt_history_aggregate
-      RAISING
-        zcx_fi_das_error
-        cx_sy_open_sql_db.
+
+
+
 
     METHODS get_statuses
       IMPORTING
@@ -584,7 +593,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         cx_amdp_error.
 
-    METHODS get_exchrt.
+
 
     METHODS apply_detail
       IMPORTING
@@ -814,7 +823,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       CHANGING
         ct_result  TYPE STANDARD TABLE.
 
-ENDCLASS.
+  ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
@@ -1347,6 +1356,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     get_exchrt( ).
 
     rs_context-accounts = get_accounts( it_keys ).
+
     rs_context-history = get_history( it_keys    = it_keys
                                       it_details = rs_context-details ).
 
@@ -1369,56 +1379,55 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_details.
 
-    IF it_keys IS INITIAL.
-      RETURN.
+    IF it_keys IS NOT INITIAL.
+
+      SELECT
+        ponumber,
+        itemno,
+        workstartdateraw       AS work_start_date,
+        workenddateraw         AS work_end_date,
+        grossvalue             AS gross_value,
+        netprice               AS net_price,
+        priceunit              AS price_unit,
+        orderquantity          AS order_quantity,
+        porequestor            AS po_requestor,
+        popreparer             AS po_preparer,
+        serviceamount          AS service_amount,
+        servicepercentage      AS service_percentage,
+        polinedescription      AS po_line_description,
+        activitynumber         AS activity_number,
+        companycode            AS company_code,
+        pocurrency             AS po_currency,
+        supplierid             AS supplier_id,
+        pocreatedat            AS po_created_at,
+        documentdate           AS document_date,
+        purchasingorganization AS purchasing_org,
+        epnumber               AS ep_number,
+        suppliername           AS supplier_name,
+        purchasingunit         AS purchasing_unit,
+        region                 AS region,
+        companycodecurrency    AS company_code_currency
+      FROM zi_fi_das_po_base
+        FOR ALL ENTRIES IN @it_keys
+      WHERE ponumber = @it_keys-ponumber AND
+            itemno   = @it_keys-itemno
+        INTO TABLE @DATA(lt_base).
+
+      LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
+
+        ASSIGN it_keys[ ponumber = <fs_base>-ponumber
+                        itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+
+        IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+
+        INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
+                        effective_pstype = <fs_key>-pstype
+                        poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
+
+      ENDLOOP.
     ENDIF.
-
-    SELECT
-      ponumber,
-      itemno,
-      workstartdateraw       AS work_start_date,
-      workenddateraw         AS work_end_date,
-      grossvalue             AS gross_value,
-      netprice               AS net_price,
-      priceunit              AS price_unit,
-      orderquantity          AS order_quantity,
-      porequestor            AS po_requestor,
-      popreparer             AS po_preparer,
-      serviceamount          AS service_amount,
-      servicepercentage      AS service_percentage,
-      polinedescription      AS po_line_description,
-      activitynumber         AS activity_number,
-      companycode            AS company_code,
-      pocurrency             AS po_currency,
-      supplierid             AS supplier_id,
-      pocreatedat            AS po_created_at,
-      documentdate           AS document_date,
-      purchasingorganization AS purchasing_org,
-      epnumber               AS ep_number,
-      suppliername           AS supplier_name,
-      purchasingunit         AS purchasing_unit,
-      region                 AS region,
-      companycodecurrency    AS company_code_currency
-    FROM zi_fi_das_po_base
-      FOR ALL ENTRIES IN @it_keys
-    WHERE ponumber = @it_keys-ponumber AND
-          itemno   = @it_keys-itemno
-      INTO TABLE @DATA(lt_base).
-
-    LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
-
-      ASSIGN it_keys[ ponumber = <fs_base>-ponumber
-                      itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
-
-      IF sy-subrc <> 0.
-        CONTINUE.
-      ENDIF.
-
-      INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
-                      effective_pstype = <fs_key>-pstype
-                      poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
-
-    ENDLOOP.
 
   ENDMETHOD.
 
@@ -1462,7 +1471,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ASSIGN rt_accounts[ ponumber = <fs_account>-ponumber
                           itemno   = <fs_account>-itemno ] TO FIELD-SYMBOL(<fs_aggregate>).
 
-      IF sy-subrc <> 0.
+      IF <fs_aggregate> IS NOT ASSIGNED OR sy-subrc <> 0.
 
         INSERT VALUE #( ponumber = <fs_account>-ponumber
                         itemno   = <fs_account>-itemno ) INTO TABLE rt_accounts ASSIGNING <fs_aggregate>.
@@ -1488,9 +1497,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                          i_value   = CONV string( <fs_account>-costcenter_desc )
                                          i_first   = l_is_first_entry ).
 
-*    Management unit is aggregated only if the corresponding CSKS record exists.
-*    It therefore needs its own count, not ENTRY_COUNT.
-
+*     Management unit is aggregated only if the corresponding CSKS record exists.
       IF <fs_account>-management_unit_found IS NOT INITIAL.
 
         <fs_aggregate>-management_unit = zcl_fi_das_utility=>append_delimited(
@@ -1886,14 +1893,19 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_exchrt.
-    SELECT source_curr,
-           target_curr,
-           exchange_rate,
-           reference_date,
-           last_replicated_at,
-           rev_exchange_rate
-      FROM zfi_das_exchrt
+
+    IF mt_exchrt IS INITIAL.
+
+      SELECT source_curr, target_curr,exchange_rate, reference_date,last_replicated_at,rev_exchange_rate
+        FROM zfi_das_exchrt
       INTO CORRESPONDING FIELDS OF TABLE @mt_exchrt.
+
+      IF sy-subrc <> 0.
+        CLEAR mt_exchrt.
+      ENDIF.
+
+    ENDIF.
+
   ENDMETHOD.
 
   METHOD apply_detail.

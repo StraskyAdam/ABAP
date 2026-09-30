@@ -173,26 +173,29 @@ CLASS ZCL_FI_DAS_UTILITY IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD append_delimited.
-    DATA(lv_value) = i_value.
-    SHIFT lv_value LEFT DELETING LEADING space.
+METHOD append_delimited.
 
-    IF i_skip_initial = abap_true.
-      SHIFT lv_value RIGHT DELETING TRAILING space.
-      IF lv_value IS INITIAL.
-        r_result = i_current.
-        RETURN.
-      ENDIF.
-    ENDIF.
+  DATA(l_value) = i_value.
 
-    IF i_first = abap_true
-       OR ( i_skip_initial = abap_true AND i_current IS INITIAL ).
-      r_result = lv_value.
+  SHIFT l_value LEFT DELETING LEADING space.
+
+  IF i_skip_initial = abap_true.
+    SHIFT l_value RIGHT DELETING TRAILING space.
+
+    IF l_value IS INITIAL.
+      r_result = i_current.
       RETURN.
     ENDIF.
+  ENDIF.
 
-    r_result = i_current && i_delimiter && lv_value.
-  ENDMETHOD.
+  IF i_first = abap_true OR ( i_skip_initial = abap_true AND i_current IS INITIAL ).
+    r_result = l_value.
+    RETURN.
+  ENDIF.
+
+  r_result = i_current && i_delimiter && l_value.
+
+ENDMETHOD.
 
 
 METHOD format_odata_amount.
@@ -484,37 +487,34 @@ METHOD split_list.
 ENDMETHOD.
 
 
-  METHOD trim_delimiters.
+METHOD trim_delimiters.
 
-    DATA:
-      lv_value TYPE string,
-      lv_start TYPE i,
-      lv_end   TYPE i,
-      lv_last  TYPE i.
+  DATA(l_value) = i_value.
+  DATA(l_start) = 0.
+  DATA(l_end)   = strlen( l_value ).
+  DATA l_last TYPE i.
 
-    lv_value = i_value.
-    lv_end   = strlen( lv_value ).
-    lv_start = 0.
+  WHILE l_start < l_end
+    AND l_value+l_start(1) = i_delimiter.
+    l_start = l_start + 1.
+  ENDWHILE.
 
-    WHILE lv_start < lv_end
-      AND lv_value+lv_start(1) = i_delimiter.
-      lv_start = lv_start + 1.
-    ENDWHILE.
+  WHILE l_end > l_start.
+    l_last = l_end - 1.
 
-    WHILE lv_end > lv_start.
-      lv_last = lv_end - 1.
-      IF lv_value+lv_last(1) <> i_delimiter.
-        EXIT.
-      ENDIF.
-      lv_end = lv_last.
-    ENDWHILE.
+    IF l_value+l_last(1) <> i_delimiter.
+      EXIT.
+    ENDIF.
 
-    r_value = substring(
-      val = lv_value
-      off = lv_start
-      len = lv_end - lv_start ).
+    l_end = l_last.
+  ENDWHILE.
 
-  ENDMETHOD.
+  r_value = substring(
+    val = l_value
+    off = l_start
+    len = l_end - l_start ).
+
+ENDMETHOD.
 
 
   METHOD truncate_decimal.

@@ -32,10 +32,10 @@ $requests = @(
         Path = "/exclusionPO.xsodata/exclusionPOParameters(IP_EMAIL='$email',IP_POOWNER='')/Results"
         PageSize = 1000
     },
-  
+
 # Specific owner
 
-	@{
+    @{
         Name = "xsa-over-material-owner.json"
         Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='0',IP_EMAIL='anita.estrada@takeda.com',IP_POOWNER='X')/Results"
         PageSize = 1000
@@ -60,23 +60,26 @@ $requests = @(
         Path = "/exclusionPO.xsodata/exclusionPOParameters(IP_EMAIL='alta.bazile@takeda.com',IP_POOWNER='X')/Results"
         PageSize = 1000
     },
-	
-# Filter for Company code, Cost center & Management unit	
+
+# Filter for Company code, Cost center & Management unit
+
     @{
         Name = "xsa-filter.json"
         Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='patricia-tiemi.oshiro@takeda.com',IP_POOWNER='')/Results"
         PageSize = 1000
-    }
-	
+    },
+
 # Selection via PO number, item & Supplier
-	@{
-		Name = "xsa-selection.json"
-		Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='$email',IP_POOWNER='')/Results?`$filter=PONUMBER eq '8000401022' and ITEMNO eq '00002' and substringof('Fuji',SUPPLIERNAME)"
-		PageSize = 1000
-	},
-	
+
+    @{
+        Name = "xsa-selection.json"
+        Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='$email',IP_POOWNER='')/Results?`$filter=PONUMBER eq '8000401022' and ITEMNO eq '00002' and substringof('Fuji',SUPPLIERNAME)"
+        PageSize = 1000
+    },
+
 # Decimal format
-   @{
+
+    @{
         Name = "xsa-y_format.json"
         Path = "/thresholdPO.xsodata/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='agnieszka.blaszczyk@takeda.com',IP_POOWNER='X')/Results"
         PageSize = 1000
@@ -86,13 +89,27 @@ $requests = @(
         Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='anchalee.chittawut@takeda.com',IP_POOWNER='X')/Results"
         PageSize = 1000
     },
-	@{
+    @{
         Name = "xsa-empty_format.json"
         Path = "/thresholdPO.xsodata/thresholdParameters(IP_PSTYPE='0',IP_EMAIL='ana.verdiguel@takeda.com',IP_POOWNER='X')/Results"
         PageSize = 1000
-    }	
-	
+    }
 )
+
+# Scope NULL / wildcard matrix
+# Users xsa-null-01..30@takeda.com must exist in XSA and ABAP
+# with identical COMPANY_CODE / MANAGEMENT_UNIT / COST_CENTER.
+# Flow: Over (openOwnerPO), Service, no owner - same as test_filter.
+
+1..30 | ForEach-Object {
+    $number = "{0:D2}" -f $_
+
+    $requests += @{
+        Name = "xsa-scope-$number.json"
+        Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='xsa-null-$number@takeda.com',IP_POOWNER='')/Results"
+        PageSize = 1000
+    }
+}
 
 function Get-XsaAllPages {
     param(

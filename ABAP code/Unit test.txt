@@ -1101,19 +1101,18 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `COMPANYCODE` option = 'EQ' low = '2028' ) ) ).
+        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-companycode
-      exp = '2028' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
 
   ENDMETHOD.
 
@@ -1127,22 +1126,22 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00001'
         polinedesc = 'Enterprise Plan' ) ).
 
+    " Gateway prevedie substringof na CP *hodnota*.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POLINEDESC` option = 'CP' low = 'local support' ) ) ).
+        ( property = `POLINEDESC` sign = 'I' option = 'CP'
+          low = '*Local Support*' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    " Contains is case-insensitive.
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-ponumber
-      exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
@@ -1151,27 +1150,25 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001'
-        companycode = '2028' pocurrency = 'JPY' )
-      ( ponumber = '8000000002' itemno = '00001'
-        companycode = '2028' pocurrency = 'USD' ) ).
+      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '2028' pocurrency = 'USD' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '6305' pocurrency = 'JPY' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `COMPANYCODE` option = 'EQ' low = '2028' )
-        ( property = `POCURRENCY`  option = 'EQ' low = 'JPY' ) ) ).
+        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' )
+        ( property = `POCURRENCY`  sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-pocurrency
-      exp = 'JPY' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
@@ -1186,16 +1183,18 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POCURRENCY` option = 'EQ' low = 'JPY' )
-        ( property = `POCURRENCY` option = 'EQ' low = 'EUR' ) ) ).
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' )
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'USD' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
   ENDMETHOD.
 
@@ -1204,61 +1203,64 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001' ) ).
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `NOT_A_COLUMN` option = 'EQ' low = 'X' ) ) ).
+        ( property = `NOT_A_COLUMN` sign = 'I' option = 'EQ' low = 'X' ) ) ).
 
-    " Unknown property must be ignored, not dump.
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    " Neznáma property sa ignoruje: žiadny dump, žiadna výnimka,
+    " riadky ostanú nezmenené.
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_result )
-      exp = 1 ).
+      exp = 2
+      msg = 'Unknown property must be ignored' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000001' ).
 
   ENDMETHOD.
 
-
-
   METHOD generic_with_sort_and_paging.
 
-
-    " Full pipeline order: filter -> sort -> page.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000003' itemno = '00001'
-        pocurrency = 'JPY' suppliername = 'Charlie' )
-      ( ponumber = '8000000001' itemno = '00001'
-        pocurrency = 'JPY' suppliername = 'Alpha' )
-      ( ponumber = '8000000002' itemno = '00001'
-        pocurrency = 'USD' suppliername = 'Bravo' ) ).
+      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'JPY' suppliername = 'Charlie' )
+      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' suppliername = 'Alpha' )
+      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' suppliername = 'Bravo' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POCURRENCY` option = 'EQ' low = 'JPY' ) )
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' ) )
       orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
       paging  = VALUE #( skip = 1 top = 1 ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
 
-    mo_cut->apply_sort_and_paging(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+        mo_cut->apply_sort_and_paging(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    " JPY only: Alpha, Charlie -> window [2..2] = Charlie.
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-suppliername
-      exp = 'Charlie' ).
+    " JPY: Alpha, Charlie -> okno [2..2] = Charlie
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Charlie' ).
 
   ENDMETHOD.
 

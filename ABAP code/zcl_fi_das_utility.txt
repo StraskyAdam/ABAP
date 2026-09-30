@@ -147,30 +147,25 @@ ENDCLASS.
 CLASS ZCL_FI_DAS_UTILITY IMPLEMENTATION.
 
 
-  METHOD alpha_output.
+METHOD alpha_output.
 
-    DATA lv_value TYPE string.
+  DATA(l_value) = i_value.
 
-    lv_value =
-      i_value.
+  SHIFT l_value LEFT  DELETING LEADING space.
+  SHIFT l_value RIGHT DELETING TRAILING space.
 
-    SHIFT lv_value LEFT DELETING LEADING space.
-    SHIFT lv_value RIGHT DELETING TRAILING space.
+  IF l_value IS INITIAL.
+    RETURN.
+  ENDIF.
 
-    IF lv_value IS INITIAL.
-      RETURN.
-    ENDIF.
+  SHIFT l_value LEFT DELETING LEADING '0'.
 
-    SHIFT lv_value LEFT DELETING LEADING '0'.
+  r_value = COND #(
+    WHEN l_value IS INITIAL
+    THEN '0'
+    ELSE l_value ).
 
-    IF lv_value IS INITIAL.
-      lv_value = '0'.
-    ENDIF.
-
-    r_value =
-      lv_value.
-
-  ENDMETHOD.
+ENDMETHOD.
 
 
 METHOD append_delimited.
@@ -517,17 +512,18 @@ METHOD trim_delimiters.
 ENDMETHOD.
 
 
-  METHOD truncate_decimal.
-    IF i_decimals < 0 OR i_decimals > mc_max_decimals.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason = |Unsupported decimal count: { i_decimals }|.
-    ENDIF.
+METHOD truncate_decimal.
 
-    DATA(lv_factor) = CONV decfloat34( 10 ) ** i_decimals.
+  IF i_decimals < 0 OR i_decimals > mc_max_decimals.
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      MESSAGE e018(zfi_das) WITH i_decimals.
+  ENDIF.
 
-    r_value = trunc( i_value * lv_factor ) / lv_factor.
-  ENDMETHOD.
+  DATA(l_factor) = CONV decfloat34( 10 ) ** i_decimals.
+
+  r_value = trunc( i_value * l_factor ) / l_factor.
+
+ENDMETHOD.
 
 
    METHOD utc_to_cet_timestamp.

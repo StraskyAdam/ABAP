@@ -14,30 +14,47 @@ protected section.
     redefinition .
 private section.
 
-  constants:
-    MC_PROPERTY_PONUMBER     type STRING value 'PONUMBER',
-    MC_PROPERTY_ITEMNO       type STRING value 'ITEMNO',
-    MC_PROPERTY_SUPPLIERNAME type STRING value 'SUPPLIERNAME',
-    MC_QUERY_TOP             type STRING value '$TOP',
-    MC_KEY_EMAIL             type STRING value 'IP_EMAIL',
-    MC_KEY_PSTYPE            type STRING value 'IP_PSTYPE',
-    MC_KEY_POOWNER           type STRING value 'IP_POOWNER',
-    MC_SIGN_INCLUDE          type DDSIGN value 'I',
-    MC_OPTION_CONTAINS       type DDOPTION value 'CP',
-    MC_ORDER_DESCENDING      type STRING value 'DESC'.
+  constants MC_ORDER_DESCENDING type STRING value 'DESC' ##NO_TEXT.
 
   methods BUILD_REQUEST
     importing
       !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
       !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR optional
     returning
-      value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
-
-  methods GET_CONTAINS_VALUE
+      value(RS_REQUEST) type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST
+    raising
+      /IWBEP/CX_MGW_TECH_EXCEPTION .
+  methods GET_KEY_PARAMETERS
     importing
-      !I_PATTERN type CSEQUENCE
+      !IT_KEY_TAB type /IWBEP/T_MGW_NAME_VALUE_PAIR
+    changing
+      !CS_REQUEST type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods GET_PAGING
+    importing
+      !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
+    changing
+      !CS_REQUEST type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods GET_SELECT
+    importing
+      !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
+    changing
+      !CS_REQUEST type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods GET_FILTER
+    importing
+      !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
+    changing
+      !CS_REQUEST type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods GET_ORDER
+    importing
+      !IO_TECH_REQUEST_CONTEXT type ref to /IWBEP/IF_MGW_REQ_ENTITYSET
+    changing
+      !CS_REQUEST type ZIF_FI_DAS_DASHBOARD=>TS_REQUEST .
+  methods GET_INLINE_COUNT
+    importing
+      !I_REQUESTED type ABAP_BOOL
+      !I_TOTAL_COUNT type INT8
     returning
-      value(R_VALUE) type STRING .
+      value(R_INLINE_COUNT) type STRING .
 ENDCLASS.
 
 
@@ -47,371 +64,193 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   METHOD build_request.
 
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
+
     CLEAR rs_request.
 
-    " Parameters z openPOParameters(...)
-    READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<ls_key>)
-      WITH KEY name = mc_key_email.
+    get_key_parameters( EXPORTING it_key_tab = it_key_tab
+                        CHANGING  cs_request = rs_request ).
 
-    IF sy-subrc = 0.
-      rs_request-email = <ls_key>-value.
-    ENDIF.
+    get_paging( EXPORTING io_tech_request_context = io_tech_request_context
+                CHANGING  cs_request = rs_request ).
 
-    READ TABLE it_key_tab ASSIGNING <ls_key>
-      WITH KEY name = mc_key_pstype.
+    get_select( EXPORTING io_tech_request_context = io_tech_request_context
+                CHANGING  cs_request = rs_request ).
 
-    IF sy-subrc = 0.
-      rs_request-pstype = <ls_key>-value.
-    ENDIF.
+    get_filter( EXPORTING io_tech_request_context = io_tech_request_context
+                CHANGING  cs_request = rs_request ).
 
-    READ TABLE it_key_tab ASSIGNING <ls_key>
-      WITH KEY name = mc_key_poowner.
-
-    IF sy-subrc = 0.
-      rs_request-poowner = <ls_key>-value.
-    ENDIF.
-
-    " Paging
-    DATA(lv_request_uri) = VALUE string( ).
-
-    TRY.
-        DATA(lo_request_context) =
-          CAST /iwbep/cl_mgw_request( io_tech_request_context ).
-
-        DATA(ls_request_details) =
-          lo_request_context->get_request_details( ).
-
-        lv_request_uri = VALUE #(
-          ls_request_details-technical_request-request_header[
-            name = '~request_uri'
-          ]-value OPTIONAL ).
-
-      CATCH cx_sy_move_cast_error.
-        CLEAR lv_request_uri.
-    ENDTRY.
-
-    DATA(lv_request_uri_upper) = to_upper( lv_request_uri ).
-
-    IF lv_request_uri_upper CS '$TOP='
-       OR lv_request_uri_upper CS '%24TOP='.
-      rs_request-paging-top_requested = abap_true.
-    ENDIF.
-
-    rs_request-paging-top =
-      io_tech_request_context->get_top( ).
-
-    rs_request-paging-skip =
-      io_tech_request_context->get_skip( ).
-
-    rs_request-paging-count_requested =
-      io_tech_request_context->has_inlinecount( ).
-
-    " $select
-    rs_request-select = to_upper(
-      concat_lines_of(
-        table = io_tech_request_context->get_select( )
-        sep   = zif_fi_das_dashboard=>mc_comma ) ).
-
-    " $filter
-    IF io_tech_request_context->get_filter( ) IS BOUND.
-
-      DATA(lt_filters) =
-        io_tech_request_context->get_filter(
-          )->get_filter_select_options( ).
-
-      LOOP AT lt_filters ASSIGNING FIELD-SYMBOL(<ls_filter>).
-
-        DATA(l_property) =
-          to_upper( CONV string( <ls_filter>-property ) ).
-
-        DATA(l_special_filter_supported) = abap_false.
-
-        " Validuj celú property. Ak jeden select-option nie je
-        " podporovaný, celá property sa spracuje genericky.
-        CASE l_property.
-
-          WHEN mc_property_ponumber.
-
-            l_special_filter_supported = abap_true.
-
-            LOOP AT <ls_filter>-select_options
-              ASSIGNING FIELD-SYMBOL(<ls_po_check>).
-
-              IF <ls_po_check>-sign <> mc_sign_include
-                 OR ( <ls_po_check>-option <> rsmds_c_option-equal
-                      AND <ls_po_check>-option
-                            <> mc_option_contains ).
-                l_special_filter_supported = abap_false.
-                EXIT.
-              ENDIF.
-
-            ENDLOOP.
-
-          WHEN mc_property_itemno.
-
-            l_special_filter_supported = abap_true.
-
-            LOOP AT <ls_filter>-select_options
-              ASSIGNING FIELD-SYMBOL(<ls_item_check>).
-
-              IF <ls_item_check>-sign <> mc_sign_include
-                 OR ( <ls_item_check>-option <> rsmds_c_option-equal
-                      AND <ls_item_check>-option
-                            <> mc_option_contains ).
-                l_special_filter_supported = abap_false.
-                EXIT.
-              ENDIF.
-
-            ENDLOOP.
-
-          WHEN mc_property_suppliername.
-
-            l_special_filter_supported = abap_true.
-
-            LOOP AT <ls_filter>-select_options
-              ASSIGNING FIELD-SYMBOL(<ls_supplier_check>).
-
-              IF <ls_supplier_check>-sign <> mc_sign_include
-                 OR <ls_supplier_check>-option
-                      <> mc_option_contains.
-                l_special_filter_supported = abap_false.
-                EXIT.
-              ENDIF.
-
-            ENDLOOP.
-
-        ENDCASE.
-
-        IF l_special_filter_supported = abap_true.
-
-          " Efektívna špecifická cesta cez AMDP
-          CASE l_property.
-
-            WHEN mc_property_ponumber.
-
-              LOOP AT <ls_filter>-select_options
-                ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
-
-                IF <ls_ponumber>-option = mc_option_contains.
-
-                  DATA(l_po_contains) =
-                    get_contains_value( <ls_ponumber>-low ).
-
-                  IF l_po_contains IS NOT INITIAL.
-                    APPEND VALUE #(
-                      value = CONV ebeln( l_po_contains ) )
-                      TO rs_request-po_contains.
-                  ENDIF.
-
-                ELSE.
-
-                  APPEND VALUE #(
-                    sign   = <ls_ponumber>-sign
-                    option = <ls_ponumber>-option
-                    low    = CONV ebeln( <ls_ponumber>-low )
-                    high   = CONV ebeln( <ls_ponumber>-high ) )
-                    TO rs_request-ponumber.
-
-                ENDIF.
-
-              ENDLOOP.
-
-            WHEN mc_property_itemno.
-
-              LOOP AT <ls_filter>-select_options
-                ASSIGNING FIELD-SYMBOL(<ls_itemno>).
-
-                IF <ls_itemno>-option = mc_option_contains.
-
-                  DATA(l_item_contains) =
-                    get_contains_value( <ls_itemno>-low ).
-
-                  IF l_item_contains IS NOT INITIAL.
-                    APPEND VALUE #(
-                      value = CONV ebelp( l_item_contains ) )
-                      TO rs_request-item_contains.
-                  ENDIF.
-
-                ELSE.
-
-                  APPEND VALUE #(
-                    sign   = <ls_itemno>-sign
-                    option = <ls_itemno>-option
-                    low    = CONV ebelp( <ls_itemno>-low )
-                    high   = CONV ebelp( <ls_itemno>-high ) )
-                    TO rs_request-itemno.
-
-                ENDIF.
-
-              ENDLOOP.
-
-            WHEN mc_property_suppliername.
-
-              LOOP AT <ls_filter>-select_options
-                ASSIGNING FIELD-SYMBOL(<ls_supplier>).
-
-                DATA(l_supplier_contains) =
-                  get_contains_value( <ls_supplier>-low ).
-
-                IF l_supplier_contains IS NOT INITIAL.
-                  APPEND VALUE #(
-                    value =
-                      CONV zif_fi_das_dashboard=>t_supplier(
-                        l_supplier_contains ) )
-                    TO rs_request-supplier_contains.
-                ENDIF.
-
-              ENDLOOP.
-
-          ENDCASE.
-
-          CONTINUE.
-
-        ENDIF.
-
-        " Všetky ostatné properties a nepodporované SIGN/OPTION
-        " kombinácie idú do generic_filters.
-        LOOP AT <ls_filter>-select_options
-          ASSIGNING FIELD-SYMBOL(<ls_generic>).
-
-          APPEND VALUE #(
-            property = l_property
-            sign     = <ls_generic>-sign
-            option   = <ls_generic>-option
-            low      = <ls_generic>-low
-            high     = <ls_generic>-high )
-            TO rs_request-generic_filters.
-
-        ENDLOOP.
-
-      ENDLOOP.
-
-    ENDIF.
-
-    " $orderby — všetky položky
-    DATA(lt_orderby) =
-      io_tech_request_context->get_orderby( ).
-
-    LOOP AT lt_orderby
-      ASSIGNING FIELD-SYMBOL(<ls_orderby>).
-
-      APPEND VALUE #(
-        property =
-          to_upper( <ls_orderby>-property )
-        descending =
-          xsdbool(
-            to_upper( <ls_orderby>-order )
-            CS mc_order_descending ) )
-        TO rs_request-orderby.
-
-    ENDLOOP.
-
+    get_order( EXPORTING io_tech_request_context = io_tech_request_context
+               CHANGING  cs_request = rs_request ).
   ENDMETHOD.
+
 
 METHOD exclusionposet_get_entityset.
 
-  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  TRY.
+      DATA(ls_request) = build_request( it_key_tab              = it_key_tab
+                                        io_tech_request_context = io_tech_request_context ).
 
-  DATA(ls_request) = build_request(
-    io_tech_request_context = io_tech_request_context
-    it_key_tab              = it_key_tab ).
+      DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
 
-  lo_dashboard = NEW zcl_fi_das_dashboard( ).
+      lo_dashboard->exclude(
+        EXPORTING
+          is_request    = ls_request
+        IMPORTING
+          et_result     = DATA(lt_result)
+          e_total_count = DATA(l_total_count) ).
 
-  lo_dashboard->exclude(
-    EXPORTING
-      is_request    = ls_request
-    IMPORTING
-      et_result     = DATA(lt_result)
-      e_total_count = DATA(lv_count) ).
+*     TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
+      et_entityset = CORRESPONDING #( lt_result ).
+      es_response_context-inlinecount = get_inline_count( i_requested = ls_request-paging-count_requested
+                                                          i_total_count = l_total_count ).
+    CATCH cx_sy_conversion_error
+          cx_sy_open_sql_db
+          zcx_fi_das_error INTO DATA(lx_error).
 
-  et_entityset = CORRESPONDING #( lt_result ).
-
-    " xsodata returns __count only when $inlinecount=allpages was
-    " requested; mirror that exactly.
-    IF io_tech_request_context->has_inlinecount( ) = abap_true.
-      es_response_context-inlinecount = lv_count.
-    ELSE.
-      CLEAR es_response_context-inlinecount.
-    ENDIF.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+        EXPORTING
+          previous = lx_error.
+  ENDTRY.
 
 ENDMETHOD.
 
 
-METHOD get_contains_value.
+METHOD get_filter.
 
-* Reduce a CP pattern to its literal characters. The UI sends only
-* *value* patterns; stripping wildcards makes any pattern safe
-* without ever rejecting the request. Inner spaces are preserved
-* (supplier names), only leading/trailing whitespace is removed.
+  DATA(lo_filter) = io_tech_request_context->get_filter( ).
 
-  r_value = i_pattern.
+  IF lo_filter IS BOUND.
 
-  REPLACE ALL OCCURRENCES OF
-    zif_fi_das_dashboard=>mc_asterisk_sign IN r_value WITH ``.
-  REPLACE ALL OCCURRENCES OF '+' IN r_value WITH ``.
+    DATA(lt_filters) = lo_filter->get_filter_select_options( ).
 
-  CONDENSE r_value.
+    cs_request-generic_filters = VALUE #( FOR ls_filter IN lt_filters
+                                          FOR ls_option IN ls_filter-select_options
+                                          ( property = to_upper( ls_filter-property )
+                                            sign     = ls_option-sign
+                                            option   = ls_option-option
+                                            low      = ls_option-low
+                                            high     = ls_option-high ) ).
+  ENDIF.
+
+ENDMETHOD.
+
+
+METHOD get_inline_count.
+
+  IF i_requested = abap_true.
+    r_inline_count = |{ i_total_count }|.
+  ENDIF.
+
+ENDMETHOD.
+
+
+METHOD get_key_parameters.
+
+  cs_request-email = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_email ]-value OPTIONAL ).
+
+  cs_request-pstype = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_pstype ]-value OPTIONAL ).
+
+  cs_request-poowner = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_poowner ]-value OPTIONAL ).
+
+ENDMETHOD.
+
+
+METHOD get_order.
+
+  LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
+
+    APPEND VALUE #( property   = to_upper( CONV string( <fs_orderby>-property ) )
+                    descending = xsdbool( to_upper( <fs_orderby>-order ) = mc_order_descending ) ) TO cs_request-orderby.
+
+  ENDLOOP.
+
+ENDMETHOD.
+
+
+METHOD get_paging.
+
+  DATA(l_top) = io_tech_request_context->get_top( ).
+
+  cs_request-paging-top_requested = xsdbool( l_top IS NOT INITIAL ).
+
+  cs_request-paging-top = l_top.
+
+  cs_request-paging-skip = io_tech_request_context->get_skip( ).
+
+  cs_request-paging-count_requested = io_tech_request_context->has_inlinecount( ).
+
+ENDMETHOD.
+
+
+METHOD get_select.
+
+  cs_request-select = to_upper( concat_lines_of( table = io_tech_request_context->get_select( )
+                                                 sep   = zif_fi_das_dashboard=>mc_comma ) ).
 
 ENDMETHOD.
 
 
 METHOD openpotypeset_get_entityset.
 
-  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  TRY.
+      DATA(ls_request) = build_request( it_key_tab              = it_key_tab
+                                        io_tech_request_context = io_tech_request_context ).
 
-  DATA(ls_request) = build_request(
-    io_tech_request_context = io_tech_request_context
-    it_key_tab              = it_key_tab ).
+      DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
 
-  lo_dashboard = NEW zcl_fi_das_dashboard( ).
+      lo_dashboard->over(
+        EXPORTING
+          is_request    = ls_request
+        IMPORTING
+          et_result     = DATA(lt_result)
+          e_total_count = DATA(l_total_count) ).
 
-  lo_dashboard->over(
-    EXPORTING
-      is_request    = ls_request
-    IMPORTING
-      et_result     = DATA(lt_result)
-      e_total_count = DATA(lv_count) ).
+*     TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
+      et_entityset = CORRESPONDING #( lt_result ).
+      es_response_context-inlinecount = get_inline_count( i_requested = ls_request-paging-count_requested
+                                                          i_total_count = l_total_count ).
+    CATCH cx_sy_conversion_error
+          cx_sy_open_sql_db
+          zcx_fi_das_error INTO DATA(lx_error).
 
-  et_entityset = CORRESPONDING #( lt_result ).
-
-    " xsodata returns __count only when $inlinecount=allpages was
-    " requested; mirror that exactly.
-    IF io_tech_request_context->has_inlinecount( ) = abap_true.
-      es_response_context-inlinecount = lv_count.
-    ELSE.
-      CLEAR es_response_context-inlinecount.
-    ENDIF.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+        EXPORTING
+          previous = lx_error.
+  ENDTRY.
 
 ENDMETHOD.
 
 
 METHOD thresholdset_get_entityset.
 
-  DATA lo_dashboard TYPE REF TO zif_fi_das_dashboard.
+  TRY.
+      DATA(ls_request) = build_request( it_key_tab              = it_key_tab
+                                        io_tech_request_context = io_tech_request_context ).
 
-  DATA(ls_request) = build_request(
-    io_tech_request_context = io_tech_request_context
-    it_key_tab              = it_key_tab ).
+      DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
 
-  lo_dashboard = NEW zcl_fi_das_dashboard( ).
+      lo_dashboard->under(
+        EXPORTING
+          is_request    = ls_request
+        IMPORTING
+          et_result     = DATA(lt_result)
+          e_total_count = DATA(l_total_count) ).
 
-  lo_dashboard->under(
-    EXPORTING
-      is_request    = ls_request
-    IMPORTING
-      et_result     = DATA(lt_result)
-      e_total_count = DATA(lv_count) ).
+*     TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
+      et_entityset = CORRESPONDING #( lt_result ).
+      es_response_context-inlinecount = get_inline_count( i_requested = ls_request-paging-count_requested
+                                                          i_total_count = l_total_count ).
+    CATCH cx_sy_conversion_error
+          cx_sy_open_sql_db
+          zcx_fi_das_error INTO DATA(lx_error).
 
-  et_entityset = CORRESPONDING #( lt_result ).
-
-      " xsodata returns __count only when $inlinecount=allpages was
-    " requested; mirror that exactly.
-    IF io_tech_request_context->has_inlinecount( ) = abap_true.
-      es_response_context-inlinecount = lv_count.
-    ELSE.
-      CLEAR es_response_context-inlinecount.
-    ENDIF.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+        EXPORTING
+          previous = lx_error.
+  ENDTRY.
 
 ENDMETHOD.
 ENDCLASS.

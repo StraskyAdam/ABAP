@@ -936,176 +936,217 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-    METHOD apply_generic_filter.
+METHOD apply_generic_filter.
 
-    TYPES:
-      BEGIN OF ts_property_filter,
-        property  TYPE string,
-        range_ref TYPE REF TO data,
-      END OF ts_property_filter,
+  TYPES:
+    BEGIN OF ts_property_filter,
+      property  TYPE string,
+      range_ref TYPE REF TO data,
+    END OF ts_property_filter,
 
-      tt_property_filters TYPE HASHED TABLE OF ts_property_filter
-        WITH UNIQUE KEY property.
+    tt_property_filters TYPE HASHED TABLE OF ts_property_filter
+      WITH UNIQUE KEY property.
 
-    DATA:
-      lt_property_filters TYPE tt_property_filters,
-      lr_result_line      TYPE REF TO data,
-      lr_range            TYPE REF TO data,
-      lr_range_line       TYPE REF TO data.
+  DATA:
+    lt_property_filters TYPE tt_property_filters,
+    lr_range            TYPE REF TO data.
 
-    FIELD-SYMBOLS:
-      <lt_range>          TYPE STANDARD TABLE,
-      <ls_range>          TYPE any,
-      <l_sign>            TYPE any,
-      <l_option>          TYPE any,
-      <l_low>             TYPE any,
-      <l_high>            TYPE any,
-      <ls_sample_row>     TYPE any,
-      <lv_sample_value>   TYPE any.
+  FIELD-SYMBOLS:
+    <ls_sample_row>      TYPE any,
+    <l_sample_value>     TYPE any,
+    <ls_property_filter> TYPE ts_property_filter,
+    <lt_range>           TYPE STANDARD TABLE,
+    <ls_range>           TYPE any,
+    <l_value>            TYPE any.
 
-    IF is_request-generic_filters IS INITIAL
-       OR ct_result IS INITIAL.
-      RETURN.
+  IF is_request-generic_filters IS INITIAL
+     OR ct_result IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  ASSIGN ct_result[ 1 ] TO <ls_sample_row>.
+
+  IF sy-subrc <> 0 OR <ls_sample_row> IS NOT ASSIGNED.
+    RETURN.
+  ENDIF.
+
+  " Build one typed range table per property.
+  LOOP AT is_request-generic_filters
+    ASSIGNING FIELD-SYMBOL(<ls_filter>).
+
+    DATA(l_property) =
+      to_upper( CONV string( <ls_filter>-property ) ).
+
+    UNASSIGN <l_sample_value>.
+
+    ASSIGN COMPONENT l_property
+      OF STRUCTURE <ls_sample_row>
+      TO <l_sample_value>.
+
+    " Unknown properties are ignored.
+    IF sy-subrc <> 0 OR <l_sample_value> IS NOT ASSIGNED.
+      CONTINUE.
     ENDIF.
 
-    " Overenie property cez skutočný riadok
-    ASSIGN ct_result[ 1 ] TO <ls_sample_row>.
+    DATA(lo_type) =
+      cl_abap_typedescr=>describe_by_data(
+        <l_sample_value> ).
 
-    IF sy-subrc <> 0 OR <ls_sample_row> IS NOT ASSIGNED.
-      RETURN.
+    IF lo_type->kind <> cl_abap_typedescr=>kind_elem.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e010(zfi_das).
     ENDIF.
 
-    " Prepare one typed range table for each filtered property.
-    LOOP AT is_request-generic_filters
-      ASSIGNING FIELD-SYMBOL(<ls_filter>).
+    DATA(lo_element_type) =
+      CAST cl_abap_elemdescr( lo_type ).
 
-      DATA(l_property) =
-        to_upper( CONV string( <ls_filter>-property ) ).
+    READ TABLE lt_property_filters
+      ASSIGNING <ls_property_filter>
+      WITH TABLE KEY property = l_property.
 
-      " Overuj property na reálnom riadku
-      ASSIGN COMPONENT l_property OF STRUCTURE <ls_sample_row>
-        TO <lv_sample_value>.
+    IF sy-subrc <> 0 OR <ls_property_filter> IS NOT ASSIGNED.
 
-      IF sy-subrc <> 0.
-        " Neznámy stĺpec: neaplikuj tento filter.
-        CONTINUE.
+      TRY.
+          DATA(lo_range_line_type) =
+            cl_abap_structdescr=>create(
+              p_components =
+                VALUE cl_abap_structdescr=>component_table(
+                  ( name = `SIGN`
+                    type = cl_abap_elemdescr=>get_c(
+                             p_length = 1 ) )
+                  ( name = `OPTION`
+                    type = cl_abap_elemdescr=>get_c(
+                             p_length = 2 ) )
+                  ( name = `LOW`
+                    type = lo_element_type )
+                  ( name = `HIGH`
+                    type = lo_element_type ) ) ).
+
+          DATA(lo_range_table_type) =
+            cl_abap_tabledescr=>create(
+              p_line_type  = lo_range_line_type
+              p_table_kind = cl_abap_tabledescr=>tablekind_std
+              p_unique     = abap_false ).
+
+          CLEAR lr_range.
+
+          CREATE DATA lr_range
+            TYPE HANDLE lo_range_table_type.
+
+        CATCH cx_sy_move_cast_error
+              cx_sy_struct_creation
+              cx_sy_table_creation
+              INTO DATA(lx_type_error).
+
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            MESSAGE e010(zfi_das).
+      ENDTRY.
+
+      INSERT VALUE #(
+        property  = l_property
+        range_ref = lr_range )
+        INTO TABLE lt_property_filters
+        ASSIGNING <ls_property_filter>.
+
+      IF sy-subrc <> 0 OR <ls_property_filter> IS NOT ASSIGNED.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          MESSAGE e010(zfi_das).
       ENDIF.
-      " Get the type descriptor of the actual value
-      DATA(lo_value_type) = CAST cl_abap_datadescr(
-        cl_abap_typedescr=>describe_by_data( <lv_sample_value> ) ).
 
-      READ TABLE lt_property_filters
-        ASSIGNING FIELD-SYMBOL(<ls_property_filter>)
-        WITH TABLE KEY property = l_property.
+    ENDIF.
 
-      IF sy-subrc <> 0.
+    UNASSIGN <lt_range>.
 
-        DATA(lt_range_components) =
-          VALUE cl_abap_structdescr=>component_table(
-            ( name = `SIGN`
-              type = cl_abap_elemdescr=>get_c( 1 ) )
-            ( name = `OPTION`
-              type = cl_abap_elemdescr=>get_c( 2 ) )
-            ( name = `LOW`
-              type = lo_value_type )
-            ( name = `HIGH`
-              type = lo_value_type ) ).
+    ASSIGN <ls_property_filter>-range_ref->*
+      TO <lt_range>.
 
-        DATA(lo_range_line_type) =
-          cl_abap_structdescr=>create(
-            lt_range_components ).
+    IF sy-subrc <> 0 OR <lt_range> IS NOT ASSIGNED.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e010(zfi_das).
+    ENDIF.
 
-        DATA(lo_range_table_type) =
-          cl_abap_tabledescr=>create(
-            p_line_type  = lo_range_line_type
-            p_table_kind = cl_abap_tabledescr=>tablekind_std
-            p_unique     = abap_false ).
+    APPEND INITIAL LINE TO <lt_range>
+      ASSIGNING <ls_range>.
 
-        CREATE DATA lr_range TYPE HANDLE lo_range_table_type.
+    IF sy-subrc <> 0 OR <ls_range> IS NOT ASSIGNED.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e010(zfi_das).
+    ENDIF.
 
-        INSERT VALUE #(
-          property  = l_property
-          range_ref = lr_range )
-          INTO TABLE lt_property_filters
-          ASSIGNING <ls_property_filter>.
+    TRY.
+        MOVE-CORRESPONDING <ls_filter> TO <ls_range>.
 
+      CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
+
+        DELETE <lt_range>
+          INDEX lines( <lt_range> ).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          MESSAGE e010(zfi_das).
+    ENDTRY.
+
+  ENDLOOP.
+
+  IF lt_property_filters IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  " Same property uses range semantics.
+  " Different properties are combined with AND.
+  DATA(l_index) = lines( ct_result ).
+
+  WHILE l_index > 0.
+
+    ASSIGN ct_result[ l_index ]
+      TO FIELD-SYMBOL(<ls_result>).
+
+    IF sy-subrc <> 0 OR <ls_result> IS NOT ASSIGNED.
+      l_index = l_index - 1.
+      CONTINUE.
+    ENDIF.
+
+    DATA(l_delete) = abap_false.
+
+    LOOP AT lt_property_filters
+      ASSIGNING <ls_property_filter>.
+
+      UNASSIGN:
+        <l_value>,
+        <lt_range>.
+
+      ASSIGN COMPONENT <ls_property_filter>-property
+        OF STRUCTURE <ls_result>
+        TO <l_value>.
+
+      IF sy-subrc <> 0 OR <l_value> IS NOT ASSIGNED.
+        l_delete = abap_true.
+        EXIT.
       ENDIF.
 
       ASSIGN <ls_property_filter>-range_ref->*
         TO <lt_range>.
 
-      CREATE DATA lr_range_line
-        TYPE HANDLE lo_range_line_type.
-
-      ASSIGN lr_range_line->* TO <ls_range>.
-
-      ASSIGN COMPONENT `SIGN`
-        OF STRUCTURE <ls_range> TO <l_sign>.
-      ASSIGN COMPONENT `OPTION`
-        OF STRUCTURE <ls_range> TO <l_option>.
-      ASSIGN COMPONENT `LOW`
-        OF STRUCTURE <ls_range> TO <l_low>.
-      ASSIGN COMPONENT `HIGH`
-        OF STRUCTURE <ls_range> TO <l_high>.
-
-      <l_sign>   = <ls_filter>-sign.
-      <l_option> = <ls_filter>-option.
-      <l_low>    = <ls_filter>-low.
-
-      IF <ls_filter>-high IS NOT INITIAL.
-        <l_high> = <ls_filter>-high.
+      IF sy-subrc <> 0 OR <lt_range> IS NOT ASSIGNED.
+        l_delete = abap_true.
+        EXIT.
       ENDIF.
 
-      APPEND <ls_range> TO <lt_range>.
+      IF <l_value> NOT IN <lt_range>.
+        l_delete = abap_true.
+        EXIT.
+      ENDIF.
 
     ENDLOOP.
 
-    " Delete rows that don't match all property filters (AND logic)
-    DATA(l_index) = lines( ct_result ).
+    IF l_delete = abap_true.
+      DELETE ct_result INDEX l_index.
+    ENDIF.
 
-    WHILE l_index > 0.
+    l_index = l_index - 1.
 
-      ASSIGN ct_result[ l_index ]
-        TO FIELD-SYMBOL(<ls_result>).
+  ENDWHILE.
 
-      IF sy-subrc <> 0 OR <ls_result> IS NOT ASSIGNED.
-        l_index = l_index - 1.
-        CONTINUE.
-      ENDIF.
-
-      DATA(l_delete) = abap_false.
-
-      LOOP AT lt_property_filters
-        ASSIGNING <ls_property_filter>.
-
-        ASSIGN COMPONENT <ls_property_filter>-property
-          OF STRUCTURE <ls_result>
-          TO FIELD-SYMBOL(<l_value>).
-
-        IF sy-subrc <> 0 OR <l_value> IS NOT ASSIGNED.
-          l_delete = abap_true.
-          EXIT.
-        ENDIF.
-
-        ASSIGN <ls_property_filter>-range_ref->*
-          TO <lt_range>.
-
-        IF <l_value> NOT IN <lt_range>.
-          l_delete = abap_true.
-          EXIT.
-        ENDIF.
-
-      ENDLOOP.
-
-      IF l_delete = abap_true.
-        DELETE ct_result INDEX l_index.
-      ENDIF.
-
-      l_index = l_index - 1.
-
-    ENDWHILE.
-
-  ENDMETHOD.
+ENDMETHOD.
 
   METHOD should_skip_calculations.
 

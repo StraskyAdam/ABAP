@@ -3942,17 +3942,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD remove_default_sorting.
+METHOD remove_default_sorting.
 
-*   Default PSTYPE DESC sorting is already applied by AMDP
-    DELETE cs_request-orderby
-    WHERE property = mc_orderby_pstype
-    AND descending = abap_true.
-*    IF cs_request-orderby-property = mc_orderby_pstype AND cs_request-orderby-descending = abap_true.
-*      CLEAR cs_request-orderby.
-*    ENDIF.
+* Skip sorting when the requested order matches the AMDP default
+  IF lines( cs_request-orderby ) = 3.
 
-  ENDMETHOD.
+    IF cs_request-orderby[ 1 ]-property   = mc_orderby_pstype AND
+       cs_request-orderby[ 1 ]-descending = abap_true AND
+       cs_request-orderby[ 2 ]-property   = mc_sort_ponumber AND
+       cs_request-orderby[ 2 ]-descending = abap_false AND
+       cs_request-orderby[ 3 ]-property   = mc_sort_itemno AND
+       cs_request-orderby[ 3 ]-descending = abap_false.
+
+      CLEAR cs_request-orderby.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDMETHOD.
 
   METHOD is_full_processing_required.
 

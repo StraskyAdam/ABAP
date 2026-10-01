@@ -101,7 +101,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_property_itemno       TYPE string   VALUE `ITEMNO`,
       mc_property_suppliername TYPE string   VALUE `SUPPLIERNAME`.
 
-
+    CONSTANTS:
+      mc_range_sign   TYPE string VALUE `SIGN`,
+      mc_range_option TYPE string VALUE `OPTION`,
+      mc_range_low    TYPE string VALUE `LOW`,
+      mc_range_high   TYPE string VALUE `HIGH`.
 
 
 
@@ -959,236 +963,108 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       IF is_full_processing_required( ls_request ) = abap_true.
 
-        apply_generic_filter(
-          EXPORTING
-            is_request = ls_request
-          CHANGING
-            ct_result  = ct_result ).
+        apply_generic_filter( EXPORTING is_request = ls_request
+                              CHANGING  ct_result  = ct_result ).
 
-        " Filtered count - the same value xsodata returns as
-        " $inlinecount after applying $filter.
+*       Set the filtered total before paging is applied.
         c_total_count = lines( ct_result ).
 
-        apply_sort_and_paging(
-          EXPORTING
-            is_request = is_request
-          CHANGING
-            ct_result  = ct_result ).
+*       Restore the original paging parameters
+        ls_request-paging = is_request-paging.
 
+        apply_sort_and_paging( EXPORTING is_request = ls_request
+                               CHANGING  ct_result  = ct_result ).
       ENDIF.
+
     ENDIF.
 
   ENDMETHOD.
 
   METHOD apply_generic_filter.
 
-    TYPES:
-      BEGIN OF ts_property_filter,
-        property  TYPE string,
-        range_ref TYPE REF TO data,
-      END OF ts_property_filter,
+    DATA:lr_sample TYPE REF TO data,
+         lr_range  TYPE REF TO data.
 
-      tt_property_filters TYPE HASHED TABLE OF ts_property_filter
-        WITH UNIQUE KEY property.
+    FIELD-SYMBOLS: <fs_sample> TYPE any,
+                   <f_sample>  TYPE any,
+                   <ft_range>  TYPE STANDARD TABLE,
+                   <fs_range>  TYPE any,
+                   <fs_result> TYPE any,
+                   <f_value>   TYPE any.
 
-    DATA:
-      lt_property_filters TYPE tt_property_filters,
-      lr_range            TYPE REF TO data.
-
-    FIELD-SYMBOLS:
-      <ls_sample_row>      TYPE any,
-      <l_sample_value>     TYPE any,
-      <ls_property_filter> TYPE ts_property_filter,
-      <lt_range>           TYPE STANDARD TABLE,
-      <ls_range>           TYPE any,
-      <l_value>            TYPE any.
-
-    IF is_request-generic_filters IS INITIAL
-       OR ct_result IS INITIAL.
+    IF is_request-generic_filters IS INITIAL OR ct_result IS INITIAL.
       RETURN.
     ENDIF.
 
-    ASSIGN ct_result[ 1 ] TO <ls_sample_row>.
+    CREATE DATA lr_sample LIKE LINE OF ct_result.
+    ASSIGN lr_sample->* TO <fs_sample>.
 
-    IF sy-subrc <> 0 OR <ls_sample_row> IS NOT ASSIGNED.
-      RETURN.
-    ENDIF.
+    LOOP AT is_request-generic_filters ASSIGNING FIELD-SYMBOL(<fs_filter>)
+      GROUP BY to_upper( <fs_filter>-property ) ASSIGNING FIELD-SYMBOL(<f_property>).
 
-    " Build one typed range table per property.
-    LOOP AT is_request-generic_filters
-      ASSIGNING FIELD-SYMBOL(<ls_filter>).
+      IF ct_result IS INITIAL.
+        RETURN.
+      ENDIF.
 
-      DATA(l_property) =
-        to_upper( CONV string( <ls_filter>-property ) ).
+      UNASSIGN <f_sample>.
 
-      UNASSIGN <l_sample_value>.
+      ASSIGN COMPONENT <f_property> OF STRUCTURE <fs_sample> TO <f_sample>.
 
-      ASSIGN COMPONENT l_property
-        OF STRUCTURE <ls_sample_row>
-        TO <l_sample_value>.
-
-      " Unknown properties are ignored.
-      IF sy-subrc <> 0 OR <l_sample_value> IS NOT ASSIGNED.
+      IF <f_sample> IS NOT ASSIGNED.
         CONTINUE.
       ENDIF.
 
-      DATA(lo_type) =
-        cl_abap_typedescr=>describe_by_data(
-          <l_sample_value> ).
+      DATA(lo_element_type) = CAST cl_abap_elemdescr( cl_abap_typedescr=>describe_by_data( <f_sample> ) ).
 
-      IF lo_type->kind <> cl_abap_typedescr=>kind_elem.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e010(zfi_das).
-      ENDIF.
+      DATA(lo_range_line_type) = cl_abap_structdescr=>create( VALUE #(
+                                 ( name = mc_range_sign
+                                   type = cl_abap_elemdescr=>get_c( p_length = 1 ) )
+                                 ( name = mc_range_option
+                                   type = cl_abap_elemdescr=>get_c( p_length = 2 ) )
+                                 ( name = mc_range_low
+                                   type = lo_element_type )
+                                 ( name = mc_range_high
+                                   type = lo_element_type ) ) ).
 
-      DATA(lo_element_type) =
-        CAST cl_abap_elemdescr( lo_type ).
+      DATA(lo_range_table_type) = cl_abap_tabledescr=>create( p_line_type  = lo_range_line_type
+                                                              p_table_kind = cl_abap_tabledescr=>tablekind_std
+                                                              p_unique     = abap_false ).
 
-      READ TABLE lt_property_filters
-        ASSIGNING <ls_property_filter>
-        WITH TABLE KEY property = l_property.
+      CREATE DATA lr_range TYPE HANDLE lo_range_table_type.
 
-      IF sy-subrc <> 0 OR <ls_property_filter> IS NOT ASSIGNED.
+      UNASSIGN <ft_range>.
+      ASSIGN lr_range->* TO <ft_range>.
 
-        TRY.
-            DATA(lo_range_line_type) =
-              cl_abap_structdescr=>create(
-                p_components =
-                  VALUE cl_abap_structdescr=>component_table(
-                    ( name = `SIGN`
-                      type = cl_abap_elemdescr=>get_c(
-                               p_length = 1 ) )
-                    ( name = `OPTION`
-                      type = cl_abap_elemdescr=>get_c(
-                               p_length = 2 ) )
-                    ( name = `LOW`
-                      type = lo_element_type )
-                    ( name = `HIGH`
-                      type = lo_element_type ) ) ).
+      LOOP AT GROUP <f_property> ASSIGNING FIELD-SYMBOL(<fs_group_filter>).
 
-            DATA(lo_range_table_type) =
-              cl_abap_tabledescr=>create(
-                p_line_type  = lo_range_line_type
-                p_table_kind = cl_abap_tabledescr=>tablekind_std
-                p_unique     = abap_false ).
-
-            CLEAR lr_range.
-
-            CREATE DATA lr_range
-              TYPE HANDLE lo_range_table_type.
-
-          CATCH cx_sy_move_cast_error
-                cx_sy_struct_creation
-                cx_sy_table_creation
-                INTO DATA(lx_type_error).
-
-            RAISE EXCEPTION TYPE zcx_fi_das_error
-              MESSAGE e010(zfi_das).
-        ENDTRY.
-
-        INSERT VALUE #(
-          property  = l_property
-          range_ref = lr_range )
-          INTO TABLE lt_property_filters
-          ASSIGNING <ls_property_filter>.
-
-        IF sy-subrc <> 0 OR <ls_property_filter> IS NOT ASSIGNED.
-          RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e010(zfi_das).
-        ENDIF.
-
-      ENDIF.
-
-      UNASSIGN <lt_range>.
-
-      ASSIGN <ls_property_filter>-range_ref->*
-        TO <lt_range>.
-
-      IF sy-subrc <> 0 OR <lt_range> IS NOT ASSIGNED.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e010(zfi_das).
-      ENDIF.
-
-      APPEND INITIAL LINE TO <lt_range>
-        ASSIGNING <ls_range>.
-
-      IF sy-subrc <> 0 OR <ls_range> IS NOT ASSIGNED.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e010(zfi_das).
-      ENDIF.
-
-      TRY.
-          MOVE-CORRESPONDING <ls_filter> TO <ls_range>.
-
-        CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
-
-          DELETE <lt_range>
-            INDEX lines( <lt_range> ).
-
-          RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e010(zfi_das).
-      ENDTRY.
-
-    ENDLOOP.
-
-    IF lt_property_filters IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    " Same property uses range semantics.
-    " Different properties are combined with AND.
-    DATA(l_index) = lines( ct_result ).
-
-    WHILE l_index > 0.
-
-      ASSIGN ct_result[ l_index ]
-        TO FIELD-SYMBOL(<ls_result>).
-
-      IF sy-subrc <> 0 OR <ls_result> IS NOT ASSIGNED.
-        l_index = l_index - 1.
-        CONTINUE.
-      ENDIF.
-
-      DATA(l_delete) = abap_false.
-
-      LOOP AT lt_property_filters
-        ASSIGNING <ls_property_filter>.
-
-        UNASSIGN:
-          <l_value>,
-          <lt_range>.
-
-        ASSIGN COMPONENT <ls_property_filter>-property
-          OF STRUCTURE <ls_result>
-          TO <l_value>.
-
-        IF sy-subrc <> 0 OR <l_value> IS NOT ASSIGNED.
-          l_delete = abap_true.
-          EXIT.
-        ENDIF.
-
-        ASSIGN <ls_property_filter>-range_ref->*
-          TO <lt_range>.
-
-        IF sy-subrc <> 0 OR <lt_range> IS NOT ASSIGNED.
-          l_delete = abap_true.
-          EXIT.
-        ENDIF.
-
-        IF <l_value> NOT IN <lt_range>.
-          l_delete = abap_true.
-          EXIT.
-        ENDIF.
+        APPEND INITIAL LINE TO <ft_range> ASSIGNING <fs_range>.
+        MOVE-CORRESPONDING <fs_group_filter> TO <fs_range>.
 
       ENDLOOP.
 
-      IF l_delete = abap_true.
-        DELETE ct_result INDEX l_index.
-      ENDIF.
+      DATA(l_index) = lines( ct_result ).
 
-      l_index = l_index - 1.
+      WHILE l_index > 0.
 
-    ENDWHILE.
+        UNASSIGN: <fs_result>, <f_value>.
+
+        ASSIGN ct_result[ l_index ] TO <fs_result>.
+
+        IF <fs_result> IS ASSIGNED.
+
+          ASSIGN COMPONENT <f_property> OF STRUCTURE <fs_result> TO <f_value>.
+
+          IF <f_value> IS NOT ASSIGNED OR <f_value> NOT IN <ft_range>.
+            DELETE ct_result INDEX l_index.
+          ENDIF.
+
+        ENDIF.
+
+        l_index = l_index - 1.
+
+      ENDWHILE.
+
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -3342,72 +3218,52 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD apply_sort_and_paging.
 
+    DATA lt_sort_order TYPE abap_sortorder_tab.
+
+    FIELD-SYMBOLS: <fs_sample>    TYPE any,
+                   <f_sort_value> TYPE any.
+
     IF ct_result IS INITIAL.
       RETURN.
     ENDIF.
 
-    ASSIGN ct_result[ 1 ] TO FIELD-SYMBOL(<ls_sample_row>).
+    ASSIGN ct_result[ 1 ] TO <fs_sample>.
 
-    DATA lt_sort_order TYPE abap_sortorder_tab.
+*   Keep only valid and unique requested sort fields
+    LOOP AT is_request-orderby ASSIGNING FIELD-SYMBOL(<fs_orderby>).
 
-    " Najprv prijmi iba existujúce požadované stĺpce.
-    LOOP AT is_request-orderby
-      ASSIGNING FIELD-SYMBOL(<ls_orderby>).
+      DATA(l_property) = to_upper( <fs_orderby>-property ).
 
-      DATA(l_property) =
-        to_upper( CONV string( <ls_orderby>-property ) ).
+      UNASSIGN <f_sort_value>.
 
-      ASSIGN COMPONENT l_property OF STRUCTURE <ls_sample_row>
-        TO FIELD-SYMBOL(<lv_sort_value>).
+      ASSIGN COMPONENT l_property OF STRUCTURE <fs_sample> TO <f_sort_value>.
 
-      IF sy-subrc <> 0.
+      IF <f_sort_value> IS NOT ASSIGNED OR line_exists( lt_sort_order[ name = l_property ] ).
         CONTINUE.
       ENDIF.
 
-      IF line_exists( lt_sort_order[ name = l_property ] ).
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #(
-        name       = l_property
-        descending = <ls_orderby>-descending )
-        TO lt_sort_order.
+      APPEND VALUE #( name       = l_property
+                      descending = <fs_orderby>-descending ) TO lt_sort_order.
 
     ENDLOOP.
 
-    " Bez platného $orderby zachovaj poradie dodané AMDP.
-    " Tie-breakery majú zmysel až za platným požadovaným sorterom.
+*   Add PONUMBER and ITEMNO as deterministic tie-breakers
     IF lt_sort_order IS NOT INITIAL.
 
-      ASSIGN COMPONENT mc_sort_ponumber
-        OF STRUCTURE <ls_sample_row>
-        TO FIELD-SYMBOL(<lv_po>).
+      LOOP AT VALUE string_table( ( mc_sort_ponumber )
+                                  ( mc_sort_itemno   ) ) INTO DATA(l_tie_breaker).
 
-      IF sy-subrc = 0
-         AND NOT line_exists(
-           lt_sort_order[ name = mc_sort_ponumber ] ).
+        UNASSIGN <f_sort_value>.
 
-        APPEND VALUE #(
-          name       = mc_sort_ponumber
-          descending = abap_false )
-          TO lt_sort_order.
+        ASSIGN COMPONENT l_tie_breaker OF STRUCTURE <fs_sample> TO <f_sort_value>.
 
-      ENDIF.
+        IF <f_sort_value> IS NOT ASSIGNED OR line_exists( lt_sort_order[ name = l_tie_breaker ] ).
+          CONTINUE.
+        ENDIF.
 
-      ASSIGN COMPONENT mc_sort_itemno
-        OF STRUCTURE <ls_sample_row>
-        TO FIELD-SYMBOL(<lv_item>).
-
-      IF sy-subrc = 0
-         AND NOT line_exists(
-           lt_sort_order[ name = mc_sort_itemno ] ).
-
-        APPEND VALUE #(
-          name       = mc_sort_itemno
-          descending = abap_false )
-          TO lt_sort_order.
-
-      ENDIF.
+        APPEND VALUE #( name       = l_tie_breaker
+                        descending = abap_false ) TO lt_sort_order.
+      ENDLOOP.
 
       SORT ct_result BY (lt_sort_order).
 
@@ -3416,8 +3272,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(l_skip) = is_request-paging-skip.
     DATA(l_top)  = is_request-paging-top.
 
-    IF is_request-paging-top_requested = abap_true
-       AND l_top = 0.
+    IF is_request-paging-top_requested = abap_true AND l_top = 0.
       CLEAR ct_result.
       RETURN.
     ENDIF.
@@ -3431,8 +3286,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       DELETE ct_result TO l_skip.
     ENDIF.
 
-    IF l_top > 0
-       AND lines( ct_result ) > l_top.
+    IF l_top > 0 AND l_top < lines( ct_result ).
       DELETE ct_result FROM l_top + 1.
     ENDIF.
 
@@ -3942,25 +3796,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-METHOD remove_default_sorting.
+  METHOD remove_default_sorting.
 
 * Skip sorting when the requested order matches the AMDP default
-  IF lines( cs_request-orderby ) = 3.
+    IF lines( cs_request-orderby ) = 3.
 
-    IF cs_request-orderby[ 1 ]-property   = mc_orderby_pstype AND
-       cs_request-orderby[ 1 ]-descending = abap_true AND
-       cs_request-orderby[ 2 ]-property   = mc_sort_ponumber AND
-       cs_request-orderby[ 2 ]-descending = abap_false AND
-       cs_request-orderby[ 3 ]-property   = mc_sort_itemno AND
-       cs_request-orderby[ 3 ]-descending = abap_false.
+      IF cs_request-orderby[ 1 ]-property   = mc_orderby_pstype AND
+         cs_request-orderby[ 1 ]-descending = abap_true AND
+         cs_request-orderby[ 2 ]-property   = mc_sort_ponumber AND
+         cs_request-orderby[ 2 ]-descending = abap_false AND
+         cs_request-orderby[ 3 ]-property   = mc_sort_itemno AND
+         cs_request-orderby[ 3 ]-descending = abap_false.
 
-      CLEAR cs_request-orderby.
+        CLEAR cs_request-orderby.
+
+      ENDIF.
 
     ENDIF.
 
-  ENDIF.
-
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD is_full_processing_required.
 

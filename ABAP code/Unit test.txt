@@ -801,7 +801,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     " Sorting needs the full row even with a narrow select
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       select  = `PONUMBER`
-      orderby = VALUE #( property = `SUPPLIERNAME` ) ).
+      orderby = VALUE #( (   property = `SUPPLIERNAME` ) ) ).
 
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->should_skip_calculations( ls_request )
@@ -925,6 +925,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD sort_ascending_with_paging.
 
+
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
@@ -933,7 +934,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property = `SUPPLIERNAME` )
+      orderby = VALUE #( (    property = `SUPPLIERNAME` )  )
       paging  = VALUE #( skip = 1 top = 1 ) ).
 
     mo_cut->apply_sort_and_paging(
@@ -953,6 +954,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD sort_descending.
 
+
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
@@ -960,8 +962,8 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property   = `SUPPLIERNAME`
-                         descending = abap_true ) ).
+      orderby = VALUE #( ( property   = `SUPPLIERNAME`
+                         descending = abap_true ) )  ).
 
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = ls_request
@@ -975,6 +977,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD sort_unknown_property_no_dump.
 
+
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
@@ -982,7 +985,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000001' itemno = '00001' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property = `NOT_A_COLUMN` ) ).
+      orderby = VALUE #( (  property = `NOT_A_COLUMN` )  ) ).
 
     " Must not dump; order stays as delivered by AMDP.
     mo_cut->apply_sort_and_paging(
@@ -1041,6 +1044,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD paging_window_boundaries.
 
+
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     DO 10 TIMES.
@@ -1050,7 +1054,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     ENDDO.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property = `PONUMBER` )
+      orderby = VALUE #( ( property = `PONUMBER` ) )
       paging  = VALUE #( skip = 8 top = 5 ) ).
 
     mo_cut->apply_sort_and_paging(
@@ -1097,19 +1101,18 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `COMPANYCODE` option = 'EQ' low = '2028' ) ) ).
+        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-companycode
-      exp = '2028' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
 
   ENDMETHOD.
 
@@ -1123,22 +1126,22 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00001'
         polinedesc = 'Enterprise Plan' ) ).
 
+    " Gateway prevedie substringof na CP *hodnota*.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POLINEDESC` option = 'CP' low = 'local support' ) ) ).
+        ( property = `POLINEDESC` sign = 'I' option = 'CP'
+          low = '*Local Support*' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    " Contains is case-insensitive.
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-ponumber
-      exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
@@ -1147,27 +1150,25 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001'
-        companycode = '2028' pocurrency = 'JPY' )
-      ( ponumber = '8000000002' itemno = '00001'
-        companycode = '2028' pocurrency = 'USD' ) ).
+      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '2028' pocurrency = 'USD' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '6305' pocurrency = 'JPY' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `COMPANYCODE` option = 'EQ' low = '2028' )
-        ( property = `POCURRENCY`  option = 'EQ' low = 'JPY' ) ) ).
+        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' )
+        ( property = `POCURRENCY`  sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-pocurrency
-      exp = 'JPY' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
@@ -1182,16 +1183,18 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POCURRENCY` option = 'EQ' low = 'JPY' )
-        ( property = `POCURRENCY` option = 'EQ' low = 'EUR' ) ) ).
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' )
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'USD' ) ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
   ENDMETHOD.
 
@@ -1200,71 +1203,76 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001' ) ).
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `NOT_A_COLUMN` option = 'EQ' low = 'X' ) ) ).
+        ( property = `NOT_A_COLUMN` sign = 'I' option = 'EQ' low = 'X' ) ) ).
 
-    " Unknown property must be ignored, not dump.
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    " Neznáma property sa ignoruje: žiadny dump, žiadna výnimka,
+    " riadky ostanú nezmenené.
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_result )
-      exp = 1 ).
+      exp = 2
+      msg = 'Unknown property must be ignored' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000001' ).
 
   ENDMETHOD.
 
-
-
   METHOD generic_with_sort_and_paging.
 
-    " Full pipeline order: filter -> sort -> page.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
 
     lt_result = VALUE #(
-      ( ponumber = '8000000003' itemno = '00001'
-        pocurrency = 'JPY' suppliername = 'Charlie' )
-      ( ponumber = '8000000001' itemno = '00001'
-        pocurrency = 'JPY' suppliername = 'Alpha' )
-      ( ponumber = '8000000002' itemno = '00001'
-        pocurrency = 'USD' suppliername = 'Bravo' ) ).
+      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'JPY' suppliername = 'Charlie' )
+      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' suppliername = 'Alpha' )
+      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' suppliername = 'Bravo' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       generic_filters = VALUE #(
-        ( property = `POCURRENCY` option = 'EQ' low = 'JPY' ) )
-      orderby = VALUE #( property = `SUPPLIERNAME` )
+        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' ) )
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
       paging  = VALUE #( skip = 1 top = 1 ) ).
 
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
 
-    mo_cut->apply_sort_and_paging(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
+        mo_cut->apply_sort_and_paging(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
 
-    " JPY only: Alpha, Charlie -> window [2..2] = Charlie.
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-suppliername
-      exp = 'Charlie' ).
+    " JPY: Alpha, Charlie -> okno [2..2] = Charlie
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Charlie' ).
 
   ENDMETHOD.
 
     METHOD pstype_sort_noop_for_over.
+
 
     " Over/under: single-pstype dataset, PSTYPE sorter is a no-op
     " and must not trigger the full-processing path. Verified via
     " derive path: orderby cleared -> skip_calculations possible.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       select  = `PONUMBER,POLINEDESC`
-      orderby = VALUE #( property = `PSTYPE` descending = abap_true ) ).
+      orderby = VALUE #( (   property = `PSTYPE` descending = abap_true ) ) ).
 
     " Simulate the execute_request normalisation for a non-exclude
     " mode: PSTYPE orderby is cleared before derivation.
@@ -1278,6 +1286,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD pstype_sort_kept_for_exclude.
 
+
     " Exclude mixes material+service rows: PSTYPE desc is a real
     " sort. apply_sort_and_paging must order service ('9') first.
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
@@ -1288,8 +1297,8 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000003' itemno = '00001' pstype = '0' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property   = `PSTYPE`
-                         descending = abap_true ) ).
+      orderby = VALUE #( (   property   = `PSTYPE`
+                         descending = abap_true ) ) ).
 
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = ls_request
@@ -1319,8 +1328,8 @@ CLASS ltc_request_processing IMPLEMENTATION.
       ( ponumber = '8000000003' itemno = '00001' pstype = '9' ) ).
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      orderby = VALUE #( property   = `PSTYPE`
-                         descending = abap_true )
+      orderby = VALUE #( ( property   = `PSTYPE`
+                         descending = abap_true ) )
       paging  = VALUE #( skip = 2 top = 1 ) ).
 
     mo_cut->apply_sort_and_paging(

@@ -88,15 +88,26 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
 
       mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
-      mc_sort_itemno       TYPE string VALUE `ITEMNO`,
+      mc_sort_itemno       TYPE string VALUE `ITEMNO`.
 
-      mc_sign_include      TYPE ddsign VALUE 'I',
-      mc_option_equal      TYPE ddoption VALUE 'EQ'.
 
     CONSTANTS:
       mc_user_type_dialog TYPE usr02-ustyp VALUE 'A',
       mc_rpa_pattern      TYPE string VALUE '%RPA%',
       mc_digit_chars      TYPE string VALUE '0123456789'.
+
+    CONSTANTS:
+      mc_property_ponumber     TYPE string   VALUE `PONUMBER`,
+      mc_property_itemno       TYPE string   VALUE `ITEMNO`,
+      mc_property_suppliername TYPE string   VALUE `SUPPLIERNAME`.
+
+    CONSTANTS:
+      mc_range_sign   TYPE string VALUE `SIGN`,
+      mc_range_option TYPE string VALUE `OPTION`,
+      mc_range_low    TYPE string VALUE `LOW`,
+      mc_range_high   TYPE string VALUE `HIGH`.
+
+
 
     TYPES:
       BEGIN OF ts_key,
@@ -356,6 +367,24 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS remove_default_sorting
       CHANGING
         cs_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS extract_filters
+      CHANGING
+        cs_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS is_applied
+      IMPORTING
+        is_filter        TYPE zif_fi_das_dashboard=>ts_generic_filter
+      CHANGING
+        cs_request       TYPE zif_fi_das_dashboard=>ts_request
+      RETURNING
+        VALUE(r_applied) TYPE abap_bool.
+
+    METHODS get_contains_value
+      IMPORTING
+        i_pattern      TYPE csequence
+      RETURNING
+        VALUE(r_value) TYPE string.
 
     METHODS is_full_processing_required
       IMPORTING
@@ -836,6 +865,25 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
 
@@ -843,7 +891,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-  ENDCLASS.
+ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
@@ -915,207 +963,110 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       IF is_full_processing_required( ls_request ) = abap_true.
 
-        apply_generic_filter(
-          EXPORTING
-            is_request = is_request
-          CHANGING
-            ct_result  = ct_result ).
+        apply_generic_filter( EXPORTING is_request = ls_request
+                              CHANGING  ct_result  = ct_result ).
 
-        " Filtered count - the same value xsodata returns as
-        " $inlinecount after applying $filter.
+*       Set the filtered total before paging is applied.
         c_total_count = lines( ct_result ).
 
-        apply_sort_and_paging(
-          EXPORTING
-            is_request = is_request
-          CHANGING
-            ct_result  = ct_result ).
+*       Restore the original paging parameters
+        ls_request-paging = is_request-paging.
 
+        apply_sort_and_paging( EXPORTING is_request = ls_request
+                               CHANGING  ct_result  = ct_result ).
       ENDIF.
+
     ENDIF.
 
   ENDMETHOD.
 
+  METHOD apply_generic_filter.
 
- METHOD apply_generic_filter.
+    DATA:lr_sample TYPE REF TO data,
+         lr_range  TYPE REF TO data.
 
-  " Same-property filters use OR.
-  " Different properties use AND.
-  " Unknown properties are ignored.
+    FIELD-SYMBOLS: <fs_sample> TYPE any,
+                   <f_sample>  TYPE any,
+                   <ft_range>  TYPE STANDARD TABLE,
+                   <fs_range>  TYPE any,
+                   <fs_result> TYPE any,
+                   <f_value>   TYPE any.
 
-  TYPES:
-    BEGIN OF ts_prepared_filter,
-      option TYPE ddoption,
-      low    TYPE string,
-      high   TYPE string,
-    END OF ts_prepared_filter,
-
-    tt_prepared_filter TYPE STANDARD TABLE OF ts_prepared_filter
-      WITH EMPTY KEY,
-
-    BEGIN OF ts_property_filter,
-      property  TYPE string,
-      component TYPE i,
-      has_cp    TYPE abap_bool,
-      filters   TYPE tt_prepared_filter,
-    END OF ts_property_filter,
-
-    tt_property_filter TYPE HASHED TABLE OF ts_property_filter
-      WITH UNIQUE KEY property.
-
-
-  DATA:
-    lt_property_filters TYPE tt_property_filter,
-    lr_row              TYPE REF TO data.
-
-  IF is_request-generic_filters IS INITIAL
-     OR ct_result IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  CREATE DATA lr_row LIKE LINE OF ct_result.
-
-  DATA(lo_struct) = CAST cl_abap_structdescr(
-    cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
-
-* Prepare and normalize filters once
-  LOOP AT is_request-generic_filters ASSIGNING FIELD-SYMBOL(<fs_filter>).
-
-    READ TABLE lo_struct->components TRANSPORTING NO FIELDS WITH KEY name = <fs_filter>-property.
-
-    IF sy-subrc <> 0.
-      CONTINUE.
+    IF is_request-generic_filters IS INITIAL OR ct_result IS INITIAL.
+      RETURN.
     ENDIF.
 
-    DATA(l_component) = sy-tabix.
+    CREATE DATA lr_sample LIKE LINE OF ct_result.
+    ASSIGN lr_sample->* TO <fs_sample>.
 
-    ASSIGN lt_property_filters[ property = <fs_filter>-property ] TO FIELD-SYMBOL(<fs_property_filter>).
+    LOOP AT is_request-generic_filters ASSIGNING FIELD-SYMBOL(<fs_filter>)
+      GROUP BY to_upper( <fs_filter>-property ) ASSIGNING FIELD-SYMBOL(<f_property>).
 
-    IF sy-subrc <> 0 OR <fs_property_filter> IS NOT ASSIGNED.
+      IF ct_result IS INITIAL.
+        RETURN.
+      ENDIF.
 
-      INSERT VALUE #( property  = <fs_filter>-property
-                      component = l_component ) INTO TABLE lt_property_filters ASSIGNING <fs_property_filter>.
+      UNASSIGN <f_sample>.
 
-      IF sy-subrc <> 0 OR <fs_property_filter> IS NOT ASSIGNED.
+      ASSIGN COMPONENT <f_property> OF STRUCTURE <fs_sample> TO <f_sample>.
+
+      IF <f_sample> IS NOT ASSIGNED.
         CONTINUE.
       ENDIF.
 
-    ENDIF.
+      DATA(lo_element_type) = CAST cl_abap_elemdescr( cl_abap_typedescr=>describe_by_data( <f_sample> ) ).
 
-    CASE <fs_filter>-option.
+      DATA(lo_range_line_type) = cl_abap_structdescr=>create( VALUE #(
+                                 ( name = mc_range_sign
+                                   type = cl_abap_elemdescr=>get_c( p_length = 1 ) )
+                                 ( name = mc_range_option
+                                   type = cl_abap_elemdescr=>get_c( p_length = 2 ) )
+                                 ( name = mc_range_low
+                                   type = lo_element_type )
+                                 ( name = mc_range_high
+                                   type = lo_element_type ) ) ).
 
-      WHEN rsmds_c_option-equal.
+      DATA(lo_range_table_type) = cl_abap_tabledescr=>create( p_line_type  = lo_range_line_type
+                                                              p_table_kind = cl_abap_tabledescr=>tablekind_std
+                                                              p_unique     = abap_false ).
 
-        APPEND VALUE #( option = <fs_filter>-option
-                       low    = condense( CONV string( <fs_filter>-low ) ) ) TO <fs_property_filter>-filters.
+      CREATE DATA lr_range TYPE HANDLE lo_range_table_type.
 
-      WHEN rsmds_c_option-contains_pattern.
+      UNASSIGN <ft_range>.
+      ASSIGN lr_range->* TO <ft_range>.
 
-        APPEND VALUE #( option = <fs_filter>-option
-                        low    = to_upper( condense( CONV string( <fs_filter>-low ) ) ) ) TO <fs_property_filter>-filters.
+      LOOP AT GROUP <f_property> ASSIGNING FIELD-SYMBOL(<fs_group_filter>).
 
-        <fs_property_filter>-has_cp = abap_true.
-
-      WHEN rsmds_c_option-between.
-
-        APPEND VALUE #( option = <fs_filter>-option
-                        low    = CONV string( <fs_filter>-low )
-                        high   = CONV string( <fs_filter>-high ) ) TO <fs_property_filter>-filters.
-    ENDCASE.
-
-  ENDLOOP.
-
-  IF lt_property_filters IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  " Delete backwards so remaining indexes stay valid.
-  DATA(l_index) = lines( ct_result ).
-
-  WHILE l_index > 0.
-
-    ASSIGN ct_result[ l_index ]
-      TO FIELD-SYMBOL(<ls_row>).
-
-    IF sy-subrc <> 0 OR <ls_row> IS NOT ASSIGNED.
-      l_index = l_index - 1.
-      CONTINUE.
-    ENDIF.
-
-    DATA(l_row_matches) = abap_true.
-
-    LOOP AT lt_property_filters
-      ASSIGNING <fs_property_filter>.
-
-      ASSIGN COMPONENT <fs_property_filter>-component
-        OF STRUCTURE <ls_row>
-        TO FIELD-SYMBOL(<l_component_value>).
-
-      IF sy-subrc <> 0 OR <l_component_value> IS NOT ASSIGNED.
-        l_row_matches = abap_false.
-        EXIT.
-      ENDIF.
-
-      DATA(l_value) = |{ <l_component_value> }|.
-
-      DATA(l_value_condensed) = COND string(
-        WHEN <fs_property_filter>-filters IS NOT INITIAL
-        THEN condense( l_value ) ).
-
-      DATA(l_value_upper) = COND string(
-        WHEN <fs_property_filter>-has_cp = abap_true
-        THEN to_upper( l_value ) ).
-
-      DATA(l_property_matches) = abap_false.
-
-      LOOP AT <fs_property_filter>-filters
-        ASSIGNING FIELD-SYMBOL(<fs_prepared_filter>).
-
-        CASE <fs_prepared_filter>-option.
-
-          WHEN mc_option_equal.
-
-            IF l_value_condensed = <fs_prepared_filter>-low.
-              l_property_matches = abap_true.
-            ENDIF.
-
-          WHEN rsmds_c_option-contains_pattern.
-
-            IF l_value_upper CS <fs_prepared_filter>-low.
-              l_property_matches = abap_true.
-            ENDIF.
-
-          WHEN rsmds_c_option-between.
-
-            IF l_value >= <fs_prepared_filter>-low
-               AND l_value <= <fs_prepared_filter>-high.
-              l_property_matches = abap_true.
-            ENDIF.
-
-        ENDCASE.
-
-        IF l_property_matches = abap_true.
-          EXIT.
-        ENDIF.
+        APPEND INITIAL LINE TO <ft_range> ASSIGNING <fs_range>.
+        MOVE-CORRESPONDING <fs_group_filter> TO <fs_range>.
 
       ENDLOOP.
 
-      IF l_property_matches = abap_false.
-        l_row_matches = abap_false.
-        EXIT.
-      ENDIF.
+      DATA(l_index) = lines( ct_result ).
+
+      WHILE l_index > 0.
+
+        UNASSIGN: <fs_result>, <f_value>.
+
+        ASSIGN ct_result[ l_index ] TO <fs_result>.
+
+        IF <fs_result> IS ASSIGNED.
+
+          ASSIGN COMPONENT <f_property> OF STRUCTURE <fs_result> TO <f_value>.
+
+          IF <f_value> IS NOT ASSIGNED OR <f_value> NOT IN <ft_range>.
+            DELETE ct_result INDEX l_index.
+          ENDIF.
+
+        ENDIF.
+
+        l_index = l_index - 1.
+
+      ENDWHILE.
 
     ENDLOOP.
 
-    IF l_row_matches = abap_false.
-      DELETE ct_result INDEX l_index.
-    ENDIF.
-
-    l_index = l_index - 1.
-
-  ENDWHILE.
-
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD should_skip_calculations.
 
@@ -2985,7 +2936,7 @@ ENDMETHOD.
 
     LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<fs_ponumber>).
 
-      IF <fs_ponumber>-sign <> mc_sign_include OR <fs_ponumber>-option <> mc_option_equal.
+      IF <fs_ponumber>-sign <> rsmds_c_sign-including OR <fs_ponumber>-option <> rsmds_c_option-equal.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
             MESSAGE e010(zfi_das).
@@ -3011,7 +2962,7 @@ ENDMETHOD.
 
     LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<fs_itemno>).
 
-      IF <fs_itemno>-sign <> mc_sign_include OR <fs_itemno>-option <> mc_option_equal.
+      IF <fs_itemno>-sign <> rsmds_c_sign-including OR <fs_itemno>-option <> rsmds_c_option-equal.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
             MESSAGE e010(zfi_das).
@@ -3267,51 +3218,80 @@ ENDMETHOD.
 
   METHOD apply_sort_and_paging.
 
-    " Called only when a real $orderby is active. Sorts and pages
-    " IN PLACE on the single result table - no copies are created.
+    DATA lt_sort_order TYPE abap_sortorder_tab.
 
-    DATA lr_row TYPE REF TO data.
-    CREATE DATA lr_row LIKE LINE OF ct_result.
+    FIELD-SYMBOLS: <fs_sample>    TYPE any,
+                   <f_sort_value> TYPE any.
 
-    DATA(lo_struct) = CAST cl_abap_structdescr(
-      cl_abap_typedescr=>describe_by_data_ref( lr_row ) ).
+    IF ct_result IS INITIAL.
+      RETURN.
+    ENDIF.
 
-    " Unknown property keeps the stable AMDP order - no dump.
-    IF line_exists( lo_struct->components[
-                      name = is_request-orderby-property ] ).
+    ASSIGN ct_result[ 1 ] TO <fs_sample>.
 
-      IF is_request-orderby-descending = abap_true.
-        SORT ct_result BY (is_request-orderby-property) DESCENDING
-                          (mc_sort_ponumber) ASCENDING
-                          (mc_sort_itemno)   ASCENDING.
-      ELSE.
-        SORT ct_result BY (is_request-orderby-property) ASCENDING
-                          (mc_sort_ponumber) ASCENDING
-                          (mc_sort_itemno)   ASCENDING.
+*   Keep only valid and unique requested sort fields
+    LOOP AT is_request-orderby ASSIGNING FIELD-SYMBOL(<fs_orderby>).
+
+      DATA(l_property) = to_upper( <fs_orderby>-property ).
+
+      UNASSIGN <f_sort_value>.
+
+      ASSIGN COMPONENT l_property OF STRUCTURE <fs_sample> TO <f_sort_value>.
+
+      IF <f_sort_value> IS NOT ASSIGNED OR line_exists( lt_sort_order[ name = l_property ] ).
+        CONTINUE.
       ENDIF.
+
+      APPEND VALUE #( name       = l_property
+                      descending = <fs_orderby>-descending ) TO lt_sort_order.
+
+    ENDLOOP.
+
+*   Add PONUMBER and ITEMNO as deterministic tie-breakers
+    IF lt_sort_order IS NOT INITIAL.
+
+      LOOP AT VALUE string_table( ( mc_sort_ponumber )
+                                  ( mc_sort_itemno   ) ) INTO DATA(l_tie_breaker).
+
+        UNASSIGN <f_sort_value>.
+
+        ASSIGN COMPONENT l_tie_breaker OF STRUCTURE <fs_sample> TO <f_sort_value>.
+
+        IF <f_sort_value> IS NOT ASSIGNED OR line_exists( lt_sort_order[ name = l_tie_breaker ] ).
+          CONTINUE.
+        ENDIF.
+
+        APPEND VALUE #( name       = l_tie_breaker
+                        descending = abap_false ) TO lt_sort_order.
+      ENDLOOP.
+
+      SORT ct_result BY (lt_sort_order).
 
     ENDIF.
 
-    " Paging window [skip+1 .. skip+top]: delete the tail first,
-    " then the head - index-range deletes without table copies.
     DATA(l_skip) = is_request-paging-skip.
     DATA(l_top)  = is_request-paging-top.
 
-    IF is_request-paging-top_requested = abap_true
-       AND l_top = 0.
+    IF is_request-paging-top_requested = abap_true AND l_top = 0.
       CLEAR ct_result.
       RETURN.
     ENDIF.
 
-    IF l_top > 0 AND lines( ct_result ) > l_skip + l_top.
-      DELETE ct_result FROM l_skip + l_top + 1.
+    IF l_skip >= lines( ct_result ).
+      CLEAR ct_result.
+      RETURN.
     ENDIF.
 
     IF l_skip > 0.
       DELETE ct_result TO l_skip.
     ENDIF.
 
+    IF l_top > 0 AND l_top < lines( ct_result ).
+      DELETE ct_result FROM l_top + 1.
+    ENDIF.
+
   ENDMETHOD.
+
   METHOD get_keys
     BY DATABASE PROCEDURE
     FOR HDB
@@ -3818,9 +3798,20 @@ ENDMETHOD.
 
   METHOD remove_default_sorting.
 
-*   Default PSTYPE DESC sorting is already applied by AMDP
-    IF cs_request-orderby-property = mc_orderby_pstype AND cs_request-orderby-descending = abap_true.
-      CLEAR cs_request-orderby.
+* Skip sorting when the requested order matches the AMDP default
+    IF lines( cs_request-orderby ) = 3.
+
+      IF cs_request-orderby[ 1 ]-property   = mc_orderby_pstype AND
+         cs_request-orderby[ 1 ]-descending = abap_true AND
+         cs_request-orderby[ 2 ]-property   = mc_sort_ponumber AND
+         cs_request-orderby[ 2 ]-descending = abap_false AND
+         cs_request-orderby[ 3 ]-property   = mc_sort_itemno AND
+         cs_request-orderby[ 3 ]-descending = abap_false.
+
+        CLEAR cs_request-orderby.
+
+      ENDIF.
+
     ENDIF.
 
   ENDMETHOD.
@@ -3828,7 +3819,7 @@ ENDMETHOD.
   METHOD is_full_processing_required.
 
 *   Generic sorting or filtering requires the full result set
-    r_is_full_processing_required = xsdbool( is_request-orderby-property IS NOT INITIAL OR
+    r_is_full_processing_required = xsdbool( is_request-orderby IS NOT INITIAL OR
                                              is_request-generic_filters  IS NOT INITIAL ).
   ENDMETHOD.
 
@@ -3849,12 +3840,90 @@ ENDMETHOD.
 
     rs_request-email = get_email( rs_request-email ).
 
+    extract_filters( CHANGING cs_request = rs_request ).
+
     remove_default_sorting( CHANGING cs_request = rs_request ).
 
     set_full_processing( CHANGING cs_request = rs_request ).
 
   ENDMETHOD.
 
+  METHOD extract_filters.
 
+    DATA lt_generic TYPE zif_fi_das_dashboard=>tt_generic_filter.
+
+    LOOP AT cs_request-generic_filters ASSIGNING FIELD-SYMBOL(<fs_filter>).
+
+      IF is_applied( EXPORTING is_filter  = <fs_filter>
+                     CHANGING  cs_request = cs_request ) = abap_false.
+
+        APPEND <fs_filter> TO lt_generic.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    cs_request-generic_filters = lt_generic.
+
+  ENDMETHOD.
+
+  METHOD is_applied.
+
+    IF is_filter-sign <> rsmds_c_sign-including.
+      RETURN.
+    ENDIF.
+
+    DATA(l_property) = to_upper( is_filter-property ).
+
+    CASE is_filter-option.
+
+      WHEN rsmds_c_option-contains_pattern.
+
+        DATA(l_value) = get_contains_value( is_filter-low ).
+
+        CASE l_property.
+
+          WHEN mc_property_ponumber.
+            APPEND VALUE #( value = CONV ebeln( l_value ) ) TO cs_request-po_contains.
+
+          WHEN mc_property_itemno.
+            APPEND VALUE #( value = CONV ebelp( l_value ) ) TO cs_request-item_contains.
+
+          WHEN mc_property_suppliername.
+            APPEND VALUE #( value = CONV zif_fi_das_dashboard=>t_supplier( l_value ) ) TO cs_request-supplier_contains.
+
+          WHEN OTHERS.
+            RETURN.
+        ENDCASE.
+
+      WHEN rsmds_c_option-equal.
+
+        CASE l_property.
+
+          WHEN mc_property_ponumber.
+            APPEND CORRESPONDING #( is_filter ) TO cs_request-ponumber.
+
+          WHEN mc_property_itemno.
+            APPEND CORRESPONDING #( is_filter ) TO cs_request-itemno.
+
+          WHEN OTHERS.
+            RETURN.
+        ENDCASE.
+
+      WHEN OTHERS.
+        RETURN.
+    ENDCASE.
+
+    r_applied = abap_true.
+
+  ENDMETHOD.
+
+  METHOD get_contains_value.
+
+    r_value = i_pattern.
+    REPLACE ALL OCCURRENCES OF mc_asterisk_sign IN r_value WITH space.
+    CONDENSE r_value.
+
+  ENDMETHOD.
 
 ENDCLASS.

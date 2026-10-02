@@ -696,6 +696,9 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS supplier_contains_builds_like FOR TESTING.
     METHODS supplier_pattern_no_wildcards FOR TESTING.
     METHODS supplier_keeps_inner_spaces   FOR TESTING.
+    METHODS item_contains_digit_two       FOR TESTING.
+    METHODS amdp_filter_empty_by_default      FOR TESTING.
+
 
     " sort + paging
     METHODS sort_ascending_with_paging    FOR TESTING.
@@ -813,109 +816,191 @@ CLASS ltc_request_processing IMPLEMENTATION.
 * contains filters
 *----------------------------------------------------------------------
 
+*----------------------------------------------------------------------
+* contains filters (opravené pre amdp_filter)
+*----------------------------------------------------------------------
+
   METHOD po_contains_builds_like.
 
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      po_contains = VALUE #( ( value = '40102' ) ) ).
+      generic_filters = VALUE #(
+        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '40102' ) ) ).
 
-    DATA(lt_filter) = mo_cut->get_po_filter( ls_request ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_filter )
-      exp = 1 ).
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-pattern
+      act = lines( ls_request-amdp_filter-po )
+      exp = 1
+      msg = 'PONUMBER CP filter must be extracted to amdp_filter-po' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-amdp_filter-po[ 1 ]-pattern
       exp = '%40102%'
       msg = 'PO contains must produce %value% pattern' ).
 
     cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lt_filter[ 1 ]-value_length > 0 )
-      msg = 'Pattern entry must be marked as LIKE' ).
+      act = xsdbool( ls_request-amdp_filter-po[ 1 ]-value_length > 0 )
+      msg = 'Pattern entry must be marked as LIKE (value_length > 0)' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-generic_filters )
+      exp = 0
+      msg = 'Filter must be removed from generic_filters' ).
 
   ENDMETHOD.
 
   METHOD item_contains_keeps_zeros.
 
-    " Searching '00002' must match ITEMNO '00002' - the pattern
-    " must keep leading zeros (no LTRIM on the search text).
-    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      item_contains = VALUE #( ( value = '00002' ) ) ).
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
 
-    DATA(lt_filter) = mo_cut->get_item_filter( ls_request ).
+    " Searching '2' must match ITEMNO '00002' without converting to EBELP.
+    " The pattern must be '%2%', not '%00002%'.
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      generic_filters = VALUE #(
+        ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '2' ) ) ).
+
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-pattern
-      exp = '%00002%'
-      msg = 'Item pattern must keep leading zeros' ).
+      act = ls_request-amdp_filter-item[ 1 ]-pattern
+      exp = '%2%'
+      msg = 'Item pattern must NOT pad/convert to EBELP' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-generic_filters )
+      exp = 0 ).
 
   ENDMETHOD.
 
-  METHOD mixed_eq_and_contains.
+    METHOD mixed_eq_and_contains.
 
-    " SmartFilterBar token (EQ) and value-help pattern (contains)
-    " coexist as separate filter entries.
+    " Real UI request: substringof('7',PONUMBER) or PONUMBER eq '8000055868'.
+    " Both go to AMDP; get_keys combines EQ and LIKE with OR.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      ponumber    = VALUE #( ( sign = 'I' option = 'EQ'
-                               low = '8000401022' ) )
-      po_contains = VALUE #( ( value = '4010' ) ) ).
+      generic_filters = VALUE #(
+        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000055868' )
+        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*7*' ) ) ).
 
-    DATA(lt_filter) = mo_cut->get_po_filter( ls_request ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_filter )
+      act = lines( ls_request-amdp_filter-po )
       exp = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-value_length
+      act = ls_request-amdp_filter-po[ 1 ]-value_length
       exp = 0
       msg = 'EQ entry must have value_length 0' ).
 
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lt_filter[ 2 ]-value_length > 0 )
-      msg = 'Contains entry must have value_length > 0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-amdp_filter-po[ 2 ]-pattern
+      exp = '%7%' ).
+
+    cl_abap_unit_assert=>assert_initial( ls_request-generic_filters ).
 
   ENDMETHOD.
 
   METHOD supplier_contains_builds_like.
 
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+
     " Pattern is lowercased: AMDP compares LOWER( suppliername ).
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      supplier_contains = VALUE #( ( value = 'Fuji' ) ) ).
+      generic_filters = VALUE #(
+        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'Fuji' ) ) ).
 
-    DATA(lt_filter) = mo_cut->get_supplier_filter( ls_request ).
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-value
-      exp = '%fuji%' ).
+      act = ls_request-amdp_filter-supplier[ 1 ]-value
+      exp = '%fuji%'
+      msg = 'Supplier pattern must be lowercased' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-amdp_filter-supplier[ 1 ]-value_length > 0 )
+      msg = 'Supplier entry must be marked as LIKE' ).
 
   ENDMETHOD.
 
-    METHOD supplier_pattern_no_wildcards.
+  METHOD supplier_pattern_no_wildcards.
 
-    " Regression: CP pattern *Fuji* must never leak asterisks
-    " into the LIKE pattern (%*Fuji*% matches nothing).
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+
+    " Regression: CP pattern containing asterisks must strip them.
+    " '%*Fuji*%' never matches anything.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      supplier_contains = VALUE #( ( value = 'Fuji' ) ) ).
+      generic_filters = VALUE #(
+        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
 
-    DATA(lt_filter) = mo_cut->get_supplier_filter( ls_request ).
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-value
-      exp = '%fuji%' ).
+      act = ls_request-amdp_filter-supplier[ 1 ]-value
+      exp = '%fuji%'
+      msg = 'Asterisks must be stripped from pattern' ).
 
   ENDMETHOD.
 
   METHOD supplier_keeps_inner_spaces.
 
-    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      supplier_contains = VALUE #( ( value = 'Lee Hecht' ) ) ).
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
 
-    DATA(lt_filter) = mo_cut->get_supplier_filter( ls_request ).
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      generic_filters = VALUE #(
+        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP'
+          low = 'Lee Hecht' ) ) ).
+
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_filter[ 1 ]-value
-      exp = '%lee hecht%' ).
+      act = ls_request-amdp_filter-supplier[ 1 ]-value
+      exp = '%lee hecht%'
+      msg = 'Inner spaces in supplier name must be preserved' ).
+
+  ENDMETHOD.
+
+    METHOD item_contains_digit_two.
+
+    " Regression: contains '2' must create pattern '%2%', not '%00002%'.
+    " EBELP is NUMC, CONV ebelp( '2' ) creates '00002'.
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      generic_filters = VALUE #(
+        ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '2' ) ) ).
+
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
+
+    " XSA: substringof('2',ITEMNO) matches items 00002, 00020, 00200, 12345, etc.
+    " ABAP: LIKE '%2%' must match the same set.
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-amdp_filter-item[ 1 ]-pattern
+      exp = '%2%'
+      msg = 'ITEMNO contains digit must not be converted to NUMCP' ).
+
+  ENDMETHOD.
+
+  METHOD amdp_filter_empty_by_default.
+
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( ).
+
+    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-amdp_filter-po )
+      exp = 0 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-amdp_filter-item )
+      exp = 0 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-amdp_filter-supplier )
+      exp = 0 ).
 
   ENDMETHOD.
 

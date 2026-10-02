@@ -140,11 +140,6 @@ interface ZIF_FI_DAS_DASHBOARD
       email             TYPE t_email,
       poowner           TYPE t_poowner,
       pstype            TYPE t_pstype,
-*      ponumber          TYPE tr_ponumber,
-*      itemno            TYPE tr_itemno,
-*      po_contains       TYPE tt_po_contains,
-*      item_contains     TYPE tt_item_contains,
-*      supplier_contains TYPE tt_supplier_contains,
        amdp_filter TYPE ts_amdp_filter,
       generic_filters   TYPE tt_generic_filter,
       orderby           TYPE tt_orderby,
@@ -431,7 +426,7 @@ interface ZIF_FI_DAS_DASHBOARD
       !IS_REQUEST type TS_REQUEST
     exporting
       !ET_RESULT type TT_OVER
-      !E_TOTAL_COUNT type INT8
+      !E_TOTAL_COUNT type string
     raising
       ZCX_FI_DAS_ERROR
       CX_SY_CONVERSION_ERROR
@@ -441,7 +436,7 @@ interface ZIF_FI_DAS_DASHBOARD
       !IS_REQUEST type TS_REQUEST
     exporting
       !ET_RESULT type TT_UNDER
-      !E_TOTAL_COUNT type INT8
+      !E_TOTAL_COUNT type string
     raising
       ZCX_FI_DAS_ERROR
       CX_SY_CONVERSION_ERROR
@@ -451,7 +446,7 @@ interface ZIF_FI_DAS_DASHBOARD
       !IS_REQUEST type TS_REQUEST
     exporting
       !ET_RESULT type TT_EXCLUDE
-      !E_TOTAL_COUNT type INT8
+      !E_TOTAL_COUNT type string
     raising
       ZCX_FI_DAS_ERROR
       CX_SY_CONVERSION_ERROR

@@ -1,39 +1,40 @@
-INTERFACE zif_fi_das_dashboard
-  PUBLIC .
+interface ZIF_FI_DAS_DASHBOARD
+  public .
 
-  TYPES:
+
+  types:
     t_operation      TYPE c LENGTH 1 .
-  TYPES:
+  types:
     t_email          TYPE c LENGTH 255 .
-  TYPES:
+  types:
     t_poowner        TYPE c LENGTH 1 .
-  TYPES:
+  types:
     t_pstype         TYPE c LENGTH 1 .
-  TYPES:
+  types:
     t_supplier       TYPE c LENGTH 500 .
-  TYPES:
+  types:
     t_text_500       TYPE c LENGTH 500 .
-  TYPES:
+  types:
     t_text_5000      TYPE c LENGTH 5000 .
-  TYPES:
+  types:
     t_status         TYPE c LENGTH 20 .
-  TYPES:
+  types:
     t_accrual_method TYPE c LENGTH 50 .
-  TYPES:
+  types:
     t_decimal_format TYPE c LENGTH 1 .
-  TYPES:
+  types:
     t_date_format    TYPE c LENGTH 1 .
-  TYPES:
+  types:
     t_amount         TYPE p LENGTH 7 DECIMALS 2 .
-  TYPES:
+  types:
     t_percentage     TYPE p LENGTH 7 DECIMALS 1 .
-  TYPES:
+  types:
     t_rate           TYPE p LENGTH 5 DECIMALS 6 .
-  TYPES:
+  types:
     tr_ponumber TYPE RANGE OF ebeln .
-  TYPES:
+  types:
     tr_itemno   TYPE RANGE OF ebelp .
-  TYPES:
+  types:
 *--------------------------------------------------------------------*
 * Contains filters. Value lengths follow the source fields: a
 * substring longer than the field itself can never match.
@@ -41,24 +42,24 @@ INTERFACE zif_fi_das_dashboard
     BEGIN OF ts_po_contains,
       value TYPE ebeln,
     END OF ts_po_contains .
-  TYPES:
+  types:
     tt_po_contains TYPE STANDARD TABLE OF ts_po_contains
       WITH EMPTY KEY .
-  TYPES:
+  types:
     BEGIN OF ts_item_contains,
       value TYPE ebelp,
     END OF ts_item_contains .
-  TYPES:
+  types:
     tt_item_contains TYPE STANDARD TABLE OF ts_item_contains
       WITH EMPTY KEY .
-  TYPES:
+  types:
     BEGIN OF ts_supplier_contains,
       value TYPE t_supplier,
     END OF ts_supplier_contains .
-  TYPES:
+  types:
     tt_supplier_contains TYPE STANDARD TABLE OF ts_supplier_contains
       WITH EMPTY KEY .
-  TYPES:
+  types:
 *--------------------------------------------------------------------*
 * First $orderby entry. Evaluation happens in the dashboard class.
 *--------------------------------------------------------------------*
@@ -66,17 +67,17 @@ INTERFACE zif_fi_das_dashboard
       property   TYPE string,
       descending TYPE abap_bool,
     END OF ts_orderby .
-  TYPES:
+  types:
     tt_orderby TYPE STANDARD TABLE OF ts_orderby
       WITH EMPTY KEY .
-  TYPES:
+  types:
     BEGIN OF ts_paging,
       skip            TYPE i,
       top             TYPE i,
       top_requested   TYPE abap_bool,
       count_requested TYPE abap_bool,
     END OF ts_paging .
-  TYPES:
+  types:
     BEGIN OF ts_generic_filter,
       property TYPE string,
       sign     TYPE ddsign,
@@ -84,11 +85,53 @@ INTERFACE zif_fi_das_dashboard
       low      TYPE t_text_500,
       high     TYPE t_text_500,
     END OF ts_generic_filter .
-  TYPES:
+  types:
     tt_generic_filter TYPE STANDARD TABLE OF ts_generic_filter
       WITH EMPTY KEY .
-  TYPES:
-    " v ts_request doplniť za supplier_contains:
+
+
+     TYPES:
+    BEGIN OF ts_amdp_po_filter,
+      value        TYPE ebeln,
+      pattern      TYPE c LENGTH 12,
+      value_length TYPE i,
+    END OF ts_amdp_po_filter,
+    tt_amdp_po_filter TYPE STANDARD TABLE OF ts_amdp_po_filter
+      WITH EMPTY KEY,
+
+    BEGIN OF ts_amdp_item_filter,
+      value        TYPE ebelp,
+      pattern      TYPE c LENGTH 7,
+      value_length TYPE i,
+    END OF ts_amdp_item_filter,
+    tt_amdp_item_filter TYPE STANDARD TABLE OF ts_amdp_item_filter
+      WITH EMPTY KEY,
+
+    BEGIN OF ts_amdp_supplier_filter,
+      value        TYPE t_supplier,
+      value_length TYPE i,
+    END OF ts_amdp_supplier_filter,
+    tt_amdp_supplier_filter TYPE STANDARD TABLE OF ts_amdp_supplier_filter
+      WITH EMPTY KEY,
+
+    BEGIN OF ts_amdp_filter,
+      po       TYPE tt_amdp_po_filter,
+      item     TYPE tt_amdp_item_filter,
+      supplier TYPE tt_amdp_supplier_filter,
+    END OF ts_amdp_filter.
+
+  " V existujúcej ts_request nahraď ponumber, itemno,
+  " po_contains, item_contains a supplier_contains:
+  " amdp_filter TYPE ts_amdp_filter,
+
+
+  types:
+  " v ts_request doplniť za supplier_contains:
+
+
+
+
+
 *--------------------------------------------------------------------*
 * Request contract. SELECT carries the raw $select list; the
 * dashboard derives its own processing decisions from it.
@@ -97,72 +140,68 @@ INTERFACE zif_fi_das_dashboard
       email             TYPE t_email,
       poowner           TYPE t_poowner,
       pstype            TYPE t_pstype,
-      ponumber          TYPE tr_ponumber,
-      itemno            TYPE tr_itemno,
-      po_contains       TYPE tt_po_contains,
-      item_contains     TYPE tt_item_contains,
-      supplier_contains TYPE tt_supplier_contains,
+       amdp_filter TYPE ts_amdp_filter,
       generic_filters   TYPE tt_generic_filter,
       orderby           TYPE tt_orderby,
       select            TYPE string,
       paging            TYPE ts_paging,
     END OF ts_request .
-  TYPES:
+  types:
 * ... ts_shared a všetko nižšie BEZ ZMENY ...
 *--------------------------------------------------------------------*
 * Native business row used internally during calculation.
 *--------------------------------------------------------------------*
     BEGIN OF ts_shared,
-      poowner_email        TYPE t_email,
-      companycode          TYPE bukrs,
-      purchasingunit       TYPE c LENGTH 25,
-      region               TYPE c LENGTH 3,
-      cocdecurr            TYPE waers,
-      glaccount            TYPE t_text_5000,
-      costcenter           TYPE t_text_5000,
-      manageunit           TYPE t_text_5000,
-      ponumber             TYPE ebeln,
-      itemno               TYPE ebelp,
-      pocreatedat          TYPE d,
-      supplierid           TYPE lifnr,
-      suppliername         TYPE t_supplier,
-      polinedesc           TYPE t_text_5000,
-      pstype               TYPE t_pstype,
-      povalue              TYPE t_amount,
-      pocurrency           TYPE waers,
-      invoice_currency     TYPE waers,
-      wrkstrtdate          TYPE d,
-      wrkenddate           TYPE d,
-      totwrkcompamt        TYPE t_amount,
-      internalorder        TYPE t_text_5000,
-      assetid              TYPE t_text_5000,
-      profitcenter         TYPE t_text_5000,
-      epnumber             TYPE c LENGTH 12,
-      status               TYPE t_status,
-      lastmonthwrkcomp     TYPE t_amount,
-      straightlinemthd     TYPE abap_bool,
-      povalue_coco         TYPE t_amount,
-      accrualmethod        TYPE t_accrual_method,
-      bbp_acc_no           TYPE t_text_5000,
-      documentdate         TYPE d,
-      exchangerate         TYPE t_rate,
-      po_preparer          TYPE t_email,
-      changed_on           TYPE timestampl,
-      povalue_usd          TYPE t_amount,
-      totwrkcompamt_usd    TYPE t_amount,
-      po_closure           TYPE abap_bool,
-      poclosure_flag       TYPE i,
-      poclosure_flag_local TYPE abap_bool,
-      checkflag            TYPE c LENGTH 10,
-      grvalue              TYPE t_amount,
-      invvalue             TYPE t_amount,
-      invvalue_usd         TYPE t_amount,
-      grvalue_usd          TYPE t_amount,
-      decimal_format       TYPE t_decimal_format,
-      zactivitynbr         TYPE c LENGTH 200,
-      distpercentage       TYPE t_text_5000,
+      poowner_email         TYPE t_email,
+      companycode           TYPE bukrs,
+      purchasingunit        TYPE c LENGTH 25,
+      region                TYPE c LENGTH 3,
+      cocdecurr             TYPE waers,
+      glaccount             TYPE t_text_5000,
+      costcenter            TYPE t_text_5000,
+      manageunit            TYPE t_text_5000,
+      ponumber              TYPE ebeln,
+      itemno                TYPE ebelp,
+      pocreatedat           TYPE d,
+      supplierid            TYPE lifnr,
+      suppliername          TYPE t_supplier,
+      polinedesc            TYPE t_text_5000,
+      pstype                TYPE t_pstype,
+      povalue               TYPE t_amount,
+      pocurrency            TYPE waers,
+      invoice_currency      TYPE waers,
+      wrkstrtdate           TYPE d,
+      wrkenddate            TYPE d,
+      totwrkcompamt         TYPE t_amount,
+      internalorder         TYPE t_text_5000,
+      assetid               TYPE t_text_5000,
+      profitcenter          TYPE t_text_5000,
+      epnumber              TYPE c LENGTH 12,
+      status                TYPE t_status,
+      lastmonthwrkcomp      TYPE t_amount,
+      straightlinemthd      TYPE abap_bool,
+      povalue_coco          TYPE t_amount,
+      accrualmethod         TYPE t_accrual_method,
+      bbp_acc_no            TYPE t_text_5000,
+      documentdate          TYPE d,
+      exchangerate          TYPE t_rate,
+      po_preparer           TYPE t_email,
+      changed_on            TYPE timestampl,
+      povalue_usd           TYPE t_amount,
+      totwrkcompamt_usd     TYPE t_amount,
+      po_closure            TYPE abap_bool,
+      poclosure_flag        TYPE i,
+      poclosure_flag_local  TYPE abap_bool,
+      checkflag             TYPE c LENGTH 10,
+      grvalue               TYPE t_amount,
+      invvalue              TYPE t_amount,
+      invvalue_usd          TYPE t_amount,
+      grvalue_usd           TYPE t_amount,
+      decimal_format        TYPE t_decimal_format,
+      zactivitynbr          TYPE c LENGTH 200,
+      distpercentage        TYPE t_text_5000,
     END OF ts_shared .
-  TYPES:
+  types:
     BEGIN OF ts_over_under_fields,
       totwrkcompamt_cocdecurr TYPE t_amount,
       totwrkcompper           TYPE t_percentage,
@@ -185,73 +224,73 @@ INTERFACE zif_fi_das_dashboard
       invvalue_cal            TYPE t_amount,
       amountaccrued_usd       TYPE t_amount,
     END OF ts_over_under_fields .
-  TYPES:
+  types:
     BEGIN OF ts_exclude_fields,
       ruletype       TYPE t_text_5000,
       ruletypetext   TYPE t_text_5000,
       costcenterdesc TYPE t_text_5000,
     END OF ts_exclude_fields .
-  TYPES:
+  types:
     BEGIN OF ts_result.
       INCLUDE TYPE ts_shared.
       INCLUDE TYPE ts_over_under_fields.
       INCLUDE TYPE ts_exclude_fields.
-    TYPES:
-    END OF ts_result .
   TYPES:
+    END OF ts_result .
+  types:
 *--------------------------------------------------------------------*
 * Fields shared by all final OData contracts.
 *--------------------------------------------------------------------*
     BEGIN OF ts_odata_shared,
-      poowner_email     TYPE t_email,
-      companycode       TYPE bukrs,
-      purchasingunit    TYPE c LENGTH 25,
-      region            TYPE c LENGTH 3,
-      cocdecurr         TYPE waers,
-      glaccount         TYPE t_text_5000,
-      costcenter        TYPE t_text_5000,
-      manageunit        TYPE t_text_5000,
-      ponumber          TYPE ebeln,
-      itemno            TYPE ebelp,
-      pocreatedat       TYPE d,
-      supplierid        TYPE lifnr,
-      suppliername      TYPE t_supplier,
-      polinedesc        TYPE t_text_5000,
-      pstype            TYPE t_pstype,
-      povalue           TYPE t_amount,
-      pocurrency        TYPE waers,
-      invoice_currency  TYPE string,
-      wrkstrtdate       TYPE d,
-      wrkenddate        TYPE d,
-      totwrkcompamt     TYPE t_amount,
-      internalorder     TYPE t_text_5000,
-      assetid           TYPE t_text_5000,
-      profitcenter      TYPE t_text_5000,
-      epnumber          TYPE c LENGTH 12,
-      status            TYPE t_status,
-      lastmonthwrkcomp  TYPE t_amount,
-      straightlinemthd  TYPE c LENGTH 5,
-      povalue_coco      TYPE t_amount,
-      accrualmethod     TYPE t_accrual_method,
-      po_preparer       TYPE t_email,
-      changed_on        TYPE timestampl,
-      pstype_text       TYPE c LENGTH 10,
-      povalue_usd       TYPE t_amount,
-      exchangerate_dec  TYPE t_rate,
-      exchangerate      TYPE t_text_5000,
-      totwrkcompamt_usd TYPE t_amount,
-      po_closure        TYPE c LENGTH 5,
-      documentdate      TYPE c LENGTH 8,
-      poclosure_flag    TYPE i,
-      checkflag         TYPE c LENGTH 10,
-      invvalue          TYPE t_amount,
-      invvalue_usd      TYPE t_amount,
-      grvalue           TYPE t_amount,
-      grvalue_usd       TYPE t_amount,
-      zactivitynbr      TYPE c LENGTH 200,
-      distpercentage    TYPE t_text_5000,
+      poowner_email      TYPE t_email,
+      companycode        TYPE bukrs,
+      purchasingunit     TYPE c LENGTH 25,
+      region             TYPE c LENGTH 3,
+      cocdecurr          TYPE waers,
+      glaccount          TYPE t_text_5000,
+      costcenter         TYPE t_text_5000,
+      manageunit         TYPE t_text_5000,
+      ponumber           TYPE ebeln,
+      itemno             TYPE ebelp,
+      pocreatedat        TYPE d,
+      supplierid         TYPE lifnr,
+      suppliername       TYPE t_supplier,
+      polinedesc         TYPE t_text_5000,
+      pstype             TYPE t_pstype,
+      povalue            TYPE t_amount,
+      pocurrency         TYPE waers,
+      invoice_currency   TYPE string,
+      wrkstrtdate        TYPE d,
+      wrkenddate         TYPE d,
+      totwrkcompamt      TYPE t_amount,
+      internalorder      TYPE t_text_5000,
+      assetid            TYPE t_text_5000,
+      profitcenter       TYPE t_text_5000,
+      epnumber           TYPE c LENGTH 12,
+      status             TYPE t_status,
+      lastmonthwrkcomp   TYPE t_amount,
+      straightlinemthd   TYPE c LENGTH 5,
+      povalue_coco       TYPE t_amount,
+      accrualmethod      TYPE t_accrual_method,
+      po_preparer        TYPE t_email,
+      changed_on         TYPE timestampl,
+      pstype_text        TYPE c LENGTH 10,
+      povalue_usd        TYPE t_amount,
+      exchangerate_dec   TYPE t_rate,
+      exchangerate       TYPE t_text_5000,
+      totwrkcompamt_usd  TYPE t_amount,
+      po_closure         TYPE c LENGTH 5,
+      documentdate       TYPE c LENGTH 8,
+      poclosure_flag     TYPE i,
+      checkflag          TYPE c LENGTH 10,
+      invvalue           TYPE t_amount,
+      invvalue_usd       TYPE t_amount,
+      grvalue            TYPE t_amount,
+      grvalue_usd        TYPE t_amount,
+      zactivitynbr       TYPE c LENGTH 200,
+      distpercentage     TYPE t_text_5000,
     END OF ts_odata_shared .
-  TYPES:
+  types:
     BEGIN OF ts_over_under_odata_fields,
       totwrkcompamt_cocdecurr TYPE t_amount,
       totwrkcompper           TYPE t_percentage,
@@ -279,13 +318,13 @@ INTERFACE zif_fi_das_dashboard
       datfm                   TYPE t_date_format,
       invvalue_cal            TYPE t_amount,
     END OF ts_over_under_odata_fields .
-  TYPES:
+  types:
     BEGIN OF ts_exclude_odata_fields,
       ruletype       TYPE t_text_5000,
       ruletypetext   TYPE t_text_5000,
       costcenterdesc TYPE t_text_5000,
     END OF ts_exclude_odata_fields .
-  TYPES:
+  types:
 *--------------------------------------------------------------------*
 * Internal OData-ready superset used by GET_ODATA_ROW.
 *
@@ -297,47 +336,47 @@ INTERFACE zif_fi_das_dashboard
       INCLUDE TYPE ts_odata_shared.
       INCLUDE TYPE ts_over_under_odata_fields.
       INCLUDE TYPE ts_exclude_odata_fields.
-    TYPES:
-      last_notif_on TYPE timestampl,
-      notif_24_hr   TYPE c LENGTH 1,
-    END OF ts_odata_result .
   TYPES:
+      last_notif_on  TYPE timestampl,
+      notif_24_hr    TYPE c LENGTH 1,
+    END OF ts_odata_result .
+  types:
 *--------------------------------------------------------------------*
 * Final Over contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_over.
       INCLUDE TYPE ts_odata_shared.
       INCLUDE TYPE ts_over_under_odata_fields.
-    TYPES:
-      last_notif_on TYPE timestampl,
-      notif_24_hr   TYPE c LENGTH 1,
-    END OF ts_over .
   TYPES:
+      last_notif_on  TYPE timestampl,
+      notif_24_hr    TYPE c LENGTH 1,
+    END OF ts_over .
+  types:
     tt_over TYPE STANDARD TABLE OF ts_over
       WITH EMPTY KEY .
-  TYPES:
+  types:
 *--------------------------------------------------------------------*
 * Final Under contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_under.
       INCLUDE TYPE ts_odata_shared.
       INCLUDE TYPE ts_over_under_odata_fields.
-    TYPES:
-    END OF ts_under .
   TYPES:
+    END OF ts_under .
+  types:
     tt_under TYPE STANDARD TABLE OF ts_under
       WITH EMPTY KEY .
-  TYPES:
+  types:
 *--------------------------------------------------------------------*
 * Final Exclude contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_exclude.
       INCLUDE TYPE ts_odata_shared.
       INCLUDE TYPE ts_exclude_fields.
-    TYPES:
-      totwrkcompper TYPE t_amount,
+  TYPES:
+      totwrkcompper  TYPE t_amount,
     END OF ts_exclude .
-  TYPES
+  types
     tt_exclude TYPE STANDARD TABLE OF ts_exclude
       WITH EMPTY KEY.
 
@@ -346,70 +385,70 @@ INTERFACE zif_fi_das_dashboard
 
 
 
-  CONSTANTS mc_over TYPE t_operation VALUE '1' ##NO_TEXT.
-  CONSTANTS mc_under TYPE t_operation VALUE '2' ##NO_TEXT.
-  CONSTANTS mc_exclude TYPE t_operation VALUE '3' ##NO_TEXT.
-  CONSTANTS mc_pstype_material TYPE t_pstype VALUE '0' ##NO_TEXT.
-  CONSTANTS mc_pstype_service TYPE t_pstype VALUE '9' ##NO_TEXT.
-  CONSTANTS mc_pstype_all TYPE t_pstype VALUE '*' ##NO_TEXT.
-  CONSTANTS mc_owner_mode TYPE t_poowner VALUE 'X' ##NO_TEXT.
-  CONSTANTS mc_currency_usd TYPE waers VALUE 'USD' ##NO_TEXT.
-  CONSTANTS mc_status_pending TYPE t_status VALUE 'Pending' ##NO_TEXT.
-  CONSTANTS mc_status_reviewed TYPE t_status VALUE 'Reviewed' ##NO_TEXT.
-  CONSTANTS mc_accrual_wtd TYPE t_accrual_method VALUE 'WTD' ##NO_TEXT.
-  CONSTANTS mc_accrual_stl TYPE t_accrual_method VALUE 'STL' ##NO_TEXT.
-  CONSTANTS mc_accrual_wtd_text TYPE t_accrual_method VALUE 'Work To Date' ##NO_TEXT.
-  CONSTANTS mc_accrual_stl_text TYPE t_accrual_method VALUE 'Straight Line' ##NO_TEXT.
-  CONSTANTS:
-    mc_boolean_true  TYPE c LENGTH 5 VALUE 'true' ##NO_TEXT.
-  CONSTANTS:
-    mc_boolean_false TYPE c LENGTH 5 VALUE 'false' ##NO_TEXT.
-  CONSTANTS mc_null TYPE string VALUE 'NULL' ##NO_TEXT.
-  CONSTANTS:
-    mc_pstype_material_text TYPE c LENGTH 10 VALUE 'Material' ##NO_TEXT.
-  CONSTANTS:
-    mc_pstype_service_text  TYPE c LENGTH 10 VALUE 'Service' ##NO_TEXT.
-  CONSTANTS:
-    mc_asterisk_sign TYPE c LENGTH 1 VALUE '*' ##NO_TEXT.
-  CONSTANTS:
-    mc_percent_sign TYPE c LENGTH 1 VALUE '%' ##NO_TEXT.
-  CONSTANTS:
-    mc_comma TYPE c LENGTH 1 VALUE ',' ##NO_TEXT.
-  CONSTANTS mc_key_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
-  CONSTANTS mc_key_pstype TYPE string VALUE 'IP_PSTYPE' ##NO_TEXT.
-  CONSTANTS mc_key_poowner TYPE string VALUE 'IP_POOWNER' ##NO_TEXT.
+  constants MC_OVER type T_OPERATION value '1' ##NO_TEXT.
+  constants MC_UNDER type T_OPERATION value '2' ##NO_TEXT.
+  constants MC_EXCLUDE type T_OPERATION value '3' ##NO_TEXT.
+  constants MC_PSTYPE_MATERIAL type T_PSTYPE value '0' ##NO_TEXT.
+  constants MC_PSTYPE_SERVICE type T_PSTYPE value '9' ##NO_TEXT.
+  constants MC_PSTYPE_ALL type T_PSTYPE value '*' ##NO_TEXT.
+  constants MC_OWNER_MODE type T_POOWNER value 'X' ##NO_TEXT.
+  constants MC_CURRENCY_USD type WAERS value 'USD' ##NO_TEXT.
+  constants MC_STATUS_PENDING type T_STATUS value 'Pending' ##NO_TEXT.
+  constants MC_STATUS_REVIEWED type T_STATUS value 'Reviewed' ##NO_TEXT.
+  constants MC_ACCRUAL_WTD type T_ACCRUAL_METHOD value 'WTD' ##NO_TEXT.
+  constants MC_ACCRUAL_STL type T_ACCRUAL_METHOD value 'STL' ##NO_TEXT.
+  constants MC_ACCRUAL_WTD_TEXT type T_ACCRUAL_METHOD value 'Work To Date' ##NO_TEXT.
+  constants MC_ACCRUAL_STL_TEXT type T_ACCRUAL_METHOD value 'Straight Line' ##NO_TEXT.
+  constants:
+    mc_boolean_true  TYPE c LENGTH 5 value 'true' ##NO_TEXT.
+  constants:
+    mc_boolean_false TYPE c LENGTH 5 value 'false' ##NO_TEXT.
+  constants MC_NULL type STRING value 'NULL' ##NO_TEXT.
+  constants:
+    mc_pstype_material_text TYPE c LENGTH 10 value 'Material' ##NO_TEXT.
+  constants:
+    mc_pstype_service_text  TYPE c LENGTH 10 value 'Service' ##NO_TEXT.
+  constants:
+    mc_asterisk_sign TYPE c LENGTH 1 value '*' ##NO_TEXT.
+  constants:
+    mc_percent_sign TYPE c LENGTH 1 value '%' ##NO_TEXT.
+  constants:
+    mc_comma TYPE c LENGTH 1 value ',' ##NO_TEXT.
+  constants MC_KEY_EMAIL type STRING value 'IP_EMAIL' ##NO_TEXT.
+  constants MC_KEY_PSTYPE type STRING value 'IP_PSTYPE' ##NO_TEXT.
+  constants MC_KEY_POOWNER type STRING value 'IP_POOWNER' ##NO_TEXT.
 
 *--------------------------------------------------------------------*
 * Business APIs.
 *--------------------------------------------------------------------*
-  METHODS over
-    IMPORTING
-      !is_request    TYPE ts_request
-    EXPORTING
-      !et_result     TYPE tt_over
-      !e_total_count TYPE int8
-    RAISING
-      zcx_fi_das_error
-      cx_sy_conversion_error
-      cx_sy_open_sql_db .
-  METHODS under
-    IMPORTING
-      !is_request    TYPE ts_request
-    EXPORTING
-      !et_result     TYPE tt_under
-      !e_total_count TYPE int8
-    RAISING
-      zcx_fi_das_error
-      cx_sy_conversion_error
-      cx_sy_open_sql_db .
-  METHODS exclude
-    IMPORTING
-      !is_request    TYPE ts_request
-    EXPORTING
-      !et_result     TYPE tt_exclude
-      !e_total_count TYPE int8
-    RAISING
-      zcx_fi_das_error
-      cx_sy_conversion_error
-      cx_sy_open_sql_db .
-ENDINTERFACE.
+  methods OVER
+    importing
+      !IS_REQUEST type TS_REQUEST
+    exporting
+      !ET_RESULT type TT_OVER
+      !E_TOTAL_COUNT type string
+    raising
+      ZCX_FI_DAS_ERROR
+      CX_SY_CONVERSION_ERROR
+      CX_SY_OPEN_SQL_DB .
+  methods UNDER
+    importing
+      !IS_REQUEST type TS_REQUEST
+    exporting
+      !ET_RESULT type TT_UNDER
+      !E_TOTAL_COUNT type string
+    raising
+      ZCX_FI_DAS_ERROR
+      CX_SY_CONVERSION_ERROR
+      CX_SY_OPEN_SQL_DB .
+  methods EXCLUDE
+    importing
+      !IS_REQUEST type TS_REQUEST
+    exporting
+      !ET_RESULT type TT_EXCLUDE
+      !E_TOTAL_COUNT type string
+    raising
+      ZCX_FI_DAS_ERROR
+      CX_SY_CONVERSION_ERROR
+      CX_SY_OPEN_SQL_DB .
+endinterface.

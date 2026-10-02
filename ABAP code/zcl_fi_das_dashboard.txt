@@ -470,27 +470,27 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_pattern) TYPE string.
 
-    METHODS get_po_filter
-      IMPORTING
-        is_request          TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_po_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_po_filter
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_item_filter
-      IMPORTING
-        is_request            TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_item_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_item_filter
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_supplier_filter
-      IMPORTING
-        is_request                TYPE zif_fi_das_dashboard=>ts_request
-      RETURNING
-        VALUE(rt_supplier_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_supplier_filter.
+*    METHODS get_po_filter
+*      IMPORTING
+*        is_request          TYPE zif_fi_das_dashboard=>ts_request
+*      RETURNING
+*        VALUE(rt_po_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_po_filter
+*      RAISING
+*        zcx_fi_das_error.
+*
+*    METHODS get_item_filter
+*      IMPORTING
+*        is_request            TYPE zif_fi_das_dashboard=>ts_request
+*      RETURNING
+*        VALUE(rt_item_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_item_filter
+*      RAISING
+*        zcx_fi_das_error.
+*
+*    METHODS get_supplier_filter
+*      IMPORTING
+*        is_request                TYPE zif_fi_das_dashboard=>ts_request
+*      RETURNING
+*        VALUE(rt_supplier_filter) TYPE zcl_fi_das_dashboard=>tt_amdp_supplier_filter.
 
     CLASS-METHODS get_keys
       IMPORTING
@@ -507,9 +507,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(it_company_codes)    TYPE tt_company_scope
         VALUE(it_cost_centers)     TYPE tt_cost_center_scope
         VALUE(it_management_units) TYPE tt_management_scope
-        VALUE(it_po_filter)        TYPE tt_amdp_po_filter
-        VALUE(it_item_filter)      TYPE tt_amdp_item_filter
-        VALUE(it_supplier_filter)  TYPE tt_amdp_supplier_filter
+        VALUE(it_po_filter)        TYPE zif_fi_das_dashboard=>tt_amdp_po_filter
+        VALUE(it_item_filter)      TYPE zif_fi_das_dashboard=>tt_amdp_item_filter
+        VALUE(it_supplier_filter)  TYPE zif_fi_das_dashboard=>tt_amdp_supplier_filter
       EXPORTING
         VALUE(et_keys)             TYPE tt_key
         VALUE(e_total_count)       TYPE int8.
@@ -1117,9 +1117,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         it_company_codes    = lt_company_codes
         it_cost_centers     = lt_cost_centers
         it_management_units = lt_management_units
-        it_po_filter        = get_po_filter( is_request )
-        it_item_filter      = get_item_filter( is_request )
-        it_supplier_filter  = get_supplier_filter( is_request )
+        it_po_filter        = is_request-amdp_filter-po
+        it_item_filter      = is_request-amdp_filter-item
+        it_supplier_filter  = is_request-amdp_filter-supplier
       IMPORTING
         et_keys             = et_keys
         e_total_count       = e_total_count ).
@@ -2932,71 +2932,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_po_filter.
-
-    LOOP AT is_request-ponumber ASSIGNING FIELD-SYMBOL(<fs_ponumber>).
-
-      IF <fs_ponumber>-sign <> rsmds_c_sign-including OR <fs_ponumber>-option <> rsmds_c_option-equal.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e010(zfi_das).
-
-      ENDIF.
-
-      APPEND VALUE #( value = <fs_ponumber>-low ) TO rt_po_filter.
-
-    ENDLOOP.
-
-    LOOP AT is_request-po_contains ASSIGNING FIELD-SYMBOL(<fs_contains>).
-
-      DATA(l_pattern) = create_contains_pattern( CONV #( <fs_contains>-value ) ).
-
-      APPEND VALUE #( pattern = l_pattern
-                      value_length = strlen( l_pattern ) ) TO rt_po_filter.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD get_item_filter.
-
-    LOOP AT is_request-itemno ASSIGNING FIELD-SYMBOL(<fs_itemno>).
-
-      IF <fs_itemno>-sign <> rsmds_c_sign-including OR <fs_itemno>-option <> rsmds_c_option-equal.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e010(zfi_das).
-
-      ENDIF.
-
-      APPEND VALUE #( value = <fs_itemno>-low ) TO rt_item_filter.
-
-    ENDLOOP.
-
-    LOOP AT is_request-item_contains ASSIGNING FIELD-SYMBOL(<l_contains>).
-
-      DATA(l_pattern) = create_contains_pattern( CONV #( <l_contains>-value ) ).
-
-      APPEND VALUE #( pattern = l_pattern
-                      value_length = strlen( l_pattern ) ) TO rt_item_filter.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD get_supplier_filter.
-
-    LOOP AT is_request-supplier_contains ASSIGNING FIELD-SYMBOL(<fs_supplier>).
-
-      DATA(l_pattern) = to_lower( create_contains_pattern( CONV #( <fs_supplier>-value ) ) ).
-
-      APPEND VALUE #( value        = CONV zif_fi_das_dashboard=>t_supplier( l_pattern )
-                      value_length = strlen( l_pattern ) ) TO rt_supplier_filter.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
   METHOD create_contains_pattern.
 
     DATA(l_value) = condense( i_value ).
@@ -3356,33 +3291,22 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           NOT EXISTS
           (
             SELECT 1
-              FROM :it_po_filter AS po_filter
-             WHERE po_filter.value_length = 0
+              FROM :it_po_filter
           )
           OR EXISTS
           (
             SELECT 1
               FROM :it_po_filter AS po_filter
-             WHERE po_filter.value_length = 0
-               AND po_filter.value = base.ponumber
-          )
-        )
-
-        AND
-        (
-          NOT EXISTS
-          (
-            SELECT 1
-              FROM :it_po_filter AS po_filter
-             WHERE po_filter.value_length > 0
-          )
-          OR EXISTS
-          (
-            SELECT 1
-              FROM :it_po_filter AS po_filter
-             WHERE po_filter.value_length > 0
-               AND LTRIM( base.ponumber, :lc_zero )
-                   LIKE po_filter.pattern
+             WHERE
+                  (
+                    po_filter.value_length = 0
+                    AND po_filter.value = base.ponumber
+                  )
+               OR (
+                    po_filter.value_length > 0
+                    AND LTRIM( base.ponumber, :lc_zero )
+                        LIKE po_filter.pattern
+                  )
           )
         )
 
@@ -3717,33 +3641,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           NOT EXISTS
           (
             SELECT 1
-              FROM :it_item_filter AS item_filter
-             WHERE item_filter.value_length = 0
+              FROM :it_item_filter
           )
           OR EXISTS
           (
             SELECT 1
               FROM :it_item_filter AS item_filter
-             WHERE item_filter.value_length = 0
-               AND item_filter.value = candidate.itemno
-          )
-        )
-
-        AND
-
-        (
-          NOT EXISTS
-          (
-            SELECT 1
-              FROM :it_item_filter AS item_filter
-             WHERE item_filter.value_length > 0
-          )
-          OR EXISTS
-          (
-            SELECT 1
-              FROM :it_item_filter AS item_filter
-             WHERE item_filter.value_length > 0
-               AND candidate.itemno LIKE item_filter.pattern
+             WHERE
+                  (
+                    item_filter.value_length = 0
+                    AND item_filter.value = candidate.itemno
+                  )
+               OR (
+                    item_filter.value_length > 0
+                    AND candidate.itemno LIKE item_filter.pattern
+                  )
           )
         );
 
@@ -3798,21 +3710,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD remove_default_sorting.
 
-* Skip sorting when the requested order matches the AMDP default
-    IF lines( cs_request-orderby ) = 3.
+*   Skip sorting when the requested order matches the AMDP default
+    DATA(lt_default_orderby) = VALUE zif_fi_das_dashboard=>tt_orderby(
+      ( property = mc_orderby_pstype descending = abap_true  )
+      ( property = mc_sort_ponumber  descending = abap_false )
+      ( property = mc_sort_itemno    descending = abap_false ) ).
 
-      IF cs_request-orderby[ 1 ]-property   = mc_orderby_pstype AND
-         cs_request-orderby[ 1 ]-descending = abap_true AND
-         cs_request-orderby[ 2 ]-property   = mc_sort_ponumber AND
-         cs_request-orderby[ 2 ]-descending = abap_false AND
-         cs_request-orderby[ 3 ]-property   = mc_sort_itemno AND
-         cs_request-orderby[ 3 ]-descending = abap_false.
+    LOOP AT cs_request-orderby ASSIGNING FIELD-SYMBOL(<fs_orderby>).
 
-        CLEAR cs_request-orderby.
-
+      IF sy-tabix > lines( lt_default_orderby ) OR <fs_orderby> <> lt_default_orderby[ sy-tabix ].
+        RETURN.
       ENDIF.
 
-    ENDIF.
+    ENDLOOP.
+
+    CLEAR cs_request-orderby.
 
   ENDMETHOD.
 
@@ -3867,44 +3779,60 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD is_applied.
+    METHOD is_applied.
 
     IF is_filter-sign <> rsmds_c_sign-including.
       RETURN.
     ENDIF.
 
-    DATA(l_property) = to_upper( is_filter-property ).
+    DATA(l_property) = to_upper( CONV string( is_filter-property ) ).
 
     CASE is_filter-option.
+
+      WHEN rsmds_c_option-equal.
+
+        CASE l_property.
+          WHEN mc_property_ponumber.
+            APPEND VALUE #( value = CONV ebeln( is_filter-low ) )
+              TO cs_request-amdp_filter-po.
+
+          WHEN mc_property_itemno.
+            APPEND VALUE #( value = CONV ebelp( is_filter-low ) )
+              TO cs_request-amdp_filter-item.
+
+          WHEN OTHERS.
+            RETURN.
+        ENDCASE.
 
       WHEN rsmds_c_option-contains_pattern.
 
         DATA(l_value) = get_contains_value( is_filter-low ).
 
         CASE l_property.
-
           WHEN mc_property_ponumber.
-            APPEND VALUE #( value = CONV ebeln( l_value ) ) TO cs_request-po_contains.
+            DATA(l_po_pattern) = create_contains_pattern( l_value ).
+            APPEND VALUE #(
+              pattern      = l_po_pattern
+              value_length = strlen( l_po_pattern ) )
+              TO cs_request-amdp_filter-po.
 
           WHEN mc_property_itemno.
-            APPEND VALUE #( value = CONV ebelp( l_value ) ) TO cs_request-item_contains.
+            " Dôležité: l_value nekonvertovať na EBELP/NUMC.
+            " Hľadané '2' musí vytvoriť '%2%', nie '%00002%'.
+            DATA(l_item_pattern) = create_contains_pattern( l_value ).
+            APPEND VALUE #(
+              pattern      = l_item_pattern
+              value_length = strlen( l_item_pattern ) )
+              TO cs_request-amdp_filter-item.
 
           WHEN mc_property_suppliername.
-            APPEND VALUE #( value = CONV zif_fi_das_dashboard=>t_supplier( l_value ) ) TO cs_request-supplier_contains.
-
-          WHEN OTHERS.
-            RETURN.
-        ENDCASE.
-
-      WHEN rsmds_c_option-equal.
-
-        CASE l_property.
-
-          WHEN mc_property_ponumber.
-            APPEND CORRESPONDING #( is_filter ) TO cs_request-ponumber.
-
-          WHEN mc_property_itemno.
-            APPEND CORRESPONDING #( is_filter ) TO cs_request-itemno.
+            DATA(l_supplier_pattern) =
+              to_lower( create_contains_pattern( l_value ) ).
+            APPEND VALUE #(
+              value        = CONV zif_fi_das_dashboard=>t_supplier(
+                               l_supplier_pattern )
+              value_length = strlen( l_supplier_pattern ) )
+              TO cs_request-amdp_filter-supplier.
 
           WHEN OTHERS.
             RETURN.

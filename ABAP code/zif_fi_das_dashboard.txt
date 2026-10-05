@@ -115,9 +115,15 @@ interface ZIF_FI_DAS_DASHBOARD
       WITH EMPTY KEY,
 
     BEGIN OF ts_amdp_filter,
-      po       TYPE tt_amdp_po_filter,
-      item     TYPE tt_amdp_item_filter,
-      supplier TYPE tt_amdp_supplier_filter,
+*      po       TYPE tt_amdp_po_filter,
+*      item     TYPE tt_amdp_item_filter,
+*      supplier TYPE tt_amdp_supplier_filter,
+
+   po       TYPE string,   " SQL WHERE pre PONUMBER
+    item     TYPE string,   " SQL WHERE pre ITEMNO
+    supplier TYPE string,   " SQL WHERE pre SUPPLIERNAME
+
+
     END OF ts_amdp_filter.
 
   " V existujúcej ts_request nahraď ponumber, itemno,
@@ -145,6 +151,7 @@ interface ZIF_FI_DAS_DASHBOARD
       orderby           TYPE tt_orderby,
       select            TYPE string,
       paging            TYPE ts_paging,
+      filter_string TYPE string,
     END OF ts_request .
   types:
 * ... ts_shared a všetko nižšie BEZ ZMENY ...
@@ -157,6 +164,7 @@ interface ZIF_FI_DAS_DASHBOARD
       purchasingunit        TYPE c LENGTH 25,
       region                TYPE c LENGTH 3,
       cocdecurr             TYPE waers,
+       totwrkcompper  TYPE t_amount,
       glaccount             TYPE t_text_5000,
       costcenter            TYPE t_text_5000,
       manageunit            TYPE t_text_5000,
@@ -204,7 +212,7 @@ interface ZIF_FI_DAS_DASHBOARD
   types:
     BEGIN OF ts_over_under_fields,
       totwrkcompamt_cocdecurr TYPE t_amount,
-      totwrkcompper           TYPE t_percentage,
+*      totwrkcompper           TYPE t_percentage,
       markasreviewed          TYPE abap_bool,
       edgewtdamt              TYPE t_amount,
       changeddate             TYPE d,
@@ -237,94 +245,99 @@ interface ZIF_FI_DAS_DASHBOARD
       INCLUDE TYPE ts_exclude_fields.
   TYPES:
     END OF ts_result .
+
+          types tt_result type TABLE OF  ts_result.
   types:
-*--------------------------------------------------------------------*
-* Fields shared by all final OData contracts.
-*--------------------------------------------------------------------*
-    BEGIN OF ts_odata_shared,
-      poowner_email      TYPE t_email,
-      companycode        TYPE bukrs,
-      purchasingunit     TYPE c LENGTH 25,
-      region             TYPE c LENGTH 3,
-      cocdecurr          TYPE waers,
-      glaccount          TYPE t_text_5000,
-      costcenter         TYPE t_text_5000,
-      manageunit         TYPE t_text_5000,
-      ponumber           TYPE ebeln,
-      itemno             TYPE ebelp,
-      pocreatedat        TYPE d,
-      supplierid         TYPE lifnr,
-      suppliername       TYPE t_supplier,
-      polinedesc         TYPE t_text_5000,
-      pstype             TYPE t_pstype,
-      povalue            TYPE t_amount,
-      pocurrency         TYPE waers,
-      invoice_currency   TYPE string,
-      wrkstrtdate        TYPE d,
-      wrkenddate         TYPE d,
-      totwrkcompamt      TYPE t_amount,
-      internalorder      TYPE t_text_5000,
-      assetid            TYPE t_text_5000,
-      profitcenter       TYPE t_text_5000,
-      epnumber           TYPE c LENGTH 12,
-      status             TYPE t_status,
-      lastmonthwrkcomp   TYPE t_amount,
-      straightlinemthd   TYPE c LENGTH 5,
-      povalue_coco       TYPE t_amount,
-      accrualmethod      TYPE t_accrual_method,
-      po_preparer        TYPE t_email,
-      changed_on         TYPE timestampl,
-      pstype_text        TYPE c LENGTH 10,
-      povalue_usd        TYPE t_amount,
-      exchangerate_dec   TYPE t_rate,
-      exchangerate       TYPE t_text_5000,
-      totwrkcompamt_usd  TYPE t_amount,
-      po_closure         TYPE c LENGTH 5,
-      documentdate       TYPE c LENGTH 8,
-      poclosure_flag     TYPE i,
-      checkflag          TYPE c LENGTH 10,
-      invvalue           TYPE t_amount,
-      invvalue_usd       TYPE t_amount,
-      grvalue            TYPE t_amount,
-      grvalue_usd        TYPE t_amount,
-      zactivitynbr       TYPE c LENGTH 200,
-      distpercentage     TYPE t_text_5000,
-    END OF ts_odata_shared .
-  types:
-    BEGIN OF ts_over_under_odata_fields,
-      totwrkcompamt_cocdecurr TYPE t_amount,
-      totwrkcompper           TYPE t_percentage,
-      totwrkcompper_char      TYPE t_text_5000,
-      markasreviewed          TYPE c LENGTH 5,
-      edgewtdamt              TYPE t_amount,
-      changeddate             TYPE d,
-      changedtime             TYPE t,
-      reviwed_by              TYPE c LENGTH 225,
-      bbp_acc_no              TYPE t_text_5000,
-      purchasingorganization  TYPE ekorg,
-      orderquantity           TYPE t_amount,
-      totwrkcompamt_char      TYPE t_text_500,
-      totwrkcompamt_usd_char  TYPE t_text_500,
-      amountaccrued           TYPE t_amount,
-      amountaccrued_char      TYPE t_text_500,
-      amountaccrued_cocdecurr TYPE t_amount,
-      amountaccrued_usd       TYPE t_amount,
-      amountaccrued_usd_char  TYPE t_text_500,
-      invvalue_cocdecurr      TYPE t_amount,
-      grvalue_cocdecurr       TYPE t_amount,
-      username                TYPE xubname,
-      full_name               TYPE ad_namtext,
-      decimal_format          TYPE t_decimal_format,
-      datfm                   TYPE t_date_format,
-      invvalue_cal            TYPE t_amount,
-    END OF ts_over_under_odata_fields .
-  types:
-    BEGIN OF ts_exclude_odata_fields,
-      ruletype       TYPE t_text_5000,
-      ruletypetext   TYPE t_text_5000,
-      costcenterdesc TYPE t_text_5000,
-    END OF ts_exclude_odata_fields .
-  types:
+
+*
+**--------------------------------------------------------------------*
+** Fields shared by all final OData contracts.
+**--------------------------------------------------------------------*
+*    BEGIN OF ts_odata_shared,
+*      poowner_email      TYPE t_email,
+*      companycode        TYPE bukrs,
+*      purchasingunit     TYPE c LENGTH 25,
+*      region             TYPE c LENGTH 3,
+*       totwrkcompper  TYPE t_amount,
+*      cocdecurr          TYPE waers,
+*      glaccount          TYPE t_text_5000,
+*      costcenter         TYPE t_text_5000,
+*      manageunit         TYPE t_text_5000,
+*      ponumber           TYPE ebeln,
+*      itemno             TYPE ebelp,
+*      pocreatedat        TYPE d,
+*      supplierid         TYPE lifnr,
+*      suppliername       TYPE t_supplier,
+*      polinedesc         TYPE t_text_5000,
+*      pstype             TYPE t_pstype,
+*      povalue            TYPE t_amount,
+*      pocurrency         TYPE waers,
+*      invoice_currency   TYPE string,
+*      wrkstrtdate        TYPE d,
+*      wrkenddate         TYPE d,
+*      totwrkcompamt      TYPE t_amount,
+*      internalorder      TYPE t_text_5000,
+*      assetid            TYPE t_text_5000,
+*      profitcenter       TYPE t_text_5000,
+*      epnumber           TYPE c LENGTH 12,
+*      status             TYPE t_status,
+*      lastmonthwrkcomp   TYPE t_amount,
+*      straightlinemthd   TYPE c LENGTH 5,
+*      povalue_coco       TYPE t_amount,
+*      accrualmethod      TYPE t_accrual_method,
+*      po_preparer        TYPE t_email,
+*      changed_on         TYPE timestampl,
+*      pstype_text        TYPE c LENGTH 10,
+*      povalue_usd        TYPE t_amount,
+*      exchangerate_dec   TYPE t_rate,
+*      exchangerate       TYPE t_text_5000,
+*      totwrkcompamt_usd  TYPE t_amount,
+*      po_closure         TYPE c LENGTH 5,
+*      documentdate       TYPE c LENGTH 8,
+*      poclosure_flag     TYPE i,
+*      checkflag          TYPE c LENGTH 10,
+*      invvalue           TYPE t_amount,
+*      invvalue_usd       TYPE t_amount,
+*      grvalue            TYPE t_amount,
+*      grvalue_usd        TYPE t_amount,
+*      zactivitynbr       TYPE c LENGTH 200,
+*      distpercentage     TYPE t_text_5000,
+*    END OF ts_odata_shared .
+*  types:
+*    BEGIN OF ts_over_under_odata_fields,
+*      totwrkcompamt_cocdecurr TYPE t_amount,
+**      totwrkcompper           TYPE t_percentage,
+*      totwrkcompper_char      TYPE t_text_5000,
+*      markasreviewed          TYPE c LENGTH 5,
+*      edgewtdamt              TYPE t_amount,
+*      changeddate             TYPE d,
+*      changedtime             TYPE t,
+*      reviwed_by              TYPE c LENGTH 225,
+*      bbp_acc_no              TYPE t_text_5000,
+*      purchasingorganization  TYPE ekorg,
+*      orderquantity           TYPE t_amount,
+*      totwrkcompamt_char      TYPE t_text_500,
+*      totwrkcompamt_usd_char  TYPE t_text_500,
+*      amountaccrued           TYPE t_amount,
+*      amountaccrued_char      TYPE t_text_500,
+*      amountaccrued_cocdecurr TYPE t_amount,
+*      amountaccrued_usd       TYPE t_amount,
+*      amountaccrued_usd_char  TYPE t_text_500,
+*      invvalue_cocdecurr      TYPE t_amount,
+*      grvalue_cocdecurr       TYPE t_amount,
+*      username                TYPE xubname,
+*      full_name               TYPE ad_namtext,
+*      decimal_format          TYPE t_decimal_format,
+*      datfm                   TYPE t_date_format,
+*      invvalue_cal            TYPE t_amount,
+*    END OF ts_over_under_odata_fields .
+*  types:
+*    BEGIN OF ts_exclude_odata_fields,
+*      ruletype       TYPE t_text_5000,
+*      ruletypetext   TYPE t_text_5000,
+*      costcenterdesc TYPE t_text_5000,
+*    END OF ts_exclude_odata_fields .
+*  types:
 *--------------------------------------------------------------------*
 * Internal OData-ready superset used by GET_ODATA_ROW.
 *
@@ -333,20 +346,23 @@ interface ZIF_FI_DAS_DASHBOARD
 * contracts defined below.
 *--------------------------------------------------------------------*
     BEGIN OF ts_odata_result.
-      INCLUDE TYPE ts_odata_shared.
-      INCLUDE TYPE ts_over_under_odata_fields.
-      INCLUDE TYPE ts_exclude_odata_fields.
+      INCLUDE TYPE zfi_das_shared.    "ts_odata_shared.
+      INCLUDE TYPE zfi_das_over_under. "ts_over_under_odata_fields.
+      INCLUDE TYPE zfi_das_exclude_fields. " :ts_exclude_odata_fields.
   TYPES:
       last_notif_on  TYPE timestampl,
       notif_24_hr    TYPE c LENGTH 1,
+       das_filter_row_index TYPE i,
     END OF ts_odata_result .
+
+    types: tt_odata_result TYPE TABLE OF ts_odata_result.
   types:
 *--------------------------------------------------------------------*
 * Final Over contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_over.
-      INCLUDE TYPE ts_odata_shared.
-      INCLUDE TYPE ts_over_under_odata_fields.
+      INCLUDE TYPE zfi_das_shared. "  ts_odata_shared.
+      INCLUDE TYPE zfi_das_over_under. "ts_over_under_odata_fields.
   TYPES:
       last_notif_on  TYPE timestampl,
       notif_24_hr    TYPE c LENGTH 1,
@@ -359,8 +375,8 @@ interface ZIF_FI_DAS_DASHBOARD
 * Final Under contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_under.
-      INCLUDE TYPE ts_odata_shared.
-      INCLUDE TYPE ts_over_under_odata_fields.
+      INCLUDE TYPE  zfi_das_shared. "   ts_odata_shared.
+      INCLUDE TYPE zfi_das_over_under. "ts_over_under_odata_fields.
   TYPES:
     END OF ts_under .
   types:
@@ -371,10 +387,10 @@ interface ZIF_FI_DAS_DASHBOARD
 * Final Exclude contract.
 *--------------------------------------------------------------------*
     BEGIN OF ts_exclude.
-      INCLUDE TYPE ts_odata_shared.
+      INCLUDE TYPE  zfi_das_shared. "  ts_odata_shared.
       INCLUDE TYPE ts_exclude_fields.
   TYPES:
-      totwrkcompper  TYPE t_amount,
+*      totwrkcompper  TYPE t_amount,
     END OF ts_exclude .
   types
     tt_exclude TYPE STANDARD TABLE OF ts_exclude

@@ -24,36 +24,55 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
       RETURNING
         VALUE(rs_request)        TYPE zif_fi_das_dashboard=>ts_request
       RAISING
-        /iwbep/cx_mgw_tech_exception .
+        /iwbep/cx_mgw_tech_exception.
+
     METHODS get_key_parameters
       IMPORTING
         !it_key_tab TYPE /iwbep/t_mgw_name_value_pair
       CHANGING
-        !cs_request TYPE zif_fi_das_dashboard=>ts_request .
+        !cs_request TYPE zif_fi_das_dashboard=>ts_request.
+
     METHODS get_paging
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
+        !cs_request              TYPE zif_fi_das_dashboard=>ts_request.
+
     METHODS get_select
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
+        !cs_request              TYPE zif_fi_das_dashboard=>ts_request.
+
     METHODS get_filter
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
+        !cs_request              TYPE zif_fi_das_dashboard=>ts_request.
+
     METHODS get_order
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
+        !cs_request              TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS _parse_odata_filter
+      IMPORTING
+        !iv_filter TYPE string
+      CHANGING
+        !cs_request TYPE zif_fi_das_dashboard=>ts_request.
+
+    METHODS _parse_odata_eq_ne
+      IMPORTING
+        !iv_filter TYPE string
+      CHANGING
+        !cs_request TYPE zif_fi_das_dashboard=>ts_request.
 
 ENDCLASS.
 
-CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+
+
+CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
 
   METHOD build_request.
@@ -78,6 +97,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
     get_order( EXPORTING io_tech_request_context = io_tech_request_context
                CHANGING  cs_request = rs_request ).
+
   ENDMETHOD.
 
 
@@ -94,7 +114,6 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
             et_result     = DATA(lt_result)
             e_total_count = es_response_context-inlinecount ).
 
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
         et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
@@ -109,24 +128,89 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_filter.
 
-    DATA(lo_filter) = io_tech_request_context->get_filter( ).
+*    METHOD get_filter.
 
-    IF lo_filter IS BOUND.
+  CLEAR cs_request-generic_filters.
 
-      DATA(lt_filters) = lo_filter->get_filter_select_options( ).
+  DATA(lo_filter_tree) =
+      io_tech_request_context->get_filter_expression_tree( ).
 
-      cs_request-generic_filters = VALUE #( FOR ls_filter IN lt_filters
-                                            FOR ls_option IN ls_filter-select_options
-                                            ( property = to_upper( ls_filter-property )
-                                              sign     = ls_option-sign
-                                              option   = ls_option-option
-                                              low      = ls_option-low
-                                              high     = ls_option-high ) ).
-    ENDIF.
+  IF lo_filter_tree IS NOT BOUND.
+    RETURN.
+  ENDIF.
+
+  TRY.
+
+      DATA(lo_parser) =
+          NEW cl_sadl_gw_filter_tree_parser( ).
+
+      lo_parser->get_complex_condition(
+        EXPORTING
+          io_filter_tree = lo_filter_tree
+        IMPORTING
+          et_condition   = DATA(lt_conditions) ).
+
+      DATA(lo_ranges) =
+          NEW cl_sadl_cond_to_ranges( ).
+
+      lo_ranges->convert_sadl_cond_to_ranges(
+        EXPORTING
+          it_sadl_conditions = lt_conditions
+        IMPORTING
+          et_ranges          = DATA(lt_ranges) ).
+
+*      BREAK-POINT.
+
+    CATCH cx_root INTO DATA(lx_error).
+
+      BREAK-POINT.
+
+  ENDTRY.
+
+*ENDMETHOD.
+
+*    CLEAR cs_request-generic_filters.
+*
+*    DATA(lo_filter) = io_tech_request_context->get_filter( ).
+*
+*    IF lo_filter IS NOT BOUND.
+*      RETURN.
+*    ENDIF.
+*
+*    " ========================================================================
+*    " KROK 1: Štandardný postup — select-options
+*    " ========================================================================
+*    DATA(lt_filters) = lo_filter->get_filter_select_options( ).
+*
+*    cs_request-generic_filters = VALUE #(
+*      FOR ls_filter IN lt_filters
+*      FOR ls_option IN ls_filter-select_options
+*      ( property = to_upper( ls_filter-property )
+*        sign     = ls_option-sign
+*        option   = ls_option-option
+*        low      = ls_option-low
+*        high     = ls_option-high ) ).
+*
+*    " ========================================================================
+*    " KROK 2: Ak select-options sú prázdne — parsuj OData reťazec
+*    " ========================================================================
+*    IF cs_request-generic_filters IS INITIAL.
+*      TRY.
+*          DATA(lv_filter_string) = lo_filter->get_filter_string( ).
+*          IF lv_filter_string IS NOT INITIAL.
+*            _parse_odata_filter( EXPORTING iv_filter = lv_filter_string
+*                                 CHANGING cs_request = cs_request ).
+*          ENDIF.
+*        CATCH cx_root.
+*          RETURN.
+*      ENDTRY.
+*    ENDIF.
 
   ENDMETHOD.
+
 
   METHOD get_key_parameters.
 
@@ -187,7 +271,6 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
             et_result     = DATA(lt_result)
             e_total_count = es_response_context-inlinecount ).
 
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
         et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
@@ -210,13 +293,12 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
         lo_dashboard->under(
           EXPORTING
-            is_request    =  build_request( it_key_tab              = it_key_tab
-                                            io_tech_request_context = io_tech_request_context )
+            is_request    = build_request( it_key_tab              = it_key_tab
+                                           io_tech_request_context = io_tech_request_context )
           IMPORTING
             et_result     = DATA(lt_result)
             e_total_count = es_response_context-inlinecount ).
 
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
         et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
@@ -228,6 +310,252 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
             previous = lx_error.
 
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD _parse_odata_eq_ne.
+    " Parsuje: PROPERTY eq 'VALUE' a PROPERTY ne 'VALUE'
+    " (pre prípady mimo substringof)
+
+    DATA: lv_work         TYPE string,
+          lt_parts        TYPE TABLE OF string,
+          lv_part         TYPE string,
+          lv_pos          TYPE i,
+          lv_property     TYPE string,
+          lv_value        TYPE string,
+          lv_sign         TYPE c LENGTH 1.
+
+    lv_work = iv_filter.
+
+    " Rozdelenie na časti podľa AND (case-INsensitive)
+    REPLACE ALL OCCURRENCES OF ' AND ' IN lv_work WITH '|' IGNORING CASE.
+    REPLACE ALL OCCURRENCES OF ' OR ' IN lv_work WITH '|' IGNORING CASE.
+
+    SPLIT lv_work AT '|' INTO TABLE lt_parts.
+
+    LOOP AT lt_parts INTO lv_part.
+      lv_part = condense( lv_part ).
+
+      IF lv_part CS 'SUBSTRINGOF'.
+        " Toto sme už spracovali vyššie
+        CONTINUE.
+      ENDIF.
+
+      " Skúsiť 'eq'
+      lv_pos = find( val = lv_part sub = ' eq ' case = abap_false ).
+
+      IF lv_pos >= 0.
+        lv_property = substring( val = lv_part off = 0 len = lv_pos ).
+        lv_property = condense( lv_property ).
+        lv_property = to_upper( lv_property ).
+
+        lv_value = substring( val = lv_part off = lv_pos + 4 ).
+        lv_value = condense( lv_value ).
+        REPLACE ALL OCCURRENCES OF `'` IN lv_value WITH ''.
+
+        IF lv_property IS NOT INITIAL AND lv_value IS NOT INITIAL.
+          APPEND VALUE #(
+            property = lv_property
+            sign     = 'I'
+            option   = 'EQ'
+            low      = lv_value
+            high     = ''
+          ) TO cs_request-generic_filters.
+        ENDIF.
+
+        CONTINUE.
+      ENDIF.
+
+      " Skúsiť 'ne'
+      lv_pos = find( val = lv_part sub = ' ne ' case = abap_false ).
+
+      IF lv_pos >= 0.
+        lv_property = substring( val = lv_part off = 0 len = lv_pos ).
+        lv_property = condense( lv_property ).
+        lv_property = to_upper( lv_property ).
+
+        lv_value = substring( val = lv_part off = lv_pos + 4 ).
+        lv_value = condense( lv_value ).
+        REPLACE ALL OCCURRENCES OF `'` IN lv_value WITH ''.
+
+        IF lv_property IS NOT INITIAL AND lv_value IS NOT INITIAL.
+          APPEND VALUE #(
+            property = lv_property
+            sign     = 'E'
+            option   = 'EQ'
+            low      = lv_value
+            high     = ''
+          ) TO cs_request-generic_filters.
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+   METHOD _parse_odata_filter.
+    " Parsuje SQL-like filter syntax z Gateway:
+    "   PROPERTY like '%VALUE%'
+    "   PROPERTY = 'VALUE'
+    "   not (...)
+    "   and / or
+    "
+    " Výstup: generic_filters s SIGN/OPTION/LOW/HIGH
+
+    DATA: lv_work         TYPE string,
+          lt_tokens       TYPE TABLE OF string,
+          lv_token        TYPE string,
+          lv_pos          TYPE i,
+          lv_pos_like     TYPE i,
+          lv_pos_eq       TYPE i,
+          lv_property     TYPE string,
+          lv_value        TYPE string,
+          lv_is_negated   TYPE abap_bool,
+          lv_sign         TYPE c LENGTH 1,
+          lv_option       TYPE c LENGTH 2.
+
+    IF iv_filter IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    lv_work = iv_filter.
+
+    " ========================================================================
+    " KROK 1: Nahraď AND/OR za separator PRED odstrániť zátvorky
+    " Poznámka: strácame informáciu o AND vs OR, ale dashboard predpokladá
+    " že sa všetky filtre rovnakého poľa platia súčasne
+    " ========================================================================
+    REPLACE ALL OCCURRENCES OF ' AND ' IN lv_work WITH '§§' IGNORING CASE.
+    REPLACE ALL OCCURRENCES OF ' OR ' IN lv_work WITH '§§' IGNORING CASE.
+
+    " ========================================================================
+    " KROK 2: Odstráň všetky zátvorky
+    " ========================================================================
+    REPLACE ALL OCCURRENCES OF '(' IN lv_work WITH ''.
+    REPLACE ALL OCCURRENCES OF ')' IN lv_work WITH ''.
+    lv_work = condense( lv_work ).
+
+    IF lv_work IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " ========================================================================
+    " KROK 3: Rozdelenie podľa separatora
+    " ========================================================================
+    SPLIT lv_work AT '§§' INTO TABLE lt_tokens.
+
+    LOOP AT lt_tokens INTO lv_token.
+      lv_token = condense( lv_token ).
+
+      IF lv_token IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      " ====================================================================
+      " KROK 4: Detekcia NOT prefix
+      " ====================================================================
+      lv_is_negated = abap_false.
+
+      IF lv_token CP 'NOT *' OR lv_token CP 'not *'.
+        lv_is_negated = abap_true.
+        " Preskoč 'NOT ' (4 znaky)
+        lv_token = substring( val = lv_token off = 4 ).
+        lv_token = condense( lv_token ).
+      ENDIF.
+
+      IF lv_token IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      " ====================================================================
+      " KROK 5: Detekcia operátorov — ' LIKE ' alebo ' = '
+      " ====================================================================
+      lv_property = ''.
+      lv_value = ''.
+      lv_option = 'CP'.
+
+      " Kontrola ' LIKE ' (case-INsensitive)
+      lv_pos_like = find(
+        val = lv_token
+        sub = ' LIKE '
+        case = abap_false ).
+
+      " Kontrola ' = ' (case-INsensitive)
+      lv_pos_eq = find(
+        val = lv_token
+        sub = ' = '
+        case = abap_false ).
+
+      " Priorita: LIKE pred EQ
+      IF lv_pos_like >= 0.
+        lv_property = substring( val = lv_token off = 0 len = lv_pos_like ).
+        lv_value = substring( val = lv_token off = lv_pos_like + 6 ).
+        lv_option = 'CP'.
+
+      ELSEIF lv_pos_eq >= 0.
+        lv_property = substring( val = lv_token off = 0 len = lv_pos_eq ).
+        lv_value = substring( val = lv_token off = lv_pos_eq + 3 ).
+        lv_option = 'EQ'.
+
+      ELSE.
+        " Žiaden operátor — preskoč
+        CONTINUE.
+      ENDIF.
+
+      " ====================================================================
+      " KROK 6: Očista property a value
+      " ====================================================================
+      lv_property = condense( lv_property ).
+      lv_value = condense( lv_value ).
+
+      IF lv_property IS INITIAL OR lv_value IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      " Property na UPPER
+      lv_property = to_upper( lv_property ).
+
+      " ====================================================================
+      " KROK 7: Extrakcia hodnoty podľa operátora
+      " ====================================================================
+      CASE lv_option.
+
+        WHEN 'CP'.
+          " '%VALUE%' → '*VALUE*'
+          REPLACE ALL OCCURRENCES OF `'` IN lv_value WITH ''.
+          REPLACE ALL OCCURRENCES OF '%' IN lv_value WITH '*'.
+          lv_value = condense( lv_value ).
+
+        WHEN 'EQ'.
+          " Odstráň úvodzovky
+          REPLACE ALL OCCURRENCES OF `'` IN lv_value WITH ''.
+          lv_value = condense( lv_value ).
+
+      ENDCASE.
+
+      IF lv_value IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      " ====================================================================
+      " KROK 8: Nastav SIGN podľa negácie
+      " ====================================================================
+      lv_sign = COND #( WHEN lv_is_negated = abap_true THEN 'E' ELSE 'I' ).
+
+      " ====================================================================
+      " KROK 9: Pridaj filter do generic_filters
+      " ====================================================================
+      APPEND VALUE #(
+        property = lv_property
+        sign     = lv_sign
+        option   = lv_option
+        low      = lv_value
+        high     = ''
+      ) TO cs_request-generic_filters.
+
+    ENDLOOP.
 
   ENDMETHOD.
 ENDCLASS.

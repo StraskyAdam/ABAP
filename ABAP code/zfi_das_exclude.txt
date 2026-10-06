@@ -2,6 +2,8 @@
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_exclude {
   include zfi_das_shared;
-  include zfi_das_exclude_fields;
-  totwrkcompper : abap.dec(13,2);
+  ruletype       : abap.char(5000);
+  ruletypetext   : abap.char(5000);
+  costcenterdesc : abap.char(5000);
+
 }

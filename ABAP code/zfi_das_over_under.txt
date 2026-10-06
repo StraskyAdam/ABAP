@@ -2,7 +2,6 @@
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_over_under {
   totwrkcompamt_cocdecurr : abap.dec(13,2);
-  totwrkcompper           : abap.dec(13,1);
   totwrkcompper_char      : abap.char(5000);
   markasreviewed          : abap.char(5);
   edgewtdamt              : abap.dec(13,2);

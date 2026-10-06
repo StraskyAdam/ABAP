@@ -5,6 +5,7 @@ define type zfi_das_shared {
   companycode       : bukrs;
   purchasingunit    : abap.char(25);
   region            : abap.char(3);
+  totwrkcompper     : abap.dec(13,2);
   cocdecurr         : waers;
   glaccount         : abap.char(5000);
   costcenter        : abap.char(5000);

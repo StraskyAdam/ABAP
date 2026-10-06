@@ -15,8 +15,11 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
 
   PRIVATE SECTION.
 
-    CONSTANTS mc_order_descending TYPE string VALUE 'DESC' ##NO_TEXT.
+    CONSTANTS mc_order_descending TYPE string VALUE 'DESC'.
 
+    METHODS get_dashboard
+      RETURNING
+        VALUE(ro_dashboard) TYPE REF TO zif_fi_das_dashboard .
     METHODS build_request
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
@@ -25,36 +28,31 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
         VALUE(rs_request)        TYPE zif_fi_das_dashboard=>ts_request
       RAISING
         /iwbep/cx_mgw_tech_exception .
-    METHODS get_key_parameters
+    METHODS get_parameter
       IMPORTING
-        !it_key_tab TYPE /iwbep/t_mgw_name_value_pair
-      CHANGING
-        !cs_request TYPE zif_fi_das_dashboard=>ts_request .
+        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
+      RETURNING
+        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_request-parameter .
     METHODS get_paging
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
-    METHODS get_select
-      IMPORTING
-        !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
+      RETURNING
+        VALUE(rs_paging)         TYPE zif_fi_das_dashboard=>ts_request-paging .
     METHODS get_filter
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
-    METHODS get_order
+      RETURNING
+        VALUE(rs_filter)         TYPE zif_fi_das_dashboard=>ts_request-filter
+      RAISING
+        /iwbep/cx_mgw_tech_exception .
+    METHODS get_orderby
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      CHANGING
-        !cs_request              TYPE zif_fi_das_dashboard=>ts_request .
-
+      RETURNING
+        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby .
 ENDCLASS.
 
 CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
-
 
   METHOD build_request.
 
@@ -62,40 +60,23 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
       RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
     ENDIF.
 
-    CLEAR rs_request.
+    rs_request = VALUE #( parameter = get_parameter( it_key_tab )
+                          paging = get_paging( io_tech_request_context )
+                          filter = get_filter( io_tech_request_context )
+                          orderby = get_orderby( io_tech_request_context ) ).
 
-    get_key_parameters( EXPORTING it_key_tab = it_key_tab
-                        CHANGING  cs_request = rs_request ).
-
-    get_paging( EXPORTING io_tech_request_context = io_tech_request_context
-                CHANGING  cs_request = rs_request ).
-
-    get_select( EXPORTING io_tech_request_context = io_tech_request_context
-                CHANGING  cs_request = rs_request ).
-
-    get_filter( EXPORTING io_tech_request_context = io_tech_request_context
-                CHANGING  cs_request = rs_request ).
-
-    get_order( EXPORTING io_tech_request_context = io_tech_request_context
-               CHANGING  cs_request = rs_request ).
   ENDMETHOD.
-
 
   METHOD exclusionposet_get_entityset.
 
     TRY.
-        DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
-
-        lo_dashboard->exclude(
+        get_dashboard( )->exclude(
           EXPORTING
             is_request    = build_request( it_key_tab              = it_key_tab
                                            io_tech_request_context = io_tech_request_context )
           IMPORTING
-            et_result     = DATA(lt_result)
+            et_result     = et_entityset
             e_total_count = es_response_context-inlinecount ).
-
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
-        et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
             cx_sy_open_sql_db
@@ -106,89 +87,96 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
             previous = lx_error.
 
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD get_dashboard.
+
+    ro_dashboard = NEW zcl_fi_das_dashboard( ).
 
   ENDMETHOD.
 
   METHOD get_filter.
 
-    DATA(lo_filter) = io_tech_request_context->get_filter( ).
+    TRY.
+        DATA(lo_filter) = io_tech_request_context->get_filter( ).
 
-    IF lo_filter IS BOUND.
+        IF lo_filter IS NOT BOUND.
+          RETURN.
+        ENDIF.
 
-      DATA(lt_filters) = lo_filter->get_filter_select_options( ).
+        rs_filter-filter_select_options = VALUE #( FOR ls_filter IN lo_filter->get_filter_select_options( )
+                                                     FOR ls_option IN ls_filter-select_options (
+                                                       property = to_upper( ls_filter-property )
+                                                       sign = ls_option-sign
+                                                       option = ls_option-option
+                                                       low = ls_option-low
+                                                       high = ls_option-high ) ).
 
-      cs_request-generic_filters = VALUE #( FOR ls_filter IN lt_filters
-                                            FOR ls_option IN ls_filter-select_options
-                                            ( property = to_upper( ls_filter-property )
-                                              sign     = ls_option-sign
-                                              option   = ls_option-option
-                                              low      = ls_option-low
-                                              high     = ls_option-high ) ).
-    ENDIF.
+        rs_filter-filter_string = lo_filter->get_filter_string( ).
+
+*       Raise an exception to avoid processing an unsupported filter
+        IF rs_filter-filter_string IS INITIAL AND io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
+          RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+        ENDIF.
+
+      CATCH cx_root INTO DATA(lx_error).
+
+        CLEAR rs_filter.
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
 
   ENDMETHOD.
 
-  METHOD get_key_parameters.
-
-    cs_request-email = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_email ]-value OPTIONAL ).
-
-    cs_request-pstype = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_pstype ]-value OPTIONAL ).
-
-    cs_request-poowner = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_key_poowner ]-value OPTIONAL ).
-
-  ENDMETHOD.
-
-
-  METHOD get_order.
+  METHOD get_orderby.
 
     LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
 
       APPEND VALUE #( property   = to_upper( CONV string( <fs_orderby>-property ) )
-                      descending = xsdbool( to_upper( <fs_orderby>-order ) = mc_order_descending ) ) TO cs_request-orderby.
+                      descending = xsdbool( to_upper( <fs_orderby>-order ) = mc_order_descending ) ) TO rs_orderby.
 
     ENDLOOP.
 
   ENDMETHOD.
 
-
   METHOD get_paging.
 
     DATA(l_top) = io_tech_request_context->get_top( ).
 
-    cs_request-paging-top_requested = xsdbool( l_top IS NOT INITIAL ).
+    rs_paging-top_requested = xsdbool( l_top IS NOT INITIAL ).
 
-    cs_request-paging-top = l_top.
+    rs_paging-top = l_top.
 
-    cs_request-paging-skip = io_tech_request_context->get_skip( ).
+    rs_paging-skip = io_tech_request_context->get_skip( ).
 
-    cs_request-paging-count_requested = io_tech_request_context->has_inlinecount( ).
-
-  ENDMETHOD.
-
-
-  METHOD get_select.
-
-    cs_request-select = to_upper( concat_lines_of( table = io_tech_request_context->get_select( )
-                                                   sep   = zif_fi_das_dashboard=>mc_comma ) ).
+    rs_paging-count_requested = io_tech_request_context->has_inlinecount( ).
 
   ENDMETHOD.
 
+  METHOD get_parameter.
+
+    rs_parameter-email = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_email ]-value OPTIONAL ).
+
+    rs_parameter-pstype = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_pstype  ]-value OPTIONAL ).
+
+    rs_parameter-poowner = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_poowner ]-value OPTIONAL ).
+
+  ENDMETHOD.
 
   METHOD openpotypeset_get_entityset.
 
     TRY.
-        DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
-
-        lo_dashboard->over(
+        get_dashboard( )->over(
           EXPORTING
             is_request    = build_request( it_key_tab              = it_key_tab
                                            io_tech_request_context = io_tech_request_context )
           IMPORTING
-            et_result     = DATA(lt_result)
+            et_result     = et_entityset
             e_total_count = es_response_context-inlinecount ).
-
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
-        et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
             cx_sy_open_sql_db
@@ -201,23 +189,17 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
-
 
   METHOD thresholdset_get_entityset.
 
     TRY.
-        DATA(lo_dashboard) = CAST zif_fi_das_dashboard( NEW zcl_fi_das_dashboard( ) ).
-
-        lo_dashboard->under(
+        get_dashboard( )->under(
           EXPORTING
-            is_request    =  build_request( it_key_tab              = it_key_tab
-                                            io_tech_request_context = io_tech_request_context )
+            is_request    = build_request( it_key_tab              = it_key_tab
+                                           io_tech_request_context = io_tech_request_context )
           IMPORTING
-            et_result     = DATA(lt_result)
+            et_result     = et_entityset
             e_total_count = es_response_context-inlinecount ).
-
-*       TODO Return the result directly into ET_ENTITYSET via the interface to avoid duplicating the complete result table in memory
-        et_entityset = CORRESPONDING #( lt_result ).
 
       CATCH cx_sy_conversion_error
             cx_sy_open_sql_db
@@ -230,4 +212,5 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
+
 ENDCLASS.

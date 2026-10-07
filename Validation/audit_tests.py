@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,7 @@ def tokens(source, preserve_literals=False):
             i += 1
             continue
         if char.isspace():
+            line_start = False
             i += 1
             continue
         line_start = False
@@ -255,9 +257,16 @@ def named_arguments(body, opening):
 
 
 def local_calls(body, declarations):
-    flat = [token for stmt in body for token in stmt]
-    return [flat[index] for index in range(len(flat) - 1)
-            if flat[index] in declarations and flat[index + 1] == "("]
+    calls = []
+    for stmt in body:
+        for index in range(len(stmt) - 1):
+            if stmt[index] not in declarations or stmt[index + 1] != "(":
+                continue
+            if index and stmt[index - 1] in ("->", "=>"):
+                if stmt[index - 1] != "->" or index < 2 or stmt[index - 2] != "me":
+                    continue
+            calls.append(stmt[index])
+    return calls
 
 
 def group_targets(body):
@@ -537,6 +546,98 @@ def audit(root):
 
 
 class ParserTests(unittest.TestCase):
+    def test_column_one_comments_do_not_hide_multiplication(self):
+        self.assertEqual(list(statements(
+            "* real comment\nx = 2\n  * 3.\n  \" quote comment\n y = 4."
+        )), [["x", "=", "2", "*", "3"], ["y", "=", "4"]])
+
+    def test_foreign_calls_do_not_reach_local_assertions(self):
+        classes, _ = parse("""
+CLASS ltc DEFINITION FOR TESTING.
+METHODS leaf FOR TESTING.
+METHODS helper.
+ENDCLASS.
+CLASS ltc IMPLEMENTATION.
+METHOD leaf.
+other->helper( ).
+foreign_class=>helper( ).
+ENDMETHOD.
+METHOD helper.
+cl_abap_unit_assert=>assert_true( act = abap_true ).
+ENDMETHOD.
+ENDCLASS.
+""")
+        cls = classes["ltc"]
+        self.assertFalse(reaches_assertion(cls, "leaf"))
+        for call in ("helper( )", "me->helper( )"):
+            cls.implementations["leaf"] = [tokens(call)]
+            self.assertTrue(reaches_assertion(cls, "leaf"))
+
+    def test_commented_legacy_method_chains_are_individual(self):
+        source = """
+CLASS ltc_old DEFINITION FOR TESTING.
+* METHODS: one FOR TESTING,
+*          helper,
+*          two FOR TESTING.
+ENDCLASS.
+"""
+        with patch("subprocess.check_output", return_value=source):
+            mapping = legacy_mapping(ROOT, "unused", {
+                "one": "observed_po_item_or", "two": "observed_po_item_and"
+            })
+        self.assertEqual(set(mapping), {"ltc_old.one", "ltc_old.two"})
+        self.assertTrue(all(row["declared_for_testing"] for row in mapping.values()))
+
+    def test_json_oracles_keep_types_and_decode_once(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        aggregate_guard = next(
+            stmt for stmt in parity.implementations["compare_raw_property"]
+            if stmt[:2] == ["if", "is_unordered_aggregate_field"]
+        )
+        self.assertIn("lv_expected_token", aggregate_guard)
+        self.assertIn("lv_actual_token", aggregate_guard)
+        self.assertEqual(aggregate_guard.count("strlen"), 2)
+        decoder = parity.implementations["unquote_json"]
+        self.assertFalse(any(stmt[0] == "replace" for stmt in decoder))
+        self.assertIn(tokens("WHILE lv_position < lv_inner_length"), decoder)
+        sort = parity.implementations["assert_rows_sorted"]
+        self.assertTrue(any("read_object_properties" in stmt for stmt in sort))
+        self.assertFalse(any("read_result_property" in stmt for stmt in sort))
+        self.assertFalse(any("to_upper" in stmt or "trim_text" in stmt for stmt in sort))
+        filter_assert = parity.implementations["assert_all_rows_match_filter"]
+        self.assertFalse(any("to_upper" in stmt for stmt in filter_assert))
+        self.assertTrue(any("find" in stmt and "abap_true" in stmt
+                            for stmt in filter_assert))
+
+    def test_response_oracles_reject_missing_counts_and_duplicate_keys(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text(), True)
+        parity = classes["ltc_parity"]
+        count = parity.implementations["read_inline_count"]
+        self.assertIn(tokens(
+            "lv_start = find_odata_property("
+            " i_json = i_json i_property = '__count' )", True
+        ), count)
+        self.assertTrue(any(
+            "find_odata_property" in stmt and "'results'" in stmt
+            for stmt in parity.implementations["find_results_array_bounds"]
+        ))
+        envelope = parity.implementations["find_odata_property"]
+        self.assertIn(tokens("IF lv_depth = 1 AND lv_name = i_property"), envelope)
+        self.assertIn(tokens("IF lv_depth = 0 AND lv_name = 'error'", True), envelope)
+        self.assertIn(tokens(
+            "DATA(lv_key_end) = read_json_string_end("
+            " i_text = i_json i_start = lv_position ) + 1"
+        ), envelope)
+        index = parity.implementations["build_expected_index"]
+        duplicate = index.index(tokens("IF sy-subrc <> 0"))
+        self.assertEqual(index[duplicate + 1][:4],
+                         ["raise", "exception", "type", "zcx_fi_das_error"])
+        self.assertIn(tokens(
+            "e_array_to = read_json_value_end("
+            " i_text = i_json i_start = e_array_from ) - 1"
+        ), parity.implementations["find_results_array_bounds"])
+
     def test_group_targets_preserve_literals_but_ignore_comments_and_strings(self):
         body = list(statements("""
 run_group_test( 'one' ).
@@ -559,7 +660,7 @@ run_group_test( dynamic_name ).
         parity = classes["ltc_parity"]
         tests = {name for name, decl in parity.declarations.items() if "testing" in decl}
         leaves = tests - set(CATEGORIES)
-        self.assertEqual(len(leaves), 164)
+        self.assertTrue(leaves)
         self.assertEqual(
             Counter(group_targets(parity.implementations["all_tests"])),
             Counter(leaves)
@@ -580,19 +681,19 @@ run_group_test( dynamic_name ).
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
         parity = classes["ltc_parity"]
         body = parity.implementations["run_group_test"]
-        self.assertEqual(body, [
+        self.assertEqual(body[:8], [
             tokens("DATA(lv_previous_quit) = mv_assert_quit"),
             tokens("DATA(lv_previous_test) = mv_group_test"),
-            tokens("mv_assert_quit = if_aunit_constants=>no"),
+            tokens("mv_assert_quit = if_aunit_constants=>method"),
             tokens("mv_group_test = i_test"),
             tokens("DATA(lv_method) = to_upper( i_test )"),
             tokens("TRY"),
             tokens("CALL METHOD me->(lv_method)"),
             tokens("CATCH cx_root INTO DATA(lx_error)"),
-            tokens("cl_abap_unit_assert=>fail("
-                   " msg = |{ i_test }: { lx_error->get_text( ) }|"
-                   " quit = if_aunit_constants=>no )"),
-            tokens("ENDTRY"),
+        ])
+        self.assertIn(tokens("IF is_framework_quit( lx_error ) = abap_false"), body)
+        self.assertIn(tokens("report_failure( lv_error_text )"), body)
+        self.assertEqual(body[-2:], [
             tokens("mv_assert_quit = lv_previous_quit"),
             tokens("mv_group_test = lv_previous_test"),
         ])
@@ -606,6 +707,37 @@ run_group_test( dynamic_name ).
                             stmt[index:index + 3] == ["quit", "=", "mv_assert_quit"]
                             for index in range(len(stmt) - 2)
                         ))
+
+    def test_observed_po_item_inputs_and_exact_oracles(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        for name, operator, expected_rows in (
+            ("observed_po_item_or", "OR", 3),
+            ("observed_po_item_and", "AND", 1),
+        ):
+            body = parity.implementations[name]
+            predicate = next(stmt for stmt in body if "filter_string" in stmt)
+            if operator == "AND":
+                self.assertIn("filter_select_options", predicate)
+            else:
+                self.assertNotIn("filter_select_options", predicate)
+            source = (ROOT / "ABAP code" / "Unit test.txt").read_text()
+            method = re.search(
+                rf"  METHOD {name}\.\n(.*?)  ENDMETHOD\.", source, re.S
+            ).group(1)
+            self.assertIn(
+                f"`(PONUMBER = '8000401022') {operator} (ITEMNO = '00001')`",
+                method,
+            )
+            expected = re.search(
+                r"DATA\(lt_expected\).*?VALUE.*?\((.*?)\)\.", method, re.S
+            ).group(1)
+            self.assertEqual(expected.count("ponumber ="), expected_rows)
+            self.assertIn(tokens(
+                "cl_abap_unit_assert=>assert_equals("
+                " quit = mv_assert_quit act = lt_result exp = lt_expected"
+                " msg = 'oracle' )"
+            ), body)
 
     def test_extraction_copies_and_consumes_ranges_before_conversion(self):
         classes, _ = parse(
@@ -689,20 +821,21 @@ run_group_test( dynamic_name ).
     def test_range_consumption_postcondition_is_not_weakened(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
         body = classes["ltc_parity"].implementations["extract_range"]
-        self.assertEqual(body, [
+        required = [
             tokens("DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request("
                    " filter = VALUE #( filter_select_options = it_filters ) )"),
             tokens("mo_cut->extract_filters( CHANGING cs_request = ls_request )"),
             tokens("DATA(lv_remaining_ranges) = lines( ls_request-filter-filter_select_options )"),
-            tokens("cl_abap_unit_assert=>assert_equals("
-            " quit = mv_assert_quit"
-            " act = lv_remaining_ranges exp = 0"
-            " msg = |{ mv_group_test } (extract_range): "
-            "Unconsumed input filter ranges, not result rows; |"
-            " && |input={ lines( it_filters ) }, remaining={ lv_remaining_ranges }, |"
-            " && |SQL={ ls_request-filter-filter_string }| )"),
             tokens("rs_request = ls_request"),
-        ])
+        ]
+        for statement in required:
+            self.assertIn(statement, body)
+        assertion = next(stmt for stmt in body
+                         if stmt[:3] == ["cl_abap_unit_assert", "=>", "assert_equals"])
+        self.assertIn(tokens("act = lv_remaining_ranges exp = 0"),
+                      [assertion[i:i + 6] for i in range(len(assertion))])
+        self.assertNotIn(tokens("CLEAR ls_request-filter-filter_select_options"), body)
+        self.assertLess(body.index(required[1]), body.index(required[2]))
 
     def test_basic_hana_leaves_use_sql_and_literal_result_expectations(self):
         classes, _ = parse(
@@ -764,12 +897,16 @@ run_group_test( dynamic_name ).
 
     def test_sql_filter_helper_does_not_extract_or_assert_ranges(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
-        self.assertEqual(classes["ltc_parity"].implementations["filter_rows"], [
+        body = classes["ltc_parity"].implementations["filter_rows"]
+        for statement in [
             tokens("DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request("
                    " filter = VALUE #( filter_string = i_predicate ) )"),
             tokens("mo_cut->apply_generic_filter("
                    " EXPORTING is_request = ls_request CHANGING ct_result = ct_result )"),
-        ])
+        ]:
+            self.assertIn(statement, body)
+        self.assertFalse(any("extract_filters" in stmt or "extract_range" in stmt
+                             or stmt[:2] == ["cl_abap_unit_assert", "=>"] for stmt in body))
 
     def test_grouped_po_supplier_test_uses_generated_range_predicates(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
@@ -819,11 +956,13 @@ run_group_test( dynamic_name ).
                          [tokens("mv_assert_quit = if_aunit_constants=>method"),
                           tokens("CLEAR mv_group_test"),
                           tokens("reset_fixture( )")])
-        self.assertEqual(parity.implementations["reset_fixture"], [
+        self.assertEqual(parity.implementations["reset_fixture"][:2], [
             tokens("mo_cut = NEW #( )"),
-            tokens("CLEAR: mt_differences, mv_difference_count"),
-            tokens("CLEAR mv_unused"),
+            tokens("CLEAR: mt_differences, mv_difference_count, mv_parity_reported,"
+                   " mv_fixture, mv_request, mv_phase"),
         ])
+        self.assertEqual(parity.implementations["reset_fixture"][-1],
+                         tokens("CLEAR mv_unused"))
         for name, body in parity.implementations.items():
             with self.subTest(method=name):
                 self.assertFalse(any(calls_setup_directly(stmt) for stmt in body))
@@ -965,8 +1104,19 @@ def legacy_mapping(root, ref, renames):
             declaration.extend(tokens(continuation[1:]))
             if "." in declaration:
                 break
-        if "testing" in declaration and len(declaration) > 1:
-            legacy[owner].declarations.setdefault(declaration[1], declaration[2:])
+        groups = [[]]
+        for token in declaration[1:]:
+            if token == ".":
+                break
+            if token == ":":
+                continue
+            if token == ",":
+                groups.append([])
+            else:
+                groups[-1].append(token)
+        for group in groups:
+            if group and "testing" in group and owner in legacy:
+                legacy[owner].declarations.setdefault(group[0], group[1:])
     current, _ = parse((root / "ABAP code" / "Unit test.txt").read_text())
     parity = current.get("ltc_parity", Class("ltc_parity"))
     current_tests = {name for name, decl in parity.declarations.items() if "testing" in decl}

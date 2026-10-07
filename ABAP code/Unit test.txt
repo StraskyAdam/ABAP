@@ -7120,9 +7120,9 @@ CLASS ltc_request_processing_verified DEFINITION FINAL
     METHODS requested_top_zero_is_empty FOR TESTING.
     METHODS omitted_top_keeps_all_rows FOR TESTING.
     METHODS empty_orderby_preserves_input_order FOR TESTING.
-    METHODS known_ranges_are_optimized FOR TESTING.
-    METHODS mixed_filter_keeps_generic_predicate FOR TESTING.
-    METHODS cross_property_or_disables_prefilter FOR TESTING.
+    METHODS known_ranges_are_optimized FOR TESTING RAISING cx_static_check.
+    METHODS mixed_filter_keeps_generic_predicate FOR TESTING RAISING cx_static_check.
+    METHODS cross_property_or_disables_prefilter FOR TESTING RAISING cx_static_check.
     METHODS unoptimizable_filter_without_predicate_fails FOR TESTING RAISING cx_static_check.
     METHODS only_single_star_is_a_wildcard FOR TESTING.
     METHODS scope_normalization_is_field_specific FOR TESTING.
@@ -7152,7 +7152,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
-    cl_abap_unit_assert=>assert_initial( ls_request-orderby ).
+    cl_abap_unit_assert=>assert_initial( act = ls_request-orderby ).
   ENDMETHOD.
 
   METHOD non_default_order_is_preserved.
@@ -7229,7 +7229,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
       EXPORTING is_request = ls_request
       CHANGING ct_result = lt_result ).
 
-    cl_abap_unit_assert=>assert_initial( lt_result ).
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
   ENDMETHOD.
 
   METHOD omitted_top_keeps_all_rows.
@@ -7270,7 +7270,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-ponumber ).
     cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-item ).
-    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
+    cl_abap_unit_assert=>assert_initial( act = ls_request-filter-filter_string ).
   ENDMETHOD.
 
   METHOD mixed_filter_keeps_generic_predicate.
@@ -7283,7 +7283,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     mo_cut->extract_filters( CHANGING cs_request = ls_request ).
 
-    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_initial( act = ls_request-filter_for_amdp-ponumber ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_request-filter-filter_string
       exp = `COMPANYCODE = '1000'` ).
@@ -7299,7 +7299,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     mo_cut->extract_filters( CHANGING cs_request = ls_request ).
 
-    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_initial( act = ls_request-filter_for_amdp-ponumber ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_request-filter-filter_string
       exp = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ).
@@ -7313,14 +7313,14 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     TRY.
         mo_cut->extract_filters( CHANGING cs_request = ls_request ).
-        cl_abap_unit_assert=>fail( `A range with no generic predicate must not be dropped` ).
+        cl_abap_unit_assert=>fail( msg = `A range with no generic predicate must not be dropped` ).
       CATCH zcx_fi_das_error.
     ENDTRY.
   ENDMETHOD.
 
   METHOD only_single_star_is_a_wildcard.
-    DATA(lt_wildcard) = mo_cut->get_company_codes( `*` ).
-    DATA(lt_mixed) = mo_cut->get_company_codes( `*, ab01` ).
+    DATA(lt_wildcard) = mo_cut->get_company_codes( i_value = `*` ).
+    DATA(lt_mixed) = mo_cut->get_company_codes( i_value = `*, ab01` ).
 
     cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_wildcard[ wildcard = abap_true ] ) ) ).
     cl_abap_unit_assert=>assert_false( act = xsdbool( line_exists( lt_mixed[ wildcard = abap_true ] ) ) ).
@@ -7328,9 +7328,9 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD scope_normalization_is_field_specific.
-    DATA(lt_company) = mo_cut->get_company_codes( `ab01` ).
-    DATA(lt_cost_center) = mo_cut->get_cost_centers( `123` ).
-    DATA(lt_management_unit) = mo_cut->get_management_units( `Unit A` ).
+    DATA(lt_company) = mo_cut->get_company_codes( i_value = `ab01` ).
+    DATA(lt_cost_center) = mo_cut->get_cost_centers( i_value = `123` ).
+    DATA(lt_management_unit) = mo_cut->get_management_units( i_value = `Unit A` ).
 
     cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_company[ value = `AB01` ] ) ) ).
     cl_abap_unit_assert=>assert_true(
@@ -7350,7 +7350,7 @@ CLASS ltc_request_processing_verified IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
-    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-original_row_index ).
+    cl_abap_unit_assert=>assert_initial( act = lt_result[ 1 ]-original_row_index ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -7388,8 +7388,8 @@ CLASS ltc_hana_filter_integration IMPLEMENTATION.
       CHANGING ct_result = lt_result ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
-    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_result[ ponumber = '8000000001' ] ) ) ).
-    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_result[ ponumber = '8000000002' ] ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000002' ).
   ENDMETHOD.
 
   METHOD escaped_apostrophe_matches_synthetic_row.
@@ -7432,7 +7432,7 @@ CLASS ltc_hana_filter_integration IMPLEMENTATION.
       EXPORTING is_request = ls_request
       CHANGING ct_result = lt_result ).
 
-    cl_abap_unit_assert=>assert_initial( lt_result ).
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -7451,26 +7451,29 @@ CLASS ltc_utility_contracts IMPLEMENTATION.
   METHOD amount_format_x_y_and_default.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = '12345.67' i_decimals = 2 i_decimal_format = 'X' i_use_grouping = abap_true )
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( 12345.67 )
+        i_decimals = 2 i_decimal_format = 'X' i_use_grouping = abap_true )
       exp = `12,345.67` ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = '12345.67' i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( 12345.67 )
+        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
       exp = `12 345,67` ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = '12345.67' i_decimals = 2 i_decimal_format = space i_use_grouping = abap_true )
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( 12345.67 )
+        i_decimals = 2 i_decimal_format = space i_use_grouping = abap_true )
       exp = `12.345,67` ).
   ENDMETHOD.
 
   METHOD percentage_parsing_and_error.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>parse_percentage( `12,5` )
+      act = zcl_fi_das_utility=>parse_percentage( i_value = `12,5` )
       exp = CONV zcl_fi_das_dashboard=>t_percentage( '12.5' ) ).
 
     TRY.
-        zcl_fi_das_utility=>parse_percentage( `1,2.3` ).
-        cl_abap_unit_assert=>fail( `Mixed decimal separators must be rejected` ).
+        zcl_fi_das_utility=>parse_percentage( i_value = `1,2.3` ).
+        cl_abap_unit_assert=>fail( msg = `Mixed decimal separators must be rejected` ).
       CATCH zcx_fi_das_error.
     ENDTRY.
   ENDMETHOD.

@@ -3765,8 +3765,9 @@ ENDMETHOD.
     ENDIF.
 
     FIND REGEX '"original_row_index"[[:space:]]*:' IN rv_json IGNORING CASE.
+    DATA(lv_find_subrc) = sy-subrc.
     cl_abap_unit_assert=>assert_equals(
-      act = sy-subrc exp = 4
+      act = lv_find_subrc exp = 4
       msg = 'The internal original_row_index must never be serialized by Gateway' ).
 
   ENDMETHOD.

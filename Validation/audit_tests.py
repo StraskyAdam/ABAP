@@ -479,6 +479,21 @@ def audit(root):
 
 
 class ParserTests(unittest.TestCase):
+    def test_gateway_internal_index_assertion_captures_find_result(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        body = classes["ltc_parity"].implementations["execute_gateway_get"]
+        find = tokens(
+            """FIND REGEX '"original_row_index"[[:space:]]*:' """
+            "IN rv_json IGNORING CASE"
+        )
+        index = body.index(find)
+        self.assertEqual(body[index + 1], tokens("DATA(lv_find_subrc) = sy-subrc"))
+        self.assertEqual(body[index + 2], tokens(
+            "cl_abap_unit_assert=>assert_equals("
+            " act = lv_find_subrc exp = 4"
+            " msg = 'The internal original_row_index must never be serialized by Gateway' )"
+        ))
+
     def test_direct_setup_calls_are_rejected_case_insensitively(self):
         for call in ("setup( )", "SETUP( )", "me->setup( )", "ME->SETUP( )"):
             with self.subTest(call=call):

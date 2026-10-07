@@ -88,6 +88,7 @@ Each ABAP Unit method creates its own dashboard instance in `setup`; utility tes
 | LFS inspection | All five `.gitattributes` LFS files are hydrated JSON, not pointer text. `git lfs ls-files -l` lists the five payload OIDs. The `Validation/` directory is 948,538,232 bytes. |
 | Test declaration/implementation and source whitespace checks | One-off structural check found 16 + 4 + 3 declared methods implemented in the three new classes; CRLF-aware `git diff --check` passed. This cannot establish ABAP activation or execution. |
 | Representative fixture parsing | `jq -e '(.d.results \| type) == "array"'` passed on `xsa-filter.json`, `xsa-selection.json`, `xsa-x_format.json`, `xsa-y_format.json`, and `xsa-scope-01.json`. |
+| Automated PR validation | No actionable review comments were returned. The validation tool reported its code-review model unavailable and CodeQL found no analyzable source languages in the `.txt` ABAP export; treat both automated review and CodeQL as **NOT EXECUTED**, not as a clean code review/security result. |
 | ABAP Unit / activation / ATC | **NOT EXECUTED** — no SAP ABAP system, SAP Gateway runtime, or ATC endpoint is available in this environment. |
 | HANA `APPLY_FILTER` | **NOT EXECUTED** — the new class calls the real AMDP and requires HANA; it is not a mock. |
 | OData end-to-end / XSA fixture parity | **NOT EXECUTED** — requires the SAP service, configured MIME fixture repository, and system data/configuration. |

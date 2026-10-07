@@ -1,4 +1,4 @@
-@EndUserText.label : 'SHared elements in structure'
+@EndUserText.label : 'Shared elements in structure for over & under'
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_over_under {
   totwrkcompamt_cocdecurr : abap.dec(13,2);

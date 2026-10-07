@@ -281,6 +281,17 @@ def archived_test_statements(source):
             if pattern.match(line)]
 
 
+def calls_setup_directly(stmt):
+    for index in range(len(stmt) - 1):
+        if stmt[index:index + 2] != ["setup", "("]:
+            continue
+        if index == 0 or stmt[index - 1] not in ("->", "=>"):
+            return True
+        if index >= 2 and stmt[index - 2:index] == ["me", "->"]:
+            return True
+    return False
+
+
 def audit(root):
     test_path = root / "ABAP code" / "Unit test.txt"
     suite, friends = parse(test_path.read_text())
@@ -374,10 +385,13 @@ def audit(root):
                 if not reaches_assertion(cls, name):
                     errors.append(f"Test has no reachable ABAP Unit assertion: {name}")
                 if body and body[0] not in (
-                        ["setup", "(", ")"], ["me", "->", "setup", "(", ")"]):
+                        ["reset_fixture", "(", ")"],
+                        ["me", "->", "reset_fixture", "(", ")"]):
                     errors.append(f"Leaf does not reset fixture state first: {name}")
         for name in cls.implementations:
             for stmt in cls.implementations[name]:
+                if cls.testing and calls_setup_directly(stmt):
+                    errors.append(f"{cls.name}.{name}: special method setup cannot be called directly")
                 for index in range(len(stmt) - 1):
                     called = stmt[index]
                     if (called in declared and stmt[index + 1] == "("
@@ -465,6 +479,29 @@ def audit(root):
 
 
 class ParserTests(unittest.TestCase):
+    def test_direct_setup_calls_are_rejected_case_insensitively(self):
+        for call in ("setup( )", "SETUP( )", "me->setup( )", "ME->SETUP( )"):
+            with self.subTest(call=call):
+                self.assertTrue(calls_setup_directly(tokens(call)))
+        for call in ("reset_fixture( )", "me->reset_fixture( )",
+                     "other->setup( )", "result = 'setup( )'"):
+            with self.subTest(call=call):
+                self.assertFalse(calls_setup_directly(tokens(call)))
+
+    def test_framework_setup_delegates_to_fixture_reset(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        self.assertEqual(parity.implementations["setup"],
+                         [tokens("reset_fixture( )")])
+        self.assertEqual(parity.implementations["reset_fixture"], [
+            tokens("mo_cut = NEW #( )"),
+            tokens("CLEAR: mt_differences, mv_difference_count"),
+            tokens("CLEAR mv_unused"),
+        ])
+        for name, body in parity.implementations.items():
+            with self.subTest(method=name):
+                self.assertFalse(any(calls_setup_directly(stmt) for stmt in body))
+
     def test_deferred_and_friends_are_not_full_definitions(self):
         classes, friends = parse("""
 CLASS ltc_parity DEFINITION DEFERRED.

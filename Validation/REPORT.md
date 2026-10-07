@@ -48,6 +48,8 @@ materializing a complete table of JSON properties. Running all tests executes
 both category methods and their independently runnable leaves, so repeated
 scenario execution is expected. Categories can stop at the first failing
 assertion; nested method calls do not automatically invoke ABAP Unit `setup`.
+The framework hook delegates to `reset_fixture( )`; explicit initialization
+calls use that helper because the special method `setup` cannot be called directly.
 
 ## Reproducible checks
 
@@ -225,7 +227,7 @@ PO/item/contains members into current `filter_select_options`:
 
 ```abap
 METHOD test_selection.
-  setup( ).
+  reset_fixture( ).
   DATA(ls_case) = VALUE ts_case(
     fixture = 'xsa-selection.json' email = 'adam.strasky@takeda.com'
     flow = zif_fi_das_dashboard=>mc_over
@@ -335,7 +337,7 @@ Changes to obsolete checks are deliberate, not silent weakening:
 ## Category/leaf matrix
 
 All categories and leaves are `FOR TESTING` instance methods of `ltc_parity`.
-Every leaf resets `mo_cut`, discrepancy logs and counters with `setup( )`
+Every leaf resets `mo_cut`, discrepancy logs and counters with `reset_fixture( )`
 before executing. Categories call those same methods, not copied assertions.
 Shared membership is intentional; run-all executes standalone leaves plus
 their categories/subsets. Category execution may stop at its first failure.

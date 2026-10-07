@@ -285,8 +285,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key TYPE SORTED TABLE OF ts_key
-        WITH UNIQUE KEY ponumber itemno.
+      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
 
     TYPES:
       BEGIN OF ts_role,
@@ -508,7 +507,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_request        TYPE ts_internal_request
       RETURNING
-        VALUE(rs_request) TYPE ts_internal_request.
+        VALUE(rs_request) TYPE ts_internal_request
+      RAISING
+        zcx_fi_das_error.
 
     METHODS get_email
       IMPORTING
@@ -518,7 +519,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS extract_filters
       CHANGING
-        cs_request TYPE ts_internal_request.
+        cs_request TYPE ts_internal_request
+      RAISING
+        zcx_fi_das_error.
 
     CLASS-METHODS convert_range_to_where
       IMPORTING
@@ -795,14 +798,18 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_mode           TYPE zif_fi_das_dashboard=>t_mode
         i_decimal_format TYPE t_decimal_format
       RETURNING
-        VALUE(rs_result) TYPE ts_odata_result.
+        VALUE(rs_result) TYPE ts_odata_result
+      RAISING
+        zcx_fi_das_error.
 
 
     METHODS apply_detail
       IMPORTING
         is_detail TYPE ts_source_detail
       CHANGING
-        cs_result TYPE ts_result.
+        cs_result TYPE ts_result
+      RAISING
+        zcx_fi_das_error.
 
     METHODS apply_user
       IMPORTING
@@ -2012,8 +2019,17 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA: lr_item                     TYPE tt_string_range,
           lr_ponumber                 TYPE tt_string_range,
           lr_suppliername             TYPE tt_string_range,
+          ls_sample                   TYPE ts_odata_result,
+          l_generic_required          TYPE abap_bool.
+    FIELD-SYMBOLS <fs_property> TYPE any.
 
-          l_has_non_standard_for_amdp TYPE abap_bool VALUE abap_false.
+    CLEAR cs_request-filter_for_amdp.
+
+*   Range projections cannot safely prefilter a complete boolean predicate.
+    IF cs_request-filter-filter_string IS NOT INITIAL.
+      CLEAR cs_request-filter-filter_select_options.
+      RETURN.
+    ENDIF.
 
     IF cs_request-filter-filter_select_options IS INITIAL.
       RETURN.
@@ -2034,26 +2050,62 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         WHEN mc_property_suppliername.
           APPEND ls_range TO lr_suppliername.
         WHEN OTHERS.
-          l_has_non_standard_for_amdp = abap_true.
+          l_generic_required = abap_true.
       ENDCASE.
 
     ENDLOOP.
 
     TRY.
-        cs_request-filter_for_amdp = VALUE #(
-           ponumber     = convert_range_to_where( i_column = mc_property_ponumber     ir_range = lr_ponumber )
-           item         = convert_range_to_where( i_column = mc_property_itemno       ir_range = lr_item )
-           suppliername = convert_range_to_where( i_column = mc_property_suppliername ir_range = lr_suppliername ) ).
+        IF l_generic_required = abap_true.
+*         Select-only ranges OR values within a property and AND properties.
+          DATA l_predicate TYPE string.
+          LOOP AT cs_request-filter-filter_select_options ASSIGNING <fs_filter_select_options>
+            GROUP BY to_upper( <fs_filter_select_options>-property ) INTO DATA(l_property).
 
-      CATCH cx_shdb_exception.
+            UNASSIGN <fs_property>.
+            ASSIGN COMPONENT l_property OF STRUCTURE ls_sample TO <fs_property>.
+            IF <fs_property> IS NOT ASSIGNED OR l_property = `ORIGINAL_ROW_INDEX`.
+              RAISE EXCEPTION TYPE zcx_fi_das_error
+                EXPORTING
+                  i_reason = |Unsupported filter property: { l_property }|.
+            ENDIF.
+
+            DATA lr_property TYPE tt_string_range.
+            CLEAR lr_property.
+            LOOP AT GROUP l_property ASSIGNING FIELD-SYMBOL(<fs_option>).
+              APPEND VALUE #( sign   = <fs_option>-sign
+                              option = <fs_option>-option
+                              low    = <fs_option>-low
+                              high   = <fs_option>-high ) TO lr_property.
+            ENDLOOP.
+
+            DATA(l_where) = convert_range_to_where( i_column = l_property ir_range = lr_property ).
+            IF l_where IS INITIAL.
+              RAISE EXCEPTION TYPE zcx_fi_das_error
+                EXPORTING
+                  i_reason = |Filter ranges could not be converted: { l_property }|.
+            ENDIF.
+
+            l_predicate = COND #( WHEN l_predicate IS INITIAL THEN |( { l_where } )|
+                                 ELSE |{ l_predicate } AND ( { l_where } )| ).
+          ENDLOOP.
+          cs_request-filter-filter_string = l_predicate.
+        ELSE.
+          cs_request-filter_for_amdp = VALUE #(
+             ponumber     = convert_range_to_where( i_column = mc_property_ponumber     ir_range = lr_ponumber )
+             item         = convert_range_to_where( i_column = mc_property_itemno       ir_range = lr_item )
+             suppliername = convert_range_to_where( i_column = mc_property_suppliername ir_range = lr_suppliername ) ).
+        ENDIF.
+
+      CATCH cx_shdb_exception INTO DATA(lx_filter).
         CLEAR cs_request-filter_for_amdp.
-        RETURN.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason = `Filter ranges could not be safely converted`
+            previous = lx_filter.
     ENDTRY.
 
-*   All filter conditions were converted to AMDP filters, generic filter processing is no longer required
-    IF l_has_non_standard_for_amdp = abap_false.
-      CLEAR cs_request-filter-filter_string.
-    ENDIF.
+    CLEAR cs_request-filter-filter_select_options.
 
   ENDMETHOD.
 
@@ -2354,6 +2406,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     IF it_keys IS NOT INITIAL.
 
+      DATA lt_key_lookup TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno.
+      lt_key_lookup = it_keys.
+
       SELECT
         ponumber,
         itemno,
@@ -2388,8 +2443,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
 
-        ASSIGN it_keys[ ponumber = <fs_base>-ponumber
-                        itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+        ASSIGN lt_key_lookup[ ponumber = <fs_base>-ponumber
+                              itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
 
         IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
           CONTINUE.

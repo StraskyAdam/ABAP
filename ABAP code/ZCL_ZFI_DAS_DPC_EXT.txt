@@ -102,6 +102,9 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
         DATA(lo_filter) = io_tech_request_context->get_filter( ).
 
         IF lo_filter IS NOT BOUND.
+          IF io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
+            RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+          ENDIF.
           RETURN.
         ENDIF.
 
@@ -113,10 +116,14 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
                                                        low = ls_option-low
                                                        high = ls_option-high ) ).
 
-        rs_filter-filter_string = lo_filter->get_filter_string( ).
+        DATA(l_raw_filter) = lo_filter->get_filter_string( ).
+        rs_filter-filter_string = io_tech_request_context->get_osql_where_clause( ).
 
 *       Raise an exception to avoid processing an unsupported filter
-        IF rs_filter-filter_string IS INITIAL AND io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
+        IF rs_filter-filter_string IS INITIAL
+           AND rs_filter-filter_select_options IS INITIAL
+           AND ( l_raw_filter IS NOT INITIAL
+                 OR io_tech_request_context->get_filter_expression_tree( ) IS BOUND ).
           RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
         ENDIF.
 

@@ -13,7 +13,10 @@
 " Paging relies on the stable ORDER BY implemented by all dashboard flows.
 " ============================================================================
 
-CLASS ltc_fi_das_gateway_parity DEFINITION
+CLASS ltc_parity DEFINITION DEFERRED.
+CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_parity.
+
+CLASS ltc_parity DEFINITION
   FINAL
   FOR TESTING
   RISK LEVEL HARMLESS
@@ -28,11 +31,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
         poowner       TYPE zif_fi_das_dashboard=>t_poowner,
         flow          TYPE zif_fi_das_dashboard=>t_mode,
         pstype        TYPE zif_fi_das_dashboard=>t_pstype,
-*        ponumber      TYPE zif_fi_das_dashboard=>tr_ponumber,
-*        itemno        TYPE zif_fi_das_dashboard=>tr_itemno,
-*        po_contains   TYPE zif_fi_das_dashboard=>tt_po_contains,
-*        item_contains TYPE zif_fi_das_dashboard=>tt_item_contains,
-*        supplier      TYPE zif_fi_das_dashboard=>tt_supplier_contains,
         filter_select_options TYPE zif_fi_das_dashboard=>tt_filter_select_options,
         filter_raw    TYPE string,
         orderby       TYPE string,
@@ -78,7 +76,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
 *     Single paging limit for Over, Under and Exclude.
 *     Reduce this value when the productive system has a smaller heap.
-      mc_page_size TYPE i VALUE 40000.
+      mc_page_size TYPE i VALUE 1000.
 
     DATA:
       mt_differences       TYPE stringtab,
@@ -207,9 +205,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
              FOR TESTING
      RAISING cx_static_check.
 
-*   METHODS test_all_pstype_request
-*             FOR TESTING
-*     RAISING cx_static_check.
+    METHODS test_all_pstype_request FOR TESTING RAISING cx_static_check.
 
    METHODS test_filter_companycode
             FOR TESTING
@@ -333,7 +329,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
    METHODS run_scope_case
      IMPORTING
-       i_number TYPE n
+       i_number TYPE numc2
      RAISING
        zcx_fi_das_error
        cx_sy_conversion_error
@@ -345,6 +341,8 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS run_paged_case
       IMPORTING
         is_case TYPE ts_case
+        i_complex_filter TYPE abap_bool OPTIONAL
+        i_cross_or_filter TYPE abap_bool OPTIONAL
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
@@ -409,7 +407,8 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       IMPORTING
         i_json          TYPE string
       RETURNING
-        VALUE(rv_count) TYPE int8.
+        VALUE(rv_count) TYPE int8
+      RAISING zcx_fi_das_error.
 
     METHODS get_result_count
       IMPORTING
@@ -668,36 +667,25 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
 
 
-ENDCLASS.
-
-CLASS ltc_request_processing DEFINITION FINAL
-  FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-
     DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
 
-    METHODS setup.
-
-    " skip_calculations derivation
-    METHODS skip_true_for_po_value_help   FOR TESTING.
-    METHODS skip_true_for_item_value_help FOR TESTING.
-    METHODS skip_true_for_supplier_help   FOR TESTING.
-    METHODS skip_false_without_select     FOR TESTING.
-    METHODS skip_false_for_mixed_select   FOR TESTING.
-    METHODS skip_false_with_orderby       FOR TESTING.
+    " Gateway projection parity
+    METHODS skip_true_for_po_value_help FOR TESTING RAISING cx_static_check.
+    METHODS skip_true_for_item_value_help FOR TESTING RAISING cx_static_check.
+    METHODS skip_true_for_supplier_help FOR TESTING RAISING cx_static_check.
+    METHODS skip_false_without_select FOR TESTING RAISING cx_static_check.
+    METHODS skip_false_for_mixed_select FOR TESTING RAISING cx_static_check.
+    METHODS skip_false_with_orderby FOR TESTING RAISING cx_static_check.
 
     " contains filters
-    METHODS po_contains_builds_like       FOR TESTING.
-    METHODS item_contains_keeps_zeros     FOR TESTING.
-    METHODS mixed_eq_and_contains         FOR TESTING.
-    METHODS supplier_contains_builds_like FOR TESTING.
-    METHODS supplier_pattern_no_wildcards FOR TESTING.
-    METHODS supplier_keeps_inner_spaces   FOR TESTING.
-    METHODS item_contains_digit_two       FOR TESTING.
-    METHODS amdp_filter_empty_by_default      FOR TESTING.
+    METHODS po_contains_builds_like FOR TESTING RAISING cx_static_check.
+    METHODS item_contains_keeps_zeros FOR TESTING RAISING cx_static_check.
+    METHODS mixed_eq_and_contains FOR TESTING RAISING cx_static_check.
+    METHODS supplier_contains_builds_like FOR TESTING RAISING cx_static_check.
+    METHODS supplier_pattern_no_wildcards FOR TESTING RAISING cx_static_check.
+    METHODS supplier_keeps_inner_spaces FOR TESTING RAISING cx_static_check.
+    METHODS item_contains_digit_two FOR TESTING RAISING cx_static_check.
+    METHODS amdp_filter_empty_by_default FOR TESTING RAISING cx_static_check.
 
 
     " sort + paging
@@ -710,19 +698,19 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS no_orderby_leaves_table_asis  FOR TESTING.
 
     " generic column filters
-    METHODS generic_eq_filters_rows        FOR TESTING.
-*    METHODS generic_contains_filters_rows  FOR TESTING.
-    METHODS generic_two_props_are_anded    FOR TESTING.
-    METHODS generic_same_prop_is_ored      FOR TESTING.
-    METHODS generic_unknown_prop_no_dump   FOR TESTING.
-    METHODS generic_with_sort_and_paging   FOR TESTING.
+    METHODS generic_eq_filters_rows FOR TESTING RAISING cx_static_check.
+    METHODS generic_contains_filters_rows FOR TESTING RAISING cx_static_check.
+    METHODS generic_two_props_are_anded FOR TESTING RAISING cx_static_check.
+    METHODS generic_same_prop_is_ored FOR TESTING RAISING cx_static_check.
+    METHODS generic_unknown_prop_no_dump FOR TESTING RAISING cx_static_check.
+    METHODS generic_with_sort_and_paging FOR TESTING RAISING cx_static_check.
 
     " M1: PSTYPE sort handling per mode
-    METHODS pstype_sort_noop_for_over     FOR TESTING.
+    METHODS pstype_sort_noop_for_over FOR TESTING RAISING cx_static_check.
     METHODS pstype_sort_kept_for_exclude  FOR TESTING.
     METHODS pstype_sort_desc_mixed_rows   FOR TESTING.
 
-    METHODS threshold_equal_is_under      FOR TESTING.
+    METHODS threshold_fixture_classes FOR TESTING RAISING cx_static_check.
     METHODS review_day_boundary           FOR TESTING.
 
 
@@ -731,255 +719,262 @@ CLASS ltc_request_processing DEFINITION FINAL
 
 
     " mixed eq and cp filters (NEW)
-    METHODS po_multiple_eq_same_property  FOR TESTING.
-    METHODS po_eq_and_cp_same_property    FOR TESTING.
-    METHODS supplier_multiple_cp_same_prop FOR TESTING.
-    METHODS item_multiple_eq_same_property FOR TESTING.
-    METHODS item_cp_digit_two             FOR TESTING.
+    METHODS po_multiple_eq_same_property FOR TESTING RAISING cx_static_check.
+    METHODS po_eq_and_cp_same_property FOR TESTING RAISING cx_static_check.
+    METHODS supplier_multiple_cp_same_prop FOR TESTING RAISING cx_static_check.
+    METHODS item_multiple_eq_same_property FOR TESTING RAISING cx_static_check.
+    METHODS item_cp_digit_two FOR TESTING RAISING cx_static_check.
 
 
 
     " edge cases and boundary conditions (NEW)
-    METHODS empty_contains_pattern        FOR TESTING.
-    METHODS item_number_with_leading_zeros FOR TESTING.
-    METHODS exclude_sign_filters          FOR TESTING.
-    METHODS unsupported_option_generic FOR TESTING.
-    METHODS supplier_filter_with_case_sens FOR TESTING.
+    METHODS empty_contains_pattern FOR TESTING RAISING cx_static_check.
+    METHODS item_number_with_leading_zeros FOR TESTING RAISING cx_static_check.
+    METHODS exclude_sign_filters FOR TESTING RAISING cx_static_check.
+    METHODS unsupported_option_generic FOR TESTING RAISING cx_static_check.
+    METHODS supplier_filter_with_case_sens FOR TESTING RAISING cx_static_check.
 
     METHODS skip_high_sorted FOR TESTING.
-    METHODS amdp_filter_mixed_properties FOR TESTING.
+    METHODS amdp_filter_mixed_properties FOR TESTING RAISING cx_static_check.
 
 
 
-    METHODS test_cp_case_sensitive_include    FOR TESTING.
-    METHODS test_cp_case_sensitive_exclude    FOR TESTING.
-    METHODS test_eq_case_insensitive          FOR TESTING.
-    METHODS test_cp_and_eq_combined           FOR TESTING.
-    METHODS test_multiple_cp_filters_or       FOR TESTING.
-    METHODS test_cp_empty_pattern             FOR TESTING.
+    METHODS test_cp_case_sensitive_include FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_case_sensitive_exclude FOR TESTING RAISING cx_static_check.
+    METHODS test_eq_case_insensitive FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_and_eq_combined FOR TESTING RAISING cx_static_check.
+    METHODS test_multiple_cp_filters_or FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_empty_pattern FOR TESTING RAISING cx_static_check.
 
 
 
 
+    METHODS standard FOR TESTING RAISING cx_static_check.
+    METHODS owner FOR TESTING RAISING cx_static_check.
+    METHODS filter FOR TESTING RAISING cx_static_check.
+    METHODS scope FOR TESTING RAISING cx_static_check.
+    METHODS sort_paging FOR TESTING RAISING cx_static_check.
+    METHODS selection FOR TESTING RAISING cx_static_check.
+    METHODS format FOR TESTING RAISING cx_static_check.
+    METHODS request_processing FOR TESTING RAISING cx_static_check.
+    METHODS hana_filter FOR TESTING RAISING cx_static_check.
+    METHODS utility FOR TESTING RAISING cx_static_check.
+
+    METHODS extract_range
+      IMPORTING it_filters TYPE zif_fi_das_dashboard=>tt_filter_select_options
+      RETURNING VALUE(rs_request) TYPE zcl_fi_das_dashboard=>ts_internal_request
+      RAISING zcx_fi_das_error.
+    METHODS filter_rows
+      IMPORTING i_predicate TYPE string
+      CHANGING ct_result TYPE zcl_fi_das_dashboard=>tt_odata_result
+      RAISING zcx_fi_das_error.
+    METHODS check_select
+      IMPORTING i_select TYPE string i_orderby TYPE string OPTIONAL
+      RAISING zcx_fi_das_error.
+
+    METHODS default_order_unique_keys FOR TESTING.
+    METHODS default_prefix_removed FOR TESTING.
+    METHODS non_default_order_preserved FOR TESTING.
+    METHODS sort_adds_default_ties FOR TESTING.
+    METHODS invalid_duplicate_sorts FOR TESTING.
+    METHODS paging_follows_sort FOR TESTING.
+    METHODS requested_top_zero_is_empty FOR TESTING.
+    METHODS omitted_top_keeps_all_rows FOR TESTING.
+    METHODS empty_order_preserves_input FOR TESTING.
+    METHODS known_ranges_are_optimized FOR TESTING RAISING cx_static_check.
+    METHODS mixed_filter_keeps_predicate FOR TESTING RAISING cx_static_check.
+    METHODS cross_or_disables_prefilter FOR TESTING RAISING cx_static_check.
+    METHODS missing_predicate_fails FOR TESTING RAISING cx_static_check.
+    METHODS single_star_wildcard FOR TESTING.
+    METHODS scope_field_normalization FOR TESTING.
+    METHODS empty_generic_filter_noop FOR TESTING RAISING cx_static_check.
+    METHODS nested_and_or_rows FOR TESTING RAISING cx_static_check.
+    METHODS escaped_apostrophe_row FOR TESTING RAISING cx_static_check.
+    METHODS date_boundary_is_exclusive FOR TESTING RAISING cx_static_check.
+    METHODS no_match_returns_no_rows FOR TESTING RAISING cx_static_check.
+    METHODS amount_format_x_y_default FOR TESTING RAISING cx_static_check.
+    METHODS percentage_parsing_and_error FOR TESTING RAISING cx_static_check.
+    METHODS decimal_trunc_toward_zero FOR TESTING RAISING cx_static_check.
+    METHODS generic_preserves_row_order FOR TESTING RAISING cx_static_check.
+    METHODS generic_ranges_only FOR TESTING RAISING cx_static_check.
+    METHODS mixed_ranges_only FOR TESTING RAISING cx_static_check.
+    METHODS predicate_clears_stale_ranges FOR TESTING RAISING cx_static_check.
+    METHODS empty_ranges_clear_stale FOR TESTING RAISING cx_static_check.
+    METHODS key_ranges_replace_stale FOR TESTING RAISING cx_static_check.
+    METHODS key_table_preserves_order FOR TESTING.
+    METHODS default_exclude_key_order FOR TESTING RAISING cx_static_check.
+    METHODS complex_filter_gateway FOR TESTING RAISING cx_static_check.
+    METHODS complex_filter_hana FOR TESTING RAISING cx_static_check.
+    METHODS empty_result_filter_noop FOR TESTING RAISING cx_static_check.
+    METHODS date_cp_range_rows FOR TESTING RAISING cx_static_check.
+    METHODS date_eq_range_rows FOR TESTING RAISING cx_static_check.
+    METHODS date_bt_range_rows FOR TESTING RAISING cx_static_check.
+    METHODS company_range_hybrid_parity FOR TESTING RAISING cx_static_check.
+    METHODS gateway_cross_or_sql FOR TESTING RAISING cx_static_check.
+    METHODS translated_cross_or_rows FOR TESTING RAISING cx_static_check.
+    METHODS matches_complex_fixture
+      IMPORTING it_properties TYPE tt_json_property
+      RETURNING VALUE(rv_match) TYPE abap_bool.
 ENDCLASS.
 
-CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_request_processing.
-
-CLASS ltc_request_processing IMPLEMENTATION.
-
-  METHOD setup.
-    mo_cut = NEW #( ).
+CLASS ltc_parity IMPLEMENTATION.
+  METHOD extract_range.
+    rs_request-filter-filter_select_options = it_filters.
+    mo_cut->extract_filters( CHANGING cs_request = rs_request ).
+    cl_abap_unit_assert=>assert_initial(
+      act = rs_request-filter-filter_select_options
+      msg = 'Consumed range projections must not survive extraction' ).
   ENDMETHOD.
+
+  METHOD filter_rows.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #( filter_string = i_predicate ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = ct_result ).
+  ENDMETHOD.
+
+  METHOD check_select.
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com'
+      flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      select_list = i_select orderby = i_orderby
+      top = 1 top_specified = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+                          IMPORTING e_json = DATA(lv_selected) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = get_result_count( lv_selected ) exp = 1 ).
+    DATA(lv_po) = read_first_result_property(
+      i_json = lv_selected i_property = 'PONUMBER' ).
+    DATA(lv_item) = read_first_result_property(
+      i_json = lv_selected i_property = 'ITEMNO' ).
+    cl_abap_unit_assert=>assert_not_initial( lv_po ).
+    cl_abap_unit_assert=>assert_not_initial( lv_item ).
+    CLEAR: ls_case-select_list, ls_case-orderby.
+    ls_case-filter_raw = |PONUMBER eq '{ odata_quote( lv_po ) }' and |
+                     && |ITEMNO eq '{ odata_quote( lv_item ) }'|.
+    get_gateway_response( EXPORTING is_case = ls_case
+                          IMPORTING e_json = DATA(lv_full) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = get_result_count( lv_full ) exp = 1 ).
+    find_result_object_bounds(
+      EXPORTING i_json = lv_selected i_index = 1
+      IMPORTING e_object_from = DATA(lv_from) e_object_to = DATA(lv_to) ).
+    DATA(lt_selected) = read_object_properties(
+      i_json = lv_selected i_object_from = lv_from i_object_to = lv_to ).
+    DATA lt_fields TYPE stringtab.
+    SPLIT i_select AT ',' INTO TABLE lt_fields.
+    LOOP AT lt_fields INTO DATA(lv_field).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( line_exists( lt_selected[ name = lv_field ] ) )
+        msg = |Restricted select omitted { lv_field }| ).
+      cl_abap_unit_assert=>assert_equals(
+        act = read_first_result_property( i_json = lv_selected i_property = lv_field )
+        exp = read_first_result_property( i_json = lv_full i_property = lv_field )
+        msg = |Restricted select must retain { lv_field } for the same PO/item| ).
+      IF lv_field = 'STATUS'.
+        cl_abap_unit_assert=>assert_not_initial(
+          read_first_result_property( i_json = lv_selected i_property = lv_field ) ).
+        cl_abap_unit_assert=>assert_false(
+          act = xsdbool( lt_selected[ name = lv_field ]-token = 'null' ) ).
+      ENDIF.
+    ENDLOOP.
+    assert_inlinecount_absent( lv_selected ).
+  ENDMETHOD.
+
 METHOD test_cp_case_sensitive_include.
-*    "Testuje: CP filtre majú byť case-sensitive (include)
-*    "Filter: substringof('Q',SUPPLIERNAME)
-*    "Očakávaný výsledok: vrátia iba riadky s veľkým 'Q', nie 'q'
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' ) ) ) ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 1
-*      msg = 'Len Quality Solutions s veľkým Q, nie quantum' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-suppliername
-*      exp = 'Quality Solutions' ).
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
+      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
+    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME LIKE '%Q%'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername exp = 'Quality Solutions' ).
 
   ENDMETHOD.
 
 
   METHOD test_cp_case_sensitive_exclude.
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*     filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'E' option = 'CP' low = '*Q*' ) ) ) ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'quantum a Fuji, BEZ Quality' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( line_exists( lt_result[ suppliername = 'quantum corp' ] ) )
-*      msg = 'Musí obsahovať quantum (q je iný ako Q)' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( line_exists( lt_result[ suppliername = 'Fuji Electric' ] ) )
-*      msg = 'Musí obsahovať Fuji' ).
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Quality Solutions' )
+      ( suppliername = 'quantum corp' )
+      ( suppliername = 'Fuji Electric' ) ).
+    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME NOT LIKE '%Q%'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_result[ suppliername = 'quantum corp' ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_result[ suppliername = 'Fuji Electric' ] ) ) ).
 
   ENDMETHOD.
 
 
 
   METHOD test_eq_case_insensitive.
-    "Testuje: EQ filtre zostávajú case-insensitive (ABAP range)
-    "Filter: SUPPLIERNAME = 'FUJI'
-*    "Očakávaný výsledok: vráti riadky s 'Fuji', 'fuji', 'FUJI'
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Fuji Electric' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'fuji corp' )
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'FUJI' )
-*      ( ponumber = '8000000004' itemno = '00001' suppliername = 'Hitachi' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = 'FUJI' ) )  ) ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 3
-*      msg = 'EQ je case-insensitive: všetky varianty Fuji' ).
-
+    setup( ).
+    " Explicit UPPER is required: HANA equality itself is case-sensitive.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Fuji' ) ( suppliername = 'fuji' )
+      ( suppliername = 'FUJI' ) ( suppliername = 'Hitachi' ) ).
+    DATA(lt_exact) = lt_result.
+    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME = 'FUJI'`
+                 CHANGING ct_result = lt_exact ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_exact ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_exact[ 1 ]-suppliername exp = 'FUJI' ).
+    filter_rows( EXPORTING i_predicate = `UPPER(SUPPLIERNAME) = 'FUJI'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 3 ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_result[ suppliername = 'Hitachi' ] ) ) ).
   ENDMETHOD.
 
   METHOD test_cp_and_eq_combined.
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Q' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'BioClinica Inc' )
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'bioclinica small' )
-*      ( ponumber = '8000000004' itemno = '00001' suppliername = 'Fuji Electric' )
-*      ( ponumber = '8000000005' itemno = '00001' suppliername = 'quantum' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = 'Q' )
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Bio*' ) )  ) ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'Q presne + BioClinica (CP case-sensitive)' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( line_exists( lt_result[ suppliername = 'Q' ] ) )
-*      msg = 'Musí obsahovať Q (presne)' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( line_exists( lt_result[ suppliername = 'BioClinica Inc' ] ) )
-*      msg = 'Musí obsahovať BioClinica (Bio s veľkým B)' ).
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Q' ) ( suppliername = 'BioClinica Inc' )
+      ( suppliername = 'bioclinica small' ) ( suppliername = 'Fuji Electric' )
+      ( suppliername = 'quantum' ) ).
+    filter_rows( EXPORTING
+      i_predicate = `(SUPPLIERNAME = 'Q' OR SUPPLIERNAME LIKE '%Bio%')`
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Q' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-suppliername exp = 'BioClinica Inc' ).
 
   ENDMETHOD.
 
 
   METHOD test_multiple_cp_filters_or.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Quality' ) ( suppliername = 'BioClinica' )
+      ( suppliername = 'quantum' ) ( suppliername = 'Fuji Electric' ) ).
+    filter_rows( EXPORTING
+      i_predicate = `(SUPPLIERNAME LIKE '%Q%' OR SUPPLIERNAME LIKE '%Bio%')`
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Quality' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-suppliername exp = 'BioClinica' ).
     "Testuje: viacerí CP filtre v tej istej property (OR logika)
     "Filter: substringof('Q',SUPPLIERNAME) OR substringof('Bio',SUPPLIERNAME)
     "Očakávaný výsledok: vrátia riadky s 'Q' ALEBO 'Bio'
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'BioClinica' )
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Quantum' )
-*      ( ponumber = '8000000004' itemno = '00001' suppliername = 'Fuji Electric' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*     filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' )
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Bio*' ) ) ) ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'Quality (Q) a BioClinica, bez Quantum (q) a Fuji' ).
 
   ENDMETHOD.
 
   METHOD test_cp_empty_pattern.
-*    "Testuje: prázdny CP vzor (edge case)
-*    "Filter: substringof('',SUPPLIERNAME) = match all
-*    "Očakávaný výsledok: vrátia všetky riadky
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = '' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '**' ) ) )  ).
-*
-*    TRY.
-*      mo_cut->apply_generic_filter(
-*        EXPORTING is_request = ls_request
-*        CHANGING  ct_result  = lt_result ).
-*    CATCH zcx_fi_das_error INTO DATA(lx_error).
-*      cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'Prázdny vzor obsahuje všetko' ).
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Quality' ) ( suppliername = '' ) ).
+    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME LIKE '%%'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
   ENDMETHOD.
 
@@ -989,78 +984,61 @@ METHOD test_cp_case_sensitive_include.
 
 
 *----------------------------------------------------------------------
-* skip_calculations
+* Gateway projection parity
 *----------------------------------------------------------------------
 
   METHOD skip_true_for_po_value_help.
+    setup( ).
+    check_select( 'PONUMBER,ITEMNO,POLINEDESC' ).
 
-*    " PO value help sends $select=PONUMBER,POLINEDESC
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select = `PONUMBER,POLINEDESC` ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'PO value-help select must skip calculations' ).
 
   ENDMETHOD.
 
   METHOD skip_true_for_item_value_help.
+    setup( ).
+    check_select( 'PONUMBER,ITEMNO' ).
 
-*    " Item value help sends $select=ITEMNO
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select = `ITEMNO` ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Item value-help select must skip calculations' ).
 
   ENDMETHOD.
 
   METHOD skip_true_for_supplier_help.
+    setup( ).
+    check_select( 'PONUMBER,ITEMNO,SUPPLIERID,SUPPLIERNAME' ).
 
-*    " Supplier value help sends $select=SUPPLIERID,SUPPLIERNAME
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select = `SUPPLIERID,SUPPLIERNAME` ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Supplier value-help select must skip calculations' ).
 
   ENDMETHOD.
 
   METHOD skip_false_without_select.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      top = 1 top_specified = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+                          IMPORTING e_json = DATA(lv_json) ).
+    cl_abap_unit_assert=>assert_equals( act = get_result_count( lv_json ) exp = 1 ).
+    cl_abap_unit_assert=>assert_not_initial(
+      read_first_result_property( i_json = lv_json i_property = 'STATUS' ) ).
+    cl_abap_unit_assert=>assert_not_initial(
+      read_first_result_property( i_json = lv_json i_property = 'AMOUNTACCRUED' ) ).
 
-*    " Regular table load has no $select - everything is computed
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( ).
-*
-*    cl_abap_unit_assert=>assert_false(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Empty select must compute everything' ).
 
   ENDMETHOD.
 
   METHOD skip_false_for_mixed_select.
+    setup( ).
+    check_select( 'PONUMBER,ITEMNO,STATUS' ).
 
-*    " Any calculated field in the select disables the skip
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select = `PONUMBER,STATUS` ).
-*
-*    cl_abap_unit_assert=>assert_false(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Select containing STATUS must compute everything' ).
 
   ENDMETHOD.
 
   METHOD skip_false_with_orderby.
+    setup( ).
+    check_select( i_select = 'PONUMBER,ITEMNO' i_orderby = 'SUPPLIERNAME' ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = 'SUPPLIERNAME' ) ) ).
+    cl_abap_unit_assert=>assert_true( mo_cut->is_full_processing_required( ls_request ) ).
 
-*    " Sorting needs the full row even with a narrow select
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select  = `PONUMBER`
-*      orderby = VALUE #( (   property = `SUPPLIERNAME` ) ) ).
-*
-*    cl_abap_unit_assert=>assert_false(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Orderby must disable calculation skipping' ).
 
   ENDMETHOD.
 
@@ -1069,190 +1047,103 @@ METHOD test_cp_case_sensitive_include.
 *----------------------------------------------------------------------
 
 *----------------------------------------------------------------------
-* contains filters (opravené pre amdp_filter)
+* Key-range predicate extraction
 *----------------------------------------------------------------------
 
   METHOD po_contains_builds_like.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*40102*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS '%40102%' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( to_upper( ls_request-filter_for_amdp-ponumber ) CS 'LIKE' ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '40102' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 1
-*      msg = 'PONUMBER CP filter must be extracted to amdp_filter-po' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 1 ]-pattern
-*      exp = '%40102%'
-*      msg = 'PO contains must produce %value% pattern' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( ls_request-amdp_filter-po[ 1 ]-value_length > 0 )
-*      msg = 'Pattern entry must be marked as LIKE (value_length > 0)' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-generic_filters )
-*      exp = 0
-*      msg = 'Filter must be removed from generic_filters' ).
 
   ENDMETHOD.
 
   METHOD item_contains_keeps_zeros.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '*2*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '%2%' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '%00002%' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Searching '2' must match ITEMNO '00002' without converting to EBELP.
-*    " The pattern must be '%2%', not '%00002%'.
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '2' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-item[ 1 ]-pattern
-*      exp = '%2%'
-*      msg = 'Item pattern must NOT pad/convert to EBELP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-generic_filters )
-*      exp = 0 ).
 
   ENDMETHOD.
 
     METHOD mixed_eq_and_contains.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000055868' )
+      ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*7*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS '8000055868' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS '%7%' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( to_upper( ls_request-filter_for_amdp-ponumber ) CS 'OR' ) ).
 
-*    " Real UI request: substringof('7',PONUMBER) or PONUMBER eq '8000055868'.
-*    " Both go to AMDP; get_keys combines EQ and LIKE with OR.
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000055868' )
-*        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*7*' ) ) ).
-*
-*    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 2 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 1 ]-value_length
-*      exp = 0
-*      msg = 'EQ entry must have value_length 0' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 2 ]-pattern
-*      exp = '%7%' ).
-*
-*    cl_abap_unit_assert=>assert_initial( ls_request-generic_filters ).
 
   ENDMETHOD.
 
   METHOD supplier_contains_builds_like.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Fuji%' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( to_upper( ls_request-filter_for_amdp-suppliername ) CS 'LIKE' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Pattern is lowercased: AMDP compares LOWER( suppliername ).
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'Fuji' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 1 ]-value
-*      exp = '%fuji%'
-*      msg = 'Supplier pattern must be lowercased' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( ls_request-amdp_filter-supplier[ 1 ]-value_length > 0 )
-*      msg = 'Supplier entry must be marked as LIKE' ).
 
   ENDMETHOD.
 
   METHOD supplier_pattern_no_wildcards.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Fuji%' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( ls_request-filter_for_amdp-suppliername CS '*' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Regression: CP pattern containing asterisks must strip them.
-*    " '%*Fuji*%' never matches anything.
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 1 ]-value
-*      exp = '%fuji%'
-*      msg = 'Asterisks must be stripped from pattern' ).
 
   ENDMETHOD.
 
   METHOD supplier_keeps_inner_spaces.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Lee Hecht*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Lee Hecht%' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP'
-*          low = 'Lee Hecht' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 1 ]-value
-*      exp = '%lee hecht%'
-*      msg = 'Inner spaces in supplier name must be preserved' ).
 
   ENDMETHOD.
 
     METHOD item_contains_digit_two.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '*2*' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( itemno = '00002' ) ( itemno = '00020' ) ( itemno = '00200' )
+      ( itemno = '12345' ) ( itemno = '00001' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-item
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 4 ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_result[ itemno = '00001' ] ) ) ).
 
-*    " Regression: contains '2' must create pattern '%2%', not '%00002%'.
-*    " EBELP is NUMC, CONV ebelp( '2' ) creates '00002'.
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '2' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    " XSA: substringof('2',ITEMNO) matches items 00002, 00020, 00200, 12345, etc.
-*    " ABAP: LIKE '%2%' must match the same set.
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-item[ 1 ]-pattern
-*      exp = '%2%'
-*      msg = 'ITEMNO contains digit must not be converted to NUMCP' ).
 
   ENDMETHOD.
 
   METHOD amdp_filter_empty_by_default.
-*
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 0 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-item )
-*      exp = 0 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-supplier )
-*      exp = 0 ).
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #( ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
 
   ENDMETHOD.
 
@@ -1261,452 +1152,260 @@ METHOD test_cp_case_sensitive_include.
 *----------------------------------------------------------------------
 
   METHOD sort_ascending_with_paging.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Charlie' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
+        paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Bravo' ).
 
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Charlie' )
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( (    property = `SUPPLIERNAME` )  )
-*      paging  = VALUE #( skip = 1 top = 1 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    " Sorted: Alpha, Bravo, Charlie -> window [2..2] = Bravo
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 1 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-suppliername
-*      exp = 'Bravo' ).
 
   ENDMETHOD.
 
   METHOD sort_descending.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Alpha' ) ( suppliername = 'Bravo' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'SUPPLIERNAME' descending = abap_true ) ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Bravo' ).
 
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( ( property   = `SUPPLIERNAME`
-*                         descending = abap_true ) )  ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-suppliername
-*      exp = 'Bravo' ).
 
   ENDMETHOD.
 
   METHOD sort_unknown_property_no_dump.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( orderby = VALUE #( ( property = 'NOT_A_COLUMN' ) ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
 
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000002' itemno = '00001' )
-*      ( ponumber = '8000000001' itemno = '00001' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( (  property = `NOT_A_COLUMN` )  ) ).
-*
-*    " Must not dump; order stays as delivered by AMDP.
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-ponumber
-*      exp = '8000000002' ).
 
   ENDMETHOD.
 
   METHOD top_zero_requested_empty.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( paging = VALUE #( top_requested = abap_true top = 0 ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' )
-*      ( ponumber = '8000000002' itemno = '00001' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      paging = VALUE #( top = 0 top_requested = abap_true ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 0
-*      msg = 'Explicit $top=0 must empty the page result' ).
 
   ENDMETHOD.
 
   METHOD top_zero_not_requested_all.
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' )
-*      ( ponumber = '8000000002' itemno = '00001' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      paging = VALUE #( top = 0 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'Missing $top must keep the unpaged result set' ).
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( paging = VALUE #( top = 0 ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
   ENDMETHOD.
 
   METHOD paging_window_boundaries.
+    setup( ).
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DO 10 TIMES.
+      APPEND VALUE #( ponumber = |80000000{ sy-index WIDTH = 2 PAD = '0' ALIGN = RIGHT }|
+                      itemno = '00001' ) TO lt_result.
+    ENDDO.
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'PONUMBER' ) )
+        paging = VALUE #( skip = 8 top = 5 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000009' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000010' ).
 
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    DO 10 TIMES.
-*      APPEND VALUE #( ponumber = |80000000{ sy-index WIDTH = 2
-*                                            PAD = '0' ALIGN = RIGHT }|
-*                      itemno   = '00001' ) TO lt_result.
-*    ENDDO.
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( ( property = `PONUMBER` ) )
-*      paging  = VALUE #( skip = 8 top = 5 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    " Window [9..13] on 10 rows -> rows 9 and 10 only.
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2 ).
 
   ENDMETHOD.
 
   METHOD no_orderby_leaves_table_asis.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' ) ( ponumber = '8000000001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( ) CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
 
-*    " Default path: execute_request never calls this method without
-*    " orderby, but it must be harmless anyway.
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000002' itemno = '00001' )
-*      ( ponumber = '8000000001' itemno = '00001' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      paging = VALUE #( skip = 0 top = 0 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2 ).
 
   ENDMETHOD.
 
     METHOD generic_eq_filters_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' companycode = '2028' )
+      ( ponumber = '8000000002' companycode = '6305' ) ).
+    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' )
-*      ( ponumber = '8000000002' itemno = '00001' companycode = '6305' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' ) )  ) ).
-*
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-*    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
-*
-*  ENDMETHOD.
-*
-*  METHOD generic_contains_filters_rows.
-*
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001'
-*        polinedesc = 'GSD Local Support (Jan, 2027)' )
-*      ( ponumber = '8000000002' itemno = '00001'
-*        polinedesc = 'Enterprise Plan' ) ).
-*
-*    " Gateway prevedie substringof na CP *hodnota*.
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `POLINEDESC` sign = 'I' option = 'CP'
-*          low = '*Local Support*' ) ) )  ).
-*
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-*    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+  ENDMETHOD.
+
+  METHOD generic_contains_filters_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' polinedesc = 'GSD Local Support (Jan, 2027)' )
+      ( ponumber = '8000000002' polinedesc = 'Enterprise Plan' ) ).
+    filter_rows( EXPORTING i_predicate = `POLINEDESC LIKE '%Local Support%'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
   METHOD generic_two_props_are_anded.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' companycode = '2028' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' companycode = '2028' pocurrency = 'USD' )
+      ( ponumber = '8000000003' companycode = '6305' pocurrency = 'JPY' ) ).
+    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028' AND POCURRENCY = 'JPY'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' pocurrency = 'JPY' )
-*      ( ponumber = '8000000002' itemno = '00001' companycode = '2028' pocurrency = 'USD' )
-*      ( ponumber = '8000000003' itemno = '00001' companycode = '6305' pocurrency = 'JPY' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*    filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `COMPANYCODE` sign = 'I' option = 'EQ' low = '2028' )
-*        ( property = `POCURRENCY`  sign = 'I' option = 'EQ' low = 'JPY' ) )  ) ).
-*
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-*    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
   ENDMETHOD.
 
   METHOD generic_same_prop_is_ored.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( pocurrency = 'JPY' ) ( pocurrency = 'USD' ) ( pocurrency = 'EUR' ) ).
+    filter_rows( EXPORTING i_predicate = `(POCURRENCY = 'JPY' OR POCURRENCY = 'USD')`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pocurrency exp = 'JPY' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-pocurrency exp = 'USD' ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' )
-*      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' )
-*      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'EUR' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-* filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' )
-*        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'USD' ) ) )  ).
-*
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
   ENDMETHOD.
 
   METHOD generic_unknown_prop_no_dump.
+    setup( ).
+    " Unknown SQL columns are rejected, not silently discarded.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    TRY.
+        filter_rows( EXPORTING i_predicate = `NOT_A_COLUMN = 'X'`
+                     CHANGING ct_result = lt_result ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid generic column must raise the domain exception' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_bound( lx_error->previous ).
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( lx_error->previous IS INSTANCE OF cx_amdp_error ) ).
+    ENDTRY.
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' )
-*      ( ponumber = '8000000002' itemno = '00001' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*   filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `NOT_A_COLUMN` sign = 'I' option = 'EQ' low = 'X' )  ) ) ).
-*
-*    " Neznáma property sa ignoruje: žiadny dump, žiadna výnimka,
-*    " riadky ostanú nezmenené.
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 2
-*      msg = 'Unknown property must be ignored' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-ponumber
-*      exp = '8000000001' ).
 
   ENDMETHOD.
 
   METHOD generic_with_sort_and_paging.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000003' pocurrency = 'JPY' suppliername = 'Charlie' )
+      ( ponumber = '8000000001' pocurrency = 'JPY' suppliername = 'Alpha' )
+      ( ponumber = '8000000002' pocurrency = 'USD' suppliername = 'Bravo' ) ).
+    filter_rows( EXPORTING i_predicate = `POCURRENCY = 'JPY'`
+                 CHANGING ct_result = lt_result ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
+        paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Charlie' ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_odata_result.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'JPY' suppliername = 'Charlie' )
-*      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' suppliername = 'Alpha' )
-*      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' suppliername = 'Bravo' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*   filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = `POCURRENCY` sign = 'I' option = 'EQ' low = 'JPY' )  ) )
-*      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
-*      paging  = VALUE #( skip = 1 top = 1 ) ).
-*
-*    TRY.
-*        mo_cut->apply_generic_filter(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*
-*        mo_cut->apply_sort_and_paging(
-*          EXPORTING is_request = ls_request
-*          CHANGING  ct_result  = lt_result ).
-*      CATCH zcx_fi_das_error INTO DATA(lx_error).
-*        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
-*    ENDTRY.
-*
-*    " JPY: Alpha, Charlie -> okno [2..2] = Charlie
-*    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-*    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Charlie' ).
 
   ENDMETHOD.
 
     METHOD pstype_sort_noop_for_over.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode = zif_fi_das_dashboard=>mc_over
+      orderby = VALUE #( ( property = 'PSTYPE' descending = abap_true ) ) ).
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-orderby ).
+    cl_abap_unit_assert=>assert_false( mo_cut->is_full_processing_required( ls_request ) ).
+    check_select( 'PONUMBER,ITEMNO,POLINEDESC' ).
 
-*
-*    " Over/under: single-pstype dataset, PSTYPE sorter is a no-op
-*    " and must not trigger the full-processing path. Verified via
-*    " derive path: orderby cleared -> skip_calculations possible.
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      select  = `PONUMBER,POLINEDESC`
-*      orderby = VALUE #( (   property = `PSTYPE` descending = abap_true ) ) ).
-*
-*    " Simulate the execute_request normalisation for a non-exclude
-*    " mode: PSTYPE orderby is cleared before derivation.
-*    CLEAR ls_request-orderby.
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = mo_cut->should_skip_calculations( ls_request )
-*      msg = 'Cleared PSTYPE sorter must keep the value-help skip' ).
 
   ENDMETHOD.
 
   METHOD pstype_sort_kept_for_exclude.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '9' )
+      ( ponumber = '8000000003' itemno = '00001' pstype = '0' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        mode = zif_fi_das_dashboard=>mc_exclude
+        orderby = VALUE #( ( property = 'PSTYPE' descending = abap_true ) ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pstype exp = '9' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000001' ).
 
 
-*    " Exclude mixes material+service rows: PSTYPE desc is a real
-*    " sort. apply_sort_and_paging must order service ('9') first.
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
-*      ( ponumber = '8000000002' itemno = '00001' pstype = '9' )
-*      ( ponumber = '8000000003' itemno = '00001' pstype = '0' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( (   property   = `PSTYPE`
-*                         descending = abap_true ) ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-pstype
-*      exp = '9'
-*      msg = 'Service rows must sort before material on PSTYPE desc' ).
-*
-*    " Tie-breaker keeps PONUMBER order inside the same pstype.
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 2 ]-ponumber
-*      exp = '8000000001' ).
 
   ENDMETHOD.
 
   METHOD pstype_sort_desc_mixed_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' pstype = '0' )
+      ( ponumber = '8000000002' pstype = '9' )
+      ( ponumber = '8000000003' pstype = '9' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'PSTYPE' descending = abap_true ) )
+        paging = VALUE #( skip = 2 top = 1 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pstype exp = '0' ).
 
-*    " Paging window on the PSTYPE-sorted mixed set: window must be
-*    " applied AFTER the sort (xsodata order of operations).
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
-*      ( ponumber = '8000000002' itemno = '00001' pstype = '9' )
-*      ( ponumber = '8000000003' itemno = '00001' pstype = '9' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( ( property   = `PSTYPE`
-*                         descending = abap_true ) )
-*      paging  = VALUE #( skip = 2 top = 1 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    " Sorted: 9(8000000002), 9(8000000003), 0(8000000001)
-*    " -> window [3..3] = the material row.
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( lt_result )
-*      exp = 1 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lt_result[ 1 ]-pstype
-*      exp = '0' ).
 
   ENDMETHOD.
 
-  METHOD threshold_equal_is_under.
+  METHOD threshold_fixture_classes.
+    setup( ).
 
-    DATA(lv_total) = CONV decfloat34( '100.00' ).
-    DATA(lv_threshold) = CONV decfloat34( '100.00' ).
-
-    cl_abap_unit_assert=>assert_false(
-      act = xsdbool( lv_total > lv_threshold )
-      msg = 'A PO exactly on the threshold must not be classified as Over' ).
-
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lv_total <= lv_threshold )
-      msg = 'A PO exactly on the threshold must be classified as Under' ).
+    " Exact equality needs a prepared scoped PO whose production-calculated total
+    " equals its configured threshold. These fixtures are not labelled as that boundary.
+    DATA(ls_case) = VALUE ts_case(
+      fixture = 'xsa-over-service.json' email = 'adam.strasky@takeda.com'
+      flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+    run_paged_case( ls_case ).
+    assert_no_differences( ).
+    ls_case-fixture = 'xsa-under-service.json'.
+    ls_case-flow = zif_fi_das_dashboard=>mc_under.
+    run_paged_case( ls_case ).
+    assert_no_differences( ).
 
   ENDMETHOD.
 
   METHOD review_day_boundary.
+    setup( ).
 
     cl_abap_unit_assert=>assert_equals(
       act = mo_cut->get_review_action(
@@ -1735,123 +1434,69 @@ METHOD test_cp_case_sensitive_include.
   ENDMETHOD.
 
   METHOD po_multiple_eq_same_property.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' )
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS '8000401022'
+                AND ls_request-filter_for_amdp-ponumber CS '8000000001'
+                AND to_upper( ls_request-filter_for_amdp-ponumber ) CS 'OR' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Multiple EQ on same property = OR (OData range syntax)
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' )
-*        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 2
-*      msg = 'Multiple EQ on same property must go to AMDP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 1 ]-value_length
-*      exp = 0
-*      msg = 'EQ entries must have value_length = 0' ).
-*
-*    cl_abap_unit_assert=>assert_initial( ls_request-generic_filters ).
 
   ENDMETHOD.
 
   METHOD po_eq_and_cp_same_property.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000055868' )
+      ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*7*' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000055868' ) ( ponumber = '8000000007' )
+      ( ponumber = '8000000001' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000055868' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000007' ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Real case: substringof('7',PONUMBER) or PONUMBER eq '8000055868'
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000055868' )
-*        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '*7*' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 2
-*      msg = 'Both EQ and CP must go to AMDP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 1 ]-value_length
-*      exp = 0
-*      msg = 'First entry (EQ) must have value_length = 0' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( ls_request-amdp_filter-po[ 2 ]-value_length > 0 )
-*      msg = 'Second entry (CP) must have value_length > 0' ).
-*
-*    cl_abap_unit_assert=>assert_initial( ls_request-generic_filters ).
 
   ENDMETHOD.
 
   METHOD supplier_multiple_cp_same_prop.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Hitachi*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Fuji%'
+                AND ls_request-filter_for_amdp-suppliername CS '%Hitachi%'
+                AND to_upper( ls_request-filter_for_amdp-suppliername ) CS 'OR' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Multiple CP on same property = OR
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'Fuji' )
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'Hitachi' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-supplier )
-*      exp = 2
-*      msg = 'Multiple CP on same property must go to AMDP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 1 ]-value
-*      exp = '%fuji%' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 2 ]-value
-*      exp = '%hitachi%' ).
 
   ENDMETHOD.
 
   METHOD item_multiple_eq_same_property.
-*
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Multiple ITEMNO EQ values
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00001' )
-*        ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00010' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-item )
-*      exp = 2 ).
-*
-*    cl_abap_unit_assert=>assert_initial( ls_request-generic_filters ).
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00001' )
+      ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00010' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '00001'
+                AND ls_request-filter_for_amdp-item CS '00010'
+                AND to_upper( ls_request-filter_for_amdp-item ) CS 'OR' ) ).
 
   ENDMETHOD.
 
   METHOD item_cp_digit_two.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '*2*' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '%2%' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '00002' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " ITEMNO contains '2' must create '%2%', not '%00002%'
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'ITEMNO' sign = 'I' option = 'CP' low = '*2*' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-item[ 1 ]-pattern
-*      exp = '%2%'
-*      msg = 'ITEMNO CP must not convert to EBELP' ).
 
   ENDMETHOD.
 
@@ -1865,105 +1510,70 @@ METHOD test_cp_case_sensitive_include.
 *----------------------------------------------------------------------
 
   METHOD empty_contains_pattern.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '**' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Empty contains: substringof('',PONUMBER) = match all
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 1
-*      msg = 'Empty contains must create %%' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-po[ 1 ]-pattern
-*      exp = '%%'
-*      msg = 'Empty pattern is %%' ).
 
   ENDMETHOD.
 
   METHOD item_number_with_leading_zeros.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00001' ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-item CS '00001' ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " ITEMNO '00001' should be handled as string, not numeric
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00001' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-item[ 1 ]-value
-*      exp = '00001'
-*      msg = 'Leading zeros must be preserved' ).
 
   ENDMETHOD.
 
   METHOD exclude_sign_filters.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'E' option = 'EQ' low = '8000000001' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Exclude sign (E) should NOT go to AMDP
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'PONUMBER' sign = 'E' option = 'EQ' low = '8000000001' ) ) )  ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_initial(
-*      act = ls_request-amdp_filter-po
-*      msg = 'Exclude (E) filters must stay generic' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-generic_filters )
-*      exp = 1 ).
 
   ENDMETHOD.
 
   METHOD unsupported_option_generic.
+    setup( ).
+    " BT is supported by the current SQL-range seam, including both endpoints.
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'BT'
+        low = '8000000001' high = '8000000999' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' ) ( ponumber = '8000000999' )
+      ( ponumber = '8000001000' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000999' ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " BT (between) or other options should stay generic
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*filter = VALUE #(
-*filter_select_options = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'BT' low = '8000000001' high = '8000000999' ) )  ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_initial(
-*      act = ls_request-amdp_filter-po
-*      msg = 'BT option must stay generic' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-generic_filters )
-*      exp = 1 ).
 
   ENDMETHOD.
 
   METHOD supplier_filter_with_case_sens.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*FUJI*' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'FUJI Electric' ) ( suppliername = 'Fuji Electric' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'FUJI Electric' ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Supplier 'FUJI' should be lowercased to '%fuji%'
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'FUJI' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = ls_request-amdp_filter-supplier[ 1 ]-value
-*      exp = '%fuji%'
-*      msg = 'Supplier pattern must be lowercased' ).
 
   ENDMETHOD.
 
@@ -1972,22 +1582,16 @@ METHOD test_cp_case_sensitive_include.
 *----------------------------------------------------------------------
 
   METHOD skip_high_sorted.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Alpha' ) ( suppliername = 'Bravo' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
+        paging = VALUE #( skip = 999999 top = 100 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
 
-*    DATA lt_result TYPE zif_fi_das_dashboard=>tt_over.
-*
-*    lt_result = VALUE #(
-*      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' )
-*      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo' ) ).
-*
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
-*      paging  = VALUE #( skip = 999999 top = 100 ) ).
-*
-*    mo_cut->apply_sort_and_paging(
-*      EXPORTING is_request = ls_request
-*      CHANGING  ct_result  = lt_result ).
-*
-*    cl_abap_unit_assert=>assert_initial( lt_result ).
 
   ENDMETHOD.
 
@@ -2000,43 +1604,25 @@ METHOD test_cp_case_sensitive_include.
 
 
   METHOD amdp_filter_mixed_properties.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' )
+          ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' )
+          ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) )
+        filter_string = `PONUMBER = '8000000001' AND COMPANYCODE = '2028' AND SUPPLIERNAME LIKE '%Fuji%'` ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    cl_abap_unit_assert=>assert_true( mo_cut->is_full_processing_required( ls_request ) ).
 
-*    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
-*
-*    " Mix of AMDP-supported and generic filters
-*    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-*      generic_filters = VALUE #(
-*        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' )
-*        ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' )
-*        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = 'Fuji' ) ) ).
-*
-*    lo_dashboard->extract_filters( CHANGING cs_request = ls_request ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-po )
-*      exp = 1
-*      msg = 'PONUMBER EQ → AMDP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-amdp_filter-supplier )
-*      exp = 1
-*      msg = 'SUPPLIERNAME CP → AMDP' ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lines( ls_request-generic_filters )
-*      exp = 1
-*      msg = 'COMPANYCODE → generic (not AMDP-supported property)' ).
 
   ENDMETHOD.
 
 
 
 
-
-ENDCLASS.
-
-
-CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 *----------------------------------------------------------------------
 * Scope NULL / wildcard matrix
@@ -2062,90 +1648,108 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   " CC=NULL, MU=*
   METHOD test_scope_01.
+    setup( ).
     run_scope_case( '01' ).
   ENDMETHOD.
 
   " CC=*, MU=NULL
   METHOD test_scope_02.
+    setup( ).
     run_scope_case( '02' ).
   ENDMETHOD.
 
   " CC=NULL, MU=NULL
   METHOD test_scope_03.
+    setup( ).
     run_scope_case( '03' ).
   ENDMETHOD.
 
   " CC=8036490216, MU=NULL
   METHOD test_scope_04.
+    setup( ).
     run_scope_case( '04' ).
   ENDMETHOD.
 
   " CC=NULL, MU=EM_HM_DI
   METHOD test_scope_05.
+    setup( ).
     run_scope_case( '05' ).
   ENDMETHOD.
 
   " CC=8036490216, MU=EM_HM_DI
   METHOD test_scope_06.
+    setup( ).
     run_scope_case( '06' ).
   ENDMETHOD.
 
   " CC=*, MU=MU_VBU_I,VBD,NULL
   METHOD test_scope_07.
+    setup( ).
     run_scope_case( '07' ).
   ENDMETHOD.
 
   " CC=*, MU=*,NULL
   METHOD test_scope_08.
+    setup( ).
     run_scope_case( '08' ).
   ENDMETHOD.
 
   " CC=8036490216, MU=EM_HM_DI,NULL
   METHOD test_scope_09.
+    setup( ).
     run_scope_case( '09' ).
   ENDMETHOD.
 
   " CC=8036490216,9701219, MU=NULL
   METHOD test_scope_10.
+    setup( ).
     run_scope_case( '10' ).
   ENDMETHOD.
 
   " CC=8036490216,9701219, MU=EM_HM_DI,HM_DI
   METHOD test_scope_11.
+    setup( ).
     run_scope_case( '11' ).
   ENDMETHOD.
 
   " CC=8036490216,9701219, MU=*
   METHOD test_scope_12.
+    setup( ).
     run_scope_case( '12' ).
   ENDMETHOD.
 
   " CC=8036490216, MU=*,NULL
   METHOD test_scope_13.
+    setup( ).
     run_scope_case( '13' ).
   ENDMETHOD.
 
   " CC=*, MU=EM_HM_DI,HM_DI
   METHOD test_scope_14.
+    setup( ).
     run_scope_case( '14' ).
   ENDMETHOD.
 
   " BUKRS=*, CC=NULL, MU=NULL
   METHOD test_scope_15.
+    setup( ).
     run_scope_case( '15' ).
   ENDMETHOD.
 
   " BUKRS=*, CC=*, MU=*
   METHOD test_scope_16.
+    setup( ).
     run_scope_case( '16' ).
   ENDMETHOD.
 
   " CC=8036490216,NULL, MU=MU_VBU_I,NULL,VBD (parser: NULL inside list)
   METHOD test_scope_17.
+    setup( ).
     run_scope_case( '17' ).
   ENDMETHOD.
 
    METHOD test_scope_18.
+    setup( ).
 
     run_scope_case( '18' ).
 
@@ -2153,6 +1757,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_scope_19.
+    setup( ).
 
     run_scope_case( '19' ).
 
@@ -2160,6 +1765,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_scope_20.
+    setup( ).
 
     run_scope_case( '20' ).
 
@@ -2167,6 +1773,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_scope_21.
+    setup( ).
 
     run_scope_case( '21' ).
 
@@ -2174,6 +1781,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_scope_22.
+    setup( ).
 
     run_scope_case( '22' ).
 
@@ -2181,48 +1789,56 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_scope_23.
+    setup( ).
 
     run_scope_case( '23' ).
 
   ENDMETHOD.
 
     METHOD test_scope_24.
+    setup( ).
 
     run_scope_case( '24' ).
 
   ENDMETHOD.
 
     METHOD test_scope_25.
+    setup( ).
 
     run_scope_case( '25' ).
 
   ENDMETHOD.
 
     METHOD test_scope_26.
+    setup( ).
 
     run_scope_case( '26' ).
 
   ENDMETHOD.
 
     METHOD test_scope_27.
+    setup( ).
 
     run_scope_case( '27' ).
 
   ENDMETHOD.
 
     METHOD test_scope_28.
+    setup( ).
 
     run_scope_case( '28' ).
 
   ENDMETHOD.
 
     METHOD test_scope_29.
+    setup( ).
 
     run_scope_case( '29' ).
 
   ENDMETHOD.
 
     METHOD test_scope_30.
+    setup( ).
 
     run_scope_case( '30' ).
 
@@ -2234,6 +1850,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   METHOD setup.
 
+    mo_cut = NEW #( ).
     CLEAR:
       mt_differences,
       mv_difference_count.
@@ -2244,6 +1861,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_over_material.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2268,6 +1886,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_over_service.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2292,6 +1911,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_under_material.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2316,6 +1936,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_under_service.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2340,6 +1961,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_exclude.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2363,6 +1985,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_over_material_owner.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2389,6 +2012,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_over_service_owner.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2415,6 +2039,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_under_material_owner.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2441,6 +2066,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_under_service_owner.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2467,6 +2093,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_exclude_owner.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2492,6 +2119,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_filter.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2515,52 +2143,23 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_selection.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      fixture = 'xsa-selection.json' email = 'adam.strasky@takeda.com'
+      flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_select_options = VALUE #(
+        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' )
+        ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00002' )
+        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
+    run_paged_case( ls_case ).
+    assert_no_differences( ).
 
-*    DATA ls_case TYPE ts_case.
-*
-*    ls_case-fixture =
-*      'xsa-selection.json'.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-ponumber =
-*  VALUE #(
-*    (
-*      sign   = 'I'
-*      option = 'EQ'
-*      low    = '8000401022'
-*    ) ).
-*
-*    ls_case-itemno =
-*      VALUE #(
-*        (
-*          sign   = 'I'
-*          option = 'EQ'
-*          low    = '2'
-*        ) ).
-*
-*
-*    ls_case-supplier =
-*      VALUE #(
-*        (
-*          value    = 'Fuji'
-*        ) ).
-*
-*    run_paged_case(
-*      is_case = ls_case ).
-*
-*    assert_no_differences( ).
 
   ENDMETHOD.
 
   METHOD test_y_format.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2586,6 +2185,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
    METHOD test_x_format.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2611,6 +2211,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
    METHOD test_empty_format.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -2637,6 +2238,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
 
   METHOD test_inlinecount_with_top_one.
+    setup( ).
 
     DATA:
       ls_case        TYPE ts_case,
@@ -2707,6 +2309,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_no_inlinecount.
+    setup( ).
 
     DATA:
       ls_case TYPE ts_case,
@@ -2747,6 +2350,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_skip_beyond_result_set.
+    setup( ).
 
     DATA:
       ls_case        TYPE ts_case,
@@ -2797,6 +2401,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_top_zero.
+    setup( ).
 
     DATA:
       ls_case_full TYPE ts_case,
@@ -2849,237 +2454,88 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_po_value_help.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      select_list = 'PONUMBER,POLINEDESC' filter_raw = `substringof('40102',PONUMBER)`
+      top = 50 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter(
+      i_json = lv_json i_property = 'PONUMBER' i_value = '40102' i_contains = abap_true ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8,
-*      lv_rows  TYPE i.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-select_list = 'PONUMBER,POLINEDESC'.
-*    ls_case-po_contains = VALUE #( ( value = '40102' ) ).
-*    ls_case-top = 50.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    lv_rows = get_result_count( lv_json ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_rows > 0 )
-*      msg = 'The PO value-help request must return at least one matching row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= lv_rows )
-*      msg = 'Inline count must be at least the number of returned rows' ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'PONUMBER'
-*      i_value    = '40102'
-*      i_contains = abap_true ).
 
   ENDMETHOD.
 
   METHOD test_item_value_help.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_material
+      select_list = 'ITEMNO' filter_raw = `substringof('00002',ITEMNO)`
+      top = 50 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter(
+      i_json = lv_json i_property = 'ITEMNO' i_value = '00002' i_contains = abap_true ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8,
-*      lv_rows  TYPE i.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-select_list = 'ITEMNO'.
-*    ls_case-item_contains = VALUE #( ( value = '00002' ) ).
-*    ls_case-top = 50.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    lv_rows = get_result_count( lv_json ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_rows > 0 )
-*      msg = 'The item value-help request must return at least one matching row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= lv_rows ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'ITEMNO'
-*      i_value    = '00002'
-*      i_contains = abap_true ).
 
   ENDMETHOD.
 
   METHOD test_supplier_value_help.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      select_list = 'SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Fuji',SUPPLIERNAME)`
+      top = 50 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter(
+      i_json = lv_json i_property = 'SUPPLIERNAME' i_value = 'Fuji' i_contains = abap_true ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8,
-*      lv_rows  TYPE i.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-select_list = 'SUPPLIERID,SUPPLIERNAME'.
-*    ls_case-supplier = VALUE #( ( value = 'Fuji' ) ).
-*    ls_case-top = 50.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    lv_rows = get_result_count( lv_json ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_rows > 0 )
-*      msg = 'The supplier value-help request must return at least one matching row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= lv_rows ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'SUPPLIERNAME'
-*      i_value    = 'Fuji'
-*      i_contains = abap_true ).
 
   ENDMETHOD.
 
   METHOD test_filter_sort_and_paging.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `POCURRENCY eq 'JPY'` orderby = 'SUPPLIERNAME'
+      top = 100 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_page_1) e_inline_count = DATA(lv_count_1) ).
+    get_gateway_response( EXPORTING is_case = ls_case i_skip = 100
+      IMPORTING e_json = DATA(lv_page_2) e_inline_count = DATA(lv_count_2) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_page_1 ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count_1 >= get_result_count( lv_page_1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lv_count_2 exp = lv_count_1 ).
+    assert_all_rows_match_filter( i_json = lv_page_1 i_property = 'POCURRENCY' i_value = 'JPY' ).
+    assert_rows_sorted( i_json = lv_page_1 i_property = 'SUPPLIERNAME' ).
+    IF lv_count_1 > 100.
+      cl_abap_unit_assert=>assert_not_initial( get_result_count( lv_page_2 ) ).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( read_result_property( i_json = lv_page_1
+          i_index = get_result_count( lv_page_1 ) i_property = 'SUPPLIERNAME' )
+          <= read_first_result_property( i_json = lv_page_2 i_property = 'SUPPLIERNAME' ) ) ).
+    ENDIF.
+    assert_all_rows_match_filter( i_json = lv_page_2 i_property = 'POCURRENCY' i_value = 'JPY' ).
+    assert_rows_sorted( i_json = lv_page_2 i_property = 'SUPPLIERNAME' ).
+    assert_no_duplica_across_pages( i_json_page_1 = lv_page_1 i_json_page_2 = lv_page_2 ).
 
-*    DATA:
-*      ls_case        TYPE ts_case,
-*      lv_json_page_1 TYPE string,
-*      lv_json_page_2 TYPE string,
-*      lv_count_1     TYPE int8,
-*      lv_count_2     TYPE int8.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-generic_filters = VALUE #(
-*      ( property = 'POCURRENCY'
-*        option   = 'EQ'
-*        low      = 'JPY' ) ).
-*    ls_case-orderby = 'SUPPLIERNAME'.
-*    ls_case-top = 100.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*        i_skip         = 0
-*      IMPORTING
-*        e_json         = lv_json_page_1
-*        e_inline_count = lv_count_1 ).
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*        i_skip         = 100
-*      IMPORTING
-*        e_json         = lv_json_page_2
-*        e_inline_count = lv_count_2 ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count_1 >= get_result_count( lv_json_page_1 ) ) ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lv_count_2
-*      exp = lv_count_1
-*      msg = 'Inline count must stay stable across filtered pages' ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json_page_1
-*      i_property = 'POCURRENCY'
-*      i_value    = 'JPY' ).
-*
-*    assert_rows_sorted(
-*      i_json       = lv_json_page_1
-*      i_property   = 'SUPPLIERNAME'
-*      i_descending = abap_false ).
-*
-*     IF lv_count_1 > 100.
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( get_result_count( lv_json_page_2 ) > 0 )
-*      msg = 'Filtered count exceeds page size but the second page is empty' ).
-*
-*  ENDIF.
-*
-*    IF get_result_count( lv_json_page_2 ) > 0.
-*
-*      assert_all_rows_match_filter(
-*        i_json     = lv_json_page_2
-*        i_property = 'POCURRENCY'
-*        i_value    = 'JPY' ).
-*
-*      assert_rows_sorted(
-*        i_json       = lv_json_page_2
-*        i_property   = 'SUPPLIERNAME'
-*        i_descending = abap_false ).
-*
-*      assert_no_duplica_across_pages(
-*        i_json_page_1 = lv_json_page_1
-*        i_json_page_2 = lv_json_page_2 ).
-*
-*    ENDIF.
 
   ENDMETHOD.
 
   METHOD test_under_paging.
+    setup( ).
 
     DATA:
       ls_case        TYPE ts_case,
@@ -3140,6 +2596,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_excl_paging.
+    setup( ).
 
     DATA:
       ls_case        TYPE ts_case,
@@ -3200,6 +2657,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_exclusion_pstype_desc.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -3246,6 +2704,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_exclusion_pstype_asc.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -3291,6 +2750,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_excl_pstype_pages.
+    setup( ).
 
     DATA:
       ls_case        TYPE ts_case,
@@ -3388,6 +2848,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_orderby_invalid.
+    setup( ).
 
     DATA ls_case TYPE ts_case.
 
@@ -3431,295 +2892,133 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_nonexistent_supplier.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `substringof('ZZZ_NO_SUCH_SUPPLIER_20260925',SUPPLIERNAME)`
+      top = 10 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_equals( act = get_result_count( lv_json ) exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = lv_count exp = 0 ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_service.
-*
-*    ls_case-supplier = VALUE #( ( value = 'ZZZ_NO_SUCH_SUPPLIER_20260925' ) ).
-*    ls_case-top = 10.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = get_result_count( lv_json )
-*      exp = 0 ).
-*
-*    cl_abap_unit_assert=>assert_equals(
-*      act = lv_count
-*      exp = 0
-*      msg = 'A non-existent supplier must produce __count=0' ).
 
   ENDMETHOD.
 
-*  METHOD test_all_pstype_request.
-*
-*    DATA:
-*      ls_case        TYPE ts_case,
-*      lv_json        TYPE string,
-*      lv_count       TYPE int8,
-*      lv_row_count   TYPE i,
-*      lv_row_index   TYPE i,
-*      lv_object_from TYPE i,
-*      lv_object_to   TYPE i,
-*      lv_pstype      TYPE string,
-*      lv_has_material TYPE abap_bool,
-*      lv_has_service  TYPE abap_bool.
-*
-*    ls_case-email =
-*      'adam.strasky@takeda.com'.
-*
-*    ls_case-flow =
-*      zif_fi_das_dashboard=>mc_over.
-*
-*    ls_case-pstype =
-*      zif_fi_das_dashboard=>mc_pstype_all.
-*
-*    ls_case-select_list = 'PONUMBER,ITEMNO,PSTYPE'.
-*    ls_case-top = mc_page_size.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    lv_row_count =
-*      get_result_count( lv_json ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= lv_row_count )
-*      msg = 'IP_PSTYPE=* must return a valid inline count when supported' ).
-*
-*    WHILE lv_row_index < lv_row_count.
-*
-*      lv_row_index = lv_row_index + 1.
-*
-*      find_result_object_bounds(
-*        EXPORTING
-*          i_json        = lv_json
-*          i_index       = lv_row_index
-*        IMPORTING
-*          e_object_from = lv_object_from
-*          e_object_to   = lv_object_to ).
-*
-*      DATA(lt_properties) =
-*        read_object_properties(
-*          i_json        = lv_json
-*          i_object_from = lv_object_from
-*          i_object_to   = lv_object_to ).
-*
-*      CLEAR lv_pstype.
-*
-*      READ TABLE lt_properties ASSIGNING FIELD-SYMBOL(<ls_property>)
-*        WITH TABLE KEY name = 'PSTYPE'.
-*
-*      IF sy-subrc = 0.
-*        lv_pstype =
-*          unquote_json(
-*            i_token = <ls_property>-token ).
-*      ENDIF.
-*
-*      cl_abap_unit_assert=>assert_true(
-*        act = xsdbool( lv_pstype = '0' OR lv_pstype = '9' )
-*        msg = 'IP_PSTYPE=* must only return material or service PSTYPE values' ).
-*
-*      IF lv_pstype = '0'.
-*        lv_has_material = abap_true.
-*      ELSEIF lv_pstype = '9'.
-*        lv_has_service = abap_true.
-*      ENDIF.
-*
-*    ENDWHILE.
-*
-*    IF lv_count > 0.
-*      cl_abap_unit_assert=>assert_true(
-*        act = xsdbool( lv_row_count > 0 )
-*        msg = 'IP_PSTYPE=* must return at least one row on the fetched page when count > 0' ).
-*
-*      IF lv_count = lv_row_count.
-*        cl_abap_unit_assert=>assert_true(
-*          act = xsdbool(
-*            lv_has_material = abap_true
-*            AND lv_has_service = abap_true )
-*          msg = 'IP_PSTYPE=* must return both material and service rows' ).
-*      ENDIF.
-*    ENDIF.
-*
-*  ENDMETHOD.
+  METHOD test_all_pstype_request.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_all
+      select_list = 'PONUMBER,ITEMNO,PSTYPE'
+      top = 1000 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    DATA(lv_rows) = get_result_count( lv_json ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= lv_rows ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_rows > 0 ) ).
+    DO lv_rows TIMES.
+      DATA(lv_pstype) = read_result_property(
+        i_json = lv_json i_index = sy-index i_property = 'PSTYPE' ).
+      cl_abap_unit_assert=>assert_true( act = xsdbool( lv_pstype = '0' OR lv_pstype = '9' ) ).
+    ENDDO.
+    " Validate each single-type result against the corresponding combined view.
+    DATA(lt_types) = VALUE tt_string( ( `0` ) ( `9` ) ).
+    DATA lv_combined_count TYPE int8.
+    LOOP AT lt_types INTO DATA(lv_type).
+      ls_case-pstype = lv_type.
+      get_gateway_response( EXPORTING is_case = ls_case
+        IMPORTING e_json = DATA(lv_single) e_inline_count = DATA(lv_single_count) ).
+      assert_all_rows_match_filter( i_json = lv_single i_property = 'PSTYPE' i_value = lv_type ).
+      cl_abap_unit_assert=>assert_true( act = xsdbool( lv_single_count > 0 ) ).
+      lv_combined_count = lv_combined_count + lv_single_count.
+      ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_all.
+      ls_case-filter_raw = |PSTYPE eq '{ lv_type }'|.
+      get_gateway_response( EXPORTING is_case = ls_case
+        IMPORTING e_json = DATA(lv_combined) e_inline_count = DATA(lv_type_count) ).
+      cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_combined ) > 0 ) ).
+      assert_all_rows_match_filter(
+        i_json = lv_combined i_property = 'PSTYPE' i_value = lv_type ).
+      cl_abap_unit_assert=>assert_equals(
+        act = lv_type_count exp = lv_single_count
+        msg = |The all-PSTYPE request must retain the complete { lv_type } subset| ).
+      CLEAR ls_case-filter_raw.
+      FREE: lv_single, lv_combined.
+    ENDLOOP.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count exp = lv_combined_count
+      msg = 'All-PSTYPE count must equal material plus service, without losing a type' ).
+  ENDMETHOD.
 
   METHOD test_filter_companycode.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `COMPANYCODE eq '2028'`
+      top = 100 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter( i_json = lv_json i_property = 'COMPANYCODE' i_value = '2028' ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email = 'adam.strasky@takeda.com'.
-*    ls_case-flow = zif_fi_das_dashboard=>mc_over.
-*    ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-*    ls_case-generic_filters = VALUE #(
-*      ( property = 'COMPANYCODE' option = 'EQ' low = '2028' ) ).
-*    ls_case-top = 100.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( get_result_count( lv_json ) > 0 )
-*      msg = 'COMPANYCODE=2028 must return at least one live row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'COMPANYCODE'
-*      i_value    = '2028' ).
 
   ENDMETHOD.
 
   METHOD test_filter_polinedesc.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `substringof('Local Support',POLINEDESC)`
+      top = 100 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter(
+      i_json = lv_json i_property = 'POLINEDESC' i_value = 'Local Support' i_contains = abap_true ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email = 'adam.strasky@takeda.com'.
-*    ls_case-flow = zif_fi_das_dashboard=>mc_over.
-*    ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-*    ls_case-generic_filters = VALUE #(
-*      ( property = 'POLINEDESC' option = 'CP' low = 'Local Support' ) ).
-*    ls_case-top = 100.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( get_result_count( lv_json ) > 0 )
-*      msg = 'Local Support filter must return at least one live row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'POLINEDESC'
-*      i_value    = 'Local Support'
-*      i_contains = abap_true ).
 
   ENDMETHOD.
 
   METHOD test_filter_curr_company.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `POCURRENCY eq 'JPY' and COMPANYCODE eq '2028'`
+      top = 100 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter( i_json = lv_json i_property = 'POCURRENCY' i_value = 'JPY' ).
+    assert_all_rows_match_filter( i_json = lv_json i_property = 'COMPANYCODE' i_value = '2028' ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email = 'adam.strasky@takeda.com'.
-*    ls_case-flow = zif_fi_das_dashboard=>mc_over.
-*    ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-*    ls_case-generic_filters = VALUE #(
-*      ( property = 'POCURRENCY'  option = 'EQ' low = 'JPY' )
-*      ( property = 'COMPANYCODE' option = 'EQ' low = '2028' ) ).
-*    ls_case-top = 100.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'POCURRENCY'
-*      i_value    = 'JPY' ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'COMPANYCODE'
-*      i_value    = '2028' ).
 
   ENDMETHOD.
 
   METHOD test_filter_supplierid.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `SUPPLIERID eq '426870'`
+      top = 100 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter( i_json = lv_json i_property = 'SUPPLIERID' i_value = '426870' ).
 
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email = 'adam.strasky@takeda.com'.
-*    ls_case-flow = zif_fi_das_dashboard=>mc_over.
-*    ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-*    ls_case-generic_filters = VALUE #(
-*      ( property = 'SUPPLIERID' option = 'EQ' low = '426870' ) ).
-*    ls_case-top = 100.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( get_result_count( lv_json ) > 0 )
-*      msg = 'SUPPLIERID=426870 must return at least one live row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'SUPPLIERID'
-*      i_value    = '426870' ).
 
   ENDMETHOD.
 
   METHOD test_filter_po_or_supplier.
+    setup( ).
 
     DATA:
       ls_case      TYPE ts_case,
@@ -3779,115 +3078,14 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
  METHOD test_select_calc_status.
+    setup( ).
+    check_select( 'PONUMBER,ITEMNO,STATUS' ).
 
-*  DATA:
-*    ls_case_select TYPE ts_case,
-*    ls_case_full   TYPE ts_case,
-*    lv_json_select TYPE string,
-*    lv_json_full   TYPE string,
-*    lv_status_sel  TYPE string,
-*    lv_status_full TYPE string,
-*    lv_ponumber    TYPE string,
-*    lv_itemno      TYPE string.
-*
-*  ls_case_select-email =
-*    'adam.strasky@takeda.com'.
-*
-*  ls_case_select-flow =
-*    zif_fi_das_dashboard=>mc_over.
-*
-*  ls_case_select-pstype =
-*    zif_fi_das_dashboard=>mc_pstype_service.
-*
-*  " ITEMNO is required so the test can identify the exact source row.
-*  " STATUS remains a calculated field, therefore this still verifies
-*  " that the lightweight calculation-skip path is not used.
-*  ls_case_select-select_list =
-*    'PONUMBER,ITEMNO,STATUS'.
-*
-*  ls_case_select-top = 1.
-*  ls_case_select-top_specified = abap_true.
-*
-*  get_gateway_response(
-*    EXPORTING
-*      is_case = ls_case_select
-*    IMPORTING
-*      e_json  = lv_json_select ).
-*
-*  cl_abap_unit_assert=>assert_equals(
-*    act = get_result_count( lv_json_select )
-*    exp = 1
-*    msg = 'Calculated select request must return exactly one row' ).
-*
-*  read_first_result_key(
-*    EXPORTING
-*      i_json     = lv_json_select
-*    IMPORTING
-*      e_ponumber = lv_ponumber
-*      e_itemno   = lv_itemno ).
-*
-*  cl_abap_unit_assert=>assert_not_initial(
-*    act = lv_ponumber
-*    msg = 'Selected response must contain PONUMBER' ).
-*
-*  cl_abap_unit_assert=>assert_not_initial(
-*    act = lv_itemno
-*    msg = 'Selected response must contain ITEMNO' ).
-*
-*  lv_status_sel =
-*    read_first_result_property(
-*      i_json     = lv_json_select
-*      i_property = 'STATUS' ).
-*
-*  cl_abap_unit_assert=>assert_true(
-*    act = xsdbool(
-*      lv_status_sel IS NOT INITIAL
-*      AND to_upper( lv_status_sel ) <> 'NULL' )
-*    msg = 'Calculated STATUS must be present in restricted $select' ).
-*
-*  " Read the exact same PO/item through the unrestricted path.
-*  ls_case_full = ls_case_select.
-*
-*  CLEAR:
-*    ls_case_full-select_list,
-*    ls_case_full-top,
-*    ls_case_full-top_specified.
-*
-*  ls_case_full-ponumber = VALUE #(
-*    ( sign   = 'I'
-*      option = 'EQ'
-*      low    = CONV ebeln( lv_ponumber ) ) ).
-*
-*  ls_case_full-itemno = VALUE #(
-*    ( sign   = 'I'
-*      option = 'EQ'
-*      low    = CONV ebelp( lv_itemno ) ) ).
-*
-*  get_gateway_response(
-*    EXPORTING
-*      is_case = ls_case_full
-*    IMPORTING
-*      e_json  = lv_json_full ).
-*
-*  cl_abap_unit_assert=>assert_equals(
-*    act = get_result_count( lv_json_full )
-*    exp = 1
-*    msg = |Full request for { lv_ponumber }/{ lv_itemno } must return one row| ).
-*
-*  lv_status_full =
-*    read_first_result_property(
-*      i_json     = lv_json_full
-*      i_property = 'STATUS' ).
-*
-*  cl_abap_unit_assert=>assert_equals(
-*    act = lv_status_sel
-*    exp = lv_status_full
-*    msg = |Restricted $select returned a different STATUS for |
-*       && |{ lv_ponumber }/{ lv_itemno }| ).
 
 ENDMETHOD.
 
   METHOD test_sort_amountaccrued.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -3922,6 +3120,7 @@ ENDMETHOD.
 
 
   METHOD test_sort_reviewed_by.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -3955,6 +3154,7 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD test_skip_high_sorted.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -3989,6 +3189,7 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD test_empty_contains_po.
+    setup( ).
 
     DATA:
       ls_case_base   TYPE ts_case,
@@ -4060,6 +3261,7 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD test_under_po_help.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -4098,6 +3300,7 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD test_excl_po_help.
+    setup( ).
 
     DATA:
       ls_case  TYPE ts_case,
@@ -4136,40 +3339,18 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD test_under_supplier_help.
-*
-*    DATA:
-*      ls_case  TYPE ts_case,
-*      lv_json  TYPE string,
-*      lv_count TYPE int8.
-*
-*    ls_case-email = 'adam.strasky@takeda.com'.
-*    ls_case-flow = zif_fi_das_dashboard=>mc_under.
-*    ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-*    ls_case-select_list = 'SUPPLIERID,SUPPLIERNAME'.
-*    ls_case-supplier = VALUE #( ( value = 'Lee Hecht' ) ).
-*    ls_case-top = 50.
-*    ls_case-top_specified = abap_true.
-*    ls_case-inlinecount = abap_true.
-*
-*    get_gateway_response(
-*      EXPORTING
-*        is_case        = ls_case
-*      IMPORTING
-*        e_json         = lv_json
-*        e_inline_count = lv_count ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( get_result_count( lv_json ) > 0 )
-*      msg = 'Under supplier value help must return at least one live row' ).
-*
-*    cl_abap_unit_assert=>assert_true(
-*      act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
-*
-*    assert_all_rows_match_filter(
-*      i_json     = lv_json
-*      i_property = 'SUPPLIERNAME'
-*      i_value    = 'Lee Hecht'
-*      i_contains = abap_true ).
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_under
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      select_list = 'SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Lee Hecht',SUPPLIERNAME)`
+      top = 50 top_specified = abap_true inlinecount = abap_true ).
+    get_gateway_response( EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( get_result_count( lv_json ) > 0 ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_count >= get_result_count( lv_json ) ) ).
+    assert_all_rows_match_filter(
+      i_json = lv_json i_property = 'SUPPLIERNAME' i_value = 'Lee Hecht' i_contains = abap_true ).
 
   ENDMETHOD.
 
@@ -4199,6 +3380,42 @@ ENDMETHOD.
       build_expected_index(
         i_json = lv_expected_json ).
 
+    IF i_complex_filter = abap_true OR i_cross_or_filter = abap_true.
+      DATA lv_cross_or_witnesses TYPE i.
+      LOOP AT lt_expected_index ASSIGNING FIELD-SYMBOL(<ls_candidate>).
+        DATA(lt_properties) = read_object_properties(
+          i_json = lv_expected_json i_object_from = <ls_candidate>-object_from
+          i_object_to = <ls_candidate>-object_to ).
+        DATA lv_matches TYPE abap_bool.
+        IF i_complex_filter = abap_true.
+          lv_matches = matches_complex_fixture( lt_properties ).
+        ELSE.
+          cl_abap_unit_assert=>assert_true(
+            act = xsdbool( line_exists( lt_properties[ name = 'SUPPLIERNAME' ] ) ) ).
+          DATA(lv_supplier_token) = lt_properties[ name = 'SUPPLIERNAME' ]-token.
+          DATA(lv_supplier) = unquote_json( lv_supplier_token ).
+          lv_matches = xsdbool(
+            <ls_candidate>-ponumber = '8000401022'
+            OR find( val = lv_supplier sub = 'Fuji' case = abap_true ) >= 0 ).
+          IF lv_matches = abap_true AND <ls_candidate>-ponumber <> '8000401022'.
+            lv_cross_or_witnesses = lv_cross_or_witnesses + 1.
+          ENDIF.
+        ENDIF.
+        IF lv_matches = abap_false.
+          DELETE TABLE lt_expected_index FROM <ls_candidate>.
+        ENDIF.
+      ENDLOOP.
+      FREE lt_properties.
+      cl_abap_unit_assert=>assert_not_initial(
+        act = lt_expected_index
+        msg = 'The real fixture must contain positive complete-predicate witnesses' ).
+      IF i_cross_or_filter = abap_true.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( lv_cross_or_witnesses > 0 )
+          msg = 'Cross-property OR must retain supplier witnesses outside the projected PO key' ).
+      ENDIF.
+    ENDIF.
+
     WHILE lv_finished = abap_false.
 
       CLEAR:
@@ -4218,7 +3435,10 @@ ENDMETHOD.
         build_expected_index(
           i_json = lv_actual_json ).
 
-      lv_page_rows = lines( lt_actual_index ).
+      lv_page_rows = get_result_count( lv_actual_json ).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( lv_page_rows <= mc_page_size )
+        msg = 'Fixture parity must retain at most one bounded Gateway page' ).
 
       compare_actual_page(
         EXPORTING
@@ -4239,7 +3459,6 @@ ENDMETHOD.
 
       IF lv_page_rows = 0.
         lv_finished = abap_true.
-        CONTINUE.
       ENDIF.
 
       lv_skip = lv_skip + lv_page_rows.
@@ -4252,7 +3471,11 @@ ENDMETHOD.
         lv_finished = abap_true.
       ENDIF.
 
-      FREE lt_actual_index.
+      IF lv_skip > lines( lt_expected_index ) + mc_page_size.
+        add_difference( |Paging exceeded the fixture cardinality; Fixture={ is_case-fixture }| ).
+        lv_finished = abap_true.
+      ENDIF.
+      FREE: lt_actual_index, lv_actual_json.
 
     ENDWHILE.
 
@@ -4295,6 +3518,7 @@ ENDMETHOD.
   METHOD get_gateway_response.
 
     DATA lv_path TYPE string.
+    CLEAR: e_json, e_inline_count.
 
     lv_path =
       build_resource_path(
@@ -4417,129 +3641,60 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD append_filter.
+    DATA: lt_properties TYPE tt_property_name,
+          lt_clauses TYPE stringtab,
+          lt_include TYPE stringtab,
+          lt_exclude TYPE stringtab,
+          lv_part TYPE string,
+          lv_group TYPE string.
+    LOOP AT is_case-filter_select_options INTO DATA(ls_filter).
+      INSERT VALUE #( name = ls_filter-property ) INTO TABLE lt_properties.
+    ENDLOOP.
+    LOOP AT lt_properties INTO DATA(ls_property).
+      CLEAR: lt_include, lt_exclude.
+      LOOP AT is_case-filter_select_options INTO ls_filter
+        WHERE property = ls_property-name.
+        DATA(lv_low) = odata_quote( ls_filter-low ).
+        DATA(lv_high) = odata_quote( ls_filter-high ).
+        CASE ls_filter-option.
+          WHEN 'EQ'.
+            lv_part = |{ ls_property-name } eq '{ lv_low }'|.
+          WHEN 'NE'.
+            lv_part = |{ ls_property-name } ne '{ lv_low }'|.
+          WHEN 'BT'.
+            lv_part = |({ ls_property-name } ge '{ lv_low }' and |
+                   && |{ ls_property-name } le '{ lv_high }')|.
+          WHEN 'CP'.
+            " Gateway CP contains patterns have only outer asterisks.
+            SHIFT lv_low LEFT DELETING LEADING '*'.
+            SHIFT lv_low RIGHT DELETING TRAILING '*'.
+            cl_abap_unit_assert=>assert_false(
+              act = xsdbool( lv_low CS '*' OR lv_low CS '+' )
+              msg = 'This fixture URI helper supports only substring CP patterns' ).
+            lv_part = |substringof('{ lv_low }',{ ls_property-name })|.
+          WHEN OTHERS.
+            cl_abap_unit_assert=>fail( msg = |Unsupported fixture range option { ls_filter-option }| ).
+        ENDCASE.
+        IF ls_filter-sign = 'E'.
+          APPEND |not ({ lv_part })| TO lt_exclude.
+        ELSE.
+          APPEND lv_part TO lt_include.
+        ENDIF.
+      ENDLOOP.
+      IF lt_include IS NOT INITIAL.
+        CONCATENATE LINES OF lt_include INTO lv_group SEPARATED BY ' or '.
+        APPEND |({ lv_group })| TO lt_clauses.
+      ENDIF.
+      APPEND LINES OF lt_exclude TO lt_clauses.
+    ENDLOOP.
+    IF is_case-filter_raw IS NOT INITIAL.
+      APPEND |({ is_case-filter_raw })| TO lt_clauses.
+    ENDIF.
+    IF lt_clauses IS NOT INITIAL.
+      CONCATENATE LINES OF lt_clauses INTO lv_group SEPARATED BY ' and '.
+      cv_path = cv_path && |&$filter={ cl_http_utility=>escape_url( lv_group ) }|.
+    ENDIF.
 
-*    DATA:
-*      lt_filters TYPE stringtab,
-*      lv_filter  TYPE string,
-*      lv_low     TYPE string,
-*      lv_high    TYPE string,
-*      lv_part    TYPE string.
-*
-*    LOOP AT is_case-ponumber ASSIGNING FIELD-SYMBOL(<ls_ponumber>).
-*      lv_low = odata_quote( i_value = <ls_ponumber>-low ).
-*      lv_high = odata_quote( i_value = <ls_ponumber>-high ).
-*
-*      CASE <ls_ponumber>-option.
-*        WHEN 'EQ'.
-*          lv_part = |PONUMBER eq '{ lv_low }'|.
-*        WHEN 'BT'.
-*          lv_part =
-*              |(PONUMBER ge '{ lv_low }' and |
-*            && |PONUMBER le '{ lv_high }')|.
-*        WHEN OTHERS.
-*          CONTINUE.
-*      ENDCASE.
-*
-*      IF <ls_ponumber>-sign = 'E'.
-*        lv_part = |not ({ lv_part })|.
-*      ENDIF.
-*      APPEND lv_part TO lt_filters.
-*    ENDLOOP.
-*
-*    LOOP AT is_case-itemno ASSIGNING FIELD-SYMBOL(<ls_itemno>).
-*      lv_low = |{ <ls_itemno>-low ALPHA = IN }|.
-*      lv_high = |{ <ls_itemno>-high ALPHA = IN }|.
-*      lv_low = odata_quote( i_value = lv_low ).
-*      lv_high = odata_quote( i_value = lv_high ).
-*
-*      CASE <ls_itemno>-option.
-*        WHEN 'EQ'.
-*          lv_part = |ITEMNO eq '{ lv_low }'|.
-*        WHEN 'BT'.
-*          lv_part =
-*              |(ITEMNO ge '{ lv_low }' and |
-*            && |ITEMNO le '{ lv_high }')|.
-*        WHEN OTHERS.
-*          CONTINUE.
-*      ENDCASE.
-*
-*      IF <ls_itemno>-sign = 'E'.
-*        lv_part = |not ({ lv_part })|.
-*      ENDIF.
-*      APPEND lv_part TO lt_filters.
-*    ENDLOOP.
-*
-*    LOOP AT is_case-po_contains ASSIGNING FIELD-SYMBOL(<ls_po_contains>).
-*      lv_low = odata_quote( i_value = <ls_po_contains>-value ).
-*      APPEND |substringof('{ lv_low }',PONUMBER)| TO lt_filters.
-*    ENDLOOP.
-*
-*    LOOP AT is_case-item_contains ASSIGNING FIELD-SYMBOL(<ls_item_contains>).
-*      lv_low = odata_quote( i_value = <ls_item_contains>-value ).
-*      APPEND |substringof('{ lv_low }',ITEMNO)| TO lt_filters.
-*    ENDLOOP.
-*
-*    LOOP AT is_case-supplier ASSIGNING FIELD-SYMBOL(<ls_supplier>).
-*      lv_low = odata_quote( i_value = <ls_supplier>-value ).
-*      APPEND |substringof('{ lv_low }',SUPPLIERNAME)| TO lt_filters.
-*    ENDLOOP.
-*
-*    LOOP AT is_case-generic_filters ASSIGNING FIELD-SYMBOL(<ls_generic_filter>).
-*      lv_low = odata_quote( i_value = <ls_generic_filter>-low ).
-*      lv_high = odata_quote( i_value = <ls_generic_filter>-high ).
-*
-*      CASE <ls_generic_filter>-property.
-*        WHEN 'COMPANYCODE'
-*          OR 'ITEMNO'
-*          OR 'PONUMBER'
-*          OR 'POCURRENCY'
-*          OR 'POLINEDESC'
-*          OR 'PSTYPE'
-*          OR 'SUPPLIERID'
-*          OR 'SUPPLIERNAME'.
-*        WHEN OTHERS.
-*          CONTINUE.
-*      ENDCASE.
-*
-*      lv_low = |'{ lv_low }'|.
-*      lv_high = |'{ lv_high }'|.
-*
-*      CASE <ls_generic_filter>-option.
-*        WHEN 'EQ'.
-*          lv_part = |{ <ls_generic_filter>-property } eq { lv_low }|.
-*        WHEN 'BT'.
-*          lv_part =
-*              |({ <ls_generic_filter>-property } ge { lv_low } and |
-*            && |{ <ls_generic_filter>-property } le { lv_high })|.
-*        WHEN 'CP'.
-*          lv_part =
-*            |substringof({ lv_low },{ <ls_generic_filter>-property })|.
-*        WHEN OTHERS.
-*          CONTINUE.
-*      ENDCASE.
-*
-**      APPEND lv_part TO lt_filters.
-*    ENDLOOP.
-*
-*    IF is_case-filter_raw IS NOT INITIAL.
-*      APPEND is_case-filter_raw TO lt_filters.
-*    ENDIF.
-*
-*    IF lt_filters IS INITIAL.
-*      RETURN.
-*    ENDIF.
-*
-*    CONCATENATE LINES OF lt_filters
-*      INTO lv_filter
-*      SEPARATED BY ' and '.
-*
-*    cl_http_utility=>escape_url(
-*      EXPORTING
-*        unescaped = lv_filter
-*      RECEIVING
-*        escaped   = lv_filter ).
-*
-*    cv_path = cv_path && |&$filter={ lv_filter }|.
 
   ENDMETHOD.
 
@@ -4575,6 +3730,11 @@ ENDMETHOD.
               |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
             && |URI={ i_resource_path }; Body={ rv_json }|.
     ENDIF.
+
+    FIND REGEX '"original_row_index"[[:space:]]*:' IN rv_json IGNORING CASE.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc exp = 4
+      msg = 'The internal original_row_index must never be serialized by Gateway' ).
 
   ENDMETHOD.
 
@@ -7095,4 +6255,1072 @@ ENDMETHOD.
 
   ENDMETHOD.
 
+  METHOD default_order_unique_keys.
+    setup( ).
+    DATA(lt_orderby) = mo_cut->get_default_orderby( ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_orderby ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 1 ]-property exp = `PSTYPE` ).
+    cl_abap_unit_assert=>assert_true( lt_orderby[ 1 ]-descending ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 2 ]-property exp = `PONUMBER` ).
+    cl_abap_unit_assert=>assert_false( lt_orderby[ 2 ]-descending ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 3 ]-property exp = `ITEMNO` ).
+    cl_abap_unit_assert=>assert_false( lt_orderby[ 3 ]-descending ).
+  ENDMETHOD.
+
+  METHOD default_prefix_removed.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-orderby ).
+  ENDMETHOD.
+
+  METHOD non_default_order_preserved.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `PONUMBER` descending = abap_true ) ) ).
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_request-orderby ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_request-orderby[ 1 ]-property exp = `PONUMBER` ).
+    cl_abap_unit_assert=>assert_true( ls_request-orderby[ 1 ]-descending ).
+  ENDMETHOD.
+
+  METHOD sort_adds_default_ties.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' pstype = '0' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000003' itemno = '00001' pstype = '9' suppliername = 'Other' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( orderby = VALUE #( ( property = `SUPPLIERNAME` ) ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000003' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 3 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD invalid_duplicate_sorts.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'B' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'A' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = `NOT_A_COLUMN` )
+          ( property = `SUPPLIERNAME` )
+          ( property = `SUPPLIERNAME` descending = abap_true ) ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = `A` ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-suppliername exp = `B` ).
+  ENDMETHOD.
+
+  METHOD paging_follows_sort.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000003' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #(
+        orderby = VALUE #( ( property = `PONUMBER` ) )
+        paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD requested_top_zero_is_empty.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( paging = VALUE #( top = 0 top_requested = abap_true ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+  ENDMETHOD.
+
+  METHOD omitted_top_keeps_all_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( paging = VALUE #( top = 0 top_requested = abap_false ) )
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD empty_order_preserves_input.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE #( ) CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000001' ).
+  ENDMETHOD.
+
+  METHOD known_ranges_are_optimized.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` )
+      ( property = `ITEMNO` sign = `I` option = `EQ` low = `00001` ) ) ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-item ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
+  ENDMETHOD.
+
+  METHOD mixed_filter_keeps_predicate.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` )
+          ( property = `COMPANYCODE` sign = `I` option = `EQ` low = `1000` ) )
+        filter_string = `COMPANYCODE = '1000'` ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string exp = `COMPANYCODE = '1000'` ).
+    cl_abap_unit_assert=>assert_true( mo_cut->is_full_processing_required( ls_request ) ).
+  ENDMETHOD.
+
+  METHOD cross_or_disables_prefilter.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` ) )
+        filter_string = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string
+      exp = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ).
+  ENDMETHOD.
+
+  METHOD missing_predicate_fails.
+    setup( ).
+    DATA(lt_denied) = VALUE tt_string( ( `NOT_A_COLUMN` ) ( `ORIGINAL_ROW_INDEX` ) ).
+    LOOP AT lt_denied INTO DATA(lv_property).
+      DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+        filter = VALUE #( filter_select_options = VALUE #(
+          ( property = lv_property sign = `I` option = `EQ` low = `1000` ) ) ) ).
+      TRY.
+          mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+          cl_abap_unit_assert=>fail(
+            msg = |Unsupported or internal range property { lv_property } must be rejected| ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_not_initial( lx_error->reason ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD single_star_wildcard.
+    setup( ).
+    DATA(lt_wildcard) = mo_cut->get_company_codes( i_value = `*` ).
+    DATA(lt_mixed) = mo_cut->get_company_codes( i_value = `*, ab01` ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_wildcard[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_mixed[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_mixed[ value = `*` ] ) ) ).
+  ENDMETHOD.
+
+  METHOD scope_field_normalization.
+    setup( ).
+    DATA(lt_company) = mo_cut->get_company_codes( i_value = `ab01` ).
+    DATA(lt_cost_center) = mo_cut->get_cost_centers( i_value = `123` ).
+    DATA(lt_management_unit) = mo_cut->get_management_units( i_value = `Unit A` ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_company[ value = `AB01` ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[ value = `0000000123` ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[ value = `Unit A` ] ) ) ).
+
+    lt_company = mo_cut->get_company_codes( i_value = ` , , ` ).
+    lt_cost_center = mo_cut->get_cost_centers( i_value = ` , , ` ).
+    lt_management_unit = mo_cut->get_management_units( i_value = ` , , ` ).
+    cl_abap_unit_assert=>assert_initial( lt_company ).
+    cl_abap_unit_assert=>assert_initial( lt_cost_center ).
+    cl_abap_unit_assert=>assert_initial( lt_management_unit ).
+
+    lt_company = mo_cut->get_company_codes( i_value = ` ab01 , AB01, ab01 , ` ).
+    lt_cost_center = mo_cut->get_cost_centers( i_value = ` 123,0000000123,123, ` ).
+    lt_management_unit = mo_cut->get_management_units( i_value = ` Unit A,Unit   A,unit a, ` ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_company ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_company[ value = 'AB01' wildcard = abap_false ] ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_cost_center ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[ value = '0000000123' ] ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_management_unit ) exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[ value = 'Unit A' ] )
+                AND line_exists( lt_management_unit[ value = 'unit a' ] ) ) ).
+
+    lt_company = mo_cut->get_company_codes( i_value = `NULL` ).
+    lt_cost_center = mo_cut->get_cost_centers( i_value = `NULL,NULL` ).
+    lt_management_unit = mo_cut->get_management_units( i_value = `NULL,NULL` ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_company ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_company[ value = 'NULL' wildcard = abap_false ] ) )
+      msg = 'Company NULL is a literal code, not a nullable-field marker' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_cost_center ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[
+        value = '' wildcard = abap_false is_null = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_management_unit ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[
+        value = '' wildcard = abap_false is_null = abap_true ] ) ) ).
+
+    lt_company = mo_cut->get_company_codes( i_value = ` *,ab01,AB01,NULL,, ` ).
+    lt_cost_center = mo_cut->get_cost_centers( i_value = ` *,123,NULL,123,, ` ).
+    lt_management_unit = mo_cut->get_management_units( i_value = ` *,Unit A,NULL,Unit A,, ` ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_company ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_cost_center ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_management_unit ) exp = 3 ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_company[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_cost_center[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_management_unit[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_company[ value = '*' ] )
+                AND line_exists( lt_company[ value = 'AB01' ] )
+                AND line_exists( lt_company[ value = 'NULL' ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[ value = '*' ] )
+                AND line_exists( lt_cost_center[ value = '0000000123' ] )
+                AND line_exists( lt_cost_center[ is_null = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[ value = '*' ] )
+                AND line_exists( lt_management_unit[ value = 'Unit A' ] )
+                AND line_exists( lt_management_unit[ is_null = abap_true ] ) ) ).
+
+    lt_company = mo_cut->get_company_codes( i_value = ` , * , ` ).
+    lt_cost_center = mo_cut->get_cost_centers( i_value = ` , * , ` ).
+    lt_management_unit = mo_cut->get_management_units( i_value = ` , * , ` ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_company ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_cost_center ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_management_unit ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_company[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[ wildcard = abap_true ] ) ) ).
+  ENDMETHOD.
+
+  METHOD empty_generic_filter_noop.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+    filter_rows( EXPORTING i_predicate = `` CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-original_row_index ).
+  ENDMETHOD.
+
+  METHOD nested_and_or_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '1000' pocurrency = 'USD' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '1000' pocurrency = 'EUR' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '2000' pocurrency = 'USD' ) ).
+    filter_rows( EXPORTING
+      i_predicate = `( companycode = '1000' AND ( pocurrency = 'USD' OR ponumber = '8000000002' ) )`
+      CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD escaped_apostrophe_row.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' suppliername = `O'Brien Supplies` )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = `Other Supplier` ) ).
+    filter_rows( EXPORTING i_predicate = `suppliername = 'O''Brien Supplies'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+  ENDMETHOD.
+
+  METHOD date_boundary_is_exclusive.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' pocreatedat = '20251014' )
+      ( ponumber = '8000000002' itemno = '00001' pocreatedat = '20251015' ) ).
+    filter_rows( EXPORTING i_predicate = `pocreatedat > '20251014'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD no_match_returns_no_rows.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '1000' ) ).
+    filter_rows( EXPORTING i_predicate = `companycode = '9999'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+  ENDMETHOD.
+
+  METHOD amount_format_x_y_default.
+    setup( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
+        i_decimals = 2 i_decimal_format = 'X' i_use_grouping = abap_true )
+      exp = `12,345.67` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
+        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
+      exp = `12 345,67` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
+        i_decimals = 2 i_decimal_format = space i_use_grouping = abap_true )
+      exp = `12.345,67` ).
+  ENDMETHOD.
+
+  METHOD percentage_parsing_and_error.
+    setup( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>parse_percentage( i_value = `12,5` )
+      exp = CONV zcl_fi_das_dashboard=>t_percentage( '12.5' ) ).
+    TRY.
+        zcl_fi_das_utility=>parse_percentage( i_value = `1,2.3` ).
+        cl_abap_unit_assert=>fail( msg = `Mixed decimal separators must be rejected` ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_not_initial( lx_error->reason ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD decimal_trunc_toward_zero.
+    setup( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '-1.239' ) i_decimals = 2 )
+      exp = CONV decfloat34( '-1.23' ) ).
+  ENDMETHOD.
+
+  METHOD generic_preserves_row_order.
+    setup( ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000003' companycode = '1000' original_row_index = 77 )
+      ( ponumber = '8000000001' companycode = '2000' original_row_index = 99 )
+      ( ponumber = '8000000002' companycode = '1000' original_row_index = 11 ) ).
+    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '1000'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000003' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000002' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-original_row_index exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-original_row_index exp = 3 ).
+  ENDMETHOD.
+
+  METHOD generic_ranges_only.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'companycode' sign = 'I' option = 'EQ' low = '2028' )
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '6305' )
+      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    cl_abap_unit_assert=>assert_true( mo_cut->is_full_processing_required( ls_request ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' companycode = '2028' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' companycode = '2028' pocurrency = 'USD' )
+      ( ponumber = '8000000003' companycode = '6305' pocurrency = 'JPY' )
+      ( ponumber = '8000000004' companycode = '9999' pocurrency = 'JPY' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000003' ).
+  ENDMETHOD.
+
+  METHOD mixed_ranges_only.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' )
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000002' )
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' companycode = '2028' suppliername = 'Fuji Electric' )
+      ( ponumber = '8000000002' companycode = '6305' suppliername = 'Fuji Electric' )
+      ( ponumber = '8000000003' companycode = '2028' suppliername = 'Fuji Electric' )
+      ( ponumber = '8000000001' companycode = '2028' suppliername = 'Other Supplier' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Fuji Electric' ).
+  ENDMETHOD.
+
+  METHOD predicate_clears_stale_ranges.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter_for_amdp = VALUE #(
+        ponumber = `PONUMBER = 'stale'` item = `ITEMNO = 'stale'`
+        suppliername = `SUPPLIERNAME = 'stale'` )
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' ) )
+        filter_string = `(PONUMBER = '8000000001' OR COMPANYCODE = '2028')` ) ).
+    DATA(lv_predicate) = ls_request-filter-filter_string.
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string exp = lv_predicate ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' companycode = '6305' )
+      ( ponumber = '8000000002' companycode = '2028' )
+      ( ponumber = '8000000003' companycode = '6305' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD empty_ranges_clear_stale.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter_for_amdp = VALUE #(
+        ponumber = `PONUMBER = 'stale'` item = `ITEMNO = 'stale'`
+        suppliername = `SUPPLIERNAME = 'stale'` ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter ).
+    cl_abap_unit_assert=>assert_false( mo_cut->is_full_processing_required( ls_request ) ).
+  ENDMETHOD.
+
+  METHOD key_ranges_replace_stale.
+    setup( ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter_for_amdp = VALUE #(
+        ponumber = `PONUMBER = 'stale'` item = `ITEMNO = 'stale'`
+        suppliername = `SUPPLIERNAME = 'stale'` )
+      filter = VALUE #( filter_select_options = VALUE #(
+        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' ) ) ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS '8000000001' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( ls_request-filter_for_amdp-ponumber CS 'stale' ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-item ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-suppliername ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter ).
+    cl_abap_unit_assert=>assert_false( mo_cut->is_full_processing_required( ls_request ) ).
+  ENDMETHOD.
+
+  METHOD key_table_preserves_order.
+    setup( ).
+    DATA(lt_keys) = VALUE zcl_fi_das_dashboard=>tt_key(
+      ( ponumber = '8000000003' itemno = '00001' pstype = '9' )
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '0' ) ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_keys ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_keys[ 1 ]-ponumber exp = '8000000003' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_keys[ 1 ]-pstype exp = '9' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_keys[ 2 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_keys[ 3 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD default_exclude_key_order.
+    setup( ).
+    DATA(lv_fixture) = read_mime_fixture( 'xsa-exclude.json' ).
+    DATA(lt_index) = build_expected_index( lv_fixture ).
+    DATA lt_order TYPE STANDARD TABLE OF zcl_fi_das_dashboard=>ts_key WITH EMPTY KEY.
+    LOOP AT lt_index ASSIGNING FIELD-SYMBOL(<ls_index>).
+      DATA(lt_properties) = read_object_properties(
+        i_json = lv_fixture i_object_from = <ls_index>-object_from
+        i_object_to = <ls_index>-object_to ).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( line_exists( lt_properties[ name = 'PSTYPE' ] ) ) ).
+      DATA(lv_type_token) = lt_properties[ name = 'PSTYPE' ]-token.
+      APPEND VALUE #( ponumber = <ls_index>-ponumber itemno = <ls_index>-itemno
+        pstype = unquote_json( lv_type_token ) ) TO lt_order.
+    ENDLOOP.
+    FREE: lv_fixture, lt_index, lt_properties.
+    SORT lt_order BY pstype DESCENDING ponumber itemno.
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_order[ pstype = '9' ] )
+                AND line_exists( lt_order[ pstype = '0' ] ) )
+      msg = 'The real exclusion fixture must exercise both PSTYPE groups' ).
+    READ TABLE lt_order TRANSPORTING NO FIELDS WITH KEY pstype = '0'.
+    DATA(lv_boundary) = sy-tabix.
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lv_boundary > 1 ) ).
+    DATA lt_positions TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_positions = VALUE #( ( 1 ) ( lv_boundary - 1 ) ( lv_boundary ) ( lines( lt_order ) ) ).
+    DATA(ls_case) = VALUE ts_case(
+      email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_exclude
+      pstype = zif_fi_das_dashboard=>mc_pstype_all
+      top = 1 top_specified = abap_true inlinecount = abap_true ).
+    LOOP AT lt_positions INTO DATA(lv_position).
+      get_gateway_response(
+        EXPORTING is_case = ls_case i_skip = lv_position - 1
+        IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
+      cl_abap_unit_assert=>assert_equals( act = lv_count exp = lines( lt_order ) ).
+      cl_abap_unit_assert=>assert_equals( act = get_result_count( lv_json ) exp = 1 ).
+      cl_abap_unit_assert=>assert_equals(
+        act = read_first_result_property( i_json = lv_json i_property = 'PSTYPE' )
+        exp = lt_order[ lv_position ]-pstype ).
+      cl_abap_unit_assert=>assert_equals(
+        act = read_first_result_property( i_json = lv_json i_property = 'PONUMBER' )
+        exp = lt_order[ lv_position ]-ponumber ).
+      cl_abap_unit_assert=>assert_equals(
+        act = read_first_result_property( i_json = lv_json i_property = 'ITEMNO' )
+        exp = lt_order[ lv_position ]-itemno ).
+      FREE lv_json.
+    ENDLOOP.
+    assert_no_differences( ).
+  ENDMETHOD.
+
+  METHOD matches_complex_fixture.
+    DATA lt_names TYPE stringtab.
+    DATA: lv_po TYPE string, lv_item TYPE string, lv_desc TYPE string,
+          lv_supplier TYPE string, lv_date TYPE string.
+    lt_names = VALUE #( ( `PONUMBER` ) ( `ITEMNO` ) ( `POLINEDESC` )
+                       ( `POCREATEDAT` ) ( `SUPPLIERNAME` ) ).
+    LOOP AT lt_names INTO DATA(lv_name).
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( line_exists( it_properties[ name = lv_name ] ) ) ).
+      IF it_properties[ name = lv_name ]-token = 'null'.
+        RETURN.
+      ENDIF.
+      DATA(lv_token) = it_properties[ name = lv_name ]-token.
+      DATA(lv_value) = unquote_json( lv_token ).
+      CASE lv_name.
+        WHEN 'PONUMBER'. lv_po = lv_value.
+        WHEN 'ITEMNO'. lv_item = lv_value.
+        WHEN 'POLINEDESC'. lv_desc = lv_value.
+        WHEN 'POCREATEDAT'. lv_date = lv_value.
+        WHEN 'SUPPLIERNAME'. lv_supplier = lv_value.
+      ENDCASE.
+    ENDLOOP.
+    DATA lv_milliseconds TYPE string.
+    FIND REGEX '^/Date\(([0-9]+)\)/$' IN lv_date SUBMATCHES lv_milliseconds.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc exp = 0 msg = 'The XSA date oracle requires an epoch-millisecond token' ).
+    " The PO operands remain strings; NUMC/numeric comparison changes this expression.
+    rv_match = xsdbool(
+      find( val = lv_desc sub = 'b' case = abap_true ) < 0
+      AND find( val = lv_po sub = '5' case = abap_true ) < 0
+      AND find( val = lv_desc sub = 'a' case = abap_true ) >= 0
+      AND CONV int8( lv_milliseconds ) > CONV int8( '1760400000000' )
+      AND ( find( val = lv_supplier sub = 'B' case = abap_true ) = 0
+         OR find( val = lv_supplier sub = 'A' case = abap_true ) >= 0 )
+      AND ( lv_po <= `977` OR lv_po > `9000600000`
+         OR ( lv_po >= `8000006000` AND lv_po <= `8000906000` )
+         OR lv_po = `8000096102` OR lv_po = `8000097224` )
+      AND ( lv_item = '00001' OR lv_item = '00003' OR lv_item = '00004' ) ).
+  ENDMETHOD.
+
+  METHOD complex_filter_gateway.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      fixture = 'xsa-over-service.json' email = 'adam.strasky@takeda.com'
+      flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw =
+        `(not substringof('b',POLINEDESC) and not substringof('5',PONUMBER)) `
+        && `and substringof('a',POLINEDESC) `
+        && `and POCREATEDAT gt datetime'2025-10-14T00:00:00' `
+        && `and (startswith(SUPPLIERNAME,'B') or substringof('A',SUPPLIERNAME)) `
+        && `and (PONUMBER le '977' or PONUMBER gt '9000600000' `
+        && `or (PONUMBER ge '8000006000' and PONUMBER le '8000906000') `
+        && `or PONUMBER eq '8000096102' or PONUMBER eq '8000097224') `
+        && `and (ITEMNO eq '00001' or ITEMNO eq '00003' or ITEMNO eq '00004')` ).
+    run_paged_case( is_case = ls_case i_complex_filter = abap_true ).
+    assert_no_differences( ).
+  ENDMETHOD.
+
+  METHOD complex_filter_hana.
+    setup( ).
+    DATA(lv_predicate) =
+      `(POLINEDESC NOT LIKE '%b%' AND PONUMBER NOT LIKE '%5%') `
+      && `AND POLINEDESC LIKE '%a%' AND POCREATEDAT > '20251014' `
+      && `AND (SUPPLIERNAME LIKE 'B%' OR SUPPLIERNAME LIKE '%A%') `
+      && `AND (PONUMBER <= '977' OR PONUMBER > '9000600000' `
+      && `OR (PONUMBER >= '8000006000' AND PONUMBER <= '8000906000') `
+      && `OR PONUMBER = '8000096102' OR PONUMBER = '8000097224') `
+      && `AND (ITEMNO = '00001' OR ITEMNO = '00003' OR ITEMNO = '00004')`.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '0000000010' itemno = '00001' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' )
+      ( ponumber = '9999999999' itemno = '00003' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'XAY' )
+      ( ponumber = '8000006000' itemno = '00004' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' )
+      ( ponumber = '8000906000' itemno = '00001' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' )
+      ( ponumber = '8000096102' itemno = '00003' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' )
+      ( ponumber = '8000097224' itemno = '00004' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' )
+      ( ponumber = '8001984177' itemno = '00001' polinedesc = 'a'
+        pocreatedat = '20251015' suppliername = 'Beta' ) ).
+    DATA(lt_expected) = lt_result.
+    DATA(ls_rejected) = lt_result[ 1 ].
+    ls_rejected-polinedesc = 'ab'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-ponumber = '8000000005'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-polinedesc = 'A'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-pocreatedat = '20251014'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-suppliername = 'beta'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-itemno = '00002'.
+    APPEND ls_rejected TO lt_result.
+    ls_rejected = lt_expected[ 1 ].
+    ls_rejected-pocreatedat = '20251013'.
+    APPEND ls_rejected TO lt_result.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = lv_predicate
+        filter_select_options = VALUE #(
+          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000096102' ) ) ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string exp = lv_predicate ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = lines( lt_expected ) ).
+    LOOP AT lt_expected INTO DATA(ls_expected).
+      DATA(lv_index) = sy-tabix.
+      cl_abap_unit_assert=>assert_equals(
+        act = lt_result[ lv_index ]-ponumber exp = ls_expected-ponumber ).
+      cl_abap_unit_assert=>assert_equals(
+        act = lt_result[ lv_index ]-itemno exp = ls_expected-itemno ).
+      cl_abap_unit_assert=>assert_equals(
+        act = lt_result[ lv_index ]-original_row_index exp = lv_index ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD gateway_cross_or_sql.
+    setup( ).
+    DATA(ls_case) = VALUE ts_case(
+      fixture = 'xsa-over-service.json' email = 'adam.strasky@takeda.com'
+      flow = zif_fi_das_dashboard=>mc_over
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      filter_raw = `(PONUMBER eq '8000401022' or substringof('Fuji',SUPPLIERNAME))` ).
+    run_paged_case( is_case = ls_case i_cross_or_filter = abap_true ).
+    assert_no_differences( ).
+  ENDMETHOD.
+
+  METHOD translated_cross_or_rows.
+    setup( ).
+    " Expected SQL is supplied here; gateway_cross_or_sql exercises the real SAP translator.
+    DATA(lv_sql) = `(PONUMBER = '8000401022' OR SUPPLIERNAME LIKE '%Fuji%')`.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = lv_sql
+        filter_select_options = VALUE #(
+          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' ) ) ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string exp = lv_sql ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000401022' itemno = '00001' suppliername = 'Other Supplier' )
+      ( ponumber = '8000266248' itemno = '00001' suppliername = 'Fujifilm' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Other Supplier' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'fujifilm' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000401022' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000266248' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-suppliername exp = 'Fujifilm' ).
+  ENDMETHOD.
+
+  METHOD company_range_hybrid_parity.
+    setup( ).
+    DATA(ls_range_request) = extract_range( VALUE #(
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '1000' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_range_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_range_request-filter-filter_string ).
+    DATA(ls_hybrid_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = `COMPANYCODE = '1000'`
+        filter_select_options = VALUE #(
+          ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '1000' ) ) ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_hybrid_request ).
+    cl_abap_unit_assert=>assert_initial( ls_hybrid_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_hybrid_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_hybrid_request-filter-filter_string exp = `COMPANYCODE = '1000'` ).
+    DATA(lt_range) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '1000' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '2000' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '1000' ) ).
+    DATA(lt_hybrid) = lt_range.
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_range_request CHANGING ct_result = lt_range ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_hybrid_request CHANGING ct_result = lt_hybrid ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_range ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_range[ 1 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_range[ 2 ]-ponumber exp = '8000000003' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_range exp = lt_hybrid
+      msg = 'Converted select-only COMPANYCODE ranges must match the complete hybrid predicate' ).
+  ENDMETHOD.
+
+  METHOD date_cp_range_rows.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCREATEDAT' sign = 'I' option = 'CP' low = '202510*' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' pocreatedat = '20250930' )
+      ( ponumber = '8000000002' pocreatedat = '20251001' )
+      ( ponumber = '8000000003' pocreatedat = '20251031' )
+      ( ponumber = '8000000004' pocreatedat = '20251101' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pocreatedat exp = '20251001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-pocreatedat exp = '20251031' ).
+  ENDMETHOD.
+
+  METHOD date_eq_range_rows.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCREATEDAT' sign = 'I' option = 'EQ' low = '20251015' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' pocreatedat = '20251014' )
+      ( ponumber = '8000000002' pocreatedat = '20251015' )
+      ( ponumber = '8000000003' pocreatedat = '20251016' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pocreatedat exp = '20251015' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD date_bt_range_rows.
+    setup( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCREATEDAT' sign = 'I' option = 'BT'
+        low = '20251014' high = '20251015' ) ) ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter-filter_string ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' pocreatedat = '20251013' )
+      ( ponumber = '8000000002' pocreatedat = '20251014' )
+      ( ponumber = '8000000003' pocreatedat = '20251015' )
+      ( ponumber = '8000000004' pocreatedat = '20251016' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pocreatedat exp = '20251014' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-pocreatedat exp = '20251015' ).
+  ENDMETHOD.
+
+  METHOD empty_result_filter_noop.
+    setup( ).
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    filter_rows( EXPORTING i_predicate = `NOT_A_COLUMN = 'X'`
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+    filter_rows( EXPORTING i_predicate = `` CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+  ENDMETHOD.
+
+  METHOD standard.
+    setup( ).
+    test_over_material( ).
+    test_over_service( ).
+    test_under_material( ).
+    test_under_service( ).
+    test_exclude( ).
+  ENDMETHOD.
+
+  METHOD owner.
+    setup( ).
+    test_over_material_owner( ).
+    test_over_service_owner( ).
+    test_under_material_owner( ).
+    test_under_service_owner( ).
+    test_exclude_owner( ).
+  ENDMETHOD.
+
+  METHOD filter.
+    setup( ).
+    test_filter( ).
+    test_filter_companycode( ).
+    test_filter_polinedesc( ).
+    test_filter_curr_company( ).
+    test_filter_supplierid( ).
+    test_filter_po_or_supplier( ).
+    test_nonexistent_supplier( ).
+    test_empty_contains_po( ).
+    complex_filter_gateway( ).
+    generic_eq_filters_rows( ).
+    generic_contains_filters_rows( ).
+    generic_two_props_are_anded( ).
+    generic_same_prop_is_ored( ).
+    generic_unknown_prop_no_dump( ).
+    generic_with_sort_and_paging( ).
+    test_cp_case_sensitive_include( ).
+    test_cp_case_sensitive_exclude( ).
+    test_eq_case_insensitive( ).
+    test_cp_and_eq_combined( ).
+    test_multiple_cp_filters_or( ).
+    test_cp_empty_pattern( ).
+    empty_generic_filter_noop( ).
+    nested_and_or_rows( ).
+    escaped_apostrophe_row( ).
+    date_boundary_is_exclusive( ).
+    no_match_returns_no_rows( ).
+    generic_preserves_row_order( ).
+    complex_filter_hana( ).
+    empty_result_filter_noop( ).
+    date_cp_range_rows( ).
+    date_eq_range_rows( ).
+    date_bt_range_rows( ).
+    po_contains_builds_like( ).
+    item_contains_keeps_zeros( ).
+    mixed_eq_and_contains( ).
+    supplier_contains_builds_like( ).
+    supplier_pattern_no_wildcards( ).
+    supplier_keeps_inner_spaces( ).
+    item_contains_digit_two( ).
+    amdp_filter_empty_by_default( ).
+    po_multiple_eq_same_property( ).
+    po_eq_and_cp_same_property( ).
+    supplier_multiple_cp_same_prop( ).
+    item_multiple_eq_same_property( ).
+    item_cp_digit_two( ).
+    empty_contains_pattern( ).
+    item_number_with_leading_zeros( ).
+    exclude_sign_filters( ).
+    unsupported_option_generic( ).
+    supplier_filter_with_case_sens( ).
+    amdp_filter_mixed_properties( ).
+    known_ranges_are_optimized( ).
+    mixed_filter_keeps_predicate( ).
+    cross_or_disables_prefilter( ).
+    missing_predicate_fails( ).
+    generic_ranges_only( ).
+    mixed_ranges_only( ).
+    predicate_clears_stale_ranges( ).
+    empty_ranges_clear_stale( ).
+    key_ranges_replace_stale( ).
+    test_selection( ).
+    test_po_value_help( ).
+    test_item_value_help( ).
+    test_supplier_value_help( ).
+    test_under_po_help( ).
+    test_excl_po_help( ).
+    test_under_supplier_help( ).
+    test_filter_sort_and_paging( ).
+    company_range_hybrid_parity( ).
+    single_star_wildcard( ).
+    scope_field_normalization( ).
+    gateway_cross_or_sql( ).
+    translated_cross_or_rows( ).
+  ENDMETHOD.
+
+  METHOD scope.
+    setup( ).
+    test_scope_01( ).
+    test_scope_02( ).
+    test_scope_03( ).
+    test_scope_04( ).
+    test_scope_05( ).
+    test_scope_06( ).
+    test_scope_07( ).
+    test_scope_08( ).
+    test_scope_09( ).
+    test_scope_10( ).
+    test_scope_11( ).
+    test_scope_12( ).
+    test_scope_13( ).
+    test_scope_14( ).
+    test_scope_15( ).
+    test_scope_16( ).
+    test_scope_17( ).
+    test_scope_18( ).
+    test_scope_19( ).
+    test_scope_20( ).
+    test_scope_21( ).
+    test_scope_22( ).
+    test_scope_23( ).
+    test_scope_24( ).
+    test_scope_25( ).
+    test_scope_26( ).
+    test_scope_27( ).
+    test_scope_28( ).
+    test_scope_29( ).
+    test_scope_30( ).
+    single_star_wildcard( ).
+    scope_field_normalization( ).
+  ENDMETHOD.
+
+  METHOD sort_paging.
+    setup( ).
+    test_inlinecount_with_top_one( ).
+    test_no_inlinecount( ).
+    test_skip_beyond_result_set( ).
+    test_top_zero( ).
+    test_filter_sort_and_paging( ).
+    test_under_paging( ).
+    test_excl_paging( ).
+    test_exclusion_pstype_desc( ).
+    test_exclusion_pstype_asc( ).
+    test_excl_pstype_pages( ).
+    test_orderby_invalid( ).
+    test_sort_amountaccrued( ).
+    test_sort_reviewed_by( ).
+    test_skip_high_sorted( ).
+    sort_ascending_with_paging( ).
+    sort_descending( ).
+    sort_unknown_property_no_dump( ).
+    top_zero_requested_empty( ).
+    top_zero_not_requested_all( ).
+    paging_window_boundaries( ).
+    no_orderby_leaves_table_asis( ).
+    pstype_sort_noop_for_over( ).
+    pstype_sort_kept_for_exclude( ).
+    pstype_sort_desc_mixed_rows( ).
+    skip_high_sorted( ).
+    default_order_unique_keys( ).
+    default_prefix_removed( ).
+    non_default_order_preserved( ).
+    sort_adds_default_ties( ).
+    invalid_duplicate_sorts( ).
+    paging_follows_sort( ).
+    requested_top_zero_is_empty( ).
+    omitted_top_keeps_all_rows( ).
+    empty_order_preserves_input( ).
+    key_table_preserves_order( ).
+    default_exclude_key_order( ).
+  ENDMETHOD.
+
+  METHOD selection.
+    setup( ).
+    test_selection( ).
+    test_select_calc_status( ).
+    test_po_value_help( ).
+    test_item_value_help( ).
+    test_supplier_value_help( ).
+    test_under_po_help( ).
+    test_excl_po_help( ).
+    test_under_supplier_help( ).
+    test_all_pstype_request( ).
+    skip_true_for_po_value_help( ).
+    skip_true_for_item_value_help( ).
+    skip_true_for_supplier_help( ).
+    skip_false_without_select( ).
+    skip_false_for_mixed_select( ).
+    skip_false_with_orderby( ).
+  ENDMETHOD.
+
+  METHOD format.
+    setup( ).
+    test_y_format( ).
+    test_x_format( ).
+    test_empty_format( ).
+    amount_format_x_y_default( ).
+  ENDMETHOD.
+
+  METHOD request_processing.
+    setup( ).
+    po_contains_builds_like( ).
+    item_contains_keeps_zeros( ).
+    mixed_eq_and_contains( ).
+    supplier_contains_builds_like( ).
+    supplier_pattern_no_wildcards( ).
+    supplier_keeps_inner_spaces( ).
+    item_contains_digit_two( ).
+    amdp_filter_empty_by_default( ).
+    po_multiple_eq_same_property( ).
+    po_eq_and_cp_same_property( ).
+    supplier_multiple_cp_same_prop( ).
+    item_multiple_eq_same_property( ).
+    item_cp_digit_two( ).
+    empty_contains_pattern( ).
+    item_number_with_leading_zeros( ).
+    exclude_sign_filters( ).
+    unsupported_option_generic( ).
+    supplier_filter_with_case_sens( ).
+    amdp_filter_mixed_properties( ).
+    threshold_fixture_classes( ).
+    review_day_boundary( ).
+    known_ranges_are_optimized( ).
+    mixed_filter_keeps_predicate( ).
+    cross_or_disables_prefilter( ).
+    missing_predicate_fails( ).
+    generic_ranges_only( ).
+    mixed_ranges_only( ).
+    predicate_clears_stale_ranges( ).
+    empty_ranges_clear_stale( ).
+    key_ranges_replace_stale( ).
+    company_range_hybrid_parity( ).
+    translated_cross_or_rows( ).
+  ENDMETHOD.
+
+  METHOD hana_filter.
+    setup( ).
+    generic_eq_filters_rows( ).
+    generic_contains_filters_rows( ).
+    generic_two_props_are_anded( ).
+    generic_same_prop_is_ored( ).
+    generic_unknown_prop_no_dump( ).
+    generic_with_sort_and_paging( ).
+    test_cp_case_sensitive_include( ).
+    test_cp_case_sensitive_exclude( ).
+    test_eq_case_insensitive( ).
+    test_cp_and_eq_combined( ).
+    test_multiple_cp_filters_or( ).
+    test_cp_empty_pattern( ).
+    empty_generic_filter_noop( ).
+    nested_and_or_rows( ).
+    escaped_apostrophe_row( ).
+    date_boundary_is_exclusive( ).
+    no_match_returns_no_rows( ).
+    generic_preserves_row_order( ).
+    complex_filter_hana( ).
+    empty_result_filter_noop( ).
+    date_cp_range_rows( ).
+    date_eq_range_rows( ).
+    date_bt_range_rows( ).
+    company_range_hybrid_parity( ).
+    translated_cross_or_rows( ).
+  ENDMETHOD.
+
+  METHOD utility.
+    setup( ).
+    percentage_parsing_and_error( ).
+    decimal_trunc_toward_zero( ).
+  ENDMETHOD.
 ENDCLASS.

@@ -44,12 +44,54 @@ claim real-fixture parity.
 
 The existing paged comparison is retained: fixture indexing stores PO/item
 keys and object offsets; one Gateway page is compared at a time without
-materializing a complete table of JSON properties. Running all tests executes
-both category methods and their independently runnable leaves, so repeated
-scenario execution is expected. Categories can stop at the first failing
-assertion; nested method calls do not automatically invoke ABAP Unit `setup`.
-The framework hook delegates to `reset_fixture( )`; explicit initialization
-calls use that helper because the special method `setup` cannot be called directly.
+materializing a complete table of JSON properties. Running the class executes
+all group methods and their independently runnable leaves, so repeated scenario
+execution is expected. Nested method calls do not automatically invoke ABAP Unit
+`setup`; each leaf explicitly calls `reset_fixture( )`. The framework hook sets
+method-level assertion quit control before resetting the fixture, because the
+special method `setup` cannot be called directly.
+
+## Failure fixes and group execution
+
+`extract_filters` copies range projections, clears the request's projections,
+and only then checks/converts the copy. The prior export already cleared these
+projections on successful exit; early consumption additionally covers conversion
+exception paths. The original range-consumption postcondition is unchanged.
+A reported failure of that successful-exit assertion could indicate a stale
+deployed version, not a defect reproduced in the current export. Its runtime
+root cause has **not been verified** without SAP execution. Activate the current
+dashboard, utility, and test-class versions together before rerunning ABAP Unit
+and diagnosing any remaining failure. Existing empty/stale-range tests now also
+check repeated extraction.
+`group_integer` uses `CONCATENATE ... RESPECTING BLANKS`, preserving the Y-format
+space separator. Amount assertions retain the original X/Y/default expectations
+and add multiple Y-format groups, ungrouped output, and a negative amount.
+The internal `original_row_index` assertions remain intact.
+
+All 164 leaf tests remain `FOR TESTING`. Eleven group methods are declared and
+implemented first, starting with `all_tests`; individual methods have starred
+topic sections, shared leaves appear only once in the source, and helpers are
+last. `all_tests` calls every unique leaf exactly once, not the category groups.
+Every group dispatches leaves through `run_group_test`, which temporarily sets
+assertion quit control to `if_aunit_constants=>no`, records catchable exceptions
+as ABAP Unit failures with the leaf name, and restores the previous control.
+Assertions in leaves and shared helpers use that control, so an assertion
+failure does not prevent the group from attempting later leaves. Standalone
+leaves retain method-level fail-fast behavior. Added assertion messages identify
+the active leaf where no existing diagnostic was present; the shared
+range-consumption postcondition also identifies the active grouped leaf.
+
+**Native result-tree limitation:** run the whole `ltc_parity` class for separate
+green/error results on its independently registered leaf methods. Selecting
+only `all_tests` or a category creates one aggregate native result, not separate
+child test nodes for dynamically called methods. Groups do not suppress failures
+or fabricate green results. Uncatchable runtime terminations still require SAP
+diagnosis; continuation here covers assertions and catchable exceptions.
+
+The exported test class was formatted using the ABAP ecosystem
+`@abaplint/core` 2.120.70 pretty-printer and parameter/alignment quick fixes,
+parsed in memory as a `.clas.testclasses.abap` file. No formatter configuration,
+dependency manifest, fixture, or production formatting change was added.
 
 ## Reproducible checks
 
@@ -72,10 +114,24 @@ class and method identifier lengths, comment-only test bodies, category
 calls to independently declared leaves, known receiver calls/named arguments,
 local friend access, removed interface types, assertion reachability through
 helpers, internal-index metadata leakage, and unresolved LFS pointers.
-Its own nine parser tests passed, including method references inside string
-templates and full definitions with global friends. These checks **are not ABAP syntax,
+Group target recognition preserves quoted literals from the original bodies
+while ignoring comments and strings containing fake calls. It rejects unknown
+or non-leaf targets, duplicates, direct group-to-leaf calls, and incomplete
+`all_tests` coverage; shared-category counts exclude `all_tests`.
+Its 18 regression tests passed, including range-copy/clear ordering before
+conversion, blank-preserving grouping, non-aborting exception reporting,
+quit-control restoration, group-first/helper-last ordering, all 164 leaves,
+and preservation of the original range and Gateway internal-index assertions.
+The JSON audit reports **225 declared/implemented methods, 175 testing methods
+(164 leaves + 11 groups), 45 fixture files, and zero errors**.
+An additional comparison against `HEAD` using the existing parser verified that
+all original leaf/helper statements and all 368 original assertions remain in
+order, ignoring only added quit control, diagnostic labels, and explicit naming
+of formerly positional `act` arguments.
+These checks **are not ABAP syntax,
 activation, type checking, or proof of meaningful runtime assertions**.
-Dynamic calls and external SAP signatures require SAP review.
+Literal targets are structurally checked, but dynamic dispatch and external SAP
+signatures still require SAP review.
 The prior-head mapping command requires that commit locally; if necessary,
 fetch it read-only with `git fetch origin copilot/complete-refactoring`.
 Rename defaults are versioned in the audit script; no temporary mapping file
@@ -87,7 +143,11 @@ body was executable.
 
 | Check | Status |
 |---|---|
-| Audit-parser regression tests | EXECUTED: 9 passed |
+| Audit-parser and failure/group regression tests | EXECUTED: 18 passed |
+| Combined structural JSON audit | EXECUTED: zero errors; all 164 leaves retained |
+| Exported ABAP test-class formatting | EXECUTED: ecosystem pretty-printer/quick fixes |
+| CodeQL Python scan | EXECUTED: zero alerts; does not validate ABAP |
+| Automated code review | UNAVAILABLE: review binary missing despite tool success wrapper |
 | Fixture JSON parsing | EXECUTED: 45 passed |
 | LFS integrity and hydrated payload hashes | EXECUTED: 5 matched; fsck passed |
 | SAP activation / syntax check / ATC | **NOT EXECUTED**: no SAP endpoint/runtime |

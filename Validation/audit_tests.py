@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_CATEGORIES = (
     "standard", "owner", "filter", "scope", "sort_paging", "selection", "format"
 )
-CATEGORIES = REQUIRED_CATEGORIES + ("request_processing", "hana_filter", "utility")
+CATEGORIES = ("all_tests",) + REQUIRED_CATEGORIES + (
+    "request_processing", "hana_filter", "utility"
+)
 LEGACY_RENAMES = {
     "threshold_equal_is_under": "threshold_fixture_classes",
     "default_order_has_unique_keys": "default_order_unique_keys",
@@ -42,7 +44,7 @@ LEGACY_RENAMES = {
 }
 
 
-def tokens(source):
+def tokens(source, preserve_literals=False):
     """Lex comments/quoted strings before recognizing statement boundaries.
 
     In particular, DEFINITION DEFERRED and DEFINITION LOCAL FRIENDS are
@@ -73,6 +75,7 @@ def tokens(source):
             i = len(source) if end < 0 else end
             continue
         if char in "'`|":
+            literal_start = i
             delimiter = char
             i += 1
             while i < len(source):
@@ -111,7 +114,10 @@ def tokens(source):
                         break
                 else:
                     i += 1
-            result.append("<literal>")
+            result.append(
+                source[literal_start:i]
+                if preserve_literals and delimiter in "'`" else "<literal>"
+            )
             continue
         match = re.match(
             r"[A-Za-z_/][A-Za-z_0-9/~]*(?:-[A-Za-z_][A-Za-z_0-9]*)*"
@@ -126,9 +132,9 @@ def tokens(source):
     return result
 
 
-def statements(source):
+def statements(source, preserve_literals=False):
     statement = []
-    for token in tokens(source):
+    for token in tokens(source, preserve_literals):
         if token == ".":
             if statement:
                 yield statement
@@ -149,13 +155,13 @@ class Class:
     duplicates: list = field(default_factory=list)
 
 
-def parse(source):
+def parse(source, preserve_literals=False):
     classes = {}
     friends = {}
     current = None
     method = None
     section = None
-    for stmt in statements(source):
+    for stmt in statements(source, preserve_literals):
         if stmt[0] == "class" and len(stmt) > 2:
             name, kind = stmt[1:3]
             if kind == "definition" and "friends" in stmt:
@@ -253,6 +259,25 @@ def local_calls(body, declarations):
             if flat[index] in declarations and flat[index + 1] == "("]
 
 
+def group_targets(body):
+    """Read literal dynamic targets without interpreting comments or templates."""
+    calls = []
+    for stmt in body:
+        if stmt[:2] == ["me", "->"]:
+            stmt = stmt[2:]
+        if stmt[:2] != ["run_group_test", "("]:
+            continue
+        arguments = stmt[2:-1]
+        if arguments[:2] == ["i_test", "="]:
+            arguments = arguments[2:]
+        if len(arguments) != 1 or not re.fullmatch(
+               r"['`][a-z_][a-z_0-9]*['`]", arguments[0], re.IGNORECASE):
+            calls.append(None)
+        else:
+            calls.append(arguments[0][1:-1].lower())
+    return calls
+
+
 def reaches_assertion(cls, name, seen=None):
     seen = set() if seen is None else seen
     if name in seen:
@@ -301,6 +326,7 @@ def audit(root):
         errors.append("Expected exactly one testing class: ltc_parity")
     all_classes = {}
     source = test_path.read_text()
+    literal_suite, _ = parse(source, preserve_literals=True)
     archived = archived_test_statements(source)
     if archived:
         errors.append(f"Archived executable test statements remain at lines: {archived}")
@@ -367,20 +393,26 @@ def audit(root):
             body = cls.implementations.get(name, [])
             if not body:
                 errors.append(f"{cls.name}: empty/comment-only test: {name}")
-            flattened = [token for stmt in body for token in stmt]
             if name in CATEGORIES:
-                calls = [
-                    flattened[index] for index in range(len(flattened) - 1)
-                    if flattened[index] in tests and flattened[index + 1] == "("
-                ]
+                calls = group_targets(
+                    literal_suite[cls.name].implementations.get(name, [])
+                )
                 matrix[name] = calls
-                leaf_counts.update(calls)
+                if name != "all_tests":
+                    leaf_counts.update(call for call in calls if call is not None)
                 if not calls:
                     errors.append(f"Category has no testing leaves: {name}")
+                if None in calls:
+                    errors.append(f"Category has a nonliteral group target: {name}")
+                for call in calls:
+                    if call is not None and call not in tests - set(CATEGORIES):
+                        errors.append(f"Category {name} has unknown/non-leaf target: {call}")
                 if len(calls) != len(set(calls)):
                     errors.append(f"Category repeats a leaf internally: {name}")
                 if any(call in CATEGORIES for call in calls):
                     errors.append(f"Category calls another category: {name}")
+                if local_calls(body, tests):
+                    errors.append(f"Category bypasses run_group_test: {name}")
             else:
                 if not reaches_assertion(cls, name):
                     errors.append(f"Test has no reachable ABAP Unit assertion: {name}")
@@ -404,6 +436,21 @@ def audit(root):
                                 f"unknown arguments {sorted(unknown_args)}"
                             )
                 for index in range(len(stmt) - 3):
+                    if (stmt[index:index + 2] == ["cl_abap_unit_assert", "=>"]
+                            and (stmt[index + 2].startswith("assert_")
+                                 or stmt[index + 2] == "fail")):
+                        expected_quit = (
+                            tokens("quit = if_aunit_constants=>no")
+                            if name == "run_group_test"
+                            else tokens("quit = mv_assert_quit")
+                        )
+                        if ("quit" not in named_arguments(stmt, index + 3)
+                                or not any(
+                                    stmt[position:position + len(expected_quit)]
+                                    == expected_quit
+                                    for position in range(index + 4, len(stmt))
+                                )):
+                            errors.append(f"{cls.name}.{name}: assertion lacks correct quit control")
                     if stmt[index:index + 2] == ["me", "->"]:
                         called = stmt[index + 2]
                         if stmt[index + 3] == "(" and called not in declared:
@@ -436,10 +483,19 @@ def audit(root):
                             errors.append(f"{cls.name}: missing dashboard friend access")
     parity = suite.get("ltc_parity")
     if parity:
-        for category in REQUIRED_CATEGORIES:
+        for category in CATEGORIES:
             if category not in matrix:
                 errors.append(f"Missing testing category: {category}")
         tests = {name for name, decl in parity.declarations.items() if "testing" in decl}
+        leaves = tests - set(CATEGORIES)
+        if Counter(matrix.get("all_tests", [])) != Counter(leaves):
+            errors.append("all_tests must invoke every testing leaf exactly once")
+        declared_tests = [name for name in parity.declarations if name in tests]
+        implemented_tests = [name for name in parity.implementations if name in tests]
+        if declared_tests[:len(CATEGORIES)] != list(CATEGORIES):
+            errors.append("Group testing declarations must come first, starting with all_tests")
+        if implemented_tests[:len(CATEGORIES)] != list(CATEGORIES):
+            errors.append("Group testing implementations must come first, starting with all_tests")
         for name in tests - set(matrix):
             if leaf_counts[name] < 1:
                 errors.append(f"Leaf does not appear in any category: {name}")
@@ -471,7 +527,8 @@ def audit(root):
         "unresolved_lfs": fixture_pointers,
         "errors": sorted(set(errors)),
         "limitations": (
-            "Structural checks only. Dynamic calls, external SAP signatures, "
+            "Structural checks only. Literal group targets are checked, but dynamic "
+            "dispatch and external SAP signatures, "
             "ABAP syntax/type checking, assertion semantics, ATC, ABAP Unit, "
             "HANA APPLY_FILTER and OData parity require SAP runtime review."
         ),
@@ -479,6 +536,117 @@ def audit(root):
 
 
 class ParserTests(unittest.TestCase):
+    def test_group_targets_preserve_literals_but_ignore_comments_and_strings(self):
+        body = list(statements("""
+run_group_test( 'one' ).
+me->run_group_test( i_test = `two` ).
+" run_group_test( 'fake_comment' ).
+* run_group_test( 'fake_star_comment' ).
+message = `run_group_test( 'fake_string' ).`.
+run_group_test( dynamic_name ).
+""", preserve_literals=True))
+        self.assertEqual(group_targets(body), ["one", "two", None])
+        self.assertEqual(group_targets(list(statements(
+            "run_group_test( 'one' )."
+        ))), [None])
+
+    def test_all_tests_covers_every_leaf_once_and_groups_are_first(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "Unit test.txt").read_text(),
+            preserve_literals=True
+        )
+        parity = classes["ltc_parity"]
+        tests = {name for name, decl in parity.declarations.items() if "testing" in decl}
+        leaves = tests - set(CATEGORIES)
+        self.assertEqual(len(leaves), 164)
+        self.assertEqual(
+            Counter(group_targets(parity.implementations["all_tests"])),
+            Counter(leaves)
+        )
+        for methods in (parity.declarations, parity.implementations):
+            self.assertEqual(list(methods)[:len(CATEGORIES)], list(CATEGORIES))
+            helpers = set(methods) - tests
+            positions = {name: index for index, name in enumerate(methods)}
+            self.assertGreater(min(positions[name] for name in helpers),
+                               max(positions[name] for name in tests))
+        for category in CATEGORIES:
+            calls = group_targets(parity.implementations[category])
+            self.assertTrue(calls)
+            self.assertEqual(len(calls), len(set(calls)))
+            self.assertLessEqual(set(calls), leaves)
+
+    def test_group_runner_reports_exceptions_and_restores_quit_control(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        body = parity.implementations["run_group_test"]
+        self.assertEqual(body, [
+            tokens("DATA(lv_previous_quit) = mv_assert_quit"),
+            tokens("DATA(lv_previous_test) = mv_group_test"),
+            tokens("mv_assert_quit = if_aunit_constants=>no"),
+            tokens("mv_group_test = i_test"),
+            tokens("TRY"),
+            tokens("CALL METHOD me->(i_test)"),
+            tokens("CATCH cx_root INTO DATA(lx_error)"),
+            tokens("cl_abap_unit_assert=>fail("
+                   " msg = |{ i_test }: { lx_error->get_text( ) }|"
+                   " quit = if_aunit_constants=>no )"),
+            tokens("ENDTRY"),
+            tokens("mv_assert_quit = lv_previous_quit"),
+            tokens("mv_group_test = lv_previous_test"),
+        ])
+        for name, statements_ in parity.implementations.items():
+            if name == "run_group_test":
+                continue
+            for stmt in statements_:
+                if stmt[:2] == ["cl_abap_unit_assert", "=>"]:
+                    with self.subTest(method=name, assertion=stmt[2]):
+                        self.assertTrue(any(
+                            stmt[index:index + 3] == ["quit", "=", "mv_assert_quit"]
+                            for index in range(len(stmt) - 2)
+                        ))
+
+    def test_extraction_copies_and_consumes_ranges_before_conversion(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "zcl_fi_das_dashboard.txt").read_text()
+        )
+        body = classes["zcl_fi_das_dashboard"].implementations["extract_filters"]
+        copy = tokens("DATA(lt_filter_options) = cs_request-filter-filter_select_options")
+        index = body.index(copy)
+        self.assertEqual(body[index + 1],
+                         tokens("CLEAR cs_request-filter-filter_select_options"))
+        self.assertEqual(body[index + 2], tokens("IF lt_filter_options IS INITIAL"))
+        loop = tokens(
+            "LOOP AT lt_filter_options ASSIGNING FIELD-SYMBOL(<fs_filter_select_options>)"
+        )
+        self.assertGreater(body.index(loop), index + 2)
+        self.assertNotIn("cs_request-filter-filter_select_options", [
+            stmt[2] for stmt in body if stmt[:2] == ["loop", "at"]
+        ])
+        conversions = [index for index, stmt in enumerate(body)
+                       if "convert_range_to_where" in stmt]
+        self.assertTrue(conversions)
+        self.assertTrue(all(position > index + 2 for position in conversions))
+
+    def test_grouping_preserves_blank_separator(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "zcl_fi_das_utility.txt").read_text()
+        )
+        body = classes["zcl_fi_das_utility"].implementations["group_integer"]
+        self.assertIn(tokens(
+            "CONCATENATE rv_integer i_grouping_separator lv_group"
+            " INTO rv_integer RESPECTING BLANKS"
+        ), body)
+
+    def test_range_consumption_postcondition_is_not_weakened(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        self.assertIn(tokens(
+            "cl_abap_unit_assert=>assert_initial("
+            " quit = mv_assert_quit"
+            " act = rs_request-filter-filter_select_options"
+            " msg = |{ mv_group_test } (extract_range): "
+            "Consumed range projections must not survive extraction| )"
+        ), classes["ltc_parity"].implementations["extract_range"])
+
     def test_gateway_internal_index_assertion_captures_find_result(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
         body = classes["ltc_parity"].implementations["execute_gateway_get"]
@@ -490,6 +658,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(body[index + 1], tokens("DATA(lv_find_subrc) = sy-subrc"))
         self.assertEqual(body[index + 2], tokens(
             "cl_abap_unit_assert=>assert_equals("
+            " quit = mv_assert_quit"
             " act = lv_find_subrc exp = 4"
             " msg = 'The internal original_row_index must never be serialized by Gateway' )"
         ))
@@ -507,7 +676,9 @@ class ParserTests(unittest.TestCase):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
         parity = classes["ltc_parity"]
         self.assertEqual(parity.implementations["setup"],
-                         [tokens("reset_fixture( )")])
+                         [tokens("mv_assert_quit = if_aunit_constants=>method"),
+                          tokens("CLEAR mv_group_test"),
+                          tokens("reset_fixture( )")])
         self.assertEqual(parity.implementations["reset_fixture"], [
             tokens("mo_cut = NEW #( )"),
             tokens("CLEAR: mt_differences, mv_difference_count"),

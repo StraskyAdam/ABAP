@@ -341,13 +341,12 @@ ENDMETHOD.
     DATA(lv_position) = lv_first_group.
 
     WHILE lv_position < lv_length.
-      rv_integer =
-          rv_integer
-        && i_grouping_separator
-        && substring(
-             val = i_integer
-             off = lv_position
-             len = 3 ).
+      DATA(lv_group) = substring(
+        val = i_integer
+        off = lv_position
+        len = 3 ).
+      CONCATENATE rv_integer i_grouping_separator lv_group
+        INTO rv_integer RESPECTING BLANKS.
       lv_position = lv_position + 3.
     ENDWHILE.
 

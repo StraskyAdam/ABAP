@@ -2031,11 +2031,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    IF cs_request-filter-filter_select_options IS INITIAL.
+    DATA(lt_filter_options) = cs_request-filter-filter_select_options.
+    CLEAR cs_request-filter-filter_select_options.
+
+    IF lt_filter_options IS INITIAL.
       RETURN.
     ENDIF.
 
-    LOOP AT cs_request-filter-filter_select_options ASSIGNING FIELD-SYMBOL(<fs_filter_select_options>).
+    LOOP AT lt_filter_options ASSIGNING FIELD-SYMBOL(<fs_filter_select_options>).
 
       DATA(ls_range) = VALUE ts_string_range( sign = <fs_filter_select_options>-sign
                                               option = <fs_filter_select_options>-option
@@ -2059,7 +2062,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         IF l_generic_required = abap_true.
 *         Select-only ranges OR values within a property and AND properties.
           DATA l_predicate TYPE string.
-          LOOP AT cs_request-filter-filter_select_options ASSIGNING <fs_filter_select_options>
+          LOOP AT lt_filter_options ASSIGNING <fs_filter_select_options>
             GROUP BY to_upper( <fs_filter_select_options>-property ) INTO DATA(l_property).
 
             UNASSIGN <fs_property>.
@@ -2104,8 +2107,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             i_reason = `Filter ranges could not be safely converted`
             previous = lx_filter.
     ENDTRY.
-
-    CLEAR cs_request-filter-filter_select_options.
 
   ENDMETHOD.
 

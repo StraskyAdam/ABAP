@@ -829,6 +829,11 @@ CLASS ltc_parity IMPLEMENTATION.
   METHOD filter_rows.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       filter = VALUE #( filter_string = i_predicate ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string exp = i_predicate ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_select_options ).
     mo_cut->apply_generic_filter(
       EXPORTING is_request = ls_request CHANGING ct_result = ct_result ).
   ENDMETHOD.
@@ -888,7 +893,9 @@ METHOD test_cp_case_sensitive_include.
       ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
       ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
       ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
-    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME LIKE '%Q%'`
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' ) ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
                  CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
@@ -903,7 +910,9 @@ METHOD test_cp_case_sensitive_include.
       ( suppliername = 'Quality Solutions' )
       ( suppliername = 'quantum corp' )
       ( suppliername = 'Fuji Electric' ) ).
-    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME NOT LIKE '%Q%'`
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'E' option = 'CP' low = '*Q*' ) ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
                  CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_true(
@@ -917,12 +926,14 @@ METHOD test_cp_case_sensitive_include.
 
   METHOD test_eq_case_insensitive.
     setup( ).
-    " Explicit UPPER is required: HANA equality itself is case-sensitive.
+    " Extracted EQ is case-sensitive; explicit UPPER below is not the default EQ behavior.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( suppliername = 'Fuji' ) ( suppliername = 'fuji' )
       ( suppliername = 'FUJI' ) ( suppliername = 'Hitachi' ) ).
     DATA(lt_exact) = lt_result.
-    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME = 'FUJI'`
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = 'FUJI' ) ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
                  CHANGING ct_result = lt_exact ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_exact ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_exact[ 1 ]-suppliername exp = 'FUJI' ).
@@ -939,8 +950,11 @@ METHOD test_cp_case_sensitive_include.
       ( suppliername = 'Q' ) ( suppliername = 'BioClinica Inc' )
       ( suppliername = 'bioclinica small' ) ( suppliername = 'Fuji Electric' )
       ( suppliername = 'quantum' ) ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = 'Q' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Bio*' ) ) ).
     filter_rows( EXPORTING
-      i_predicate = `(SUPPLIERNAME = 'Q' OR SUPPLIERNAME LIKE '%Bio%')`
+      i_predicate = ls_request-filter_for_amdp-suppliername
       CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Q' ).
@@ -955,15 +969,15 @@ METHOD test_cp_case_sensitive_include.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( suppliername = 'Quality' ) ( suppliername = 'BioClinica' )
       ( suppliername = 'quantum' ) ( suppliername = 'Fuji Electric' ) ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Bio*' ) ) ).
     filter_rows( EXPORTING
-      i_predicate = `(SUPPLIERNAME LIKE '%Q%' OR SUPPLIERNAME LIKE '%Bio%')`
+      i_predicate = ls_request-filter_for_amdp-suppliername
       CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Quality' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-suppliername exp = 'BioClinica' ).
-    "Testuje: viacerí CP filtre v tej istej property (OR logika)
-    "Filter: substringof('Q',SUPPLIERNAME) OR substringof('Bio',SUPPLIERNAME)
-    "Očakávaný výsledok: vrátia riadky s 'Q' ALEBO 'Bio'
 
 
   ENDMETHOD.
@@ -972,7 +986,9 @@ METHOD test_cp_case_sensitive_include.
     setup( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( suppliername = 'Quality' ) ( suppliername = '' ) ).
-    filter_rows( EXPORTING i_predicate = `SUPPLIERNAME LIKE '%%'`
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '**' ) ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
                  CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
 
@@ -1255,8 +1271,10 @@ METHOD test_cp_case_sensitive_include.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' companycode = '2028' )
       ( ponumber = '8000000002' companycode = '6305' ) ).
-    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
 
@@ -1267,8 +1285,10 @@ METHOD test_cp_case_sensitive_include.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' polinedesc = 'GSD Local Support (Jan, 2027)' )
       ( ponumber = '8000000002' polinedesc = 'Enterprise Plan' ) ).
-    filter_rows( EXPORTING i_predicate = `POLINEDESC LIKE '%Local Support%'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POLINEDESC' sign = 'I' option = 'CP' low = '*Local Support*' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
@@ -1280,8 +1300,11 @@ METHOD test_cp_case_sensitive_include.
       ( ponumber = '8000000001' companycode = '2028' pocurrency = 'JPY' )
       ( ponumber = '8000000002' companycode = '2028' pocurrency = 'USD' )
       ( ponumber = '8000000003' companycode = '6305' pocurrency = 'JPY' ) ).
-    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028' AND POCURRENCY = 'JPY'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' )
+      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
 
@@ -1292,8 +1315,11 @@ METHOD test_cp_case_sensitive_include.
     setup( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( pocurrency = 'JPY' ) ( pocurrency = 'USD' ) ( pocurrency = 'EUR' ) ).
-    filter_rows( EXPORTING i_predicate = `(POCURRENCY = 'JPY' OR POCURRENCY = 'USD')`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' )
+      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'USD' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-pocurrency exp = 'JPY' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-pocurrency exp = 'USD' ).
@@ -1325,12 +1351,14 @@ METHOD test_cp_case_sensitive_include.
       ( ponumber = '8000000003' pocurrency = 'JPY' suppliername = 'Charlie' )
       ( ponumber = '8000000001' pocurrency = 'JPY' suppliername = 'Alpha' )
       ( ponumber = '8000000002' pocurrency = 'USD' suppliername = 'Bravo' ) ).
-    filter_rows( EXPORTING i_predicate = `POCURRENCY = 'JPY'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
+    ls_request-orderby = VALUE #( ( property = 'SUPPLIERNAME' ) ).
+    ls_request-paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     mo_cut->apply_sort_and_paging(
-      EXPORTING is_request = VALUE #(
-        orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
-        paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ) )
+      EXPORTING is_request = ls_request
       CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = 'Charlie' ).
@@ -6547,7 +6575,9 @@ ENDMETHOD.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' suppliername = `O'Brien Supplies` )
       ( ponumber = '8000000002' itemno = '00001' suppliername = `Other Supplier` ) ).
-    filter_rows( EXPORTING i_predicate = `suppliername = 'O''Brien Supplies'`
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = `O'Brien Supplies` ) ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
                  CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
@@ -6558,8 +6588,10 @@ ENDMETHOD.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' pocreatedat = '20251014' )
       ( ponumber = '8000000002' itemno = '00001' pocreatedat = '20251015' ) ).
-    filter_rows( EXPORTING i_predicate = `pocreatedat > '20251014'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'POCREATEDAT' sign = 'I' option = 'GT' low = '20251014' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
   ENDMETHOD.
@@ -6568,8 +6600,10 @@ ENDMETHOD.
     setup( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' companycode = '1000' ) ).
-    filter_rows( EXPORTING i_predicate = `companycode = '9999'`
-                 CHANGING ct_result = lt_result ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '9999' ) ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_initial( lt_result ).
   ENDMETHOD.
 

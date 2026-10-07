@@ -2,7 +2,7 @@
 
 ## Install this revision, not the older base or PR #30 alone
 
-- Test implementation: commit **`9bb3c12abdf1d551aa8a11fe1b4bfd910893ebab`**,
+- Test implementation: commit **`d2d5716ccdfeb6965837b968da55b6b59caff4aa`**,
   `ABAP code/Unit test.txt` (the complete local test-class include of
   `ZCL_FI_DAS_DASHBOARD`, including its local diagnostic exception classes).
 - Production prerequisites: the corresponding dashboard, utility, interface,
@@ -85,6 +85,9 @@ New ABAP diagnostic/fixture/Unicode/stored-method regressions are supplied but
 **unexecuted**. No SAP activation/ATC, ABAP Unit, HANA or Gateway run was possible.
 The mandatory validation tool reported its review binary unavailable and
 skipped CodeQL for test-only changes; this is not a clean security/runtime scan.
+A separate read-only reviewer identified misplaced parser guards and an
+incorrect combined-PSTYPE ordering oracle; both were fixed, then re-reviewed
+with no remaining high-confidence findings.
 
 ## Historical PR #29 report (not current installation instructions)
 

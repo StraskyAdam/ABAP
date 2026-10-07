@@ -1,4 +1,4 @@
-@EndUserText.label : 'SHared elements in structure'
+@EndUserText.label : 'Shared elements in structure'
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_shared {
   poowner_email     : abap.char(255);

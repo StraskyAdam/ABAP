@@ -245,10 +245,14 @@ METHOD get_number_parts.
     lv_normalized       TYPE string,
     lv_decimal_position TYPE i,
     lv_position         TYPE i,
-    lv_fraction_length  TYPE i,
-    lv_character        TYPE char1.
+    lv_fraction_length  TYPE i.
 
-  WRITE i_amount TO lv_write_text
+  DATA(lv_magnitude) = abs( i_amount ).
+  IF i_amount < 0.
+    rs_parts-sign = '-'.
+  ENDIF.
+
+  WRITE lv_magnitude TO lv_write_text
     DECIMALS i_decimals
     NO-GROUPING.
 
@@ -258,14 +262,6 @@ METHOD get_number_parts.
     lv_normalized = '0'.
   ENDIF.
   REPLACE ALL OCCURRENCES OF ',' IN lv_normalized WITH '.'.
-
-  lv_character = substring( val = lv_normalized off = 0 len = 1 ).
-  IF lv_character = '-'.
-    rs_parts-sign = '-'.
-    lv_normalized = substring( val = lv_normalized off = 1 ).
-  ELSEIF lv_character = '+'.
-    lv_normalized = substring( val = lv_normalized off = 1 ).
-  ENDIF.
 
   FIND FIRST OCCURRENCE OF '.'
     IN lv_normalized

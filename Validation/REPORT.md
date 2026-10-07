@@ -64,6 +64,10 @@ functional method's returning parameter and generic table assertion. It does
 not establish the cause of the previously reported SAP failure: if the count
 remains nonzero, inspect the actual request and active extraction implementation
 in SAP rather than removing the postcondition.
+The helper diagnostic explicitly counts **input filter ranges**, not result
+rows, and includes the input/remaining counts and generated SQL. In
+`generic_eq_filters_rows`, zero consumed range projections and one matching
+COMPANYCODE result are distinct expectations; the result still must be `2028`.
 A reported failure of that successful-exit assertion could indicate a stale
 deployed version, not a defect reproduced in the current export. Its runtime
 root cause has **not been verified** without SAP execution. Activate the current
@@ -73,6 +77,14 @@ check repeated extraction.
 `group_integer` uses `CONCATENATE ... RESPECTING BLANKS`, preserving the Y-format
 space separator. Amount assertions retain the original X/Y/default expectations
 and add multiple Y-format groups, ungrouped output, and a negative amount.
+`get_number_parts` derives the sign from the numeric input and writes its
+absolute magnitude. ABAP `WRITE` may place a minus sign after the number; parsing
+only a leading sign previously lost it during fraction truncation. The format
+test now captures each result before asserting, retains all six previous cases,
+and adds negative X/default/ungrouped and zero cases. Each diagnostic identifies
+the amount, decimal format, and grouping flag. Existing Y-space preservation
+remains unchanged; a deployed `12345,67` instead of `12 345,67` still needs the
+active utility implementation checked, not a weakened expected value.
 The internal `original_row_index` assertions remain intact.
 
 All 164 leaf tests remain `FOR TESTING`. Eleven group methods are declared and
@@ -127,7 +139,7 @@ Group target recognition preserves quoted literals from the original bodies
 while ignoring comments and strings containing fake calls. It rejects unknown
 or non-leaf targets, duplicates, direct group-to-leaf calls, and incomplete
 `all_tests` coverage; shared-category counts exclude `all_tests`.
-Its 19 regression tests passed, including range-copy/clear ordering before
+Its 21 regression tests passed, including range-copy/clear ordering before
 conversion, blank-preserving grouping, non-aborting exception reporting,
 quit-control restoration, group-first/helper-last ordering, all 164 leaves,
 and preservation of the original range and Gateway internal-index assertions.
@@ -152,7 +164,7 @@ body was executable.
 
 | Check | Status |
 |---|---|
-| Audit-parser and failure/group regression tests | EXECUTED: 19 passed |
+| Audit-parser and failure/group regression tests | EXECUTED: 21 passed |
 | Combined structural JSON audit | EXECUTED: zero errors; all 164 leaves retained |
 | Exported ABAP test-class formatting | EXECUTED: ecosystem pretty-printer/quick fixes |
 | CodeQL Python scan | EXECUTED: zero alerts; does not validate ABAP |

@@ -3552,48 +3552,36 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD amount_format_x_y_default.
     reset_fixture( ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
-        i_decimals = 2 i_decimal_format = 'X' i_use_grouping = abap_true )
-      exp  = `12,345.67` ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
-        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
-      exp  = `12 345,67` ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '12345.67' )
-        i_decimals = 2 i_decimal_format = space i_use_grouping = abap_true )
-      exp  = `12.345,67` ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '123456789.67' )
-        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
-      exp  = `123 456 789,67` ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '123456789.67' )
-        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_false )
-      exp  = `123456789,67` ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (amount_format_x_y_default)|
-      act  = zcl_fi_das_utility=>format_odata_amount(
-        i_amount = CONV zcl_fi_das_utility=>t_amount_precision( '-12345.67' )
-        i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
-      exp  = `-12 345,67` ).
+    TYPES:
+      BEGIN OF ts_format_case,
+        amount         TYPE zcl_fi_das_utility=>t_amount_precision,
+        decimal_format TYPE zcl_fi_das_dashboard=>t_decimal_format,
+        grouping       TYPE abap_bool,
+        expected       TYPE string,
+      END OF ts_format_case,
+      tt_format_case TYPE STANDARD TABLE OF ts_format_case WITH EMPTY KEY.
+    DATA(lt_cases) = VALUE tt_format_case(
+      ( amount = '12345.67' decimal_format = 'X' grouping = abap_true expected = `12,345.67` )
+      ( amount = '12345.67' decimal_format = 'Y' grouping = abap_true expected = `12 345,67` )
+      ( amount = '12345.67' decimal_format = space grouping = abap_true expected = `12.345,67` )
+      ( amount = '123456789.67' decimal_format = 'Y' grouping = abap_true expected = `123 456 789,67` )
+      ( amount = '123456789.67' decimal_format = 'Y' grouping = abap_false expected = `123456789,67` )
+      ( amount = '-12345.67' decimal_format = 'Y' grouping = abap_true expected = `-12 345,67` )
+      ( amount = '-12345.67' decimal_format = 'X' grouping = abap_true expected = `-12,345.67` )
+      ( amount = '-12345.67' decimal_format = space grouping = abap_true expected = `-12.345,67` )
+      ( amount = '-12345.67' decimal_format = 'Y' grouping = abap_false expected = `-12345,67` )
+      ( amount = '0' decimal_format = 'Y' grouping = abap_true expected = `0,00` ) ).
+    LOOP AT lt_cases INTO DATA(ls_case).
+      DATA(lv_actual) = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = ls_case-amount i_decimals = 2
+        i_decimal_format = ls_case-decimal_format i_use_grouping = ls_case-grouping ).
+      cl_abap_unit_assert=>assert_equals(
+        quit = mv_assert_quit
+        act  = lv_actual
+        exp  = ls_case-expected
+        msg  = |{ mv_group_test } (amount_format_x_y_default): amount={ ls_case-amount }, |
+            && |format={ ls_case-decimal_format }, grouping={ ls_case-grouping }| ).
+    ENDLOOP.
   ENDMETHOD.
 
 ************************************************************************
@@ -8301,7 +8289,9 @@ CLASS ltc_parity IMPLEMENTATION.
       quit = mv_assert_quit
       act  = lv_remaining_ranges
       exp  = 0
-      msg  = |{ mv_group_test } (extract_range): Consumed range projections must not survive extraction| ).
+      msg  = |{ mv_group_test } (extract_range): Unconsumed input filter ranges, not result rows; |
+          && |input={ lines( it_filters ) }, remaining={ lv_remaining_ranges }, |
+          && |SQL={ ls_request-filter-filter_string }| ).
     rs_request = ls_request.
   ENDMETHOD.
 

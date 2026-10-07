@@ -639,6 +639,34 @@ run_group_test( dynamic_name ).
             " INTO rv_integer RESPECTING BLANKS"
         ), body)
 
+    def test_number_sign_is_independent_of_write_sign_placement(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "zcl_fi_das_utility.txt").read_text()
+        )
+        body = classes["zcl_fi_das_utility"].implementations["get_number_parts"]
+        self.assertIn(tokens("DATA(lv_magnitude) = abs( i_amount )"), body)
+        self.assertIn(tokens("IF i_amount < 0"), body)
+        self.assertIn(tokens("rs_parts-sign = '-'"), body)
+        self.assertIn(tokens(
+            "WRITE lv_magnitude TO lv_write_text DECIMALS i_decimals NO-GROUPING"
+        ), body)
+
+    def test_format_cases_snapshot_actual_and_preserve_expectations(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "Unit test.txt").read_text(),
+            preserve_literals=True
+        )
+        body = classes["ltc_parity"].implementations["amount_format_x_y_default"]
+        flattened = [token for stmt in body for token in stmt]
+        for expected in ("`12,345.67`", "`12 345,67`", "`12.345,67`",
+                         "`123 456 789,67`", "`123456789,67`",
+                         "`-12 345,67`", "`-12,345.67`", "`-12.345,67`",
+                         "`-12345,67`", "`0,00`"):
+            self.assertIn(expected, flattened)
+        self.assertTrue(any(stmt[:6] == ["data", "(", "lv_actual", ")", "=",
+                                       "zcl_fi_das_utility"] for stmt in body))
+        self.assertIn("lv_actual", flattened)
+
     def test_range_consumption_postcondition_is_not_weakened(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
         body = classes["ltc_parity"].implementations["extract_range"]
@@ -651,7 +679,9 @@ run_group_test( dynamic_name ).
             " quit = mv_assert_quit"
             " act = lv_remaining_ranges exp = 0"
             " msg = |{ mv_group_test } (extract_range): "
-            "Consumed range projections must not survive extraction| )"),
+            "Unconsumed input filter ranges, not result rows; |"
+            " && |input={ lines( it_filters ) }, remaining={ lv_remaining_ranges }, |"
+            " && |SQL={ ls_request-filter-filter_string }| )"),
             tokens("rs_request = ls_request"),
         ])
 

@@ -13,7 +13,7 @@ CLASS zcl_fi_das_utility DEFINITION
 
     CLASS-METHODS normalize_email
       IMPORTING
-        i_email TYPE zif_fi_das_dashboard=>t_email
+        i_email        TYPE zif_fi_das_dashboard=>t_email
       RETURNING
         VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
 
@@ -409,10 +409,10 @@ ENDMETHOD.
 
   METHOD normalize_email.
 
-  r_email = to_lower( condense( val  = CONV string( i_email )
-                                from = space ) ).
+    r_email = to_lower( condense( val  = CONV string( i_email )
+                                  from = space ) ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
 
   METHOD parse_percentage.

@@ -508,7 +508,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_request        TYPE ts_internal_request
       RETURNING
-        VALUE(rs_request) TYPE ts_internal_request.
+        VALUE(rs_request) TYPE ts_internal_request
+      RAISING
+        zcx_fi_das_error.
 
     METHODS get_email
       IMPORTING
@@ -518,7 +520,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS extract_filters
       CHANGING
-        cs_request TYPE ts_internal_request.
+        cs_request TYPE ts_internal_request
+      RAISING
+        zcx_fi_das_error.
 
     CLASS-METHODS convert_range_to_where
       IMPORTING
@@ -2011,9 +2015,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA: lr_item                     TYPE tt_string_range,
           lr_ponumber                 TYPE tt_string_range,
-          lr_suppliername             TYPE tt_string_range,
+          lr_suppliername             TYPE tt_string_range.
 
-          l_has_non_standard_for_amdp TYPE abap_bool VALUE abap_false.
+*   If Gateway provides the complete predicate, apply it to the complete
+*   candidate set. Select-options can be a partial range projection of a
+*   boolean expression and are not safe as an additional key prefilter.
+    IF cs_request-filter-filter_string IS NOT INITIAL.
+      CLEAR cs_request-filter_for_amdp.
+      RETURN.
+    ENDIF.
 
     IF cs_request-filter-filter_select_options IS INITIAL.
       RETURN.
@@ -2034,7 +2044,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         WHEN mc_property_suppliername.
           APPEND ls_range TO lr_suppliername.
         WHEN OTHERS.
-          l_has_non_standard_for_amdp = abap_true.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_reason = |Filter property { <fs_filter_select_options>-property } has no generic predicate|.
       ENDCASE.
 
     ENDLOOP.
@@ -2045,15 +2057,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
            item         = convert_range_to_where( i_column = mc_property_itemno       ir_range = lr_item )
            suppliername = convert_range_to_where( i_column = mc_property_suppliername ir_range = lr_suppliername ) ).
 
-      CATCH cx_shdb_exception.
+      CATCH cx_shdb_exception INTO DATA(lx_filter).
         CLEAR cs_request-filter_for_amdp.
-        RETURN.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            i_reason = `Filter ranges could not be safely optimized`
+            previous = lx_filter.
     ENDTRY.
-
-*   All filter conditions were converted to AMDP filters, generic filter processing is no longer required
-    IF l_has_non_standard_for_amdp = abap_false.
-      CLEAR cs_request-filter-filter_string.
-    ENDIF.
 
   ENDMETHOD.
 

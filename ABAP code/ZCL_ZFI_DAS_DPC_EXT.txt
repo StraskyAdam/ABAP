@@ -116,7 +116,9 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
         rs_filter-filter_string = lo_filter->get_filter_string( ).
 
 *       Raise an exception to avoid processing an unsupported filter
-        IF rs_filter-filter_string IS INITIAL AND io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
+        IF rs_filter-filter_string IS INITIAL
+           AND rs_filter-filter_select_options IS INITIAL
+           AND io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
           RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
         ENDIF.
 

@@ -763,7 +763,12 @@ CLASS ltc_request_processing DEFINITION FINAL
 
 ENDCLASS.
 
-CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_request_processing.
+CLASS ltc_request_processing_verified DEFINITION DEFERRED.
+CLASS ltc_hana_filter_integration DEFINITION DEFERRED.
+
+CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_request_processing
+  ltc_request_processing_verified
+  ltc_hana_filter_integration.
 
 CLASS ltc_request_processing IMPLEMENTATION.
 
@@ -7095,4 +7100,386 @@ ENDMETHOD.
 
   ENDMETHOD.
 
+ENDCLASS.
+
+CLASS ltc_request_processing_verified DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS default_order_has_unique_keys FOR TESTING.
+    METHODS compatible_default_prefix_is_removed FOR TESTING.
+    METHODS non_default_order_is_preserved FOR TESTING.
+    METHODS requested_sort_adds_default_ties FOR TESTING.
+    METHODS invalid_and_duplicate_sorts_are_ignored FOR TESTING.
+    METHODS paging_follows_sort FOR TESTING.
+    METHODS requested_top_zero_is_empty FOR TESTING.
+    METHODS omitted_top_keeps_all_rows FOR TESTING.
+    METHODS empty_orderby_preserves_input_order FOR TESTING.
+    METHODS known_ranges_are_optimized FOR TESTING.
+    METHODS mixed_filter_keeps_generic_predicate FOR TESTING.
+    METHODS cross_property_or_disables_prefilter FOR TESTING.
+    METHODS unoptimizable_filter_without_predicate_fails FOR TESTING RAISING cx_static_check.
+    METHODS only_single_star_is_a_wildcard FOR TESTING.
+    METHODS scope_normalization_is_field_specific FOR TESTING.
+    METHODS empty_generic_filter_is_a_noop FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_request_processing_verified IMPLEMENTATION.
+  METHOD setup.
+    mo_cut = NEW #( ).
+  ENDMETHOD.
+
+  METHOD default_order_has_unique_keys.
+    DATA(lt_orderby) = mo_cut->get_default_orderby( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_orderby ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 1 ]-property exp = `PSTYPE` ).
+    cl_abap_unit_assert=>assert_true( act = lt_orderby[ 1 ]-descending ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 2 ]-property exp = `PONUMBER` ).
+    cl_abap_unit_assert=>assert_false( act = lt_orderby[ 2 ]-descending ).
+    cl_abap_unit_assert=>assert_equals( act = lt_orderby[ 3 ]-property exp = `ITEMNO` ).
+    cl_abap_unit_assert=>assert_false( act = lt_orderby[ 3 ]-descending ).
+  ENDMETHOD.
+
+  METHOD compatible_default_prefix_is_removed.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
+
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_initial( ls_request-orderby ).
+  ENDMETHOD.
+
+  METHOD non_default_order_is_preserved.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `PONUMBER` descending = abap_true ) ) ).
+
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_request-orderby ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_request-orderby[ 1 ]-property exp = `PONUMBER` ).
+    cl_abap_unit_assert=>assert_true( act = ls_request-orderby[ 1 ]-descending ).
+  ENDMETHOD.
+
+  METHOD requested_sort_adds_default_ties.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' pstype = '0' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000003' itemno = '00001' pstype = '9' suppliername = 'Other' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000003' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 3 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD invalid_and_duplicate_sorts_are_ignored.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'B' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'A' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #(
+        ( property = `NOT_A_COLUMN` )
+        ( property = `SUPPLIERNAME` )
+        ( property = `SUPPLIERNAME` descending = abap_true ) ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-suppliername exp = `A` ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-suppliername exp = `B` ).
+  ENDMETHOD.
+
+  METHOD paging_follows_sort.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000003' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `PONUMBER` ) )
+      paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD requested_top_zero_is_empty.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      paging = VALUE #( top = 0 top_requested = abap_true ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+  ENDMETHOD.
+
+  METHOD omitted_top_keeps_all_rows.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      paging = VALUE #( top = 0 top_requested = abap_false ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD empty_orderby_preserves_input_order.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = VALUE zcl_fi_das_dashboard=>ts_internal_request( )
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-ponumber exp = '8000000001' ).
+  ENDMETHOD.
+
+  METHOD known_ranges_are_optimized.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` )
+          ( property = `ITEMNO` sign = `I` option = `EQ` low = `00001` ) ) ) ).
+
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_not_initial( ls_request-filter_for_amdp-item ).
+    cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
+  ENDMETHOD.
+
+  METHOD mixed_filter_keeps_generic_predicate.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` )
+          ( property = `COMPANYCODE` sign = `I` option = `EQ` low = `1000` ) )
+        filter_string = `COMPANYCODE = '1000'` ) ).
+
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string
+      exp = `COMPANYCODE = '1000'` ).
+    cl_abap_unit_assert=>assert_true( act = mo_cut->is_full_processing_required( ls_request ) ).
+  ENDMETHOD.
+
+  METHOD cross_property_or_disables_prefilter.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `PONUMBER` sign = `I` option = `EQ` low = `8000000001` ) )
+        filter_string = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ) ).
+
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_request-filter-filter_string
+      exp = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ).
+  ENDMETHOD.
+
+  METHOD unoptimizable_filter_without_predicate_fails.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_select_options = VALUE #(
+          ( property = `COMPANYCODE` sign = `I` option = `EQ` low = `1000` ) ) ) ).
+
+    TRY.
+        mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+        cl_abap_unit_assert=>fail( `A range with no generic predicate must not be dropped` ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD only_single_star_is_a_wildcard.
+    DATA(lt_wildcard) = mo_cut->get_company_codes( `*` ).
+    DATA(lt_mixed) = mo_cut->get_company_codes( `*, ab01` ).
+
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_wildcard[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_false( act = xsdbool( line_exists( lt_mixed[ wildcard = abap_true ] ) ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_mixed[ value = `*` ] ) ) ).
+  ENDMETHOD.
+
+  METHOD scope_normalization_is_field_specific.
+    DATA(lt_company) = mo_cut->get_company_codes( `ab01` ).
+    DATA(lt_cost_center) = mo_cut->get_cost_centers( `123` ).
+    DATA(lt_management_unit) = mo_cut->get_management_units( `Unit A` ).
+
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_company[ value = `AB01` ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_cost_center[ value = `0000000123` ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_management_unit[ value = `Unit A` ] ) ) ).
+  ENDMETHOD.
+
+  METHOD empty_generic_filter_is_a_noop.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000001' itemno = '00001' ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = VALUE zcl_fi_das_dashboard=>ts_internal_request( )
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-original_row_index ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_hana_filter_integration DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS nested_and_or_filters_synthetic_rows FOR TESTING RAISING cx_static_check.
+    METHODS escaped_apostrophe_matches_synthetic_row FOR TESTING RAISING cx_static_check.
+    METHODS date_boundary_is_exclusive FOR TESTING RAISING cx_static_check.
+    METHODS no_match_returns_no_rows FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_hana_filter_integration IMPLEMENTATION.
+  METHOD setup.
+    mo_cut = NEW #( ).
+  ENDMETHOD.
+
+  METHOD nested_and_or_filters_synthetic_rows.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '1000' pocurrency = 'USD' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '1000' pocurrency = 'EUR' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '2000' pocurrency = 'USD' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = `( companycode = '1000' AND ( pocurrency = 'USD' OR ponumber = '8000000002' ) )` ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_result[ ponumber = '8000000001' ] ) ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( line_exists( lt_result[ ponumber = '8000000002' ] ) ) ).
+  ENDMETHOD.
+
+  METHOD escaped_apostrophe_matches_synthetic_row.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' suppliername = `O'Brien Supplies` )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = `Other Supplier` ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #( filter_string = `suppliername = 'O''Brien Supplies'` ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000001' ).
+  ENDMETHOD.
+
+  METHOD date_boundary_is_exclusive.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' pocreatedat = '20251014' )
+      ( ponumber = '8000000002' itemno = '00001' pocreatedat = '20251015' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #( filter_string = `pocreatedat > '20251014'` ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-ponumber exp = '8000000002' ).
+  ENDMETHOD.
+
+  METHOD no_match_returns_no_rows.
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '1000' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #( filter_string = `companycode = '9999'` ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_utility_contracts DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS amount_format_x_y_and_default FOR TESTING RAISING cx_static_check.
+    METHODS percentage_parsing_and_error FOR TESTING RAISING cx_static_check.
+    METHODS decimal_truncation_is_toward_zero FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_utility_contracts IMPLEMENTATION.
+  METHOD amount_format_x_y_and_default.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = '12345.67' i_decimals = 2 i_decimal_format = 'X' i_use_grouping = abap_true )
+      exp = `12,345.67` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = '12345.67' i_decimals = 2 i_decimal_format = 'Y' i_use_grouping = abap_true )
+      exp = `12 345,67` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = '12345.67' i_decimals = 2 i_decimal_format = space i_use_grouping = abap_true )
+      exp = `12.345,67` ).
+  ENDMETHOD.
+
+  METHOD percentage_parsing_and_error.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>parse_percentage( `12,5` )
+      exp = CONV zcl_fi_das_dashboard=>t_percentage( '12.5' ) ).
+
+    TRY.
+        zcl_fi_das_utility=>parse_percentage( `1,2.3` ).
+        cl_abap_unit_assert=>fail( `Mixed decimal separators must be rejected` ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD decimal_truncation_is_toward_zero.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '-1.239' )
+        i_decimals = 2 )
+      exp = CONV decfloat34( '-1.23' ) ).
+  ENDMETHOD.
 ENDCLASS.

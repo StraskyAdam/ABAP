@@ -24,6 +24,7 @@ CATEGORIES = ("all_tests",) + REQUIRED_CATEGORIES + (
     "request_processing", "hana_filter", "utility"
 )
 LEGACY_RENAMES = {
+    "translated_cross_or_rows": "po_group_and_supplier_rows",
     "threshold_equal_is_under": "threshold_fixture_classes",
     "default_order_has_unique_keys": "default_order_unique_keys",
     "compatible_default_prefix_is_removed": "default_prefix_removed",
@@ -584,8 +585,9 @@ run_group_test( dynamic_name ).
             tokens("DATA(lv_previous_test) = mv_group_test"),
             tokens("mv_assert_quit = if_aunit_constants=>no"),
             tokens("mv_group_test = i_test"),
+            tokens("DATA(lv_method) = to_upper( i_test )"),
             tokens("TRY"),
-            tokens("CALL METHOD me->(i_test)"),
+            tokens("CALL METHOD me->(lv_method)"),
             tokens("CATCH cx_root INTO DATA(lx_error)"),
             tokens("cl_abap_unit_assert=>fail("
                    " msg = |{ i_test }: { lx_error->get_text( ) }|"
@@ -639,13 +641,35 @@ run_group_test( dynamic_name ).
 
     def test_range_consumption_postcondition_is_not_weakened(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
-        self.assertIn(tokens(
-            "cl_abap_unit_assert=>assert_initial("
+        body = classes["ltc_parity"].implementations["extract_range"]
+        self.assertEqual(body, [
+            tokens("DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request("
+                   " filter = VALUE #( filter_select_options = it_filters ) )"),
+            tokens("mo_cut->extract_filters( CHANGING cs_request = ls_request )"),
+            tokens("DATA(lv_remaining_ranges) = lines( ls_request-filter-filter_select_options )"),
+            tokens("cl_abap_unit_assert=>assert_equals("
             " quit = mv_assert_quit"
-            " act = rs_request-filter-filter_select_options"
+            " act = lv_remaining_ranges exp = 0"
             " msg = |{ mv_group_test } (extract_range): "
-            "Consumed range projections must not survive extraction| )"
-        ), classes["ltc_parity"].implementations["extract_range"])
+            "Consumed range projections must not survive extraction| )"),
+            tokens("rs_request = ls_request"),
+        ])
+
+    def test_grouped_po_supplier_test_uses_generated_range_predicates(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        self.assertNotIn("translated_cross_or_rows", parity.declarations)
+        body = parity.implementations["po_group_and_supplier_rows"]
+        self.assertTrue(any("extract_range" in stmt for stmt in body))
+        self.assertNotIn("lv_sql", [token for stmt in body for token in stmt])
+        self.assertIn(tokens(
+            "filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber"
+            " CHANGING ct_result = lt_result )"
+        ), body)
+        self.assertIn(tokens(
+            "filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername"
+            " CHANGING ct_result = lt_result )"
+        ), body)
 
     def test_gateway_internal_index_assertion_captures_find_result(self):
         classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())

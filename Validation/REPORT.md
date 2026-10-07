@@ -57,6 +57,13 @@ special method `setup` cannot be called directly.
 and only then checks/converts the copy. The prior export already cleared these
 projections on successful exit; early consumption additionally covers conversion
 exception paths. The original range-consumption postcondition is unchanged.
+The range test helper now constructs a separate local request, passes that
+request to extraction, snapshots the remaining range count, checks it is zero,
+and only then assigns its return value. This keeps the check independent of the
+functional method's returning parameter and generic table assertion. It does
+not establish the cause of the previously reported SAP failure: if the count
+remains nonzero, inspect the actual request and active extraction implementation
+in SAP rather than removing the postcondition.
 A reported failure of that successful-exit assertion could indicate a stale
 deployed version, not a defect reproduced in the current export. Its runtime
 root cause has **not been verified** without SAP execution. Activate the current
@@ -75,6 +82,8 @@ last. `all_tests` calls every unique leaf exactly once, not the category groups.
 Every group dispatches leaves through `run_group_test`, which temporarily sets
 assertion quit control to `if_aunit_constants=>no`, records catchable exceptions
 as ABAP Unit failures with the leaf name, and restores the previous control.
+The dynamic method identifier is normalized to uppercase before dispatch, as
+required by older ABAP releases; the lowercase diagnostic name is unchanged.
 Assertions in leaves and shared helpers use that control, so an assertion
 failure does not prevent the group from attempting later leaves. Standalone
 leaves retain method-level fail-fast behavior. Added assertion messages identify
@@ -118,7 +127,7 @@ Group target recognition preserves quoted literals from the original bodies
 while ignoring comments and strings containing fake calls. It rejects unknown
 or non-leaf targets, duplicates, direct group-to-leaf calls, and incomplete
 `all_tests` coverage; shared-category counts exclude `all_tests`.
-Its 18 regression tests passed, including range-copy/clear ordering before
+Its 19 regression tests passed, including range-copy/clear ordering before
 conversion, blank-preserving grouping, non-aborting exception reporting,
 quit-control restoration, group-first/helper-last ordering, all 164 leaves,
 and preservation of the original range and Gateway internal-index assertions.
@@ -143,7 +152,7 @@ body was executable.
 
 | Check | Status |
 |---|---|
-| Audit-parser and failure/group regression tests | EXECUTED: 18 passed |
+| Audit-parser and failure/group regression tests | EXECUTED: 19 passed |
 | Combined structural JSON audit | EXECUTED: zero errors; all 164 leaves retained |
 | Exported ABAP test-class formatting | EXECUTED: ecosystem pretty-printer/quick fixes |
 | CodeQL Python scan | EXECUTED: zero alerts; does not validate ABAP |
@@ -373,6 +382,20 @@ Changes to obsolete checks are deliberate, not silent weakening:
   it asserts positive witnesses and compares complete matching row sets,
   properties and inline counts through the existing paged comparator.
   No new fixture is fabricated.
+- `po_group_and_supplier_rows` replaces the misleadingly named
+  `translated_cross_or_rows`, which supplied hand-written SQL rather than
+  exercising Gateway translation. It uses actual converted select-options:
+  alternatives within PONUMBER are ORed, then ANDed with SUPPLIERNAME. Both
+  selected POs match; a PO-only match and a supplier-only match are excluded.
+  This matches the grouped-PO/supplier request documented in `Test cases.txt`.
+  Actual cross-property OR remains covered separately by
+  `predicate_clears_stale_ranges` and the Gateway integration request
+  `gateway_cross_or_sql`; OR is not changed into AND in production.
+  The XSA service `ARIBA_ACCRUALS_JS/lib/xsodata/openOwnerPO.xsodata` exposes
+  SUPPLIERNAME from `LFA1.NAME1` through its calculation view/table function.
+  Neither that projection nor the local metadata proves Gateway's exact
+  substring SQL or case folding. Mixed-case Gateway equivalence remains a
+  runtime integration check, not a claim established by synthetic rows.
 - `complex_filter_hana` executes the corresponding SQL predicate on positive
   and one-condition-negative rows, checking surviving keys and original
   order. A partial PO range is supplied alongside the complete predicate to

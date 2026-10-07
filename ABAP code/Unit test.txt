@@ -353,7 +353,7 @@ CLASS ltc_parity DEFINITION
     METHODS empty_ranges_clear_stale FOR TESTING RAISING cx_static_check.
     METHODS key_ranges_replace_stale FOR TESTING RAISING cx_static_check.
     METHODS company_range_hybrid_parity FOR TESTING RAISING cx_static_check.
-    METHODS translated_cross_or_rows FOR TESTING RAISING cx_static_check.
+    METHODS po_group_and_supplier_rows FOR TESTING RAISING cx_static_check.
 
 ************************************************************************
 * INDIVIDUAL TESTS - HANA FILTER
@@ -913,7 +913,7 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'empty_ranges_clear_stale' ).
     run_group_test( 'key_ranges_replace_stale' ).
     run_group_test( 'company_range_hybrid_parity' ).
-    run_group_test( 'translated_cross_or_rows' ).
+    run_group_test( 'po_group_and_supplier_rows' ).
     run_group_test( 'generic_eq_filters_rows' ).
     run_group_test( 'generic_contains_filters_rows' ).
     run_group_test( 'generic_two_props_are_anded' ).
@@ -1040,7 +1040,7 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'single_star_wildcard' ).
     run_group_test( 'scope_field_normalization' ).
     run_group_test( 'gateway_cross_or_sql' ).
-    run_group_test( 'translated_cross_or_rows' ).
+    run_group_test( 'po_group_and_supplier_rows' ).
   ENDMETHOD.
 
   METHOD scope.
@@ -1174,7 +1174,7 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'empty_ranges_clear_stale' ).
     run_group_test( 'key_ranges_replace_stale' ).
     run_group_test( 'company_range_hybrid_parity' ).
-    run_group_test( 'translated_cross_or_rows' ).
+    run_group_test( 'po_group_and_supplier_rows' ).
   ENDMETHOD.
 
   METHOD hana_filter.
@@ -1202,7 +1202,7 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'date_eq_range_rows' ).
     run_group_test( 'date_bt_range_rows' ).
     run_group_test( 'company_range_hybrid_parity' ).
-    run_group_test( 'translated_cross_or_rows' ).
+    run_group_test( 'po_group_and_supplier_rows' ).
   ENDMETHOD.
 
   METHOD utility.
@@ -4321,54 +4321,52 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = 'Converted select-only COMPANYCODE ranges must match the complete hybrid predicate' ).
   ENDMETHOD.
 
-  METHOD translated_cross_or_rows.
+  METHOD po_group_and_supplier_rows.
     reset_fixture( ).
-    " Expected SQL is supplied here; gateway_cross_or_sql exercises the real SAP translator.
-    DATA(lv_sql) = `(PONUMBER = '8000401022' OR SUPPLIERNAME LIKE '%Fuji%')`.
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter = VALUE #(
-        filter_string         = lv_sql
-        filter_select_options = VALUE #(
-          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' ) ) ) ).
-    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    " Select-options OR values within a property, but AND different properties.
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' )
+      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000266248' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' ) ) ).
+    cl_abap_unit_assert=>assert_not_initial(
+      quit = mv_assert_quit
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows): PO predicate|
+      act  = ls_request-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_not_initial(
+      quit = mv_assert_quit
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows): Supplier predicate|
+      act  = ls_request-filter_for_amdp-suppliername ).
     cl_abap_unit_assert=>assert_initial(
       quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
-      act  = ls_request-filter_for_amdp ).
-    cl_abap_unit_assert=>assert_initial(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
-      act  = ls_request-filter-filter_select_options ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
-      act  = ls_request-filter-filter_string
-      exp  = lv_sql ).
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows): Optimized ranges|
+      act  = ls_request-filter-filter_string ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( ponumber = '8000401022' itemno = '00001' suppliername = 'Other Supplier' )
+      ( ponumber = '8000401022' itemno = '00001' suppliername = 'Fuji Electric' )
       ( ponumber = '8000266248' itemno = '00001' suppliername = 'Fujifilm' )
-      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Other Supplier' )
-      ( ponumber = '8000000002' itemno = '00001' suppliername = 'fujifilm' ) ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+      ( ponumber = '8000401022' itemno = '00002' suppliername = 'Other Supplier' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Fuji Electric' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
+                 CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows): Both properties must match|
       act  = lines( lt_result )
       exp  = 2 ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows)|
       act  = lt_result[ 1 ]-ponumber
       exp  = '8000401022' ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows)|
       act  = lt_result[ 2 ]-ponumber
       exp  = '8000266248' ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      msg  = |{ mv_group_test } (translated_cross_or_rows)|
+      msg  = |{ mv_group_test } (po_group_and_supplier_rows)|
       act  = lt_result[ 2 ]-suppliername
       exp  = 'Fujifilm' ).
   ENDMETHOD.
@@ -5396,8 +5394,9 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lv_previous_test) = mv_group_test.
     mv_assert_quit = if_aunit_constants=>no.
     mv_group_test = i_test.
+    DATA(lv_method) = to_upper( i_test ).
     TRY.
-        CALL METHOD me->(i_test).
+        CALL METHOD me->(lv_method).
       CATCH cx_root INTO DATA(lx_error).
         cl_abap_unit_assert=>fail(
           msg  = |{ i_test }: { lx_error->get_text( ) }|
@@ -8294,12 +8293,16 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD extract_range.
-    rs_request-filter-filter_select_options = it_filters.
-    mo_cut->extract_filters( CHANGING cs_request = rs_request ).
-    cl_abap_unit_assert=>assert_initial(
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #( filter_select_options = it_filters ) ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    DATA(lv_remaining_ranges) = lines( ls_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      act  = rs_request-filter-filter_select_options
+      act  = lv_remaining_ranges
+      exp  = 0
       msg  = |{ mv_group_test } (extract_range): Consumed range projections must not survive extraction| ).
+    rs_request = ls_request.
   ENDMETHOD.
 
   METHOD filter_rows.

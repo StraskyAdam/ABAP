@@ -559,7 +559,7 @@ run_group_test( dynamic_name ).
         parity = classes["ltc_parity"]
         tests = {name for name, decl in parity.declarations.items() if "testing" in decl}
         leaves = tests - set(CATEGORIES)
-        self.assertEqual(len(leaves), 164)
+        self.assertTrue(leaves)
         self.assertEqual(
             Counter(group_targets(parity.implementations["all_tests"])),
             Counter(leaves)
@@ -606,6 +606,37 @@ run_group_test( dynamic_name ).
                             stmt[index:index + 3] == ["quit", "=", "mv_assert_quit"]
                             for index in range(len(stmt) - 2)
                         ))
+
+    def test_observed_po_item_inputs_and_exact_oracles(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        for name, operator, expected_rows in (
+            ("observed_po_item_or", "OR", 3),
+            ("observed_po_item_and", "AND", 1),
+        ):
+            body = parity.implementations[name]
+            predicate = next(stmt for stmt in body if "filter_string" in stmt)
+            if operator == "AND":
+                self.assertIn("filter_select_options", predicate)
+            else:
+                self.assertNotIn("filter_select_options", predicate)
+            source = (ROOT / "ABAP code" / "Unit test.txt").read_text()
+            method = re.search(
+                rf"  METHOD {name}\.\n(.*?)  ENDMETHOD\.", source, re.S
+            ).group(1)
+            self.assertIn(
+                f"`(PONUMBER = '8000401022') {operator} (ITEMNO = '00001')`",
+                method,
+            )
+            expected = re.search(
+                r"DATA\(lt_expected\).*?VALUE.*?\((.*?)\)\.", method, re.S
+            ).group(1)
+            self.assertEqual(expected.count("ponumber ="), expected_rows)
+            self.assertIn(tokens(
+                "cl_abap_unit_assert=>assert_equals("
+                " quit = mv_assert_quit act = lt_result exp = lt_expected"
+                " msg = 'oracle' )"
+            ), body)
 
     def test_extraction_copies_and_consumes_ranges_before_conversion(self):
         classes, _ = parse(

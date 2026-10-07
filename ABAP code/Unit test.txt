@@ -346,6 +346,8 @@ CLASS ltc_parity DEFINITION
     METHODS known_ranges_are_optimized FOR TESTING RAISING cx_static_check.
     METHODS mixed_filter_keeps_predicate FOR TESTING RAISING cx_static_check.
     METHODS cross_or_disables_prefilter FOR TESTING RAISING cx_static_check.
+    METHODS observed_po_item_or FOR TESTING RAISING cx_static_check.
+    METHODS observed_po_item_and FOR TESTING RAISING cx_static_check.
     METHODS missing_predicate_fails FOR TESTING RAISING cx_static_check.
     METHODS generic_ranges_only FOR TESTING RAISING cx_static_check.
     METHODS mixed_ranges_only FOR TESTING RAISING cx_static_check.
@@ -906,6 +908,8 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'known_ranges_are_optimized' ).
     run_group_test( 'mixed_filter_keeps_predicate' ).
     run_group_test( 'cross_or_disables_prefilter' ).
+    run_group_test( 'observed_po_item_or' ).
+    run_group_test( 'observed_po_item_and' ).
     run_group_test( 'missing_predicate_fails' ).
     run_group_test( 'generic_ranges_only' ).
     run_group_test( 'mixed_ranges_only' ).
@@ -968,6 +972,8 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD filter.
+    run_group_test( 'observed_po_item_or' ).
+    run_group_test( 'observed_po_item_and' ).
     run_group_test( 'test_filter' ).
     run_group_test( 'test_filter_companycode' ).
     run_group_test( 'test_filter_polinedesc' ).
@@ -1143,6 +1149,8 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD request_processing.
+    run_group_test( 'observed_po_item_or' ).
+    run_group_test( 'observed_po_item_and' ).
     run_group_test( 'po_contains_builds_like' ).
     run_group_test( 'item_contains_keeps_zeros' ).
     run_group_test( 'mixed_eq_and_contains' ).
@@ -4011,6 +4019,7 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD cross_or_disables_prefilter.
     reset_fixture( ).
+    " Robustness input: deliberately partial ranges, not observed Gateway output.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       filter = VALUE #(
         filter_select_options = VALUE #(
@@ -4026,6 +4035,86 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = |{ mv_group_test } (cross_or_disables_prefilter)|
       act  = ls_request-filter-filter_string
       exp  = `( PONUMBER = '8000000001' OR COMPANYCODE = '1000' )` ).
+  ENDMETHOD.
+
+  METHOD observed_po_item_or.
+    reset_fixture( ).
+    " Supplied Gateway observation, not an invocation of Gateway translation.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = `(PONUMBER = '8000401022') OR (ITEMNO = '00001')` ) ).
+    DATA(lv_predicate) = ls_request-filter-filter_string.
+    cl_abap_unit_assert=>assert_initial(
+      quit = mv_assert_quit act = ls_request-filter-filter_select_options ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial(
+      quit = mv_assert_quit act = ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = ls_request-filter-filter_string exp = lv_predicate ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000401022' itemno = '00001' )
+      ( ponumber = '8000401022' itemno = '00002' )
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00002' ) ).
+    DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000401022' itemno = '00001' )
+      ( ponumber = '8000401022' itemno = '00002' )
+      ( ponumber = '8000000002' itemno = '00001' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result exp = lt_expected
+      msg = 'OR must retain both one-sided witnesses and reject the neither row' ).
+  ENDMETHOD.
+
+  METHOD observed_po_item_and.
+    reset_fixture( ).
+    " Supplied Gateway observation: AND has complete populated select-options.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter = VALUE #(
+        filter_string = `(PONUMBER = '8000401022') AND (ITEMNO = '00001')`
+        filter_select_options = VALUE #(
+          ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000401022' )
+          ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00001' ) ) ) ).
+    DATA(lt_ranges) = ls_request-filter-filter_select_options.
+    DATA(lv_predicate) = ls_request-filter-filter_string.
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lines( lt_ranges ) exp = 2 ).
+    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
+    cl_abap_unit_assert=>assert_initial(
+      quit = mv_assert_quit act = ls_request-filter_for_amdp ).
+    cl_abap_unit_assert=>assert_initial(
+      quit = mv_assert_quit act = ls_request-filter-filter_select_options ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = ls_request-filter-filter_string exp = lv_predicate ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000401022' itemno = '00001' )
+      ( ponumber = '8000401022' itemno = '00002' )
+      ( ponumber = '8000000002' itemno = '00001' )
+      ( ponumber = '8000000002' itemno = '00002' ) ).
+    DATA(lt_optimized) = lt_result.
+    DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000401022' itemno = '00001' ) ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result exp = lt_expected
+      msg = 'AND must reject both one-sided witnesses and the neither row' ).
+    " The same complete, representable ranges also exercise the select-only path.
+    DATA(ls_optimized) = extract_range( lt_ranges ).
+    cl_abap_unit_assert=>assert_not_initial(
+      quit = mv_assert_quit act = ls_optimized-filter_for_amdp-ponumber ).
+    cl_abap_unit_assert=>assert_not_initial(
+      quit = mv_assert_quit act = ls_optimized-filter_for_amdp-item ).
+    cl_abap_unit_assert=>assert_initial(
+      quit = mv_assert_quit act = ls_optimized-filter-filter_string ).
+    filter_rows( EXPORTING i_predicate = ls_optimized-filter_for_amdp-ponumber
+                 CHANGING ct_result = lt_optimized ).
+    filter_rows( EXPORTING i_predicate = ls_optimized-filter_for_amdp-item
+                 CHANGING ct_result = lt_optimized ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_optimized exp = lt_expected
+      msg = 'Optimized complete AND ranges must retain exactly the same PO/item' ).
   ENDMETHOD.
 
   METHOD missing_predicate_fails.

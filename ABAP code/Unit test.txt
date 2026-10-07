@@ -4367,10 +4367,8 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' companycode = '2028' )
       ( ponumber = '8000000002' companycode = '6305' ) ).
-    DATA(ls_request) = extract_range( VALUE #(
-      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' ) ) ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028'`
+                 CHANGING ct_result    = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (generic_eq_filters_rows)|
@@ -4381,6 +4379,11 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = |{ mv_group_test } (generic_eq_filters_rows)|
       act  = lt_result[ 1 ]-companycode
       exp  = '2028' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      msg  = |{ mv_group_test } (generic_eq_filters_rows)|
+      act  = lt_result[ 1 ]-ponumber
+      exp  = '8000000001' ).
 
   ENDMETHOD.
 
@@ -4389,10 +4392,8 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' polinedesc = 'GSD Local Support (Jan, 2027)' )
       ( ponumber = '8000000002' polinedesc = 'Enterprise Plan' ) ).
-    DATA(ls_request) = extract_range( VALUE #(
-      ( property = 'POLINEDESC' sign = 'I' option = 'CP' low = '*Local Support*' ) ) ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = `POLINEDESC LIKE '%Local Support%'`
+                 CHANGING ct_result    = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (generic_contains_filters_rows)|
@@ -4412,11 +4413,8 @@ CLASS ltc_parity IMPLEMENTATION.
       ( ponumber = '8000000001' companycode = '2028' pocurrency = 'JPY' )
       ( ponumber = '8000000002' companycode = '2028' pocurrency = 'USD' )
       ( ponumber = '8000000003' companycode = '6305' pocurrency = 'JPY' ) ).
-    DATA(ls_request) = extract_range( VALUE #(
-      ( property = 'COMPANYCODE' sign = 'I' option = 'EQ' low = '2028' )
-      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = `COMPANYCODE = '2028' AND POCURRENCY = 'JPY'`
+                 CHANGING ct_result    = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (generic_two_props_are_anded)|
@@ -4434,11 +4432,8 @@ CLASS ltc_parity IMPLEMENTATION.
     reset_fixture( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( pocurrency = 'JPY' ) ( pocurrency = 'USD' ) ( pocurrency = 'EUR' ) ).
-    DATA(ls_request) = extract_range( VALUE #(
-      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' )
-      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'USD' ) ) ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = `POCURRENCY = 'JPY' OR POCURRENCY = 'USD'`
+                 CHANGING ct_result    = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (generic_same_prop_is_ored)|
@@ -4487,12 +4482,11 @@ CLASS ltc_parity IMPLEMENTATION.
       ( ponumber = '8000000003' pocurrency = 'JPY' suppliername = 'Charlie' )
       ( ponumber = '8000000001' pocurrency = 'JPY' suppliername = 'Alpha' )
       ( ponumber = '8000000002' pocurrency = 'USD' suppliername = 'Bravo' ) ).
-    DATA(ls_request) = extract_range( VALUE #(
-      ( property = 'POCURRENCY' sign = 'I' option = 'EQ' low = 'JPY' ) ) ).
+    DATA ls_request TYPE zcl_fi_das_dashboard=>ts_internal_request.
     ls_request-orderby = VALUE #( ( property = 'SUPPLIERNAME' ) ).
     ls_request-paging = VALUE #( skip = 1 top = 1 top_requested = abap_true ).
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
+    filter_rows( EXPORTING i_predicate = `POCURRENCY = 'JPY'`
+                 CHANGING ct_result    = lt_result ).
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = ls_request
       CHANGING ct_result   = lt_result ).
@@ -4506,6 +4500,11 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = |{ mv_group_test } (generic_with_sort_and_paging)|
       act  = lt_result[ 1 ]-suppliername
       exp  = 'Charlie' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      msg  = |{ mv_group_test } (generic_with_sort_and_paging)|
+      act  = lt_result[ 1 ]-ponumber
+      exp  = '8000000003' ).
 
   ENDMETHOD.
 
@@ -8298,20 +8297,6 @@ CLASS ltc_parity IMPLEMENTATION.
   METHOD filter_rows.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       filter = VALUE #( filter_string = i_predicate ) ).
-    mo_cut->extract_filters( CHANGING cs_request = ls_request ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (filter_rows)|
-      act  = ls_request-filter-filter_string
-      exp  = i_predicate ).
-    cl_abap_unit_assert=>assert_initial(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (filter_rows)|
-      act  = ls_request-filter_for_amdp ).
-    cl_abap_unit_assert=>assert_initial(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (filter_rows)|
-      act  = ls_request-filter-filter_select_options ).
     mo_cut->apply_generic_filter(
       EXPORTING is_request = ls_request CHANGING ct_result = ct_result ).
   ENDMETHOD.

@@ -232,10 +232,15 @@ METHOD format_odata_amount.
       i_grouping_separator = lv_grouping_sep ).
   ENDIF.
 
-  r_value = ls_parts-sign && ls_parts-integer.
+  DATA(lv_result) = ls_parts-integer.
   IF i_decimals > 0.
-    r_value = r_value && lv_decimal_sep && ls_parts-fraction.
+    CONCATENATE lv_result lv_decimal_sep ls_parts-fraction
+      INTO lv_result RESPECTING BLANKS.
   ENDIF.
+  IF i_amount < 0.
+    lv_result = '-' && lv_result.
+  ENDIF.
+  r_value = lv_result.
 ENDMETHOD.
 
 
@@ -322,6 +327,7 @@ ENDMETHOD.
 
   METHOD group_integer.
 
+    DATA lv_grouped TYPE string.
     DATA(lv_length) = strlen( i_integer ).
     DATA(lv_first_group) = lv_length MOD 3.
 
@@ -329,7 +335,7 @@ ENDMETHOD.
       lv_first_group = 3.
     ENDIF.
 
-    rv_integer = substring(
+    lv_grouped = substring(
       val = i_integer
       off = 0
       len = lv_first_group ).
@@ -341,10 +347,11 @@ ENDMETHOD.
         val = i_integer
         off = lv_position
         len = 3 ).
-      CONCATENATE rv_integer i_grouping_separator lv_group
-        INTO rv_integer RESPECTING BLANKS.
+      CONCATENATE lv_grouped i_grouping_separator lv_group
+        INTO lv_grouped RESPECTING BLANKS.
       lv_position = lv_position + 3.
     ENDWHILE.
+    rv_integer = lv_grouped.
 
   ENDMETHOD.
 

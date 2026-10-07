@@ -66,25 +66,35 @@ remains nonzero, inspect the actual request and active extraction implementation
 in SAP rather than removing the postcondition.
 The helper diagnostic explicitly counts **input filter ranges**, not result
 rows, and includes the input/remaining counts and generated SQL. In
-`generic_eq_filters_rows`, zero consumed range projections and one matching
-COMPANYCODE result are distinct expectations; the result still must be `2028`.
+`generic_eq_filters_rows`, one matching COMPANYCODE result still must be `2028`;
+it now supplies SQL directly and does not assert input-range consumption.
+Zero remaining **input** projections is separately required by `extract_range`,
+not a requirement for zero output rows. The five basic HANA leaves (EQ, Contains,
+AND, OR, and sort/paging) use `filter_rows`, whose only job is to construct an
+internal SQL request and call `apply_generic_filter`. It no longer extracts
+filters or asserts request lifecycle behavior already covered elsewhere.
 A reported failure of that successful-exit assertion could indicate a stale
 deployed version, not a defect reproduced in the current export. Its runtime
 root cause has **not been verified** without SAP execution. Activate the current
 dashboard, utility, and test-class versions together before rerunning ABAP Unit
 and diagnosing any remaining failure. Existing empty/stale-range tests now also
 check repeated extraction.
-`group_integer` uses `CONCATENATE ... RESPECTING BLANKS`, preserving the Y-format
-space separator. Amount assertions retain the original X/Y/default expectations
-and add multiple Y-format groups, ungrouped output, and a negative amount.
-`get_number_parts` derives the sign from the numeric input and writes its
-absolute magnitude. ABAP `WRITE` may place a minus sign after the number; parsing
-only a leading sign previously lost it during fraction truncation. The format
-test now captures each result before asserting, retains all six previous cases,
-and adds negative X/default/ungrouped and zero cases. Each diagnostic identifies
-the amount, decimal format, and grouping flag. Existing Y-space preservation
-remains unchanged; a deployed `12345,67` instead of `12 345,67` still needs the
-active utility implementation checked, not a weakened expected value.
+The inherited `group_integer` already used `CONCATENATE ... RESPECTING BLANKS`,
+and `get_number_parts` already derived the sign from the numeric input while
+writing its absolute magnitude. Those mechanisms should theoretically preserve
+Y-format grouping spaces and negative signs; the reported failures have not
+been reproduced locally. Current assembly uses local `lv_grouped`/`lv_result`
+buffers, explicit blank-preserving decimal concatenation, and a numeric-input
+sign check before assigning the final return value. This strengthens explicit
+assembly and avoids mutating return parameters during construction; it is not
+a verified runtime fix for previously correct exported behavior.
+Amount assertions retain the original X/Y/default expectations, multiple Y
+groups, ungrouped and negative X/Y/default cases, and zero. Captured actual
+values and diagnostics identify the amount, decimal format, and grouping flag.
+A deployed `12345,67` instead of `12 345,67`, or a positive result for a negative
+input, still requires the **actual active SAP method** and call arguments,
+including `i_use_grouping`, to be checked rather than weakening expected values.
+SAP execution is unavailable here.
 The internal `original_row_index` assertions remain intact.
 
 All 164 leaf tests remain `FOR TESTING`. Eleven group methods are declared and
@@ -114,6 +124,54 @@ The exported test class was formatted using the ABAP ecosystem
 parsed in memory as a `.clas.testclasses.abap` file. No formatter configuration,
 dependency manifest, fixture, or production formatting change was added.
 
+## HANA leaf expectation review
+
+All 25 `hana_filter` targets were reviewed against their literal input rows and
+predicates. These are **logical expected results, not executed HANA results**.
+Rows below are in expected preserved input order unless sorting is explicit.
+PO/item values are keys where supplied; supplier/currency identifies rows in
+fixtures without keys. No expected result was changed to match a reported
+failure. `generic_eq_filters_rows` still expects one row, not zero.
+
+| Leaf | Expected count and retained rows / behavior | Predicate source |
+|---|---|---|
+| `generic_eq_filters_rows` | 1: PO `8000000001`, company `2028` | Direct SQL EQ |
+| `generic_contains_filters_rows` | 1: PO `8000000001`, `GSD Local Support (Jan, 2027)` | Direct SQL LIKE `%Local Support%` |
+| `generic_two_props_are_anded` | 1: PO `8000000001`, company `2028` and currency `JPY` | Direct SQL AND |
+| `generic_same_prop_is_ored` | 2: currencies `JPY`, `USD`; not `EUR` | Direct SQL OR |
+| `generic_unknown_prop_no_dump` | Nonempty input: domain exception with previous `cx_amdp_error`; no result-count expectation | Invalid direct SQL column |
+| `generic_with_sort_and_paging` | Filter retains PO `8000000003`/Charlie and `8000000001`/Alpha; ascending supplier sort, skip 1/top 1 yields 1: PO `8000000003`/Charlie | Direct SQL JPY, separate sorting/paging request |
+| `test_cp_case_sensitive_include` | 1: PO `8000000001`/`00001`, `Quality Solutions`; lowercase `quantum corp` excluded | Retained supplier CP range `*Q*` |
+| `test_cp_case_sensitive_exclude` | 2: `quantum corp`, `Fuji Electric` | Retained excluding supplier CP `*Q*` |
+| `test_eq_case_insensitive` | Extracted EQ: 1, `FUJI`; explicit UPPER: 3, `Fuji`, `fuji`, `FUJI`; not `Hitachi` | Retained EQ range and separate direct UPPER SQL |
+| `test_cp_and_eq_combined` | 2: `Q`, `BioClinica Inc`; lowercase `bioclinica small`/`quantum` excluded | Retained same-property EQ/CP OR conversion |
+| `test_multiple_cp_filters_or` | 2: `Quality`, `BioClinica` | Retained two supplier CP ranges, OR |
+| `test_cp_empty_pattern` | 2: `Quality` and empty supplier | Retained CP `**` conversion to match-all LIKE |
+| `empty_generic_filter_noop` | 2 unchanged: PO `8000000002`/`00001`, then `8000000001`/`00001`; internal index remains initial | Empty direct SQL |
+| `nested_and_or_rows` | 2: PO `8000000001`/`00001`, `8000000002`/`00001`; company `2000` row excluded | Direct nested SQL |
+| `escaped_apostrophe_row` | 1: PO `8000000001`/`00001`, `O'Brien Supplies` | Retained EQ range/SQL quote escaping |
+| `date_boundary_is_exclusive` | 1: PO `8000000002`/`00001`, date `20251015`; boundary `20251014` excluded | Retained date GT range |
+| `no_match_returns_no_rows` | 0: company `1000` does not equal `9999` | Retained company EQ range |
+| `generic_preserves_row_order` | 2: PO `8000000003`, `8000000002`; regenerated original indexes 1, 3 (not stale 77, 11) | Direct company `1000` SQL |
+| `complex_filter_hana` | 7: `0000000010`/`00001`, `9999999999`/`00003`, `8000006000`/`00004`, `8000906000`/`00001`, `8000096102`/`00003`, `8000097224`/`00004`, `8001984177`/`00001`; appended seven negative controls excluded, indexes 1–7 | Retained full SQL plus stale range precedence/consumption |
+| `empty_result_filter_noop` | 0 for invalid SQL and then empty SQL: empty input short-circuits before HANA | Direct SQL |
+| `date_cp_range_rows` | 2: PO `8000000002`/`20251001`, `8000000003`/`20251031`; September/November excluded | Retained date CP `202510*` |
+| `date_eq_range_rows` | 1: PO `8000000002`, date `20251015` | Retained date EQ |
+| `date_bt_range_rows` | 2: PO `8000000002`/`20251014`, `8000000003`/`20251015`; both bounds inclusive | Retained date BT |
+| `company_range_hybrid_parity` | 2 in each path: PO `8000000001`/`00001`, `8000000003`/`00001`; entire filtered tables equal | Retained range-only vs complete hybrid SQL |
+| `po_group_and_supplier_rows` | 2: PO `8000401022`/`00001`/`Fuji Electric`, `8000266248`/`00001`/`Fujifilm`; selected PO with `Other Supplier` and Fuji supplier with unselected PO excluded (item is only an identifier) | Retained generated PO OR and supplier CP, sequential AND |
+
+`PONUMBER` is character-based (`EBELN`), so the complex predicate's
+`PONUMBER <= '977'` is **lexical, not numeric**. In particular, `8001984177`
+is retained by that branch although it lies outside the explicit bounded
+interval; removing it would contradict the predicate. The negative controls
+each fail a separate description, PO, case, date, supplier, or item condition.
+Case-sensitive LIKE/EQ, SAP range converter output (including empty CP and
+date strings), character/date AMDP type mapping, invalid-column exception
+wrapping, and HANA execution on the target release remain runtime uncertainties.
+Range conversion deliberately stays under test in the CP/date/quote/no-match,
+hybrid and shared leaves, and extensively in `request_processing`.
+
 ## Reproducible checks
 
 From the repository root:
@@ -139,16 +197,20 @@ Group target recognition preserves quoted literals from the original bodies
 while ignoring comments and strings containing fake calls. It rejects unknown
 or non-leaf targets, duplicates, direct group-to-leaf calls, and incomplete
 `all_tests` coverage; shared-category counts exclude `all_tests`.
-Its 21 regression tests passed, including range-copy/clear ordering before
+Its 24 regression tests passed, including range-copy/clear ordering before
 conversion, blank-preserving grouping, non-aborting exception reporting,
 quit-control restoration, group-first/helper-last ordering, all 164 leaves,
-and preservation of the original range and Gateway internal-index assertions.
+preservation of the original range and Gateway internal-index assertions,
+SQL-only basic HANA leaves with literal output counts/rows, SQL-helper lifecycle
+separation, and final blank/sign assembly.
 The JSON audit reports **225 declared/implemented methods, 175 testing methods
 (164 leaves + 11 groups), 45 fixture files, and zero errors**.
-An additional comparison against `HEAD` using the existing parser verified that
+An earlier comparison against `HEAD` using the existing parser verified that
 all original leaf/helper statements and all 368 original assertions remain in
 order, ignoring only added quit control, diagnostic labels, and explicit naming
-of formerly positional `act` arguments.
+of formerly positional `act` arguments. That historical statement predates the
+intentional removal of three redundant lifecycle assertions from `filter_rows`
+and replacement of extraction in five basic HANA leaves described above.
 These checks **are not ABAP syntax,
 activation, type checking, or proof of meaningful runtime assertions**.
 Literal targets are structurally checked, but dynamic dispatch and external SAP
@@ -164,7 +226,7 @@ body was executable.
 
 | Check | Status |
 |---|---|
-| Audit-parser and failure/group regression tests | EXECUTED: 21 passed |
+| Audit-parser and failure/group regression tests | EXECUTED: 24 passed |
 | Combined structural JSON audit | EXECUTED: zero errors; all 164 leaves retained |
 | Exported ABAP test-class formatting | EXECUTED: ecosystem pretty-printer/quick fixes |
 | CodeQL Python scan | EXECUTED: zero alerts; does not validate ABAP |

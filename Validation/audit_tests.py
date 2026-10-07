@@ -635,9 +635,28 @@ run_group_test( dynamic_name ).
         )
         body = classes["zcl_fi_das_utility"].implementations["group_integer"]
         self.assertIn(tokens(
-            "CONCATENATE rv_integer i_grouping_separator lv_group"
-            " INTO rv_integer RESPECTING BLANKS"
+            "CONCATENATE lv_grouped i_grouping_separator lv_group"
+            " INTO lv_grouped RESPECTING BLANKS"
         ), body)
+        self.assertEqual(body[-1], tokens("rv_integer = lv_grouped"))
+
+    def test_amount_assembly_preserves_blanks_and_numeric_sign_before_return(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "zcl_fi_das_utility.txt").read_text(),
+            preserve_literals=True
+        )
+        body = classes["zcl_fi_das_utility"].implementations["format_odata_amount"]
+        self.assertEqual(body[-8:], [
+            tokens("DATA(lv_result) = ls_parts-integer", preserve_literals=True),
+            tokens("IF i_decimals > 0"),
+            tokens("CONCATENATE lv_result lv_decimal_sep ls_parts-fraction"
+                   " INTO lv_result RESPECTING BLANKS"),
+            tokens("ENDIF"),
+            tokens("IF i_amount < 0"),
+            tokens("lv_result = '-' && lv_result", preserve_literals=True),
+            tokens("ENDIF"),
+            tokens("r_value = lv_result"),
+        ])
 
     def test_number_sign_is_independent_of_write_sign_placement(self):
         classes, _ = parse(
@@ -683,6 +702,73 @@ run_group_test( dynamic_name ).
             " && |input={ lines( it_filters ) }, remaining={ lv_remaining_ranges }, |"
             " && |SQL={ ls_request-filter-filter_string }| )"),
             tokens("rs_request = ls_request"),
+        ])
+
+    def test_basic_hana_leaves_use_sql_and_literal_result_expectations(self):
+        classes, _ = parse(
+            (ROOT / "ABAP code" / "Unit test.txt").read_text(),
+            preserve_literals=True
+        )
+        parity = classes["ltc_parity"]
+        cases = {
+            "generic_eq_filters_rows": (
+                "COMPANYCODE = '2028'", 1,
+                [("lt_result[ 1 ]-companycode", "'2028'"),
+                 ("lt_result[ 1 ]-ponumber", "'8000000001'")]),
+            "generic_contains_filters_rows": (
+                "POLINEDESC LIKE '%Local Support%'", 1,
+                [("lt_result[ 1 ]-ponumber", "'8000000001'")]),
+            "generic_two_props_are_anded": (
+                "COMPANYCODE = '2028' AND POCURRENCY = 'JPY'", 1,
+                [("lt_result[ 1 ]-ponumber", "'8000000001'")]),
+            "generic_same_prop_is_ored": (
+                "POCURRENCY = 'JPY' OR POCURRENCY = 'USD'", 2,
+                [("lt_result[ 1 ]-pocurrency", "'JPY'"),
+                 ("lt_result[ 2 ]-pocurrency", "'USD'")]),
+            "generic_with_sort_and_paging": (
+                "POCURRENCY = 'JPY'", 1,
+                [("lt_result[ 1 ]-suppliername", "'Charlie'"),
+                 ("lt_result[ 1 ]-ponumber", "'8000000003'")]),
+        }
+        for name, (predicate, count, rows) in cases.items():
+            with self.subTest(method=name):
+                body = parity.implementations[name]
+                flattened = [token for stmt in body for token in stmt]
+                self.assertNotIn("extract_range", flattened)
+                self.assertNotIn("extract_filters", flattened)
+                self.assertNotIn("apply_generic_filter", flattened)
+                self.assertIn(tokens(
+                    f"filter_rows( EXPORTING i_predicate = `{predicate}`"
+                    " CHANGING ct_result = lt_result )",
+                    preserve_literals=True
+                ), body)
+                for actual, expected in [("lines( lt_result )", str(count))] + rows:
+                    self.assertIn(tokens(
+                        "cl_abap_unit_assert=>assert_equals( quit = mv_assert_quit"
+                        f" msg = |{{ mv_group_test }} ({name})|"
+                        f" act = {actual} exp = {expected} )",
+                        preserve_literals=True
+                    ), body)
+        paging = parity.implementations["generic_with_sort_and_paging"]
+        self.assertIn(tokens(
+            "ls_request-orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )",
+            preserve_literals=True
+        ), paging)
+        self.assertIn(tokens(
+            "ls_request-paging = VALUE #( skip = 1 top = 1 top_requested = abap_true )"
+        ), paging)
+        filter_index = next(i for i, stmt in enumerate(paging) if "filter_rows" in stmt)
+        sort_index = next(i for i, stmt in enumerate(paging)
+                          if "apply_sort_and_paging" in stmt)
+        self.assertLess(filter_index, sort_index)
+
+    def test_sql_filter_helper_does_not_extract_or_assert_ranges(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        self.assertEqual(classes["ltc_parity"].implementations["filter_rows"], [
+            tokens("DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request("
+                   " filter = VALUE #( filter_string = i_predicate ) )"),
+            tokens("mo_cut->apply_generic_filter("
+                   " EXPORTING is_request = ls_request CHANGING ct_result = ct_result )"),
         ])
 
     def test_grouped_po_supplier_test_uses_generated_range_predicates(self):

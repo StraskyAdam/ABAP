@@ -464,7 +464,9 @@ CLASS ltc_parity DEFINITION
 ************************************************************************
     METHODS run_group_test IMPORTING i_test TYPE string.
     METHODS report_failure IMPORTING i_text TYPE string.
-    METHODS difference_text RETURNING VALUE(rv_text) TYPE string.
+    METHODS difference_text
+      IMPORTING i_title TYPE string DEFAULT 'DAS XSA vs SEGW OData parity failed.'
+      RETURNING VALUE(rv_text) TYPE string.
     METHODS exception_text
       IMPORTING i_error TYPE REF TO cx_root
       RETURNING VALUE(rv_text) TYPE string.
@@ -849,7 +851,8 @@ CLASS ltc_parity DEFINITION
       IMPORTING
         i_text TYPE string.
 
-    METHODS assert_no_differences.
+    METHODS assert_no_differences
+      IMPORTING i_title TYPE string DEFAULT 'DAS XSA vs SEGW OData parity failed.'.
 
     METHODS extract_range
       IMPORTING it_filters TYPE zif_fi_das_dashboard=>tt_filter_select_options
@@ -3306,7 +3309,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(ls_case) = VALUE ts_case(
       email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
       pstype = zif_fi_das_dashboard=>mc_pstype_service
-      select_list = 'PONUMBER,POLINEDESC' filter_raw = `substringof('40102',PONUMBER)`
+      select_list = 'PONUMBER,ITEMNO,POLINEDESC' filter_raw = `substringof('40102',PONUMBER)`
       top = 50 top_specified = abap_true inlinecount = abap_true ).
     get_gateway_response( EXPORTING is_case = ls_case
       IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
@@ -3334,7 +3337,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(ls_case) = VALUE ts_case(
       email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
       pstype = zif_fi_das_dashboard=>mc_pstype_material
-      select_list = 'ITEMNO' filter_raw = `substringof('00002',ITEMNO)`
+      select_list = 'PONUMBER,ITEMNO' filter_raw = `substringof('00002',ITEMNO)`
       top = 50 top_specified = abap_true inlinecount = abap_true ).
     get_gateway_response( EXPORTING is_case = ls_case
       IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
@@ -3362,7 +3365,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(ls_case) = VALUE ts_case(
       email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_over
       pstype = zif_fi_das_dashboard=>mc_pstype_service
-      select_list = 'SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Fuji',SUPPLIERNAME)`
+      select_list = 'PONUMBER,ITEMNO,SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Fuji',SUPPLIERNAME)`
       top = 50 top_specified = abap_true inlinecount = abap_true ).
     get_gateway_response( EXPORTING is_case = ls_case
       IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
@@ -3396,7 +3399,7 @@ CLASS ltc_parity IMPLEMENTATION.
     ls_case-email = 'adam.strasky@takeda.com'.
     ls_case-flow = zif_fi_das_dashboard=>mc_under.
     ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-    ls_case-select_list = 'PONUMBER,POLINEDESC'.
+    ls_case-select_list = 'PONUMBER,ITEMNO,POLINEDESC'.
     ls_case-filter_raw = `substringof('89065',PONUMBER)`.
     ls_case-top = 50.
     ls_case-top_specified = abap_true.
@@ -3441,7 +3444,7 @@ CLASS ltc_parity IMPLEMENTATION.
     ls_case-email = 'adam.strasky@takeda.com'.
     ls_case-flow = zif_fi_das_dashboard=>mc_exclude.
     ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_all.
-    ls_case-select_list = 'PONUMBER,POLINEDESC'.
+    ls_case-select_list = 'PONUMBER,ITEMNO,POLINEDESC'.
     ls_case-filter_raw = `substringof('98339',PONUMBER)`.
     ls_case-top = 50.
     ls_case-top_specified = abap_true.
@@ -3480,7 +3483,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(ls_case) = VALUE ts_case(
       email = 'adam.strasky@takeda.com' flow = zif_fi_das_dashboard=>mc_under
       pstype = zif_fi_das_dashboard=>mc_pstype_service
-      select_list = 'SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Lee Hecht',SUPPLIERNAME)`
+      select_list = 'PONUMBER,ITEMNO,SUPPLIERID,SUPPLIERNAME' filter_raw = `substringof('Lee Hecht',SUPPLIERNAME)`
       top = 50 top_specified = abap_true inlinecount = abap_true ).
     get_gateway_response( EXPORTING is_case = ls_case
       IMPORTING e_json = DATA(lv_json) e_inline_count = DATA(lv_count) ).
@@ -3756,19 +3759,34 @@ CLASS ltc_parity IMPLEMENTATION.
       ( amount = '0' decimal_format = space grouping = abap_true expected = `0,00` )
       ( amount = '0' decimal_format = 'Y' grouping = abap_true expected = `0,00` ) ).
     LOOP AT lt_cases INTO DATA(ls_case).
+      DATA(lv_amount_text) = |{ ls_case-amount NUMBER = RAW }|.
+      mv_phase = 'Utility formatting / format_odata_amount'.
+      mv_request = |amount={ lv_amount_text }; decimals=2; |
+                && |format="{ ls_case-decimal_format }"; grouping="{ ls_case-grouping }"|.
+      TRY.
       DATA(lv_actual) = zcl_fi_das_utility=>format_odata_amount(
         i_amount = ls_case-amount i_decimals = 2
         i_decimal_format = ls_case-decimal_format i_use_grouping = ls_case-grouping ).
-      cl_abap_unit_assert=>assert_equals(
-        quit = mv_assert_quit
-        act  = lv_actual
-        exp  = ls_case-expected
-        msg  = |{ mv_group_test } (format_odata_amount): amount={ ls_case-amount NUMBER = RAW }, |
+      CATCH zcx_fi_das_error INTO DATA(lx_format).
+        DATA(lv_format_error) = exception_text( lx_format ).
+        IF mv_difference_count > 0.
+          lv_format_error = lv_format_error && cl_abap_char_utilities=>newline
+                          && difference_text( 'Amount formatting contract failed.' ).
+          mv_parity_reported = abap_true.
+        ENDIF.
+        RAISE EXCEPTION TYPE lcx_parity_error
+          EXPORTING i_reason = lv_format_error previous = lx_format.
+      ENDTRY.
+      IF lv_actual <> ls_case-expected.
+        add_difference(
+          |{ mv_group_test } (format_odata_amount): amount={ lv_amount_text }, |
             && |decimals=2, format="{ ls_case-decimal_format }", grouping="{ ls_case-grouping }"; |
             && |Expected="{ ls_case-expected }" (length={ strlen( ls_case-expected ) }); |
             && |Actual="{ lv_actual }" (length={ strlen( lv_actual ) }); |
             && |Check active utility c2bf1b3: group_integer RESPECTING BLANKS and numeric-input minus sign| ).
+      ENDIF.
     ENDLOOP.
+    assert_no_differences( 'Amount formatting contract failed.' ).
   ENDMETHOD.
 
 ************************************************************************
@@ -5987,6 +6005,11 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD diagnostic_contract.
     reset_fixture( ).
+    DATA(lo_native_probe) = NEW ltc_parity( ).
+    lo_native_probe->diagnostic_good_leaf( ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lo_native_probe->mv_group_test exp = 'diagnostic_good_leaf'
+      msg = 'Native reset must identify the actual caller, not a framework setup frame' ).
     DATA(lo_probe) = NEW ltc_parity( ).
     DATA lt_log TYPE stringtab.
     lo_probe->mr_failure_log = REF #( lt_log ).
@@ -6087,6 +6110,12 @@ CLASS ltc_parity IMPLEMENTATION.
       quit = mv_assert_quit
       act = xsdbool( lo_probe->difference_text( ) CS `XSA="-12 345,67 "; SEGW="12345,67"` )
       msg = 'Diagnostics must preserve spaces, minus signs and original JSON tokens' ).
+    DATA(lv_format_report) = lo_probe->difference_text( 'Amount formatting contract failed.' ).
+    cl_abap_unit_assert=>assert_true(
+      quit = mv_assert_quit
+      act = xsdbool( lv_format_report CS 'Amount formatting contract failed. Difference count: 1.'
+                  AND lv_format_report CS `XSA="-12 345,67 "; SEGW="12345,67"` )
+      msg = 'Formatting reports must retain exact tokens without claiming an OData comparison' ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       act = lo_probe->bounded_text( i_text = repeat( val = 'A' occ = 1000 ) i_limit = 8 )
@@ -6168,6 +6197,29 @@ CLASS ltc_parity IMPLEMENTATION.
                         AND lx_bad->get_text( ) CS 'token length=' ) ).
       ENDTRY.
     ENDLOOP.
+    DATA lt_bad_offsets TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_bad_offsets = VALUE #( ( -1 ) ( 3 ) ).
+    LOOP AT lt_bad_offsets INTO DATA(lv_bad_offset).
+      TRY.
+          DATA(lv_position) = skip_whitespace( i_text = '[]' i_position = lv_bad_offset ).
+          cl_abap_unit_assert=>fail( quit = mv_assert_quit msg = 'Invalid whitespace offset was accepted' ).
+        CATCH zcx_fi_das_error INTO lx_bad.
+          cl_abap_unit_assert=>assert_true(
+            quit = mv_assert_quit
+            act = xsdbool( lx_bad->get_text( ) CS 'Helper=skip_whitespace'
+                        AND lx_bad->get_text( ) CS |offset={ lv_bad_offset }| ) ).
+      ENDTRY.
+      TRY.
+          lv_position = find_matching_end(
+            i_text = '[]' i_start = lv_bad_offset i_open = '[' i_close = ']' ).
+          cl_abap_unit_assert=>fail( quit = mv_assert_quit msg = 'Invalid container offset was accepted' ).
+        CATCH zcx_fi_das_error INTO lx_bad.
+          cl_abap_unit_assert=>assert_true(
+            quit = mv_assert_quit
+            act = xsdbool( lx_bad->get_text( ) CS 'Helper=find_matching_end'
+                        AND lx_bad->get_text( ) CS |offset={ lv_bad_offset }| ) ).
+      ENDTRY.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD diagnostic_bad_leaf.
@@ -6234,7 +6286,7 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD is_framework_quit.
     DATA(lv_class) = cl_abap_typedescr=>describe_by_object_ref( i_error )->absolute_name.
-    rv_quit = xsdbool( lv_class CP '\CLASS=CX_AUNIT*' ).
+    rv_quit = xsdbool( lv_class = '\CLASS=CX_AUNIT_SBX_QUIT_TEST_METHOD' ).
   ENDMETHOD.
 
   METHOD exception_text.
@@ -6317,17 +6369,20 @@ CLASS ltc_parity IMPLEMENTATION.
       mv_phase.
 
     IF mv_group_test IS INITIAL.
-      DATA(lt_stack) = cl_abap_get_call_stack=>format_call_stack_with_struct(
-       cl_abap_get_call_stack=>get_call_stack( ) ).
+      DATA lt_stack TYPE abap_callstack.
+      DATA lv_reset_program TYPE sy-repid.
+      CALL FUNCTION 'SYSTEM_CALLSTACK' IMPORTING callstack = lt_stack.
       LOOP AT lt_stack INTO DATA(ls_frame).
-       DATA(lv_event) = to_upper( ls_frame-event ).
-       IF lv_event CS 'SETUP'.
-         EXIT.
-       ENDIF.
-       IF lv_event CS 'RESET_FIXTURE' OR lv_event CS 'GET_CALL_STACK'.
+       IF lv_reset_program IS INITIAL.
+         IF ls_frame-blocktype = 'METHOD' AND ls_frame-blockname = 'RESET_FIXTURE'.
+           lv_reset_program = ls_frame-mainprogram.
+         ENDIF.
          CONTINUE.
        ENDIF.
-       mv_group_test = to_lower( ls_frame-event ).
+       IF ls_frame-blocktype = 'METHOD' AND ls_frame-mainprogram = lv_reset_program
+          AND ls_frame-blockname <> 'SETUP'.
+         mv_group_test = to_lower( ls_frame-blockname ).
+       ENDIF.
        EXIT.
       ENDLOOP.
     ENDIF.
@@ -7056,19 +7111,17 @@ CLASS ltc_parity IMPLEMENTATION.
         ENDIF.
         DATA(ls_key) = VALUE zcl_fi_das_dashboard=>ts_key(
           ponumber = ls_index-ponumber itemno = ls_index-itemno ).
-        IF is_case-flow = zif_fi_das_dashboard=>mc_exclude.
-          lv_token = lt_properties[ name = 'PSTYPE' ]-token.
-          ls_key-pstype = unquote_json( lv_token ).
+        IF NOT line_exists( lt_properties[ name = 'PSTYPE' ] ).
+          RAISE EXCEPTION TYPE lcx_parity_error
+            EXPORTING i_reason = |Fixture={ lv_fixture }; Helper=assert_fixture_window; missing PSTYPE|.
         ENDIF.
+        lv_token = lt_properties[ name = 'PSTYPE' ]-token.
+        ls_key-pstype = unquote_json( lv_token ).
         APPEND ls_key TO lt_expected.
       ENDLOOP.
       FREE: lv_fixture_json, lt_index, lt_properties.
     ENDLOOP.
-    IF is_case-flow = zif_fi_das_dashboard=>mc_exclude.
-      SORT lt_expected BY pstype DESCENDING ponumber itemno.
-    ELSE.
-      SORT lt_expected BY ponumber itemno.
-    ENDIF.
+    SORT lt_expected BY pstype DESCENDING ponumber itemno.
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit act = i_count exp = lines( lt_expected )
       msg = |{ mv_group_test }: Total membership for predicate "{ is_case-filter_raw }" from { lt_fixtures[ 1 ] }| ).
@@ -7092,6 +7145,13 @@ CLASS ltc_parity IMPLEMENTATION.
         act = read_result_property( i_json = i_json i_index = lv_index i_property = 'ITEMNO' )
         exp = CONV string( lt_expected[ lv_index ]-itemno )
         msg = |{ mv_group_test }; row={ lv_index }; Field=ITEMNO; exact fixture membership/order| ).
+      IF is_case-select_list IS INITIAL OR is_case-select_list CS 'PSTYPE'.
+        cl_abap_unit_assert=>assert_equals(
+          quit = mv_assert_quit
+          act = read_result_property( i_json = i_json i_index = lv_index i_property = 'PSTYPE' )
+          exp = CONV string( lt_expected[ lv_index ]-pstype )
+          msg = |{ mv_group_test }; row={ lv_index }; Field=PSTYPE; exact fixture value| ).
+      ENDIF.
     ENDDO.
   ENDMETHOD.
 
@@ -8961,17 +9021,6 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_length =
       strlen(
         i_text ).
-    IF i_start < 0 OR i_start >= lv_length.
-      RAISE EXCEPTION TYPE lcx_parity_error
-        EXPORTING i_reason =
-          |Helper=find_matching_end; invalid offset={ i_start }; length={ lv_length }|.
-    ENDIF.
-    IF i_text+i_start(1) <> i_open.
-      RAISE EXCEPTION TYPE lcx_parity_error
-        EXPORTING i_reason =
-          |Helper=find_matching_end; expected="{ i_open }"; offset={ i_start }; length={ lv_length }|.
-    ENDIF.
-
     IF i_start < 0 OR i_start >= lv_length
        OR i_text+i_start(1) <> '"'.
 
@@ -9077,12 +9126,6 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_length =
       strlen(
         i_text ).
-    IF i_position < 0 OR i_position > lv_length.
-      RAISE EXCEPTION TYPE lcx_parity_error
-        EXPORTING i_reason =
-          |Helper=skip_whitespace; invalid offset={ i_position }; length={ lv_length }|.
-    ENDIF.
-
     IF i_start < 0 OR i_start >= lv_length.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
@@ -9204,6 +9247,16 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_length =
       strlen(
         i_text ).
+    IF i_start < 0 OR i_start >= lv_length.
+      RAISE EXCEPTION TYPE lcx_parity_error
+        EXPORTING i_reason =
+          |Helper=find_matching_end; invalid offset={ i_start }; length={ lv_length }|.
+    ENDIF.
+    IF i_text+i_start(1) <> i_open.
+      RAISE EXCEPTION TYPE lcx_parity_error
+        EXPORTING i_reason =
+          |Helper=find_matching_end; expected="{ i_open }"; offset={ i_start }; length={ lv_length }|.
+    ENDIF.
 
     lv_position =
       i_start.
@@ -9284,6 +9337,11 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_length =
       strlen(
         i_text ).
+    IF i_position < 0 OR i_position > lv_length.
+      RAISE EXCEPTION TYPE lcx_parity_error
+        EXPORTING i_reason =
+          |Helper=skip_whitespace; invalid offset={ i_position }; length={ lv_length }|.
+    ENDIF.
 
     WHILE rv_position < lv_length.
 
@@ -9590,7 +9648,7 @@ CLASS ltc_parity IMPLEMENTATION.
       - lv_shown.
 
     lv_text =
-        |DAS XSA vs SEGW OData parity failed. |
+        |{ i_title } |
       && |Difference count: { mv_difference_count }.|
       && cl_abap_char_utilities=>newline
       && |--- First { lv_shown } difference(s) ---|.
@@ -9620,7 +9678,7 @@ CLASS ltc_parity IMPLEMENTATION.
   METHOD assert_no_differences.
     IF mv_difference_count > 0.
       mv_parity_reported = abap_true.
-      report_failure( difference_text( ) ).
+      report_failure( difference_text( i_title ) ).
     ENDIF.
 
   ENDMETHOD.

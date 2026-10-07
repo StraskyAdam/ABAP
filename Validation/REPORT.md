@@ -1,4 +1,92 @@
-# Corrective parity-test restoration (PR #29)
+# ABAP test repair: installation and failure interpretation
+
+## Install this revision, not the older base or PR #30 alone
+
+- Test implementation: commit **`9bb3c12abdf1d551aa8a11fe1b4bfd910893ebab`**,
+  `ABAP code/Unit test.txt` (the complete local test-class include of
+  `ZCL_FI_DAS_DASHBOARD`, including its local diagnostic exception classes).
+- Production prerequisites: the corresponding dashboard, utility, interface,
+  domain exception, Gateway adapter/metadata and CDS exports at
+  **`c2bf1b3cc171dfe043648d7294d58e9bee78cd45`**. Activate dependent DDIC/CDS
+  objects and classes together. This repair changes no production business logic.
+- Target: `copilot/abap-correct-incomplete-test-work`. The assigned working PR
+  branch is `copilot/copilotabap-correct-incomplete-test-work-again`; no branch was
+  merged. Read-only fetch verified PR #30 remains unmerged at
+  `bc1a1dea2dff88b103da46fe63a572b71b335e7b`, descending from the target's
+  `c2bf1b3`. Its useful test/auditor implementation (`b940032`, `2e769288`) is
+  incorporated here, then repaired; its redundant audit documents are not copied.
+- Upload the existing UTF-8 `Validation/*.json` assets to `/SAP/PUBLIC/DAS/`
+  with their existing filenames, including hydrated LFS payloads. A single UTF-8
+  BOM is legitimate and is removed before conversion; retained Unicode BOMs are
+  also accepted without changing indexed offsets. Invalid UTF-8, malformed JSON,
+  wrong root/`d`/`results` envelopes, duplicates and unpaired surrogates still fail.
+- Gateway service `ZFI_DAS_SRV`, matching replicated snapshot/configuration,
+  users, formats and one configured flat role per scope user are prerequisites.
+  Snapshot membership failures are not proof that today's live data is wrong.
+
+No project dependency was added. The existing auditor uses Python 3's standard
+library; the supplementary ABAP **statement-parser** check used
+`@abaplint/core` **2.120.70** outside the repository. SAP_BASIS, SAP_GWFND and
+HANA release/SP versions are not recorded here and cannot be asserted from the
+cloud. Activation must verify the target APIs, including `CL_ABAP_CONV_IN_CE`,
+`SYSTEM_CALLSTACK`, `CL_SHDB_SELTAB`, ABAP Unit and the Gateway proxy.
+
+## What a failure means
+
+| Output | Interpretation / next check |
+|---|---|
+| `DAS XSA vs SEGW OData parity failed. Difference count: N.` | Actual compared row/property differences. The first 20 have newline-separated fixture, PO, ITEMNO, field and original XSA/SEGW tokens. Total N includes omitted differences. Tokens above 256 characters and lines above 2048 are bounded with original lengths. Spaces, minus signs, Unicode and JSON token types are not normalized away. |
+| `Exception[n]=...; Reason=...; Source=include:line` | Helper/environment failure, **not invented field differences**. Test, fixture/request, phase, domain `reason`, nonempty fallback text and up to eight exceptions in the previous chain identify where to debug. Genuine differences recorded before an interrupted comparison are retained separately. |
+| `EXPECTED fixture decoding/indexing`, `find_odata_property`, offset/length | Failure happened before owner values were compared. Verify MIME bytes/filename, UTF-8 and the root/`d`/`results` envelope. Do not diagnose this as owner selection. |
+| `unquote_json`, token/inner length and offset | Decoder failure. Fixed code retains UCCPI's fixed `char2` before blank-preserving string construction and bounds-checks UTF-16 pairs. The supplied screenshot did not identify the internal throw line; no SAP reproduction is claimed. |
+| `Unconsumed input filter ranges, not result rows` | Expected remaining input ranges = 0. Generic SQL can legitimately be empty when PO/ITEM/SUPPLIER optimized SQL is populated; all four channels are now shown. On this prerequisite revision extraction copies and clears ranges before SHDB conversion. Remaining 4/1 indicates a violated active-version contract; inspect active `EXTRACT_FILTERS`, not result-row counts. SHDB exceptions retain their previous class/reason. Do not clear test inputs or invent SQL. |
+| `Amount formatting contract failed. Difference count: N.` followed by `format_odata_amount: amount=..., decimals=2, format=..., grouping=...; Expected="..." ... Actual="..."` | All numeric cases are compared before reporting, so missing grouping **and** minus signs remain visible in one run. Y grouping requires spaces and negative inputs require a leading minus. Current prerequisite utility already preserves both. Inspect active utility/version and call arguments if screenshots differ; expectations remain strict for X, Y and blank formats, signs and multiple groups. |
+
+Native leaves and groups use the same parity report. Groups stop the failed
+leaf, retain the original registered ABAP Unit assertion (rather than report
+its blank quit exception again), and attempt the next leaf. Other catchable
+exceptions receive contextual reports. A later leaf's reset does not reset
+the framework's recorded failure. Run the class for separate native leaf nodes;
+a selected category remains one aggregate result. Uncatchable SAP terminations
+cannot be made continuable by this runner.
+
+## Scope, meaningful witnesses and remaining real failures
+
+- Reviewed every actual leaf and helper, not declarations/search-indexed main.
+  Live filter/value-help checks now compare independent fixture total counts and
+  exact ordered PO/item windows (value-help `$select` explicitly requests both
+  keys); all-PSTYPE checks use both fixture sets and PSTYPE-descending ordering.
+  JPY/2780 is the positive company/currency witness (654 supplied rows);
+  JPY/2028 remains a zero-row witness. The Hitachi PO OR case now exercises both
+  branches (18 supplied items), rather than accepting a single surviving branch.
+- Original predicates remain authoritative. The observed PO/item OR has empty
+  select-options; AND has complete options. Deliberately inconsistent range
+  projections remain labelled robustness inputs, not Gateway observations.
+  Legacy `skip_true_*`/`skip_false_*` leaf names describe projection/processing
+  checks only: they do **not** prove that calculations were skipped.
+- `stored_method_read_contract` independently expects WTD 300/25%/accrued 280
+  versus STL 1200/100%/accrued 1180 with USD rate 1 and invoice 20, for open and
+  closed historical service rows. Closure does not zero the read formula.
+- **Retained production discrepancy:** `closed_pending_is_reviewed` expects
+  closure-first Reviewed, whereas prerequisite ABAP returns Pending first.
+  This is supported by XSA `TF_getPODetailQuery` and `TF_getPODetail` at
+  `e5fd6d0a36957baa795608f85abdc9d4e810e834`. That stored-detail read path calls
+  `SF_accrualMethod`; its formula has no closure parameter. No universal
+  “Under Service always STL” or “closure makes amounts zero” expectation is used.
+- Scope/wildcard, global company `*` threshold, USD-only target rates and public
+  `REVIWED_BY` spelling are unchanged. Fixture classification does not claim a
+  threshold-equality witness; that requires controlled scoped NETWR/rates data.
+
+## Validation evidence (not SAP PASS)
+
+Executed: **30 Python auditor selftests**, structural audit (zero errors),
+`git diff --check`, secret scan, and ABAP statement parsing (zero parser findings).
+New ABAP diagnostic/fixture/Unicode/stored-method regressions are supplied but
+**unexecuted**. No SAP activation/ATC, ABAP Unit, HANA or Gateway run was possible.
+The mandatory validation tool reported its review binary unavailable and
+skipped CodeQL for test-only changes; this is not a clean security/runtime scan.
+
+## Historical PR #29 report (not current installation instructions)
 
 ## Branches and prior work
 

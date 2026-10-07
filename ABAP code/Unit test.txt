@@ -343,6 +343,7 @@ CLASS ltc_parity DEFINITION
     METHODS amdp_filter_mixed_properties FOR TESTING RAISING cx_static_check.
     METHODS threshold_fixture_classes FOR TESTING RAISING cx_static_check.
     METHODS review_day_boundary           FOR TESTING.
+    METHODS closed_pending_is_reviewed FOR TESTING RAISING cx_static_check.
     METHODS known_ranges_are_optimized FOR TESTING RAISING cx_static_check.
     METHODS mixed_filter_keeps_predicate FOR TESTING RAISING cx_static_check.
     METHODS cross_or_disables_prefilter FOR TESTING RAISING cx_static_check.
@@ -419,6 +420,9 @@ CLASS ltc_parity DEFINITION
 ************************************************************************
     METHODS percentage_parsing_and_error FOR TESTING RAISING cx_static_check.
     METHODS decimal_trunc_toward_zero FOR TESTING RAISING cx_static_check.
+    METHODS json_oracle_contract FOR TESTING RAISING cx_static_check.
+    METHODS json_parser_contract FOR TESTING RAISING cx_static_check.
+    METHODS range_sql_witnesses FOR TESTING RAISING cx_static_check.
 
 ************************************************************************
 * HELPERS - fixture reset, group execution and parity support
@@ -545,6 +549,13 @@ CLASS ltc_parity DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    METHODS assert_page_windows
+      IMPORTING
+        is_case TYPE ts_case
+        i_json_page_1 TYPE string
+        i_json_page_2 TYPE string
+      RAISING zcx_fi_das_error.
+
     METHODS assert_row_keys_match
       IMPORTING
         i_json_left      TYPE string
@@ -612,6 +623,13 @@ CLASS ltc_parity DEFINITION
       RETURNING
                VALUE(rv_token) TYPE string
       RAISING   zcx_fi_das_error.
+
+    METHODS find_odata_property
+      IMPORTING
+        i_json TYPE string
+        i_property TYPE string
+      RETURNING VALUE(rv_position) TYPE i
+      RAISING zcx_fi_das_error.
 
     METHODS read_result_property
       IMPORTING
@@ -905,6 +923,7 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'amdp_filter_mixed_properties' ).
     run_group_test( 'threshold_fixture_classes' ).
     run_group_test( 'review_day_boundary' ).
+    run_group_test( 'closed_pending_is_reviewed' ).
     run_group_test( 'known_ranges_are_optimized' ).
     run_group_test( 'mixed_filter_keeps_predicate' ).
     run_group_test( 'cross_or_disables_prefilter' ).
@@ -953,6 +972,9 @@ CLASS ltc_parity IMPLEMENTATION.
     run_group_test( 'gateway_cross_or_sql' ).
     run_group_test( 'percentage_parsing_and_error' ).
     run_group_test( 'decimal_trunc_toward_zero' ).
+    run_group_test( 'json_oracle_contract' ).
+    run_group_test( 'json_parser_contract' ).
+    run_group_test( 'range_sql_witnesses' ).
   ENDMETHOD.
 
   METHOD standard.
@@ -1149,6 +1171,7 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD request_processing.
+    run_group_test( 'closed_pending_is_reviewed' ).
     run_group_test( 'observed_po_item_or' ).
     run_group_test( 'observed_po_item_and' ).
     run_group_test( 'po_contains_builds_like' ).
@@ -1186,6 +1209,7 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD hana_filter.
+    run_group_test( 'range_sql_witnesses' ).
     run_group_test( 'generic_eq_filters_rows' ).
     run_group_test( 'generic_contains_filters_rows' ).
     run_group_test( 'generic_two_props_are_anded' ).
@@ -1214,6 +1238,8 @@ CLASS ltc_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD utility.
+    run_group_test( 'json_parser_contract' ).
+    run_group_test( 'json_oracle_contract' ).
     run_group_test( 'percentage_parsing_and_error' ).
     run_group_test( 'decimal_trunc_toward_zero' ).
   ENDMETHOD.
@@ -1926,6 +1952,8 @@ CLASS ltc_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_json_page_1 i_json_page_2 = lv_json_page_2 ).
 
   ENDMETHOD.
 
@@ -2059,6 +2087,11 @@ CLASS ltc_parity IMPLEMENTATION.
       IMPORTING
         e_json         = lv_json_full
         e_inline_count = lv_count_full ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = get_result_count( lv_json_full ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      quit = mv_assert_quit act = xsdbool( lv_count_full > 0 )
+      msg = 'A positive baseline is required to distinguish explicit zero top' ).
 
     get_gateway_response(
       EXPORTING
@@ -2130,6 +2163,8 @@ CLASS ltc_parity IMPLEMENTATION.
                         i_property = 'SUPPLIERNAME' ).
     assert_no_duplica_across_pages( i_json_page_1 = lv_page_1
                                     i_json_page_2 = lv_page_2 ).
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_page_1 i_json_page_2 = lv_page_2 ).
 
   ENDMETHOD.
 
@@ -2194,6 +2229,8 @@ CLASS ltc_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_json_page_1 i_json_page_2 = lv_json_page_2 ).
 
   ENDMETHOD.
 
@@ -2258,6 +2295,8 @@ CLASS ltc_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_json_page_1 i_json_page_2 = lv_json_page_2 ).
 
   ENDMETHOD.
 
@@ -2394,6 +2433,9 @@ CLASS ltc_parity IMPLEMENTATION.
       IMPORTING
         e_json  = lv_json_desc_2 ).
 
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_json_desc_1 i_json_page_2 = lv_json_desc_2 ).
+
     assert_rows_sorted(
       i_json       = lv_json_desc_1
       i_property   = 'PSTYPE'
@@ -2433,6 +2475,9 @@ CLASS ltc_parity IMPLEMENTATION.
         i_skip  = 100
       IMPORTING
         e_json  = lv_json_asc_2 ).
+
+    assert_page_windows(
+      is_case = ls_case i_json_page_1 = lv_json_asc_1 i_json_page_2 = lv_json_asc_2 ).
 
     assert_rows_sorted(
       i_json       = lv_json_asc_1
@@ -2696,6 +2741,7 @@ CLASS ltc_parity IMPLEMENTATION.
     reset_fixture( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+    DATA(lt_expected) = lt_result.
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = VALUE #( paging = VALUE #( top = 0 ) )
       CHANGING ct_result   = lt_result ).
@@ -2704,6 +2750,8 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = |{ mv_group_test } (top_zero_not_requested_all)|
       act  = lines( lt_result )
       exp  = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 
@@ -2909,28 +2957,40 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD sort_adds_default_ties.
     reset_fixture( ).
-    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( ponumber = '8000000002' itemno = '00001' pstype = '0' suppliername = 'Same' )
-      ( ponumber = '8000000001' itemno = '00001' pstype = '9' suppliername = 'Same' )
-      ( ponumber = '8000000003' itemno = '00001' pstype = '9' suppliername = 'Other' ) ).
+    DATA(lt_input) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' suppliername = 'Same' )
+      ( ponumber = '8000000004' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000002' itemno = '00002' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000005' itemno = '00001' pstype = '0' suppliername = 'Other' ) ).
+    DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000005' itemno = '00001' pstype = '0' suppliername = 'Other' )
+      ( ponumber = '8000000002' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000002' itemno = '00002' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000004' itemno = '00001' pstype = '9' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00001' pstype = '0' suppliername = 'Same' ) ).
+    DATA(lt_result) = lt_input.
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = VALUE #( orderby = VALUE #( ( property = `SUPPLIERNAME` ) ) )
       CHANGING ct_result   = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (sort_adds_default_ties)|
-      act  = lt_result[ 1 ]-ponumber
-      exp  = '8000000003' ).
+      act  = lt_result exp = lt_expected ).
+    DATA lt_joined TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DO 3 TIMES.
+      DATA(lv_skip) = ( sy-index - 1 ) * 2.
+      lt_result = lt_input.
+      mo_cut->apply_sort_and_paging(
+        EXPORTING is_request = VALUE #(
+          orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
+          paging = VALUE #( skip = lv_skip top = 2 top_requested = abap_true ) )
+        CHANGING ct_result = lt_result ).
+      APPEND LINES OF lt_result TO lt_joined.
+    ENDDO.
     cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (sort_adds_default_ties)|
-      act  = lt_result[ 2 ]-ponumber
-      exp  = '8000000001' ).
-    cl_abap_unit_assert=>assert_equals(
-      quit = mv_assert_quit
-      msg  = |{ mv_group_test } (sort_adds_default_ties)|
-      act  = lt_result[ 3 ]-ponumber
-      exp  = '8000000002' ).
+      quit = mv_assert_quit act = lt_joined exp = lt_expected
+      msg = 'Concatenated pages must retain complete membership and every tie level' ).
   ENDMETHOD.
 
   METHOD invalid_duplicate_sorts.
@@ -3002,6 +3062,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' )
       ( ponumber = '8000000002' itemno = '00001' ) ).
+    DATA(lt_expected) = lt_result.
     mo_cut->apply_sort_and_paging(
       EXPORTING is_request = VALUE #( paging = VALUE #( top = 0 top_requested = abap_false ) )
       CHANGING ct_result   = lt_result ).
@@ -3010,6 +3071,8 @@ CLASS ltc_parity IMPLEMENTATION.
       msg  = |{ mv_group_test } (omitted_top_keeps_all_rows)|
       act  = lines( lt_result )
       exp  = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result exp = lt_expected ).
   ENDMETHOD.
 
   METHOD empty_order_preserves_input.
@@ -3811,14 +3874,20 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(ls_request) = extract_range( VALUE #(
       ( property = 'PONUMBER' sign = 'I' option = 'CP' low = '**' ) ) ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ).
+      ( ponumber = '8000000001' ) ( ponumber = '8000000002' ) ( ponumber = '' ) ).
+    DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( ponumber = '8000000001' original_row_index = 1 )
+      ( ponumber = '8000000002' original_row_index = 2 )
+      ( ponumber = '' original_row_index = 3 ) ).
     filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
                  CHANGING ct_result    = lt_result ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (empty_contains_pattern)|
       act  = lines( lt_result )
-      exp  = 2 ).
+      exp  = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 
@@ -3993,8 +4062,41 @@ CLASS ltc_parity IMPLEMENTATION.
       act  = ls_request-filter-filter_string ).
   ENDMETHOD.
 
+  METHOD closed_pending_is_reviewed.
+    reset_fixture( ).
+    " XSA closure status takes precedence; this exposes a production discrepancy.
+    DATA(ls_status) = VALUE zcl_fi_das_dashboard=>ts_status(
+      ponumber = '8000401022' itemno = '00001'
+      status = 'Pending' po_closure = 'true' ).
+    DATA ls_result TYPE zcl_fi_das_dashboard=>ts_result.
+    mo_cut->calculate_visible_status(
+      EXPORTING is_status = ls_status i_review_day = 7
+      CHANGING cs_result = ls_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = ls_result-status exp = 'Reviewed'
+      msg = 'Closure must take precedence over a persisted Pending status' ).
+    CLEAR ls_status-status.
+    CLEAR ls_result.
+    mo_cut->calculate_visible_status(
+      EXPORTING is_status = ls_status i_review_day = 7
+      CHANGING cs_result = ls_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = ls_result-status exp = 'Reviewed'
+      msg = 'Closure must also take precedence over an initial persisted status' ).
+    ls_status-status = 'Pending'.
+    ls_status-po_closure = 'false'.
+    CLEAR ls_result.
+    mo_cut->calculate_visible_status(
+      EXPORTING is_status = ls_status i_review_day = 7
+      CHANGING cs_result = ls_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = ls_result-status exp = 'Pending'
+      msg = 'An open Pending row must not be changed to Reviewed' ).
+  ENDMETHOD.
+
   METHOD mixed_filter_keeps_predicate.
     reset_fixture( ).
+    " Robustness input: the deliberately inconsistent PO range is not Gateway output.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       filter = VALUE #(
         filter_select_options = VALUE #(
@@ -4057,9 +4159,9 @@ CLASS ltc_parity IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00001' )
       ( ponumber = '8000000002' itemno = '00002' ) ).
     DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( ponumber = '8000401022' itemno = '00001' )
-      ( ponumber = '8000401022' itemno = '00002' )
-      ( ponumber = '8000000002' itemno = '00001' ) ).
+      ( ponumber = '8000401022' itemno = '00001' original_row_index = 1 )
+      ( ponumber = '8000401022' itemno = '00002' original_row_index = 2 )
+      ( ponumber = '8000000002' itemno = '00001' original_row_index = 3 ) ).
     mo_cut->apply_generic_filter(
       EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals(
@@ -4094,7 +4196,7 @@ CLASS ltc_parity IMPLEMENTATION.
       ( ponumber = '8000000002' itemno = '00002' ) ).
     DATA(lt_optimized) = lt_result.
     DATA(lt_expected) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( ponumber = '8000401022' itemno = '00001' ) ).
+      ( ponumber = '8000401022' itemno = '00001' original_row_index = 1 ) ).
     mo_cut->apply_generic_filter(
       EXPORTING is_request = ls_request CHANGING ct_result = lt_result ).
     cl_abap_unit_assert=>assert_equals(
@@ -4221,6 +4323,7 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD predicate_clears_stale_ranges.
     reset_fixture( ).
+    " Robustness input: deliberately partial ranges beside a complete expression.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       filter_for_amdp = VALUE #(
         ponumber = `PONUMBER = 'stale'` item = `ITEMNO = 'stale'`
@@ -4602,6 +4705,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
       ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
+      ( ponumber = '8000000004' itemno = '00001' suppliername = 'Quantum' )
       ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
     DATA(ls_request) = extract_range( VALUE #(
       ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' ) ) ).
@@ -4611,12 +4715,14 @@ CLASS ltc_parity IMPLEMENTATION.
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (test_cp_case_sensitive_include)|
       act  = lines( lt_result )
-      exp  = 1 ).
+      exp  = 2 ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (test_cp_case_sensitive_include)|
       act  = lt_result[ 1 ]-suppliername
       exp  = 'Quality Solutions' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result[ 2 ]-suppliername exp = 'Quantum' ).
 
   ENDMETHOD.
 
@@ -4624,6 +4730,7 @@ CLASS ltc_parity IMPLEMENTATION.
     reset_fixture( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( suppliername = 'Quality Solutions' )
+      ( suppliername = 'Quantum' )
       ( suppliername = 'quantum corp' )
       ( suppliername = 'Fuji Electric' ) ).
     DATA(ls_request) = extract_range( VALUE #(
@@ -4713,7 +4820,8 @@ CLASS ltc_parity IMPLEMENTATION.
   METHOD test_multiple_cp_filters_or.
     reset_fixture( ).
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
-      ( suppliername = 'Quality' ) ( suppliername = 'BioClinica' )
+      ( suppliername = 'Quality' ) ( suppliername = 'Quantum' )
+      ( suppliername = 'BioClinica' )
       ( suppliername = 'quantum' ) ( suppliername = 'Fuji Electric' ) ).
     DATA(ls_request) = extract_range( VALUE #(
       ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Q*' )
@@ -4725,7 +4833,7 @@ CLASS ltc_parity IMPLEMENTATION.
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (test_multiple_cp_filters_or)|
       act  = lines( lt_result )
-      exp  = 2 ).
+      exp  = 3 ).
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (test_multiple_cp_filters_or)|
@@ -4735,6 +4843,11 @@ CLASS ltc_parity IMPLEMENTATION.
       quit = mv_assert_quit
       msg  = |{ mv_group_test } (test_multiple_cp_filters_or)|
       act  = lt_result[ 2 ]-suppliername
+      exp  = 'Quantum' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      msg  = |{ mv_group_test } (test_multiple_cp_filters_or)|
+      act  = lt_result[ 3 ]-suppliername
       exp  = 'BioClinica' ).
 
   ENDMETHOD.
@@ -4782,6 +4895,7 @@ CLASS ltc_parity IMPLEMENTATION.
     DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
       ( ponumber = '8000000001' itemno = '00001' companycode = '1000' pocurrency = 'USD' )
       ( ponumber = '8000000002' itemno = '00001' companycode = '1000' pocurrency = 'EUR' )
+      ( ponumber = '8000000002' itemno = '00002' companycode = '2000' pocurrency = 'EUR' )
       ( ponumber = '8000000003' itemno = '00001' companycode = '2000' pocurrency = 'USD' ) ).
     filter_rows( EXPORTING
       i_predicate        = `( companycode = '1000' AND ( pocurrency = 'USD' OR ponumber = '8000000002' ) )`
@@ -5465,6 +5579,199 @@ CLASS ltc_parity IMPLEMENTATION.
 ************************************************************************
 * HELPERS - fixture reset, group execution and parity support
 ************************************************************************
+  METHOD json_oracle_contract.
+    reset_fixture( ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\\n"' ) exp = '\n'
+      msg = 'A literal backslash plus n is not a newline' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\n"' )
+      exp = CONV string( cl_abap_char_utilities=>newline ) ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\\u0026"' ) exp = '\u0026' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\u0026\u00e9\u0020"' ) exp = `&é ` ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\ud83d\ude00"' ) exp = '😀' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = unquote_json( '"\\\""' ) exp = '\"' ).
+    cl_abap_unit_assert=>assert_true(
+      quit = mv_assert_quit act = equal_aggregate_content(
+        i_expected = 'A;;B;A' i_actual = 'A;A;;B' ) ).
+    cl_abap_unit_assert=>assert_false(
+      quit = mv_assert_quit act = equal_aggregate_content(
+        i_expected = 'A;;B;A' i_actual = 'A;;B' ) ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'GLACCOUNT' i_expected_token = '"B;A;A"' i_actual_token = '"A;B;A"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 0 ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'GLACCOUNT' i_expected_token = 'null' i_actual_token = '"null"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 1
+      msg = 'Aggregate allowances must not erase JSON token types' ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'GLACCOUNT' i_expected_token = '123' i_actual_token = '"123"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 2 ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'POLINEDESC' i_expected_token = '"\\n"' i_actual_token = '"\n"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 3 ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'FULL_NAME' i_expected_token = 'null' i_actual_token = '""' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 3
+      msg = 'The explicit one-way field-specific null allowance is retained' ).
+    compare_raw_property(
+      i_fixture = 'synthetic' i_ponumber = '1' i_itemno = '1'
+      i_name = 'FULL_NAME' i_expected_token = '""' i_actual_token = 'null' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = mv_difference_count exp = 4 ).
+  ENDMETHOD.
+
+  METHOD json_parser_contract.
+    reset_fixture( ).
+    DATA(lv_valid) =
+      `{"noise":{"__count":"999","results":[]},"d":{`
+      && `"nested":{"__count":"888","results":[]},"__count":"2","results":[`
+      && `{"PONUMBER":"1","ITEMNO":"1","SUPPLIERNAME":"\"Z\"","VALUES":[1,null,{"A":true}]},`
+      && `{"PONUMBER":"2","ITEMNO":"1","SUPPLIERNAME":"A"}]}}`.
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = get_result_count( lv_valid ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = read_inline_count( lv_valid ) exp = 2 ).
+    DATA(lt_keys) = build_expected_index( lv_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lines( lt_keys ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      act = read_result_property(
+        i_json = lv_valid i_index = 1 i_property = 'SUPPLIERNAME' )
+      exp = '"Z"' ).
+    assert_rows_sorted( i_json = lv_valid i_property = 'SUPPLIERNAME' ).
+    DATA(lt_invalid) = VALUE tt_string(
+      ( `{"d":{"results":[,]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1"},]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1" "ITEMNO":"1"}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1","A":}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1","A":01}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1","A":"\q"}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1","A":[1,]}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":null,"ITEMNO":"1"}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1","PONUMBER":"2"}]}}` )
+      ( `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"1"},{"PONUMBER":"1","ITEMNO":"1"}]}}` )
+      ( `{"error":{"message":"not an OData result"}}` )
+      ( `{"error":{"__count":"0","results":[]}}` )
+      ( `{"results":[]}` )
+      ( `{"d":[]}` )
+      ( `{"d":{"nested":{"results":[]}}}` )
+      ( `{"d":{"__count":"0","__count":"1","results":[]}}` )
+      ( `{"d":{"results":[]}} trailing` ) ).
+    LOOP AT lt_invalid INTO DATA(lv_invalid).
+      TRY.
+          lt_keys = build_expected_index( lv_invalid ).
+          cl_abap_unit_assert=>fail(
+            quit = mv_assert_quit msg = |Malformed/duplicate response was accepted: { lv_invalid }| ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_not_initial(
+            quit = mv_assert_quit act = lx_error->reason ).
+      ENDTRY.
+    ENDLOOP.
+    TRY.
+        DATA(lv_count) = read_inline_count(
+          `{"d":{"nested":{"__count":"0"},"results":[]}}` ).
+        cl_abap_unit_assert=>fail(
+          quit = mv_assert_quit msg = 'Missing requested count must not masquerade as zero' ).
+      CATCH zcx_fi_das_error INTO lx_error.
+        cl_abap_unit_assert=>assert_not_initial(
+          quit = mv_assert_quit act = lx_error->reason ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = normalize_odata_time( '"PT9H4M1S"' )
+      exp = '"PT09H04M01S"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      act = normalize_odata_time( '"PT999999999999999999H0M0S"' )
+      exp = '"PT999999999999999999H0M0S"' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = normalize_odata_time( 'PT9H4M1S' ) exp = 'PT9H4M1S' ).
+  ENDMETHOD.
+
+  METHOD range_sql_witnesses.
+    reset_fixture( ).
+    DATA(ls_request) = extract_range( VALUE #(
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' )
+      ( property = 'SUPPLIERNAME' sign = 'I' option = 'EQ' low = 'Hitachi' )
+      ( property = 'SUPPLIERNAME' sign = 'E' option = 'EQ' low = 'Fuji Electric' )
+      ( property = 'SUPPLIERNAME' sign = 'E' option = 'CP' low = '*Lab*' ) ) ).
+    DATA(lt_result) = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+      ( suppliername = 'Fuji Electric' ) ( suppliername = 'Fuji Lab' )
+      ( suppliername = 'Fujifilm' ) ( suppliername = 'Hitachi' )
+      ( suppliername = 'Other' ) ).
+    filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
+                 CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lt_result
+      exp = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+        ( suppliername = 'Fujifilm' original_row_index = 3 )
+        ( suppliername = 'Hitachi' original_row_index = 4 ) )
+      msg = 'Include union must be intersected with every exclusion' ).
+    DO 2 TIMES.
+      DATA(lv_sign) = COND string( WHEN sy-index = 1 THEN 'I' ELSE 'E' ).
+      ls_request = extract_range( VALUE #(
+        ( property = 'PONUMBER' sign = lv_sign option = 'BT'
+          low = '8000000002' high = '8000000004' ) ) ).
+      lt_result = VALUE #(
+        ( ponumber = '8000000001' ) ( ponumber = '8000000002' )
+        ( ponumber = '8000000003' ) ( ponumber = '8000000004' )
+        ( ponumber = '8000000005' ) ).
+      filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-ponumber
+                   CHANGING ct_result = lt_result ).
+      DATA(lt_expected) = COND zcl_fi_das_dashboard=>tt_odata_result(
+        WHEN lv_sign = 'I' THEN VALUE #(
+          ( ponumber = '8000000002' original_row_index = 2 )
+          ( ponumber = '8000000003' original_row_index = 3 )
+          ( ponumber = '8000000004' original_row_index = 4 ) )
+        ELSE VALUE #(
+          ( ponumber = '8000000001' original_row_index = 1 )
+          ( ponumber = '8000000005' original_row_index = 5 ) ) ).
+      cl_abap_unit_assert=>assert_equals(
+        quit = mv_assert_quit act = lt_result exp = lt_expected
+        msg = 'BT boundaries are inclusive; exclusion is the exact complement' ).
+    ENDDO.
+    TYPES: BEGIN OF ts_pattern,
+             pattern TYPE string,
+             matching TYPE string,
+             rejecting TYPE string,
+           END OF ts_pattern.
+    DATA lt_patterns TYPE STANDARD TABLE OF ts_pattern WITH EMPTY KEY.
+    lt_patterns = VALUE #(
+      ( pattern = '*100%*' matching = '100% done' rejecting = '1000 done' )
+      ( pattern = '*A_B*' matching = 'A_B' rejecting = 'AXB' )
+      ( pattern = `*O'Brien*` matching = `O'Brien` rejecting = 'OBrien' )
+      ( pattern = '*A#*B*' matching = 'A*B' rejecting = 'AxxxB' )
+      ( pattern = '*A#+B*' matching = 'A+B' rejecting = 'AxB' ) ).
+    LOOP AT lt_patterns INTO DATA(ls_pattern).
+      ls_request = extract_range( VALUE #(
+        ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = ls_pattern-pattern ) ) ).
+      lt_result = VALUE #(
+        ( suppliername = ls_pattern-matching ) ( suppliername = ls_pattern-rejecting ) ).
+      filter_rows( EXPORTING i_predicate = ls_request-filter_for_amdp-suppliername
+                   CHANGING ct_result = lt_result ).
+      cl_abap_unit_assert=>assert_equals(
+        quit = mv_assert_quit act = lt_result
+        exp = VALUE zcl_fi_das_dashboard=>tt_odata_result(
+          ( suppliername = ls_pattern-matching original_row_index = 1 ) )
+        msg = |Literal SQL/CP escaping must preserve { ls_pattern-pattern }| ).
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD run_group_test.
     DATA(lv_previous_quit) = mv_assert_quit.
     DATA(lv_previous_test) = mv_group_test.
@@ -5507,6 +5814,16 @@ CLASS ltc_parity IMPLEMENTATION.
     ls_case-email   = |xsa-null-{ i_number }@takeda.com|.
     ls_case-flow    = zif_fi_das_dashboard=>mc_over.
     ls_case-pstype  = zif_fi_das_dashboard=>mc_pstype_service.
+
+    SELECT COUNT( * ) FROM zfi_das_roles
+      WHERE user_emailid = @ls_case-email
+      INTO @DATA(lv_role_rows).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lv_role_rows exp = 1
+      msg = |Scope fixture requires one configured role for { ls_case-email }| ).
+    IF lv_role_rows <> 1.
+      RETURN.
+    ENDIF.
 
     run_paged_case( is_case = ls_case ).
 
@@ -5828,17 +6145,33 @@ CLASS ltc_parity IMPLEMENTATION.
                    && |{ ls_property-name } le '{ lv_high }')|.
           WHEN 'CP'.
             " Gateway CP contains patterns have only outer asterisks.
-            SHIFT lv_low LEFT DELETING LEADING '*'.
-            SHIFT lv_low RIGHT DELETING TRAILING '*'.
+            DATA(lv_cp_length) = strlen( ls_filter-low ).
+            IF lv_cp_length < 2.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Fixture CP requires two outer asterisks' ).
+              RETURN.
+            ENDIF.
+            DATA(lv_cp_last) = lv_cp_length - 1.
+            IF ls_filter-low(1) <> '*' OR ls_filter-low+lv_cp_last(1) <> '*'.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Fixture CP requires two outer asterisks' ).
+              RETURN.
+            ENDIF.
+            lv_low = odata_quote( substring(
+              val = ls_filter-low off = 1 len = lv_cp_length - 2 ) ).
             cl_abap_unit_assert=>assert_false(
               quit = mv_assert_quit
-              act  = xsdbool( lv_low CS '*' OR lv_low CS '+' )
+              act  = xsdbool( lv_low CS '*' OR lv_low CS '+' OR lv_low CS '#' )
               msg  = 'This fixture URI helper supports only substring CP patterns' ).
+            IF lv_low CS '*' OR lv_low CS '+' OR lv_low CS '#'.
+              RETURN.
+            ENDIF.
             lv_part = |substringof('{ lv_low }',{ ls_property-name })|.
           WHEN OTHERS.
             cl_abap_unit_assert=>fail(
               quit = mv_assert_quit
               msg  = |Unsupported fixture range option { ls_filter-option }| ).
+            RETURN.
         ENDCASE.
         IF ls_filter-sign = 'E'.
           APPEND |not ({ lv_part })| TO lt_exclude.
@@ -5942,31 +6275,11 @@ CLASS ltc_parity IMPLEMENTATION.
   METHOD read_inline_count.
 
     DATA:
-      lv_offset TYPE i,
       lv_start  TYPE i,
       lv_end    TYPE i,
-      lv_length TYPE i,
       lv_token  TYPE string.
 
-    FIND FIRST OCCURRENCE OF '"__count"'
-      IN i_json
-      MATCH OFFSET lv_offset.
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    lv_length = strlen( i_json ).
-    lv_start = lv_offset + 9.
-
-    WHILE lv_start < lv_length
-      AND i_json+lv_start(1) <> ':'.
-      lv_start = lv_start + 1.
-    ENDWHILE.
-
-    lv_start = skip_whitespace(
-      i_text     = i_json
-      i_position = lv_start + 1 ).
+    lv_start = find_odata_property( i_json = i_json i_property = '__count' ).
 
     lv_end = read_json_value_end(
       i_text  = i_json
@@ -5980,9 +6293,11 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_token = unquote_json(
       i_token = lv_token ).
 
-    IF lv_token IS NOT INITIAL.
-      rv_count = CONV int8( lv_token ).
+    IF lv_token IS INITIAL OR lv_token CN '0123456789'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'Inline count must be a nonnegative integer'.
     ENDIF.
+    rv_count = CONV int8( lv_token ).
 
   ENDMETHOD.
 
@@ -6021,6 +6336,10 @@ CLASS ltc_parity IMPLEMENTATION.
         lv_position = lv_position + 1.
         CONTINUE.
       ENDIF.
+      IF lv_char <> '{'.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'OData results must contain objects'.
+      ENDIF.
 
       lv_value_end =
         read_json_value_end(
@@ -6056,7 +6375,7 @@ CLASS ltc_parity IMPLEMENTATION.
     lv_row_count =
       get_result_count( i_json ).
 
-    lv_expected = to_upper( i_value ).
+    lv_expected = i_value.
 
     WHILE lv_row_index < lv_row_count.
 
@@ -6084,18 +6403,17 @@ CLASS ltc_parity IMPLEMENTATION.
           quit = mv_assert_quit
           msg  =
             |Response row { lv_row_index } does not contain property { i_property }| ).
+        CONTINUE.
       ENDIF.
 
-      lv_actual =
-        to_upper(
-          unquote_json(
-            i_token = <ls_property>-token ) ).
+      lv_actual = unquote_json( i_token = <ls_property>-token ).
 
       IF i_contains = abap_true.
 
         cl_abap_unit_assert=>assert_true(
           quit = mv_assert_quit
-          act  = xsdbool( lv_actual CS lv_expected )
+          act  = xsdbool( find( val = lv_actual sub = lv_expected
+                               case = abap_true ) >= 0 )
           msg  =
             |Row { lv_row_index } property { i_property } must contain { i_value }| ).
 
@@ -6144,23 +6462,20 @@ CLASS ltc_parity IMPLEMENTATION.
 
       lv_row_index = lv_row_index + 1.
 
-      DATA(lv_token) =
-      read_result_property(
-        i_json     = i_json
-        i_index    = lv_row_index
-        i_property = i_property ).
-
-      lv_current =
-      unquote_json(
-        i_token = lv_token ).
-
-      IF to_upper( lv_current ) = 'NULL'.
-        CLEAR lv_current.
+      find_result_object_bounds(
+        EXPORTING i_json = i_json i_index = lv_row_index
+        IMPORTING e_object_from = DATA(lv_from) e_object_to = DATA(lv_to) ).
+      DATA(lt_properties) = read_object_properties(
+        i_json = i_json i_object_from = lv_from i_object_to = lv_to ).
+      IF NOT line_exists( lt_properties[ name = i_property ] ).
+        cl_abap_unit_assert=>fail(
+          quit = mv_assert_quit
+          msg = |Sorted response row { lv_row_index } omits { i_property }| ).
+        RETURN.
       ENDIF.
-
-    " JSON strings do not contain the fixed-length ABAP trailing
-    " spaces, but remove surrounding whitespace consistently.
-      lv_current = trim_text( lv_current ).
+      DATA(lv_token) = lt_properties[ name = i_property ]-token.
+      lv_current = COND #( WHEN lv_token = 'null' THEN ``
+                          ELSE unquote_json( lv_token ) ).
 
       IF lv_row_index > 1.
 
@@ -6294,6 +6609,50 @@ CLASS ltc_parity IMPLEMENTATION.
 
     ENDLOOP.
 
+  ENDMETHOD.
+
+  METHOD assert_page_windows.
+    DATA(ls_case) = is_case.
+    DATA(lv_rows_1) = get_result_count( i_json_page_1 ).
+    DATA(lv_rows_2) = get_result_count( i_json_page_2 ).
+    cl_abap_unit_assert=>assert_true(
+      quit = mv_assert_quit act = xsdbool( read_inline_count( i_json_page_1 ) > is_case-top )
+      msg = 'Paging fixture must provide positive witnesses on both pages' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = read_inline_count( i_json_page_2 )
+      exp = read_inline_count( i_json_page_1 )
+      msg = 'The total count must not change with page offset' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit
+      act = lv_rows_1 exp = COND i(
+        WHEN read_inline_count( i_json_page_1 ) < is_case-top
+        THEN CONV i( read_inline_count( i_json_page_1 ) ) ELSE is_case-top )
+      msg = 'The first page must fill the requested window unless the result ends' ).
+    ls_case-top = is_case-top * 2.
+    ls_case-top_specified = abap_true.
+    get_gateway_response(
+      EXPORTING is_case = ls_case
+      IMPORTING e_json = DATA(lv_prefix) e_inline_count = DATA(lv_count) ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = get_result_count( lv_prefix )
+      exp = lv_rows_1 + lv_rows_2
+      msg = 'Two adjacent pages must cover the complete combined prefix' ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lv_count exp = read_inline_count( i_json_page_1 ) ).
+    DATA(lt_prefix_keys) = build_expected_index( lv_prefix ).
+    cl_abap_unit_assert=>assert_equals(
+      quit = mv_assert_quit act = lines( lt_prefix_keys ) exp = lv_rows_1 + lv_rows_2 ).
+    DO lv_rows_1 TIMES.
+      assert_row_keys_match(
+        i_json_left = i_json_page_1 i_left_index = sy-index
+        i_json_right = lv_prefix i_right_index = sy-index ).
+    ENDDO.
+    DO lv_rows_2 TIMES.
+      DATA(lv_index) = sy-index.
+      assert_row_keys_match(
+        i_json_left = i_json_page_2 i_left_index = lv_index
+        i_json_right = lv_prefix i_right_index = lv_rows_1 + lv_index ).
+    ENDDO.
   ENDMETHOD.
 
   METHOD assert_row_keys_match.
@@ -6597,8 +6956,8 @@ CLASS ltc_parity IMPLEMENTATION.
 
       IF sy-subrc <> 0.
 
-        add_difference(
-          i_text =
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason =
               |Duplicate JSON key; PO={ lv_ponumber }; |
             && |ITEMNO={ lv_itemno }| ).
 
@@ -6613,45 +6972,8 @@ CLASS ltc_parity IMPLEMENTATION.
 
   METHOD find_results_array_bounds.
 
-    DATA:
-      lv_results_offset TYPE i,
-      lv_json_length    TYPE i,
-      lv_char           TYPE char1.
-
-    FIND FIRST OCCURRENCE OF '"results"'
-      IN i_json
-      MATCH OFFSET lv_results_offset.
-
-    IF sy-subrc <> 0.
-
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     'Fixture does not contain the OData results property'.
-
-    ENDIF.
-
-    lv_json_length =
-      strlen( i_json ).
-
-    e_array_from =
-      lv_results_offset + 9.
-
-    WHILE e_array_from < lv_json_length.
-
-      lv_char =
-        i_json+e_array_from(1).
-
-      IF lv_char = '['.
-        EXIT.
-      ENDIF.
-
-      e_array_from =
-        e_array_from + 1.
-
-    ENDWHILE.
-
-    IF e_array_from >= lv_json_length.
+    e_array_from = find_odata_property( i_json = i_json i_property = 'results' ).
+    IF i_json+e_array_from(1) <> '['.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING
@@ -6660,13 +6982,100 @@ CLASS ltc_parity IMPLEMENTATION.
 
     ENDIF.
 
-    e_array_to =
-      find_matching_end(
-        i_text  = i_json
-        i_start = e_array_from
-        i_open  = '['
-        i_close = ']' ).
+    e_array_to = read_json_value_end( i_text = i_json i_start = e_array_from ) - 1.
 
+  ENDMETHOD.
+
+  METHOD find_odata_property.
+    DATA(lv_length) = strlen( i_json ).
+    DATA(lv_position) = skip_whitespace( i_text = i_json i_position = 0 ).
+    DATA lv_depth TYPE i.
+    DATA lv_closed TYPE abap_bool.
+    DATA lt_root_keys TYPE tt_json_property.
+    DATA lt_data_keys TYPE tt_json_property.
+    rv_position = -1.
+    IF lv_position >= lv_length OR i_json+lv_position(1) <> '{'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'OData response must be a JSON object'.
+    ENDIF.
+    lv_position = lv_position + 1.
+    WHILE lv_position < lv_length.
+      lv_position = skip_whitespace( i_text = i_json i_position = lv_position ).
+      IF lv_position >= lv_length.
+        EXIT.
+      ENDIF.
+      IF i_json+lv_position(1) = '}'.
+        lv_position = lv_position + 1.
+        IF lv_depth = 0.
+          lv_closed = abap_true.
+          EXIT.
+        ENDIF.
+        lv_depth = 0.
+      ELSE.
+        IF i_json+lv_position(1) <> '"'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'OData envelope property must be a JSON string'.
+        ENDIF.
+        DATA(lv_key_end) = read_json_string_end(
+          i_text = i_json i_start = lv_position ) + 1.
+        DATA(lv_name) = unquote_json( substring(
+          val = i_json off = lv_position len = lv_key_end - lv_position ) ).
+        IF lv_depth = 0.
+          INSERT VALUE #( name = lv_name ) INTO TABLE lt_root_keys.
+        ELSE.
+          INSERT VALUE #( name = lv_name ) INTO TABLE lt_data_keys.
+        ENDIF.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = |Duplicate OData envelope property { lv_name }|.
+        ENDIF.
+        lv_position = skip_whitespace( i_text = i_json i_position = lv_key_end ).
+        IF lv_position >= lv_length OR i_json+lv_position(1) <> ':'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'OData envelope property has no colon'.
+        ENDIF.
+        lv_position = skip_whitespace( i_text = i_json i_position = lv_position + 1 ).
+        IF lv_position >= lv_length.
+          EXIT.
+        ENDIF.
+        IF lv_depth = 0 AND lv_name = 'error'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'Gateway returned an OData error envelope'.
+        ENDIF.
+        IF lv_depth = 0 AND lv_name = 'd'.
+          IF i_json+lv_position(1) <> '{'.
+            RAISE EXCEPTION TYPE zcx_fi_das_error
+              EXPORTING i_reason = 'OData d envelope must be an object'.
+          ENDIF.
+          lv_depth = 1.
+          lv_position = lv_position + 1.
+          CONTINUE.
+        ENDIF.
+        IF lv_depth = 1 AND lv_name = i_property.
+          rv_position = lv_position.
+        ENDIF.
+        lv_position = read_json_value_end( i_text = i_json i_start = lv_position ).
+      ENDIF.
+      lv_position = skip_whitespace( i_text = i_json i_position = lv_position ).
+      IF lv_position >= lv_length.
+        EXIT.
+      ENDIF.
+      IF i_json+lv_position(1) = ','.
+        lv_position = skip_whitespace( i_text = i_json i_position = lv_position + 1 ).
+        IF lv_position >= lv_length OR i_json+lv_position(1) = '}'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'Trailing OData envelope comma'.
+        ENDIF.
+      ELSEIF i_json+lv_position(1) <> '}'.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'OData envelope properties require a comma'.
+      ENDIF.
+    ENDWHILE.
+    lv_position = skip_whitespace( i_text = i_json i_position = lv_position ).
+    IF lv_closed = abap_false OR lv_position <> lv_length OR rv_position < 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = |Missing/invalid OData d/{ i_property } envelope|.
+    ENDIF.
   ENDMETHOD.
 
   METHOD read_json_row_key.
@@ -6784,6 +7193,10 @@ CLASS ltc_parity IMPLEMENTATION.
             val = i_json
             off = lv_value_start
             len = lv_value_end - lv_value_start ).
+        IF strlen( lv_token ) < 2 OR lv_token(1) <> '"'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = |JSON key { lv_key } must be a string|.
+        ENDIF.
 
         IF lv_key = 'PONUMBER'.
 
@@ -6816,6 +7229,10 @@ CLASS ltc_parity IMPLEMENTATION.
         lv_value_end + 1.
 
     ENDWHILE.
+    IF e_ponumber IS INITIAL OR e_itemno IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'JSON row requires nonempty PO/item keys'.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -7028,6 +7445,15 @@ CLASS ltc_parity IMPLEMENTATION.
       lv_token       TYPE string,
       lv_char        TYPE char1.
 
+    IF i_object_from < 0 OR i_object_to >= strlen( i_json )
+       OR i_object_from >= i_object_to.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'Invalid JSON object bounds'.
+    ENDIF.
+    IF i_json+i_object_from(1) <> '{' OR i_json+i_object_to(1) <> '}'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'Invalid JSON object delimiters'.
+    ENDIF.
     lv_position = i_object_from + 1.
 
     WHILE lv_position < i_object_to.
@@ -7041,11 +7467,6 @@ CLASS ltc_parity IMPLEMENTATION.
       ENDIF.
 
       lv_char = i_json+lv_position(1).
-
-      IF lv_char = ','.
-        lv_position = lv_position + 1.
-        CONTINUE.
-      ENDIF.
 
       IF lv_char <> '"'.
         RAISE EXCEPTION TYPE zcx_fi_das_error
@@ -7082,6 +7503,10 @@ CLASS ltc_parity IMPLEMENTATION.
       lv_value_end = read_json_value_end(
         i_text  = i_json
         i_start = lv_value_start ).
+      IF lv_value_end > i_object_to.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'JSON value exceeds its object'.
+      ENDIF.
 
       IF lv_key <> '__metadata'.
         lv_token = trim_text(
@@ -7106,7 +7531,19 @@ CLASS ltc_parity IMPLEMENTATION.
         lv_key,
         lv_token.
 
-      lv_position = lv_value_end + 1.
+      lv_position = skip_whitespace( i_text = i_json i_position = lv_value_end ).
+      IF lv_position = i_object_to.
+        EXIT.
+      ENDIF.
+      IF lv_position > i_object_to OR i_json+lv_position(1) <> ','.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'JSON properties require a comma'.
+      ENDIF.
+      lv_position = skip_whitespace( i_text = i_json i_position = lv_position + 1 ).
+      IF lv_position >= i_object_to.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'Trailing JSON object comma'.
+      ENDIF.
 
     ENDWHILE.
 
@@ -7133,8 +7570,9 @@ CLASS ltc_parity IMPLEMENTATION.
 *--------------------------------------------------------------------*
 * Documented functional compatibility for XSA SQL NULL values
 *
-* Classic SEGW serializes initial ABAP character, decimal, and time
-* values differently from XSA SQL NULL. IS_EQUIVALENT_NULL contains a
+* The compatibility contract allows specific initial ABAP values in
+* place of XSA SQL NULL. Target Gateway serialization remains unexecuted.
+* IS_EQUIVALENT_NULL contains a
 * field-specific allowlist. There is intentionally no global rule such
 * as NULL = empty string or NULL = zero.
 *--------------------------------------------------------------------*
@@ -7185,7 +7623,11 @@ CLASS ltc_parity IMPLEMENTATION.
 * aligned between both implementations.
 *--------------------------------------------------------------------*
     IF is_unordered_aggregate_field(
-         i_name = i_name ) = abap_true.
+         i_name = i_name ) = abap_true
+       AND strlen( lv_expected_token ) >= 2
+       AND strlen( lv_actual_token ) >= 2
+       AND lv_expected_token(1) = '"'
+       AND lv_actual_token(1) = '"'.
 
       lv_expected_text =
         unquote_json(
@@ -7294,7 +7736,8 @@ CLASS ltc_parity IMPLEMENTATION.
 * do not preserve the distinction between an absent source value and an
 * explicitly supplied initial value.
 *
-* Standard SEGW therefore serializes initial ABAP values as follows:
+* The retained allowlist expects these initial-value representations;
+* this is not evidence of execution on the target Gateway:
 *
 *   Character value  -> ""
 *   Decimal value    -> "0.00"
@@ -7337,9 +7780,8 @@ CLASS ltc_parity IMPLEMENTATION.
 * Character properties serialized by SEGW as ""
 *
 * FULL_NAME
-*   The current UI usage is display-only. Both XSA NULL and the SEGW
-*   empty string produce an empty displayed value and do not change
-*   active application control flow.
+*   Explicit null-to-empty compatibility tolerance. This comparison
+*   does not prove equivalence for every UI consumer.
 *
 * DECIMAL_FORMAT
 *   This exception applies to DECIMAL_FORMAT in the open-PO result.
@@ -7347,12 +7789,13 @@ CLASS ltc_parity IMPLEMENTATION.
 *   userDetails service.
 *
 * DATFM and USERNAME
-*   No active UI consumer beyond metadata was identified.
+*   Explicit null-to-empty tolerances. Absence of active consumers has
+*   not been established by the source audit.
 *
 * COSTCENTERDESC and MANAGEUNIT
-*   These are aggregate/display properties. XSA NULL and SEGW empty
-*   string both represent no aggregate value. Non-empty values still go
-*   through the unordered aggregate comparison, including duplicates.
+*   Inspected XSA read functions project COSTCENTERDESC as literal NULL;
+*   MANAGEUNIT is aggregated. Non-empty allowlisted values still use
+*   unordered comparison, including duplicates.
 *
 * NOTIF_24_HR
 *   The UI activates the notification indicator only when the value is
@@ -7427,8 +7870,8 @@ CLASS ltc_parity IMPLEMENTATION.
 *       ? "0.00"
 *       : rData.EDGEWTDAMT
 *
-*   XSA NULL and SEGW "0.00" therefore produce the same calculation
-*   input and the same functional UI behavior.
+*   This establishes equivalence for those calculation inputs, not
+*   every UI consumer or target Gateway serialization.
 *
 * GRVALUE_USD
 *   The UI already normalizes an XSA NULL amount to 0.00 before currency
@@ -7440,9 +7883,8 @@ CLASS ltc_parity IMPLEMENTATION.
 *   INVVALUE remains strict because it participates in accrual arithmetic.
 *
 * INVVALUE_CAL
-*   No active UI consumer was identified for this calculated helper
-*   property. XSA NULL and the initial SEGW decimal value "0.00" therefore
-*   have no functional impact in the current UI. The exception remains
+*   Explicit null-to-zero tolerance for this helper property; universal
+*   UI equivalence has not been established. The exception remains
 *   field-specific and must not be generalized to INVVALUE.
 *
 * LASTMONTHWRKCOMP
@@ -7557,6 +7999,9 @@ CLASS ltc_parity IMPLEMENTATION.
     rv_token =
       trim_text(
         i_text = i_token ).
+    IF strlen( rv_token ) < 2 OR rv_token(1) <> '"'.
+      RETURN.
+    ENDIF.
 
     lv_value =
       unquote_json(
@@ -7647,6 +8092,11 @@ CLASS ltc_parity IMPLEMENTATION.
     IF lv_hour_text CN '0123456789'
        OR lv_minute_text CN '0123456789'
        OR lv_second_text CN '0123456789'.
+      RETURN.
+    ENDIF.
+
+    IF strlen( lv_hour_text ) > 2 OR strlen( lv_minute_text ) > 2
+       OR strlen( lv_second_text ) > 2.
       RETURN.
     ENDIF.
 
@@ -7837,7 +8287,7 @@ CLASS ltc_parity IMPLEMENTATION.
       strlen(
         i_text ).
 
-    IF i_start >= lv_length
+    IF i_start < 0 OR i_start >= lv_length
        OR i_text+i_start(1) <> '"'.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
@@ -7856,7 +8306,23 @@ CLASS ltc_parity IMPLEMENTATION.
         i_text+lv_position(1).
 
       IF lv_escape = abap_true.
-
+        IF lv_char = 'u'.
+          IF lv_position + 4 >= lv_length.
+            RAISE EXCEPTION TYPE zcx_fi_das_error
+              EXPORTING i_reason = 'Truncated JSON Unicode escape'.
+          ENDIF.
+          DATA(lv_digits) = substring( val = i_text off = lv_position + 1 len = 4 ).
+          IF lv_digits CN '0123456789abcdefABCDEF'.
+            RAISE EXCEPTION TYPE zcx_fi_das_error
+              EXPORTING i_reason = 'Invalid JSON Unicode escape'.
+          ENDIF.
+          lv_position = lv_position + 4.
+        ELSEIF lv_char <> '"' AND lv_char <> '\' AND lv_char <> '/'
+           AND lv_char <> 'b' AND lv_char <> 'f' AND lv_char <> 'n'
+           AND lv_char <> 'r' AND lv_char <> 't'.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'Invalid JSON string escape'.
+        ENDIF.
         CLEAR lv_escape.
 
       ELSEIF lv_char = '\'.
@@ -7870,7 +8336,9 @@ CLASS ltc_parity IMPLEMENTATION.
           lv_position.
 
         RETURN.
-
+      ELSEIF lv_char < space.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_reason = 'Unescaped JSON control character'.
       ENDIF.
 
       lv_position =
@@ -7897,7 +8365,7 @@ CLASS ltc_parity IMPLEMENTATION.
       strlen(
         i_text ).
 
-    IF i_start >= lv_length.
+    IF i_start < 0 OR i_start >= lv_length.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING
@@ -7934,6 +8402,9 @@ CLASS ltc_parity IMPLEMENTATION.
 
       rv_end =
         lv_end + 1.
+      DATA(lt_checked_properties) = read_object_properties(
+        i_json = i_text i_object_from = i_start i_object_to = lv_end ).
+      FREE lt_checked_properties.
 
       RETURN.
 
@@ -7950,6 +8421,23 @@ CLASS ltc_parity IMPLEMENTATION.
 
       rv_end =
         lv_end + 1.
+      lv_position = skip_whitespace( i_text = i_text i_position = i_start + 1 ).
+      WHILE lv_position < lv_end.
+        lv_position = read_json_value_end( i_text = i_text i_start = lv_position ).
+        lv_position = skip_whitespace( i_text = i_text i_position = lv_position ).
+        IF lv_position = lv_end.
+          EXIT.
+        ENDIF.
+        IF lv_position > lv_end OR i_text+lv_position(1) <> ','.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'JSON array values require a comma'.
+        ENDIF.
+        lv_position = skip_whitespace( i_text = i_text i_position = lv_position + 1 ).
+        IF lv_position >= lv_end.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_reason = 'Trailing JSON array comma'.
+        ENDIF.
+      ENDWHILE.
 
       RETURN.
 
@@ -7964,13 +8452,8 @@ CLASS ltc_parity IMPLEMENTATION.
         i_text+lv_position(1).
 
       IF lv_char = ','
-         OR lv_char = '}'.
-
-        rv_end =
-          lv_position.
-
-        RETURN.
-
+         OR lv_char = '}' OR lv_char = ']'.
+        EXIT.
       ENDIF.
 
       lv_position =
@@ -7978,8 +8461,15 @@ CLASS ltc_parity IMPLEMENTATION.
 
     ENDWHILE.
 
-    rv_end =
-      lv_length.
+    DATA(lv_primitive) = trim_text( substring(
+      val = i_text off = i_start len = lv_position - i_start ) ).
+    FIND REGEX '^(null|true|false|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?)$'
+      IN lv_primitive.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_reason = 'Invalid or empty JSON primitive'.
+    ENDIF.
+    rv_end = lv_position.
 
   ENDMETHOD.
 
@@ -8239,57 +8729,104 @@ CLASS ltc_parity IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    REPLACE ALL OCCURRENCES OF '\u0026'
-      IN rv_value
-      WITH '&'.
-
-    REPLACE ALL OCCURRENCES OF '\u003C'
-      IN rv_value
-      WITH '<'.
-
-    REPLACE ALL OCCURRENCES OF '\u003c'
-      IN rv_value
-      WITH '<'.
-
-    REPLACE ALL OCCURRENCES OF '\u003E'
-      IN rv_value
-      WITH '>'.
-
-    REPLACE ALL OCCURRENCES OF '\u003e'
-      IN rv_value
-      WITH '>'.
-
-    REPLACE ALL OCCURRENCES OF '\u0022'
-      IN rv_value
-      WITH '"'.
-
-    REPLACE ALL OCCURRENCES OF '\u0027'
-      IN rv_value
-      WITH ''''.
-
-    REPLACE ALL OCCURRENCES OF '\/'
-      IN rv_value
-      WITH '/'.
-
-    REPLACE ALL OCCURRENCES OF '\"'
-      IN rv_value
-      WITH '"'.
-
-    REPLACE ALL OCCURRENCES OF '\n'
-      IN rv_value
-      WITH cl_abap_char_utilities=>newline.
-
-    REPLACE ALL OCCURRENCES OF '\r'
-      IN rv_value
-      WITH cl_abap_char_utilities=>cr_lf+0(1).
-
-    REPLACE ALL OCCURRENCES OF '\t'
-      IN rv_value
-      WITH cl_abap_char_utilities=>horizontal_tab.
-
-    REPLACE ALL OCCURRENCES OF '\\'
-      IN rv_value
-      WITH '\'.
+    DATA(lv_source) = rv_value.
+    CLEAR rv_value.
+    DATA lv_position TYPE i.
+    DATA lv_hex TYPE x LENGTH 2.
+    DATA lv_codepoint TYPE i.
+    DATA lv_units TYPE i.
+    DATA lv_utf16 TYPE xstring.
+    WHILE lv_position < lv_inner_length.
+      DATA(lv_char) = substring( val = lv_source off = lv_position len = 1 ).
+      lv_position = lv_position + 1.
+      IF lv_char <> '\'.
+        rv_value = rv_value && lv_char.
+        CONTINUE.
+      ENDIF.
+      IF lv_position >= lv_inner_length.
+        cl_abap_unit_assert=>fail(
+          quit = mv_assert_quit msg = 'Truncated JSON escape' ).
+        RETURN.
+      ENDIF.
+      DATA(lv_escape) = substring( val = lv_source off = lv_position len = 1 ).
+      lv_position = lv_position + 1.
+      CASE lv_escape.
+        WHEN '"' OR '\' OR '/'.
+          lv_char = lv_escape.
+        WHEN 'n'.
+          lv_char = cl_abap_char_utilities=>newline.
+        WHEN 'r'.
+          lv_char = cl_abap_char_utilities=>cr_lf+0(1).
+        WHEN 't'.
+          lv_char = cl_abap_char_utilities=>horizontal_tab.
+        WHEN 'b' OR 'f'.
+          lv_codepoint = COND #( WHEN lv_escape = 'b' THEN 8 ELSE 12 ).
+          lv_char = substring(
+            val = cl_abap_conv_in_ce=>uccpi( lv_codepoint ) len = 1 ).
+        WHEN 'u'.
+          IF lv_position + 4 > lv_inner_length.
+            cl_abap_unit_assert=>fail(
+              quit = mv_assert_quit msg = 'Truncated JSON Unicode escape' ).
+            RETURN.
+          ENDIF.
+          DATA(lv_digits) = substring( val = lv_source off = lv_position len = 4 ).
+          IF lv_digits CN '0123456789abcdefABCDEF'.
+            cl_abap_unit_assert=>fail(
+              quit = mv_assert_quit msg = 'Invalid JSON Unicode escape' ).
+            RETURN.
+          ENDIF.
+          lv_hex = to_upper( lv_digits ).
+          lv_codepoint = CONV i( lv_hex ).
+          lv_position = lv_position + 4.
+          lv_units = 1.
+          IF lv_codepoint >= 55296 AND lv_codepoint <= 56319.
+            DATA(lv_high_surrogate) = lv_hex.
+            IF lv_position + 6 > lv_inner_length.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Missing JSON low surrogate' ).
+              RETURN.
+            ENDIF.
+            IF substring( val = lv_source off = lv_position len = 2 ) <> '\u'.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Missing JSON low surrogate' ).
+              RETURN.
+            ENDIF.
+            lv_digits = substring( val = lv_source off = lv_position + 2 len = 4 ).
+            IF lv_digits CN '0123456789abcdefABCDEF'.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Invalid JSON low surrogate' ).
+              RETURN.
+            ENDIF.
+            lv_hex = to_upper( lv_digits ).
+            DATA(lv_low_surrogate) = CONV i( lv_hex ).
+            IF lv_low_surrogate < 56320 OR lv_low_surrogate > 57343.
+              cl_abap_unit_assert=>fail(
+                quit = mv_assert_quit msg = 'Invalid JSON low surrogate' ).
+              RETURN.
+            ENDIF.
+            CONCATENATE lv_high_surrogate lv_hex INTO lv_utf16 IN BYTE MODE.
+            lv_position = lv_position + 6.
+            lv_units = 2.
+          ELSEIF lv_codepoint >= 56320 AND lv_codepoint <= 57343.
+            cl_abap_unit_assert=>fail(
+              quit = mv_assert_quit msg = 'Unpaired JSON low surrogate' ).
+            RETURN.
+          ENDIF.
+          IF lv_units = 2.
+            DATA(lo_utf16) = cl_abap_conv_in_ce=>create(
+              encoding = '4102' input = lv_utf16 ).
+            lo_utf16->read( IMPORTING data = lv_char ).
+          ELSE.
+            lv_char = substring(
+              val = cl_abap_conv_in_ce=>uccpi( lv_codepoint ) len = 1 ).
+          ENDIF.
+        WHEN OTHERS.
+          cl_abap_unit_assert=>fail(
+            quit = mv_assert_quit msg = 'Invalid JSON escape' ).
+          RETURN.
+      ENDCASE.
+      rv_value = rv_value && lv_char.
+    ENDWHILE.
 
   ENDMETHOD.
 
@@ -8460,6 +8997,14 @@ CLASS ltc_parity IMPLEMENTATION.
           act  = xsdbool( lt_selected[ name = lv_field ]-token = 'null' ) ).
       ENDIF.
     ENDLOOP.
+    LOOP AT lt_selected INTO DATA(ls_selected).
+      cl_abap_unit_assert=>assert_true(
+        quit = mv_assert_quit
+        act = xsdbool( ls_selected-name = 'PONUMBER'
+                       OR ls_selected-name = 'ITEMNO'
+                       OR line_exists( lt_fields[ table_line = ls_selected-name ] ) )
+        msg = |Restricted select returned nonselected property { ls_selected-name }| ).
+    ENDLOOP.
     assert_inlinecount_absent( lv_selected ).
   ENDMETHOD.
 
@@ -8474,6 +9019,9 @@ CLASS ltc_parity IMPLEMENTATION.
         quit = mv_assert_quit
         msg  = |{ mv_group_test } (matches_complex_fixture)|
         act  = xsdbool( line_exists( it_properties[ name = lv_name ] ) ) ).
+      IF NOT line_exists( it_properties[ name = lv_name ] ).
+        RETURN.
+      ENDIF.
       IF it_properties[ name = lv_name ]-token = 'null'.
         RETURN.
       ENDIF.
@@ -8489,11 +9037,15 @@ CLASS ltc_parity IMPLEMENTATION.
     ENDLOOP.
     DATA lv_milliseconds TYPE string.
     FIND REGEX '^/Date\(([0-9]+)\)/$' IN lv_date SUBMATCHES lv_milliseconds.
+    DATA(lv_date_subrc) = sy-subrc.
     cl_abap_unit_assert=>assert_equals(
       quit = mv_assert_quit
-      act  = sy-subrc
+      act  = lv_date_subrc
       exp  = 0
       msg  = 'The XSA date oracle requires an epoch-millisecond token' ).
+    IF lv_date_subrc <> 0.
+      RETURN.
+    ENDIF.
     " The PO operands remain strings; NUMC/numeric comparison changes this expression.
     rv_match = xsdbool(
       find( val  = lv_desc

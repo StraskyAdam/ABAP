@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,7 @@ def tokens(source, preserve_literals=False):
             i += 1
             continue
         if char.isspace():
+            line_start = False
             i += 1
             continue
         line_start = False
@@ -255,9 +257,16 @@ def named_arguments(body, opening):
 
 
 def local_calls(body, declarations):
-    flat = [token for stmt in body for token in stmt]
-    return [flat[index] for index in range(len(flat) - 1)
-            if flat[index] in declarations and flat[index + 1] == "("]
+    calls = []
+    for stmt in body:
+        for index in range(len(stmt) - 1):
+            if stmt[index] not in declarations or stmt[index + 1] != "(":
+                continue
+            if index and stmt[index - 1] in ("->", "=>"):
+                if stmt[index - 1] != "->" or index < 2 or stmt[index - 2] != "me":
+                    continue
+            calls.append(stmt[index])
+    return calls
 
 
 def group_targets(body):
@@ -537,6 +546,98 @@ def audit(root):
 
 
 class ParserTests(unittest.TestCase):
+    def test_column_one_comments_do_not_hide_multiplication(self):
+        self.assertEqual(list(statements(
+            "* real comment\nx = 2\n  * 3.\n  \" quote comment\n y = 4."
+        )), [["x", "=", "2", "*", "3"], ["y", "=", "4"]])
+
+    def test_foreign_calls_do_not_reach_local_assertions(self):
+        classes, _ = parse("""
+CLASS ltc DEFINITION FOR TESTING.
+METHODS leaf FOR TESTING.
+METHODS helper.
+ENDCLASS.
+CLASS ltc IMPLEMENTATION.
+METHOD leaf.
+other->helper( ).
+foreign_class=>helper( ).
+ENDMETHOD.
+METHOD helper.
+cl_abap_unit_assert=>assert_true( act = abap_true ).
+ENDMETHOD.
+ENDCLASS.
+""")
+        cls = classes["ltc"]
+        self.assertFalse(reaches_assertion(cls, "leaf"))
+        for call in ("helper( )", "me->helper( )"):
+            cls.implementations["leaf"] = [tokens(call)]
+            self.assertTrue(reaches_assertion(cls, "leaf"))
+
+    def test_commented_legacy_method_chains_are_individual(self):
+        source = """
+CLASS ltc_old DEFINITION FOR TESTING.
+* METHODS: one FOR TESTING,
+*          helper,
+*          two FOR TESTING.
+ENDCLASS.
+"""
+        with patch("subprocess.check_output", return_value=source):
+            mapping = legacy_mapping(ROOT, "unused", {
+                "one": "observed_po_item_or", "two": "observed_po_item_and"
+            })
+        self.assertEqual(set(mapping), {"ltc_old.one", "ltc_old.two"})
+        self.assertTrue(all(row["declared_for_testing"] for row in mapping.values()))
+
+    def test_json_oracles_keep_types_and_decode_once(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text())
+        parity = classes["ltc_parity"]
+        aggregate_guard = next(
+            stmt for stmt in parity.implementations["compare_raw_property"]
+            if stmt[:2] == ["if", "is_unordered_aggregate_field"]
+        )
+        self.assertIn("lv_expected_token", aggregate_guard)
+        self.assertIn("lv_actual_token", aggregate_guard)
+        self.assertEqual(aggregate_guard.count("strlen"), 2)
+        decoder = parity.implementations["unquote_json"]
+        self.assertFalse(any(stmt[0] == "replace" for stmt in decoder))
+        self.assertIn(tokens("WHILE lv_position < lv_inner_length"), decoder)
+        sort = parity.implementations["assert_rows_sorted"]
+        self.assertTrue(any("read_object_properties" in stmt for stmt in sort))
+        self.assertFalse(any("read_result_property" in stmt for stmt in sort))
+        self.assertFalse(any("to_upper" in stmt or "trim_text" in stmt for stmt in sort))
+        filter_assert = parity.implementations["assert_all_rows_match_filter"]
+        self.assertFalse(any("to_upper" in stmt for stmt in filter_assert))
+        self.assertTrue(any("find" in stmt and "abap_true" in stmt
+                            for stmt in filter_assert))
+
+    def test_response_oracles_reject_missing_counts_and_duplicate_keys(self):
+        classes, _ = parse((ROOT / "ABAP code" / "Unit test.txt").read_text(), True)
+        parity = classes["ltc_parity"]
+        count = parity.implementations["read_inline_count"]
+        self.assertIn(tokens(
+            "lv_start = find_odata_property("
+            " i_json = i_json i_property = '__count' )", True
+        ), count)
+        self.assertTrue(any(
+            "find_odata_property" in stmt and "'results'" in stmt
+            for stmt in parity.implementations["find_results_array_bounds"]
+        ))
+        envelope = parity.implementations["find_odata_property"]
+        self.assertIn(tokens("IF lv_depth = 1 AND lv_name = i_property"), envelope)
+        self.assertIn(tokens("IF lv_depth = 0 AND lv_name = 'error'", True), envelope)
+        self.assertIn(tokens(
+            "DATA(lv_key_end) = read_json_string_end("
+            " i_text = i_json i_start = lv_position ) + 1"
+        ), envelope)
+        index = parity.implementations["build_expected_index"]
+        duplicate = index.index(tokens("IF sy-subrc <> 0"))
+        self.assertEqual(index[duplicate + 1][:4],
+                         ["raise", "exception", "type", "zcx_fi_das_error"])
+        self.assertIn(tokens(
+            "e_array_to = read_json_value_end("
+            " i_text = i_json i_start = e_array_from ) - 1"
+        ), parity.implementations["find_results_array_bounds"])
+
     def test_group_targets_preserve_literals_but_ignore_comments_and_strings(self):
         body = list(statements("""
 run_group_test( 'one' ).
@@ -996,8 +1097,19 @@ def legacy_mapping(root, ref, renames):
             declaration.extend(tokens(continuation[1:]))
             if "." in declaration:
                 break
-        if "testing" in declaration and len(declaration) > 1:
-            legacy[owner].declarations.setdefault(declaration[1], declaration[2:])
+        groups = [[]]
+        for token in declaration[1:]:
+            if token == ".":
+                break
+            if token == ":":
+                continue
+            if token == ",":
+                groups.append([])
+            else:
+                groups[-1].append(token)
+        for group in groups:
+            if group and "testing" in group and owner in legacy:
+                legacy[owner].declarations.setdefault(group[0], group[1:])
     current, _ = parse((root / "ABAP code" / "Unit test.txt").read_text())
     parity = current.get("ltc_parity", Class("ltc_parity"))
     current_tests = {name for name, decl in parity.declarations.items() if "testing" in decl}

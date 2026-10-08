@@ -1,3 +1,5 @@
 Validation/xsa-under-material.json filter=lfs diff=lfs merge=lfs -text
 Validation/xsa-under-service.json filter=lfs diff=lfs merge=lfs -text
 Validation/xsa-over-service.json filter=lfs diff=lfs merge=lfs -text
+Validation/xsa-scope-16.json filter=lfs diff=lfs merge=lfs -text
+Validation/xsa-scope-23.json filter=lfs diff=lfs merge=lfs -text

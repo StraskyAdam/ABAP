@@ -13,7 +13,7 @@ CLASS zcl_fi_das_utility DEFINITION
 
     CLASS-METHODS normalize_email
       IMPORTING
-        i_email TYPE zif_fi_das_dashboard=>t_email
+        i_email        TYPE zif_fi_das_dashboard=>t_email
       RETURNING
         VALUE(r_email) TYPE zif_fi_das_dashboard=>t_email.
 
@@ -78,7 +78,7 @@ CLASS zcl_fi_das_utility DEFINITION
       IMPORTING
         i_value              TYPE string
       RETURNING
-        VALUE(rv_percentage) TYPE zif_fi_das_dashboard=>t_percentage
+        VALUE(rv_percentage) TYPE zcl_fi_das_dashboard=>t_percentage
       RAISING
         zcx_fi_das_error.
 
@@ -98,7 +98,7 @@ CLASS zcl_fi_das_utility DEFINITION
       IMPORTING
         i_amount                TYPE t_amount_precision
         i_decimals              TYPE i
-        i_decimal_format        TYPE zif_fi_das_dashboard=>t_decimal_format
+        i_decimal_format        TYPE zcl_fi_das_dashboard=>t_decimal_format
         i_use_grouping          TYPE abap_bool DEFAULT abap_false
         i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -122,7 +122,7 @@ CLASS zcl_fi_das_utility DEFINITION
 
     CLASS-METHODS get_number_separators
       IMPORTING
-        i_decimal_format      TYPE zif_fi_das_dashboard=>t_decimal_format
+        i_decimal_format      TYPE zcl_fi_das_dashboard=>t_decimal_format
       EXPORTING
         e_decimal_separator   TYPE char1
         e_grouping_separator  TYPE char1.
@@ -409,10 +409,10 @@ ENDMETHOD.
 
   METHOD normalize_email.
 
-  r_email = to_lower( condense( val  = CONV string( i_email )
-                                from = space ) ).
+    r_email = to_lower( condense( val  = CONV string( i_email )
+                                  from = space ) ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
 
   METHOD parse_percentage.
@@ -458,7 +458,7 @@ ENDMETHOD.
         ENDIF.
 
         rv_percentage =
-          CONV zif_fi_das_dashboard=>t_percentage( lv_value ).
+          CONV zcl_fi_das_dashboard=>t_percentage( lv_value ).
 
       CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
         RAISE EXCEPTION TYPE zcx_fi_das_error

@@ -615,7 +615,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_skip)              TYPE zif_fi_das_dashboard=>ts_paging-skip
         VALUE(i_top)               TYPE zif_fi_das_dashboard=>ts_paging-top
         VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
-        VALUE(i_ponumber_filter)         TYPE ts_internal_request-filter_for_amdp-ponumber
+        VALUE(i_ponumber_filter)   TYPE ts_internal_request-filter_for_amdp-ponumber
         VALUE(i_item_filter)       TYPE ts_internal_request-filter_for_amdp-item
         VALUE(i_supplier_filter)   TYPE ts_internal_request-filter_for_amdp-suppliername
         VALUE(it_japan_brazil)     TYPE tt_company_scope
@@ -713,11 +713,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_source_currency TYPE waers
         i_keep_precision  TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(r_amount)  TYPE t_amount
+        VALUE(r_amount)   TYPE t_amount
       RAISING
         zcx_fi_das_error.
 
-     METHODS get_exchange_rate
+    METHODS get_exchange_rate
       IMPORTING
         i_source_currency TYPE waers
         i_target_currency TYPE waers DEFAULT mc_currency_usd
@@ -738,7 +738,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_text) TYPE string.
 
-     METHODS get_review_day
+    METHODS get_review_day
       RETURNING
         VALUE(r_review_day) TYPE i
       RAISING
@@ -748,26 +748,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         i_email                 TYPE zif_fi_das_dashboard=>t_email
       RETURNING
-        VALUE(r_decimal_format) TYPE t_decimal_format
+        VALUE(r_decimal_format) TYPE xudcpfm
       RAISING
         cx_sy_open_sql_db.
-
-************************************************
-************************************************
-************************************************
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     METHODS get_results
       IMPORTING
@@ -775,19 +758,41 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_context TYPE ts_context
         is_request TYPE ts_internal_request
       CHANGING
-        ct_result  TYPE ANY TABLE
+        ct_result  TYPE tt_odata_result
       RAISING
         zcx_fi_das_error.
 
-    METHODS get_row
-      IMPORTING
-        is_key        TYPE ts_key
-        is_context    TYPE ts_context
-        is_request    TYPE ts_internal_request
-      RETURNING
-        VALUE(rs_row) TYPE ts_result
-      RAISING
-        zcx_fi_das_error.
+     METHODS get_row
+       IMPORTING
+         is_key        TYPE ts_key
+         is_context    TYPE ts_context
+         is_request    TYPE ts_internal_request
+       RETURNING
+         VALUE(rs_row) TYPE ts_result
+       RAISING
+         zcx_fi_das_error.
+
+
+************************************************
+************************************************
+************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     METHODS get_odata_row
       IMPORTING
@@ -2314,7 +2319,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     r_decimal_format = mc_default_decimal_format.
 
-    DATA(l_email) = CONV ad_smtpadr( zcl_fi_das_utility=>normalize_email( i_email ) ).
+    DATA(l_email) = CONV ad_smtpadr( i_email ).
 
     IF l_email IS INITIAL.
       RETURN.
@@ -3291,10 +3296,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_results.
 
-    DATA lr_result TYPE REF TO data.
-    CREATE DATA lr_result LIKE LINE OF ct_result.
-    ASSIGN lr_result->* TO FIELD-SYMBOL(<fs_result>).
-
     DATA(l_decimal_format) = get_decimal_format( is_request-parameter-email ).
 
     LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
@@ -3305,19 +3306,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       IF ls_row IS NOT INITIAL.
 
-        DATA(ls_odata_row) = get_odata_row( i_mode           = is_request-mode
-                                            is_row           = ls_row
-                                            i_decimal_format = l_decimal_format ).
-
-        CLEAR <fs_result>.
-        MOVE-CORRESPONDING ls_odata_row TO <fs_result>.
-        INSERT <fs_result> INTO TABLE ct_result.
+        INSERT get_odata_row( is_row           = ls_row
+                              i_mode           = is_request-mode
+                              i_decimal_format = l_decimal_format ) INTO TABLE ct_result.
       ENDIF.
 
     ENDLOOP.
 
   ENDMETHOD.
-
 
   METHOD get_review_action.
     DATA:
@@ -3438,112 +3434,53 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_row.
 
+    ASSIGN is_context-details[ ponumber = is_key-ponumber
+                               itemno   = is_key-itemno ] TO FIELD-SYMBOL(<fs_detail>).
 
-    CLEAR rs_row.
-
-    ASSIGN is_context-details[
-      ponumber = is_key-ponumber
-      itemno   = is_key-itemno
-    ] TO FIELD-SYMBOL(<ls_detail>).
-
-    IF sy-subrc <> 0.
+    IF <fs_detail> IS NOT ASSIGNED OR sy-subrc <> 0.
       RETURN.
     ENDIF.
 
-    apply_detail(
-      EXPORTING
-        is_detail = <ls_detail>
-      CHANGING
-        cs_result = rs_row ).
+    apply_detail( EXPORTING is_detail = <fs_detail>
+                  CHANGING  cs_result = rs_row ).
 
-    apply_user(
-      EXPORTING
-        is_user =
-          VALUE #(
-            is_context-users[
-              email = zcl_fi_das_utility=>normalize_email(
-                i_email = <ls_detail>-poowner_email )
-            ] OPTIONAL )
-      CHANGING
-        cs_result = rs_row ).
+    apply_user( EXPORTING is_user = VALUE #( is_context-users[ email = zcl_fi_das_utility=>normalize_email(
+                                                                 i_email = <fs_detail>-poowner_email ) ] OPTIONAL )
+                CHANGING  cs_result = rs_row ).
 
-    apply_account(
-      EXPORTING
-        is_account =
-          VALUE #(
-            is_context-accounts[
-              ponumber = is_key-ponumber
-              itemno   = is_key-itemno
-            ] OPTIONAL )
-      CHANGING
-        cs_result = rs_row ).
+    apply_account( EXPORTING is_account = VALUE #( is_context-accounts[ ponumber = is_key-ponumber
+                                                                         itemno   = is_key-itemno ] OPTIONAL )
+                   CHANGING  cs_result = rs_row ).
 
-    apply_history(
-      EXPORTING
-        is_history =
-          VALUE #(
-            is_context-history[
-              ponumber = is_key-ponumber
-              itemno   = is_key-itemno
-            ] OPTIONAL )
-      CHANGING
-        cs_result = rs_row ).
+    apply_history( EXPORTING is_history = VALUE #( is_context-history[ ponumber = is_key-ponumber
+                                                                       itemno   = is_key-itemno ] OPTIONAL )
+                   CHANGING  cs_result = rs_row ).
 
-    DATA(ls_calculation) =
-      apply_status(
-        EXPORTING
-          is_status =
-            VALUE #(
-              is_context-statuses[
-                ponumber = is_key-ponumber
-                itemno   = is_key-itemno
-              ] OPTIONAL )
-          i_pstype     = is_key-pstype
-          i_mode       = is_request-mode
-          i_review_day = is_context-review_day
-        CHANGING
-          cs_result    = rs_row ).
+    DATA(ls_calculation) = apply_status( EXPORTING is_status = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
+                                                                                             itemno   = is_key-itemno ] OPTIONAL )
+                                                   i_pstype     = is_key-pstype
+                                                   i_mode       = is_request-mode
+                                                   i_review_day = is_context-review_day
+                                         CHANGING  cs_result    = rs_row ).
 
-    apply_calculation(
-      EXPORTING
-        is_detail      = <ls_detail>
-        is_calculation = ls_calculation
-      CHANGING
-        cs_result      = rs_row ).
+    apply_calculation( EXPORTING is_detail      = <fs_detail>
+                                 is_calculation = ls_calculation
+                       CHANGING  cs_result      = rs_row ).
 
-    apply_currency(
-      EXPORTING
-        is_detail = <ls_detail>
-      CHANGING
-        cs_result = rs_row ).
+    apply_currency( EXPORTING is_detail = <fs_detail>
+                    CHANGING  cs_result = rs_row ).
 
-    apply_closure(
-      CHANGING
-        cs_result = rs_row ).
+    apply_closure( CHANGING cs_result = rs_row ).
 
-    apply_notification(
-      EXPORTING
-        is_notification =
-          VALUE #(
-            is_context-notifications[
-              ponumber = is_key-ponumber
-              itemno   = is_key-itemno
-            ] OPTIONAL )
-      CHANGING
-        cs_result = rs_row ).
+    apply_notification( EXPORTING is_notification = VALUE #( is_context-notifications[ ponumber = is_key-ponumber
+                                                                                       itemno   = is_key-itemno ] OPTIONAL )
+                        CHANGING  cs_result = rs_row ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_exclude.
 
-      apply_exclusion(
-        EXPORTING
-          is_exclusion =
-            VALUE #(
-              is_context-exclusions[
-                ponumber = is_key-ponumber
-                itemno   = is_key-itemno
-              ] OPTIONAL )
-        CHANGING
-          cs_result = rs_row ).
+      apply_exclusion( EXPORTING is_exclusion = VALUE #( is_context-exclusions[ ponumber = is_key-ponumber
+                                                                                itemno   = is_key-itemno ] OPTIONAL )
+                       CHANGING  cs_result = rs_row ).
 
     ENDIF.
 
@@ -3759,6 +3696,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
         MESSAGE e009(zfi_das).
+
+    ENDIF.
+
+    IF is_request-filter-filter_select_options IS NOT INITIAL AND is_request-filter-filter_string IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+          MESSAGE e010(zfi_das).
 
     ENDIF.
 

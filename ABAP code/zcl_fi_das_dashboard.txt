@@ -126,8 +126,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     TYPES:
       t_accrual_method TYPE c LENGTH 50 .
 
-    TYPES:
-      t_date_format    TYPE c LENGTH 1 .
+
     TYPES:
       t_amount         TYPE p LENGTH 7 DECIMALS 2 .
 
@@ -179,8 +178,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_shared_fields,
         poowner_email        TYPE zif_fi_das_dashboard=>t_email,
         companycode          TYPE bukrs,
-        purchasingunit       TYPE c LENGTH 25,
-        region               TYPE c LENGTH 3,
+        purchasingunit       TYPE t001-butxt,
+        region               TYPE t001-land1,
         cocdecurr            TYPE waers,
         totwrkcompper        TYPE t_amount,
         glaccount            TYPE t_text_5000,
@@ -190,7 +189,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         itemno               TYPE ebelp,
         pocreatedat          TYPE d,
         supplierid           TYPE lifnr,
-        suppliername         TYPE t_supplier,
+        suppliername         TYPE t_text_500,
         polinedesc           TYPE t_text_5000,
         pstype               TYPE zif_fi_das_dashboard=>t_pstype,
         povalue              TYPE t_amount,
@@ -202,7 +201,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         internalorder        TYPE t_text_5000,
         assetid              TYPE t_text_5000,
         profitcenter         TYPE t_text_5000,
-        epnumber             TYPE c LENGTH 12,
+        epnumber             TYPE unsez,
         status               TYPE t_status,
         lastmonthwrkcomp     TYPE t_amount,
         straightlinemthd     TYPE abap_bool,
@@ -223,8 +222,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         invvalue             TYPE t_amount,
         invvalue_usd         TYPE t_amount,
         grvalue_usd          TYPE t_amount,
-        decimal_format       TYPE t_decimal_format,
-        zactivitynbr         TYPE c LENGTH 200,
+        decimal_format       TYPE xudcpfm,
+        zactivitynbr         TYPE zactivitynbr,
         distpercentage       TYPE t_text_5000,
       END OF ts_shared_fields,
 
@@ -243,7 +242,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         grvalue_cocdecurr       TYPE t_amount,
         username                TYPE xubname,
         full_name               TYPE ad_namtext,
-        datfm                   TYPE t_date_format,
+        datfm                   TYPE xudatfm,
         invvalue_cal            TYPE t_amount,
         amountaccrued_usd       TYPE t_amount,
       END OF ts_over_under_fields,
@@ -326,37 +325,35 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES:
       BEGIN OF ts_source_detail,
-        ponumber              TYPE ebeln,
-        itemno                TYPE ebelp,
-        effective_pstype      TYPE zif_fi_das_dashboard=>t_pstype,
-        work_start_date       TYPE d,
-        work_end_date         TYPE d,
-        gross_value           TYPE t_amount_precision,
-        net_price             TYPE t_amount_precision,
-        price_unit            TYPE ekpo-peinh,
-        order_quantity        TYPE ekpo-menge,
-        po_preparer           TYPE zif_fi_das_dashboard=>t_email,
-        service_amount        TYPE t_service_amount,
-        service_percentage    TYPE ekpo-zserv_perc,
-        po_line_description   TYPE t_text_5000,
-        activity_number       TYPE c LENGTH 200,
-        company_code          TYPE bukrs,
-        po_currency           TYPE waers,
-        supplier_id           TYPE lifnr,
-        po_created_at         TYPE d,
-        document_date         TYPE d,
-        purchasing_org        TYPE ekorg,
-        ep_number             TYPE c LENGTH 12,
-        supplier_name         TYPE t_supplier,
-        purchasing_unit       TYPE t001-butxt,
-        region                TYPE t001-land1,
-        company_code_currency TYPE waers,
-        poowner_email         TYPE zif_fi_das_dashboard=>t_email,
+        ponumber               TYPE ebeln,
+        itemno                 TYPE ebelp,
+        effective_pstype       TYPE zif_fi_das_dashboard=>t_pstype,
+        wrkstrtdate            TYPE d,
+        wrkenddate             TYPE d,
+        grossvalue             TYPE t_amount_precision,
+        netprice               TYPE t_amount_precision,
+        priceunit              TYPE ekpo-peinh,
+        orderquantity          TYPE ekpo-menge,
+        popreparer             TYPE zif_fi_das_dashboard=>t_email,
+        serviceamount          TYPE t_service_amount,
+        servicepercentage      TYPE ekpo-zserv_perc,
+        polinedesc             TYPE t_text_5000,
+        zactivitynbr           TYPE zactivitynbr,
+        companycode            TYPE bukrs,
+        pocurrency             TYPE waers,
+        supplierid             TYPE lifnr,
+        pocreatedat            TYPE d,
+        documentdate           TYPE d,
+        purchasingorganization TYPE ekorg,
+        epnumber               TYPE unsez,
+        suppliername           TYPE t_text_500,
+        purchasingunit         TYPE t001-butxt,
+        region                 TYPE t001-land1,
+        cocdecurr              TYPE waers,
+        poowner_email          TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_source_detail,
 
-      tt_source_detail TYPE HASHED TABLE OF ts_source_detail
-        WITH UNIQUE KEY ponumber itemno.
-
+      tt_source_detail TYPE HASHED TABLE OF ts_source_detail WITH UNIQUE KEY ponumber itemno.
 
     TYPES:
       BEGIN OF ts_account_aggregate,
@@ -364,31 +361,29 @@ CLASS zcl_fi_das_dashboard DEFINITION
         itemno                TYPE ebelp,
         glaccount             TYPE string,
         costcenter            TYPE string,
-        costcenter_desc       TYPE string,
-        management_unit       TYPE string,
+        costcenterdesc        TYPE string,
+        manageunit            TYPE string,
         management_unit_count TYPE i,
-        internal_order        TYPE string,
-        asset_id              TYPE string,
-        profit_center         TYPE string,
+        internalorder         TYPE string,
+        assetid               TYPE string,
+        profitcenter          TYPE string,
         bbp_acc_no            TYPE string,
-        dist_percentage       TYPE string,
+        distpercentage        TYPE string,
         quantity              TYPE ekkn-menge,
         entry_count           TYPE i,
       END OF ts_account_aggregate,
 
-      tt_account_aggregate TYPE HASHED TABLE OF ts_account_aggregate
-        WITH UNIQUE KEY ponumber itemno.
-
+      tt_account_aggregate TYPE HASHED TABLE OF ts_account_aggregate WITH UNIQUE KEY ponumber itemno.
 
     TYPES:
       BEGIN OF ts_history_aggregate,
         ponumber      TYPE ebeln,
         itemno        TYPE ebelp,
         gr_value      TYPE t_amount_high,
-        gr_value_usd  TYPE t_amount_high,
-        invoice_value TYPE t_amount_precision,
-        invoice_local TYPE t_amount_precision,
-        invoice_usd   TYPE t_amount_precision,
+        grvalue_usd  TYPE t_amount_high,
+        invvalue TYPE t_amount_precision,
+        invvalue_cocdecurr TYPE t_amount_precision,
+        invvalue_usd   TYPE t_amount_precision,
       END OF ts_history_aggregate,
 
       tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate
@@ -440,11 +435,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
         username       TYPE xubname,
         full_name      TYPE ad_namtext,
         decimal_format TYPE xudcpfm,
-        date_format    TYPE xudatfm,
+        datfm    TYPE xudatfm,
       END OF ts_user,
 
-      tt_user TYPE HASHED TABLE OF ts_user
-        WITH UNIQUE KEY email.
+      tt_user TYPE HASHED TABLE OF ts_user WITH UNIQUE KEY email.
 
     TYPES:
       BEGIN OF ts_exchange_rate,
@@ -665,7 +659,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error
         cx_sy_open_sql_db.
 
-    METHODS get_statuses
+    METHODS get_status
       IMPORTING
         it_keys            TYPE tt_key
       RETURNING
@@ -762,15 +756,30 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-     METHODS get_row
-       IMPORTING
-         is_key        TYPE ts_key
-         is_context    TYPE ts_context
-         is_request    TYPE ts_internal_request
-       RETURNING
-         VALUE(rs_row) TYPE ts_result
-       RAISING
-         zcx_fi_das_error.
+    METHODS get_row
+      IMPORTING
+        is_key        TYPE ts_key
+        is_context    TYPE ts_context
+        is_request    TYPE ts_internal_request
+      RETURNING
+        VALUE(rs_row) TYPE ts_result
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS apply_detail
+      IMPORTING
+        is_detail TYPE ts_source_detail
+      CHANGING
+        cs_result TYPE ts_result
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS apply_user
+      IMPORTING
+        is_user   TYPE ts_user
+      CHANGING
+        cs_result TYPE ts_result.
+
 
 
 ************************************************
@@ -803,17 +812,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(rs_result) TYPE ts_odata_result.
 
 
-    METHODS apply_detail
-      IMPORTING
-        is_detail TYPE ts_source_detail
-      CHANGING
-        cs_result TYPE ts_result.
 
-    METHODS apply_user
-      IMPORTING
-        is_user   TYPE ts_user
-      CHANGING
-        cs_result TYPE ts_result.
 
     METHODS apply_account
       IMPORTING
@@ -825,7 +824,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_history TYPE ts_history_aggregate
       CHANGING
-        cs_result  TYPE ts_result.
+        cs_result  TYPE ts_result
+      RAISING
+        zcx_fi_das_error.
 
     METHODS apply_status
       IMPORTING
@@ -1084,33 +1085,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD apply_account.
 
-    cs_result-glaccount =
-      is_account-glaccount.
-
-    cs_result-costcenter =
-      is_account-costcenter.
-
-    cs_result-costcenterdesc =
-      is_account-costcenter_desc.
-
-    cs_result-manageunit =
-      is_account-management_unit.
-
-    cs_result-internalorder =
-      is_account-internal_order.
-
-    cs_result-assetid =
-      is_account-asset_id.
-
-    cs_result-profitcenter =
-      is_account-profit_center.
-
-    cs_result-bbp_acc_no =
-      is_account-bbp_acc_no.
-
-    cs_result-distpercentage =
-      is_account-dist_percentage.
-
+    cs_result-glaccount      = is_account-glaccount.
+    cs_result-costcenter     = is_account-costcenter.
+    cs_result-costcenterdesc = is_account-costcenterdesc.
+    cs_result-manageunit     = is_account-manageunit.
+    cs_result-internalorder  = is_account-internalorder.
+    cs_result-assetid        = is_account-assetid.
+    cs_result-profitcenter   = is_account-profitcenter.
+    cs_result-bbp_acc_no     = is_account-bbp_acc_no.
+    cs_result-distpercentage = is_account-distpercentage.
 
   ENDMETHOD.
 
@@ -1180,7 +1163,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     ls_rate =
       get_exchange_rate(
-        i_source_currency = is_detail-po_currency ).
+        i_source_currency = is_detail-pocurrency ).
 
     cs_result-exchangerate =
       ls_rate-rate.
@@ -1190,8 +1173,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 * CONVERT_TO_USD.
     cs_result-povalue_usd =
       convert_to_usd(
-        i_amount          = is_detail-gross_value
-        i_source_currency = is_detail-po_currency ).
+        i_amount          = is_detail-grossvalue
+        i_source_currency = is_detail-pocurrency ).
 
 * XSA keeps PO value in company-code currency equal to the displayed PO
 * value in this read flow.
@@ -1204,7 +1187,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           CONV t_amount_precision(
             cs_result-totwrkcompamt )
         i_source_currency =
-          is_detail-po_currency ).
+          is_detail-pocurrency ).
 
     cs_result-amountaccrued_cocdecurr =
         cs_result-totwrkcompamt_cocdecurr
@@ -1225,43 +1208,19 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD apply_detail.
 
-    cs_result-ponumber = is_detail-ponumber.
-    cs_result-itemno = is_detail-itemno.
-    cs_result-poowner_email = is_detail-poowner_email.
-    cs_result-companycode = is_detail-company_code.
-    cs_result-purchasingunit = is_detail-purchasing_unit.
-    cs_result-region = is_detail-region.
-    cs_result-cocdecurr = is_detail-company_code_currency.
-    cs_result-pocreatedat = is_detail-po_created_at.
-    cs_result-supplierid = is_detail-supplier_id.
-    cs_result-suppliername = is_detail-supplier_name.
-    cs_result-polinedesc = is_detail-po_line_description.
+    MOVE-CORRESPONDING is_detail TO cs_result.
+
+    cs_result-supplierid = |{ is_detail-supplierid ALPHA = OUT }|.
     cs_result-pstype = is_detail-effective_pstype.
-    cs_result-pocurrency = is_detail-po_currency.
-    cs_result-wrkstrtdate = is_detail-work_start_date.
-    cs_result-wrkenddate = is_detail-work_end_date.
-    cs_result-epnumber = is_detail-ep_number.
-    cs_result-documentdate = is_detail-document_date.
-    cs_result-purchasingorganization = is_detail-purchasing_org.
-    cs_result-orderquantity =
-      CONV t_amount(
-        zcl_fi_das_utility=>truncate_decimal(
-          i_value    = CONV decfloat34( is_detail-order_quantity )
-          i_decimals = mc_amount_decimals ) ).
-    cs_result-po_preparer =
-      zcl_fi_das_utility=>normalize_email(
-        i_email = is_detail-po_preparer ).
-    cs_result-zactivitynbr = is_detail-activity_number.
-    cs_result-povalue =
-      is_detail-gross_value
-      * get_currency_factor(
-          i_currency = is_detail-po_currency ).
+    cs_result-po_preparer = zcl_fi_das_utility=>normalize_email( is_detail-popreparer ).
+    cs_result-poowner_email = zcl_fi_das_utility=>normalize_email( is_detail-poowner_email ).
+    cs_result-povalue = is_detail-grossvalue * get_currency_factor( is_detail-pocurrency ).
+    cs_result-orderquantity = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_detail-orderquantity )
+                                                                    i_decimals = mc_amount_decimals ).
 
   ENDMETHOD.
-
 
   METHOD apply_exclusion.
 
@@ -1302,31 +1261,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD apply_history.
 
-    cs_result-grvalue =
-      CONV t_amount(
-        zcl_fi_das_utility=>truncate_decimal(
-          i_value    = CONV decfloat34( is_history-gr_value )
-          i_decimals = mc_amount_decimals ) ).
-
-    cs_result-grvalue_cocdecurr =
-      cs_result-grvalue.
-
-    cs_result-grvalue_usd =
-      is_history-gr_value_usd.
-
-    cs_result-invvalue =
-      is_history-invoice_value.
-
-    cs_result-invvalue_cocdecurr =
-      is_history-invoice_local.
-
-    cs_result-invvalue_usd =
-      is_history-invoice_usd.
-
-
+    cs_result-grvalue = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_history-gr_value )
+                                                              i_decimals = mc_amount_decimals ).
+    cs_result-grvalue = cs_result-grvalue.
+    cs_result-grvalue_cocdecurr = cs_result-grvalue.
+    cs_result-grvalue_usd = is_history-grvalue_usd.
+    cs_result-invvalue = is_history-invvalue.
+    cs_result-invvalue_cocdecurr = is_history-invvalue_cocdecurr.
+    cs_result-invvalue_usd = is_history-invvalue_usd.
 
   ENDMETHOD.
-
 
   METHOD apply_notification.
 
@@ -1530,17 +1474,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD apply_user.
 
-    IF is_user-email IS INITIAL.
-      RETURN.
+    IF is_user-email IS NOT INITIAL.
+      MOVE-CORRESPONDING is_user TO cs_result.
     ENDIF.
-
-    cs_result-username = is_user-username.
-    cs_result-full_name = is_user-full_name.
-    cs_result-decimal_format = is_user-decimal_format.
-    cs_result-datfm = is_user-date_format.
 
   ENDMETHOD.
 
@@ -1582,9 +1520,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 * Straight-line calculation uses dashboard-normalized PO value.
 *--------------------------------------------------------------------*
     lv_stl_po_value =
-        is_detail-gross_value
+        is_detail-grossvalue
       * get_currency_factor(
-          i_currency = is_detail-po_currency ).
+          i_currency = is_detail-pocurrency ).
 
 *--------------------------------------------------------------------*
 * XSA decision source:
@@ -1592,7 +1530,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 * Initial SERVICE_AMOUNT -> STL fallback
 * Supplied SERVICE_AMOUNT -> WTD, including numeric zero
 *--------------------------------------------------------------------*
-    IF is_detail-service_amount IS INITIAL.
+    IF is_detail-serviceamount IS INITIAL.
 
       lv_service_is_initial =
         abap_true.
@@ -1603,7 +1541,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
           lv_service_amount =
             CONV t_amount_precision(
-              is_detail-service_amount ).
+              is_detail-serviceamount ).
 
         CATCH cx_sy_conversion_no_number
               cx_sy_conversion_overflow
@@ -1613,7 +1551,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_fi_das_error
             EXPORTING
               i_reason =
-                         |Invalid services-completed amount: { is_detail-service_amount }|
+                         |Invalid services-completed amount: { is_detail-serviceamount }|
               previous =
                          lx_conversion.
 
@@ -1627,9 +1565,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ls_straight_line =
       calculate_straight_line(
         i_po_value        = lv_stl_po_value
-        i_po_currency     = is_detail-po_currency
-        i_work_start_date = is_detail-work_start_date
-        i_work_end_date   = is_detail-work_end_date ).
+        i_po_currency     = is_detail-pocurrency
+        i_work_start_date = is_detail-wrkstrtdate
+        i_work_end_date   = is_detail-wrkenddate ).
 
 *--------------------------------------------------------------------*
 * Empty persisted method and explicit WTD both select according to
@@ -1678,18 +1616,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         lv_usd_source_amount =
             lv_service_amount
           / get_currency_factor(
-              i_currency = is_detail-po_currency ).
+              i_currency = is_detail-pocurrency ).
 
         rs_result-total_work_amount_usd =
           convert_to_usd(
             i_amount          = lv_usd_source_amount
-            i_source_currency = is_detail-po_currency ).
+            i_source_currency = is_detail-pocurrency ).
 
         rs_result-total_work_percent =
           zcl_fi_das_utility=>parse_percentage(
             i_value =
               CONV string(
-                is_detail-service_percentage ) ).
+                is_detail-servicepercentage ) ).
 
         rs_result-accrual_method = mc_accrual_wtd.
 
@@ -2106,14 +2044,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ekkn~ebelp   AS itemno,
       ekkn~sakto   AS glaccount,
       ekkn~kostl   AS costcenter,
-      cskt~ltext   AS costcenter_desc,
-      csks~zzrptun AS management_unit,
+      cskt~ltext   AS costcenterdesc,
+      csks~zzrptun AS manageunit,
       csks~kostl   AS management_unit_found,
-      ekkn~aufnr   AS internal_order,
-      ekkn~anln1   AS asset_id,
-      ekkn~prctr   AS profit_center,
+      ekkn~aufnr   AS internalorder,
+      ekkn~anln1   AS assetid,
+      ekkn~prctr   AS profitcenter,
       ekkn~zekkn   AS bbp_acc_no,
-      ekkn~vproz   AS dist_percentage,
+      ekkn~vproz   AS distpercentage,
       ekkn~menge   AS quantity
     FROM ekkn
      LEFT OUTER JOIN cskt ON cskt~kokrs = ekkn~kokrs AND
@@ -2146,9 +2084,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       DATA(l_value) = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-glaccount ) ).
       <fs_aggregate>-glaccount = zcl_fi_das_utility=>append_delimited(
-                                     i_current = <fs_aggregate>-glaccount
-                                     i_value   = l_value
-                                     i_first   = l_is_first_entry ).
+                                    i_current = <fs_aggregate>-glaccount
+                                    i_value   = l_value
+                                    i_first   = l_is_first_entry ).
 
       l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-costcenter ) ).
       <fs_aggregate>-costcenter = zcl_fi_das_utility=>append_delimited(
@@ -2156,38 +2094,38 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                      i_value   = l_value
                                      i_first   = l_is_first_entry ).
 
-      <fs_aggregate>-costcenter_desc = zcl_fi_das_utility=>append_delimited(
-                                         i_current = <fs_aggregate>-costcenter_desc
-                                         i_value   = CONV string( <fs_account>-costcenter_desc )
+      <fs_aggregate>-costcenterdesc = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-costcenterdesc
+                                         i_value   = CONV string( <fs_account>-costcenterdesc )
                                          i_first   = l_is_first_entry ).
 
 *     Management unit is aggregated only if the corresponding CSKS record exists.
       IF <fs_account>-management_unit_found IS NOT INITIAL.
 
-        <fs_aggregate>-management_unit = zcl_fi_das_utility=>append_delimited(
-                                             i_current = <fs_aggregate>-management_unit
-                                             i_value   = CONV string( <fs_account>-management_unit )
-                                             i_first   = xsdbool( <fs_aggregate>-management_unit_count = 0 ) ).
+        <fs_aggregate>-manageunit = zcl_fi_das_utility=>append_delimited(
+                                            i_current = <fs_aggregate>-manageunit
+                                            i_value   = CONV string( <fs_account>-manageunit )
+                                            i_first   = xsdbool( <fs_aggregate>-management_unit_count = 0 ) ).
 
         <fs_aggregate>-management_unit_count = <fs_aggregate>-management_unit_count + 1.
 
       ENDIF.
 
-      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-internal_order ) ).
-      <fs_aggregate>-internal_order = zcl_fi_das_utility=>append_delimited(
-                                         i_current = <fs_aggregate>-internal_order
+      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-internalorder ) ).
+      <fs_aggregate>-internalorder = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-internalorder
                                          i_value   = l_value
                                          i_first   = l_is_first_entry ).
 
-      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-asset_id ) ).
-      <fs_aggregate>-asset_id = zcl_fi_das_utility=>append_delimited(
-                                  i_current = <fs_aggregate>-asset_id
+      l_value = zcl_fi_das_utility=>alpha_output( CONV string( <fs_account>-assetid ) ).
+      <fs_aggregate>-assetid = zcl_fi_das_utility=>append_delimited(
+                                  i_current = <fs_aggregate>-assetid
                                   i_value   = l_value
                                   i_first   = l_is_first_entry ).
 
-      <fs_aggregate>-profit_center = zcl_fi_das_utility=>append_delimited(
-                                         i_current = <fs_aggregate>-profit_center
-                                         i_value   = CONV string( <fs_account>-profit_center )
+      <fs_aggregate>-profitcenter = zcl_fi_das_utility=>append_delimited(
+                                         i_current = <fs_aggregate>-profitcenter
+                                         i_value   = CONV string( <fs_account>-profitcenter )
                                          i_first   = l_is_first_entry ).
 
       <fs_aggregate>-bbp_acc_no = zcl_fi_das_utility=>append_delimited(
@@ -2195,10 +2133,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                      i_value   = CONV string( <fs_account>-bbp_acc_no )
                                      i_first   = l_is_first_entry ).
 
-      l_value = |{ <fs_account>-dist_percentage NUMBER = RAW }|.
+      l_value = |{ <fs_account>-distpercentage NUMBER = RAW }|.
       CONDENSE l_value.
-      <fs_aggregate>-dist_percentage = zcl_fi_das_utility=>append_delimited(
-                                          i_current = <fs_aggregate>-dist_percentage
+      <fs_aggregate>-distpercentage = zcl_fi_das_utility=>append_delimited(
+                                          i_current = <fs_aggregate>-distpercentage
                                           i_value   = l_value
                                           i_first   = l_is_first_entry ).
 
@@ -2210,12 +2148,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     LOOP AT rt_accounts ASSIGNING <fs_aggregate>.
 
-      <fs_aggregate>-asset_id = zcl_fi_das_utility=>trim_delimiters( <fs_aggregate>-asset_id ).
+      <fs_aggregate>-assetid = zcl_fi_das_utility=>trim_delimiters( <fs_aggregate>-assetid ).
 
     ENDLOOP.
 
   ENDMETHOD.
-
 
   METHOD get_accrual_method_text.
     CASE i_method.
@@ -2262,7 +2199,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     rs_context-history = get_history( it_keys    = it_keys
                                       it_details = rs_context-details ).
 
-    rs_context-statuses = get_statuses( it_keys ).
+    rs_context-statuses = get_status( it_keys ).
 
     IF is_request-mode <> zif_fi_das_dashboard=>mc_exclude.
       rs_context-notifications = get_notifications( it_keys ).
@@ -2359,32 +2296,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     IF it_keys IS NOT INITIAL.
 
-      SELECT
-        ponumber,
-        itemno,
-        workstartdateraw       AS work_start_date,
-        workenddateraw         AS work_end_date,
-        grossvalue             AS gross_value,
-        netprice               AS net_price,
-        priceunit              AS price_unit,
-        orderquantity          AS order_quantity,
-        porequestor            AS po_requestor,
-        popreparer             AS po_preparer,
-        serviceamount          AS service_amount,
-        servicepercentage      AS service_percentage,
-        polinedescription      AS po_line_description,
-        activitynumber         AS activity_number,
-        companycode            AS company_code,
-        pocurrency             AS po_currency,
-        supplierid             AS supplier_id,
-        pocreatedat            AS po_created_at,
-        documentdate           AS document_date,
-        purchasingorganization AS purchasing_org,
-        epnumber               AS ep_number,
-        suppliername           AS supplier_name,
-        purchasingunit         AS purchasing_unit,
-        region                 AS region,
-        companycodecurrency    AS company_code_currency
+      SELECT ponumber,itemno,wrkstrtdate,wrkenddate,grossvalue,netprice,priceunit,orderquantity,
+             porequestor,popreparer,serviceamount,servicepercentage,polinedesc,zactivitynbr,companycode,
+             pocurrency,supplierid,pocreatedat,documentdate,purchasingorganization,epnumber,suppliername,
+             purchasingunit,region,cocdecurr
       FROM zi_fi_das_po_base
         FOR ALL ENTRIES IN @it_keys
       WHERE ponumber = @it_keys-ponumber AND
@@ -2543,7 +2458,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                         itemno   = <fs_history>-itemno ) INTO TABLE rt_history ASSIGNING <fs_aggregate>.
       ENDIF.
 
-      DATA(l_currency_factor) = get_currency_factor( <fs_detail>-po_currency ).
+      DATA(l_currency_factor) = get_currency_factor( <fs_detail>-pocurrency ).
 
       DATA(l_sign) = COND i( WHEN <fs_history>-debit_credit = mc_credit_indicator
                               THEN -1
@@ -2551,31 +2466,31 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       IF <fs_history>-category = mc_bewtp_e.
 
-        IF <fs_detail>-effective_pstype <> zif_fi_das_dashboard=>mc_pstype_material OR <fs_detail>-price_unit IS INITIAL.
+        IF <fs_detail>-effective_pstype <> zif_fi_das_dashboard=>mc_pstype_material OR <fs_detail>-priceunit IS INITIAL.
           CONTINUE.
         ENDIF.
 
-        DATA(l_gr_amount) = CONV t_amount_precision( <fs_history>-quantity * <fs_detail>-net_price /
-                                                     <fs_detail>-price_unit * l_sign  ).
+        DATA(l_gr_amount) = CONV t_amount_precision( <fs_history>-quantity * <fs_detail>-netprice /
+                                                     <fs_detail>-priceunit * l_sign  ).
 
         <fs_aggregate>-gr_value = <fs_aggregate>-gr_value + l_gr_amount * l_currency_factor.
 
-        <fs_aggregate>-gr_value_usd = <fs_aggregate>-gr_value_usd + convert_to_usd(
+        <fs_aggregate>-grvalue_usd = <fs_aggregate>-grvalue_usd + convert_to_usd(
                                                                       i_amount          = l_gr_amount
-                                                                      i_source_currency = <fs_detail>-po_currency
+                                                                      i_source_currency = <fs_detail>-pocurrency
                                                                       i_keep_precision  = abap_true ).
 
       ELSE.
 
         DATA(l_invoice_amount) = CONV t_amount_precision( <fs_history>-amount * l_sign  ).
 
-        <fs_aggregate>-invoice_value = <fs_aggregate>-invoice_value + l_invoice_amount * l_currency_factor.
+        <fs_aggregate>-invvalue = <fs_aggregate>-invvalue + l_invoice_amount * l_currency_factor.
 
-        <fs_aggregate>-invoice_local = <fs_aggregate>-invoice_local + <fs_history>-local_amount * l_currency_factor * l_sign.
+        <fs_aggregate>-invvalue_cocdecurr = <fs_aggregate>-invvalue_cocdecurr + <fs_history>-local_amount * l_currency_factor * l_sign.
 
-        <fs_aggregate>-invoice_usd = <fs_aggregate>-invoice_usd + convert_to_usd(
+        <fs_aggregate>-invvalue_usd = <fs_aggregate>-invvalue_usd + convert_to_usd(
                                                                       i_amount          = l_invoice_amount
-                                                                      i_source_currency = <fs_detail>-po_currency ).
+                                                                      i_source_currency = <fs_detail>-pocurrency ).
       ENDIF.
 
     ENDLOOP.
@@ -2667,7 +2582,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
         CASE
           WHEN base.pstype = :lc_pstype_material
-           AND base.workstartdateraw <> :lc_initial_date
+           AND base.wrkstrtdate <> :lc_initial_date
            AND EXISTS
            (
              SELECT 1
@@ -2703,13 +2618,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             (
               (
                 base.pstype = :lc_pstype_service AND
-                base.workstartdateraw <> :lc_initial_date AND
-                base.workenddateraw   <> :lc_initial_date
+                base.wrkstrtdate <> :lc_initial_date AND
+                base.wrkenddate  <> :lc_initial_date
               )
               OR
               (
                 base.pstype = :lc_pstype_material AND
-                base.workstartdateraw <> :lc_initial_date AND
+                base.wrkstrtdate <> :lc_initial_date AND
                 EXISTS
                 (
                   SELECT 1
@@ -2737,7 +2652,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               )
               OR
               (
-                base.workstartdateraw = :lc_initial_date
+                base.wrkstrtdate = :lc_initial_date
                 AND EXISTS
                 (
                   SELECT 1
@@ -3178,7 +3093,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     CLEAR rs_result.
     MOVE-CORRESPONDING is_row TO rs_result.
 
-    rs_result-supplierid = |{ is_row-supplierid ALPHA = OUT }|.
+
     rs_result-reviwed_by = is_row-reviewed_by.
     rs_result-invoice_currency = COND #(
       WHEN is_row-invoice_currency IS INITIAL THEN ` `
@@ -3444,12 +3359,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     apply_detail( EXPORTING is_detail = <fs_detail>
                   CHANGING  cs_result = rs_row ).
 
-    apply_user( EXPORTING is_user = VALUE #( is_context-users[ email = zcl_fi_das_utility=>normalize_email(
-                                                                 i_email = <fs_detail>-poowner_email ) ] OPTIONAL )
+    apply_user( EXPORTING is_user = VALUE #( is_context-users[ email = <fs_detail>-poowner_email ] OPTIONAL )
                 CHANGING  cs_result = rs_row ).
 
     apply_account( EXPORTING is_account = VALUE #( is_context-accounts[ ponumber = is_key-ponumber
-                                                                         itemno   = is_key-itemno ] OPTIONAL )
+                                                                        itemno   = is_key-itemno ] OPTIONAL )
                    CHANGING  cs_result = rs_row ).
 
     apply_history( EXPORTING is_history = VALUE #( is_context-history[ ponumber = is_key-ponumber
@@ -3500,7 +3414,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_statuses.
+  METHOD get_status.
 
     IF it_keys IS NOT INITIAL.
 
@@ -3573,7 +3487,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         user_data.bname                  AS username,
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
-        user_defaults.datfm              AS date_format,
+        user_defaults.datfm              AS datfm,
         user_defaults.bname              AS usr01_bname,
         user_data.bname                  AS usr21_bname,
         email.addrnumber                 AS adr6_addrnumber,
@@ -3600,7 +3514,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             LOCATE( :lc_numeric_chars, SUBSTRING( user_data.bname, 1, 1 ) ) = 0;
 
     et_users =
-      SELECT email, username, full_name, decimal_format,date_format
+      SELECT email, username, full_name, decimal_format, datfm
       FROM
       (
         SELECT
@@ -3608,7 +3522,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           username,
           full_name,
           decimal_format,
-          date_format,
+          datfm,
           ROW_NUMBER() OVER
           (
             PARTITION BY email

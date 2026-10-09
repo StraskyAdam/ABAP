@@ -55,8 +55,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_amount_decimals        TYPE i VALUE 2,
       mc_calculation_decimals   TYPE i VALUE 8,
       mc_percentage_decimals    TYPE i VALUE 1,
-      mc_stl_split_day          TYPE i VALUE 15,
-      mc_stl_grace_day          TYPE i VALUE 6.
+      mc_stl_split_day          TYPE i VALUE 15.
+*      mc_stl_grace_day          TYPE i VALUE 6.
+    CONSTANTS:
+      mc_period_first_day TYPE i VALUE 1,
+      mc_period_last_day  TYPE i VALUE 6.
 
     CONSTANTS:
 
@@ -221,7 +224,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         totwrkcompamt_usd    TYPE t_amount,
         po_closure           TYPE abap_bool,
         poclosure_flag       TYPE i,
-        poclosure_flag_local TYPE abap_bool,
+*        poclosure_flag_local TYPE abap_bool,
         checkflag            TYPE c LENGTH 10,
         grvalue              TYPE t_amount,
         invvalue             TYPE t_amount,
@@ -461,11 +464,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES:
       BEGIN OF ts_calculation,
-        total_work_amount     TYPE t_amount,
-        total_work_amount_usd TYPE t_amount,
-        total_work_percent    TYPE t_percentage,
-        straight_line         TYPE abap_bool,
-        accrual_method        TYPE t_accrual_method,
+        totwrkcompamt     TYPE t_amount,
+        totwrkcompamt_usd TYPE t_amount,
+        totwrkcompper     TYPE t_percentage,
+        straightlinemthd  TYPE abap_bool,
+        accrualmethod     TYPE t_accrual_method,
       END OF ts_calculation.
 
     TYPES:
@@ -730,7 +733,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_source_currency TYPE waers
         i_target_currency TYPE waers DEFAULT mc_currency_usd
       RETURNING
-        VALUE(rs_rate)    TYPE ts_exchange_rate
+        VALUE(r_rate)     TYPE t_amount_precision
       RAISING
         zcx_fi_das_error.
 
@@ -844,20 +847,20 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_status
       IMPORTING
-        is_status             TYPE ts_status
-        is_audit              TYPE ts_last_month_audit
-        i_mode                TYPE zif_fi_das_dashboard=>t_mode
-        i_review_day          TYPE i
+        is_status    TYPE ts_status
+        is_audit     TYPE ts_last_month_audit
+        i_mode       TYPE zif_fi_das_dashboard=>t_mode
+        i_review_day TYPE i
       CHANGING
-        cs_result             TYPE ts_result
+        cs_result    TYPE ts_result
       RAISING
         zcx_fi_das_error.
 
     METHODS apply_calculation
       IMPORTING
-        is_detail      TYPE ts_source_detail
+        is_detail TYPE ts_source_detail
       CHANGING
-        cs_result      TYPE ts_result
+        cs_result TYPE ts_result
       RAISING
         zcx_fi_das_error.
 
@@ -889,10 +892,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_accrual
       IMPORTING
-        is_detail        TYPE ts_source_detail
-        i_accrual_method TYPE t_accrual_method
-      RETURNING
-        VALUE(rs_result) TYPE ts_calculation
+        is_detail TYPE ts_source_detail
+      CHANGING
+        cs_result TYPE ts_result
       RAISING
         zcx_fi_das_error.
 
@@ -926,9 +928,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_invoice_value
       IMPORTING
-        i_invoice_value         TYPE t_amount
+        i_invoice_value        TYPE t_amount
       RETURNING
-        VALUE(rv_invoice_value) TYPE t_amount.
+        VALUE(r_invoice_value) TYPE t_amount.
 
     METHODS calculate_accrued_amount
       IMPORTING
@@ -937,8 +939,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_gr_value          TYPE t_amount
         i_invoice_value     TYPE t_amount
       RETURNING
-        VALUE(rv_amount)    TYPE t_amount.
-
+        VALUE(r_amount)     TYPE t_amount.
 
     METHODS get_month_difference
       IMPORTING
@@ -1158,115 +1159,43 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD apply_calculation.
 
-    DATA ls_result TYPE ts_calculation.
+    calculate_accrual( EXPORTING is_detail = is_detail
+                       CHANGING  cs_result = cs_result ).
 
-    ls_result =
-      calculate_accrual(
-        is_detail         = is_detail
-        i_accrual_method = cs_result-accrualmethod ).
+    cs_result-invvalue_cal = calculate_invoice_value( cs_result-invvalue ).
 
-    cs_result-totwrkcompamt =
-      ls_result-total_work_amount.
-
-    cs_result-totwrkcompamt_usd =
-      ls_result-total_work_amount_usd.
-
-    cs_result-totwrkcompper =
-      ls_result-total_work_percent.
-
-    cs_result-straightlinemthd =
-      ls_result-straight_line.
-
-    cs_result-accrualmethod =
-      ls_result-accrual_method.
-
-    cs_result-invvalue_cal =
-      calculate_invoice_value(
-        i_invoice_value = cs_result-invvalue ).
-
-    cs_result-amountaccrued =
-      calculate_accrued_amount(
-        i_pstype            = is_detail-effective_pstype
-        i_total_work_amount = cs_result-totwrkcompamt
-        i_gr_value          = cs_result-grvalue
-        i_invoice_value     = cs_result-invvalue_cal ).
-
+    cs_result-amountaccrued = calculate_accrued_amount( i_pstype            = is_detail-effective_pstype
+                                                        i_total_work_amount = cs_result-totwrkcompamt
+                                                        i_gr_value          = cs_result-grvalue
+                                                        i_invoice_value     = cs_result-invvalue_cal ).
   ENDMETHOD.
-
 
   METHOD apply_closure.
 
-    IF cs_result-po_closure = abap_true.
-
-      cs_result-poclosure_flag =
-        1.
-
-    ELSE.
-
-      cs_result-poclosure_flag =
-        0.
-
-    ENDIF.
-
-    CLEAR cs_result-poclosure_flag_local.
-
+    cs_result-poclosure_flag = COND #( WHEN cs_result-po_closure = abap_true
+                                        THEN 1
+                                        ELSE 0 ).
   ENDMETHOD.
-
 
   METHOD apply_currency.
 
-    DATA:
-      ls_rate   TYPE ts_exchange_rate,
-      lv_amount TYPE t_amount_precision.
+    cs_result-exchangerate = get_exchange_rate( is_detail-pocurrency ).
 
-    ls_rate =
-      get_exchange_rate(
-        i_source_currency = is_detail-pocurrency ).
+    cs_result-povalue_usd = convert_to_usd( i_amount          = is_detail-grossvalue
+                                            i_source_currency = is_detail-pocurrency ).
 
-    cs_result-exchangerate =
-      ls_rate-rate.
+    cs_result-povalue_coco = cs_result-povalue.
 
-* XSA POVALUE_USD is converted from the same gross PO value used for
-* POVALUE. For JPY/VND the historical 100x normalization is inside
-* CONVERT_TO_USD.
-    cs_result-povalue_usd =
-      convert_to_usd(
-        i_amount          = is_detail-grossvalue
-        i_source_currency = is_detail-pocurrency ).
+    cs_result-totwrkcompamt_cocdecurr = convert_to_usd( i_amount         = CONV t_amount_precision( cs_result-totwrkcompamt )
+                                                        i_source_currency = is_detail-pocurrency ).
 
-* XSA keeps PO value in company-code currency equal to the displayed PO
-* value in this read flow.
-    cs_result-povalue_coco =
-      cs_result-povalue.
+    cs_result-amountaccrued_cocdecurr = cs_result-totwrkcompamt_cocdecurr - cs_result-invvalue_cocdecurr.
 
-    cs_result-totwrkcompamt_cocdecurr =
-      convert_to_usd(
-        i_amount =
-          CONV t_amount_precision(
-            cs_result-totwrkcompamt )
-        i_source_currency =
-          is_detail-pocurrency ).
-
-    cs_result-amountaccrued_cocdecurr =
-        cs_result-totwrkcompamt_cocdecurr
-      - cs_result-invvalue_cocdecurr.
-
-    lv_amount =
-        CONV t_amount_precision(
-          cs_result-amountaccrued )
-      * CONV t_amount_precision(
-          cs_result-exchangerate ).
-
-    cs_result-amountaccrued_usd =
-      CONV t_amount(
-        round(
-          val  = CONV decfloat34( lv_amount )
-          dec  = mc_amount_decimals
-          mode = cl_abap_math=>round_half_up ) ).
-
+    cs_result-amountaccrued_usd = CONV t_amount( round( val = CONV decfloat34( cs_result-amountaccrued ) * CONV decfloat34( cs_result-exchangerate )
+                                                 dec  = mc_amount_decimals
+                                                 mode = cl_abap_math=>round_half_up ) ).
   ENDMETHOD.
 
   METHOD apply_detail.
@@ -1492,374 +1421,148 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD calculate_accrual.
 
-    DATA:
-      ls_straight_line      TYPE ts_calculation,
-      lv_service_amount     TYPE t_amount_precision,
-      lv_service_is_initial TYPE abap_bool,
-      lv_stl_po_value       TYPE t_amount_precision,
-      lv_usd_source_amount  TYPE t_amount_precision,
-      lx_conversion         TYPE REF TO cx_root.
+*   Reset calculated fields before applying XSA calculation logic
+    CLEAR: cs_result-totwrkcompamt,
+           cs_result-totwrkcompamt_usd,
+           cs_result-totwrkcompper,
+           cs_result-straightlinemthd.
 
-    CLEAR rs_result.
-
-*--------------------------------------------------------------------*
-* Material items do not use Service WTD/STL calculation.
-*--------------------------------------------------------------------*
-    IF is_detail-effective_pstype <>
-         zif_fi_das_dashboard=>mc_pstype_service.
-
-      rs_result-accrual_method = mc_accrual_stl.
-
+*   Material items do not use Service WTD/STL calculation
+    IF is_detail-effective_pstype <> zif_fi_das_dashboard=>mc_pstype_service.
+      cs_result-accrualmethod = mc_accrual_stl.
       RETURN.
-
     ENDIF.
 
-*--------------------------------------------------------------------*
-* Straight-line calculation uses dashboard-normalized PO value.
-*--------------------------------------------------------------------*
-    lv_stl_po_value =
-        is_detail-grossvalue
-      * get_currency_factor(
-          i_currency = is_detail-pocurrency ).
+*   Missing SERVICE_AMOUNT -> Straight Line
+*   Provided SERVICE_AMOUNT -> Work To Date
+    DATA(l_service_amount_supplied) = xsdbool( is_detail-serviceamount IS NOT INITIAL ).
 
-*--------------------------------------------------------------------*
-* XSA decision source:
-*
-* Initial SERVICE_AMOUNT -> STL fallback
-* Supplied SERVICE_AMOUNT -> WTD, including numeric zero
-*--------------------------------------------------------------------*
-    IF is_detail-serviceamount IS INITIAL.
-
-      lv_service_is_initial =
-        abap_true.
-
-    ELSE.
+    IF l_service_amount_supplied = abap_true.
 
       TRY.
+          DATA(l_service_amount) = CONV t_amount_precision( is_detail-serviceamount ).
 
-          lv_service_amount =
-            CONV t_amount_precision(
-              is_detail-serviceamount ).
-
-        CATCH cx_sy_conversion_no_number
-              cx_sy_conversion_overflow
-              cx_sy_conversion_error
-              INTO lx_conversion.
+        CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
 
           RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING
-              i_reason =
-                         |Invalid services-completed amount: { is_detail-serviceamount }|
-              previous =
-                         lx_conversion.
-
+            MESSAGE e011(zfi_das) WITH is_detail-serviceamount
+          EXPORTING previous = lx_conversion.
       ENDTRY.
-
     ENDIF.
 
-*--------------------------------------------------------------------*
-* XSA calculates the STL candidate before method selection.
-*--------------------------------------------------------------------*
-    ls_straight_line =
-      calculate_straight_line(
-        i_po_value        = lv_stl_po_value
-        i_po_currency     = is_detail-pocurrency
-        i_work_start_date = is_detail-wrkstrtdate
-        i_work_end_date   = is_detail-wrkenddate ).
+*   Unsupported calculation methods produce no result
+    IF cs_result-accrualmethod IS NOT INITIAL AND cs_result-accrualmethod <> mc_accrual_wtd AND cs_result-accrualmethod <> mc_accrual_stl.
+      CLEAR cs_result-accrualmethod.
+      RETURN.
+    ENDIF.
 
-*--------------------------------------------------------------------*
-* Empty persisted method and explicit WTD both select according to
-* SERVICE_AMOUNT availability.
-*--------------------------------------------------------------------*
-    IF i_accrual_method IS INITIAL
-       OR i_accrual_method = mc_accrual_wtd.
+*   calculates the STL candidate before method selection
+    DATA(ls_straight_line) = calculate_straight_line( i_po_value = CONV t_amount_precision( is_detail-grossvalue * get_currency_factor( is_detail-pocurrency ) )
+                                                      i_po_currency     = is_detail-pocurrency
+                                                      i_work_start_date = is_detail-wrkstrtdate
+                                                      i_work_end_date   = is_detail-wrkenddate ).
 
-      IF lv_service_is_initial = abap_true.
+    IF cs_result-accrualmethod <> mc_accrual_stl AND l_service_amount_supplied = abap_true.
 
-        rs_result =
-          ls_straight_line.
+      cs_result-totwrkcompamt = CONV t_amount( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( l_service_amount )
+                                                                                     i_decimals = mc_amount_decimals ) ).
 
-        rs_result-accrual_method = mc_accrual_stl.
+      DATA(l_usd_source_amount) = CONV t_amount_precision( l_service_amount / get_currency_factor( is_detail-pocurrency ) ).
 
-        rs_result-straight_line =
-          abap_true.
+      cs_result-totwrkcompamt_usd = convert_to_usd( i_amount          = l_usd_source_amount
+                                                    i_source_currency = is_detail-pocurrency ).
 
-      ELSE.
+      cs_result-totwrkcompper = zcl_fi_das_utility=>parse_percentage( CONV string( is_detail-servicepercentage ) ).
 
-*------------------------------------------------------------------*
-* XSA's DECIMAL(...,2) result column truncates surplus fractions.
-*
-* Do not use:
-*   CONV T_AMOUNT( LV_SERVICE_AMOUNT )
-*
-* because ABAP conversion rounds (e.g. 241.825 -> 241.83) whereas
-* XSA returns 241.82 for the verified boundary case
-* 8002132177 / 00001.
-*------------------------------------------------------------------*
-        rs_result-total_work_amount =
-          CONV t_amount(
-            zcl_fi_das_utility=>truncate_decimal(
-              i_value    = CONV decfloat34( lv_service_amount )
-              i_decimals = mc_amount_decimals ) ).
-
-*------------------------------------------------------------------*
-* XSA service WTD USD conversion:
-*
-* For JPY/VND the displayed work amount is in normalized units.
-* XSA passes TOTAL_WORK_AMOUNT / 100 into SF_ConvertCurrency. The
-* function truncates its source input to two decimals and applies its
-* historical JPY/VND x100 factor.
-*
-*------------------------------------------------------------------*
-        lv_usd_source_amount =
-            lv_service_amount
-          / get_currency_factor(
-              i_currency = is_detail-pocurrency ).
-
-        rs_result-total_work_amount_usd =
-          convert_to_usd(
-            i_amount          = lv_usd_source_amount
-            i_source_currency = is_detail-pocurrency ).
-
-        rs_result-total_work_percent =
-          zcl_fi_das_utility=>parse_percentage(
-            i_value =
-              CONV string(
-                is_detail-servicepercentage ) ).
-
-        rs_result-accrual_method = mc_accrual_wtd.
-
-        CLEAR rs_result-straight_line.
-
-      ENDIF.
+      cs_result-accrualmethod = mc_accrual_wtd.
 
       RETURN.
 
     ENDIF.
 
-*--------------------------------------------------------------------*
-* Persisted STL always selects the pre-calculated STL candidate.
-*--------------------------------------------------------------------*
-    IF i_accrual_method = mc_accrual_stl.
-
-      rs_result =
-        ls_straight_line.
-
-      rs_result-accrual_method = mc_accrual_stl.
-
-      rs_result-straight_line =
-        abap_true.
-
-      RETURN.
-
-    ENDIF.
-
-*--------------------------------------------------------------------*
-* XSA SQLScript fall-through for unsupported noninitial methods.
-*--------------------------------------------------------------------*
-    CLEAR rs_result.
+*   Straight Line candidate
+    MOVE-CORRESPONDING ls_straight_line TO cs_result.
+    cs_result-accrualmethod    = mc_accrual_stl.
+    cs_result-straightlinemthd = abap_true.
 
   ENDMETHOD.
-
 
   METHOD calculate_accrued_amount.
 
-    DATA lv_base TYPE t_amount.
+    DATA(l_base) = COND t_amount( WHEN i_pstype = zif_fi_das_dashboard=>mc_pstype_service
+                                    THEN i_total_work_amount
+                                    ELSE i_gr_value ).
 
-    IF i_pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    r_amount = l_base - i_invoice_value.
 
-      lv_base =
-        i_total_work_amount.
-
-    ELSE.
-
-      lv_base =
-        i_gr_value.
-
-    ENDIF.
-
-    rv_amount =
-      lv_base - i_invoice_value.
-
-    IF rv_amount < 0.
-      CLEAR rv_amount.
-    ENDIF.
+    r_amount = COND #( WHEN r_amount < 0
+                        THEN 0
+                        ELSE r_amount ).
 
   ENDMETHOD.
-
 
   METHOD calculate_invoice_value.
 
-    IF i_invoice_value > 0.
-
-      rv_invoice_value =
-        i_invoice_value.
-
-    ENDIF.
+    r_invoice_value = COND #( WHEN i_invoice_value > 0
+                                THEN i_invoice_value
+                                ELSE 0 ).
 
   ENDMETHOD.
 
-
   METHOD calculate_straight_line.
 
-    DATA:
-      lv_total_months      TYPE i,
-      lv_elapsed_months    TYPE i,
-      lv_division          TYPE t_amount_high,
-      lv_monthly_amount    TYPE t_amount_precision,
-      lv_unrounded_amount  TYPE t_amount_high,
-      lv_amount            TYPE t_amount,
-      lv_percentage        TYPE decfloat34,
-      lv_usd_source_amount TYPE t_amount_precision.
+    rs_result-accrualmethod    = mc_accrual_stl.
+    rs_result-straightlinemthd = abap_true.
 
-    CLEAR rs_result.
+*   Missing service dates -> initial amounts, method STL
+    IF i_work_start_date IS INITIAL OR i_work_end_date IS INITIAL.
+      RETURN.
+    ENDIF.
 
     get_month_difference(
       EXPORTING
         i_work_start_date = i_work_start_date
         i_work_end_date   = i_work_end_date
       IMPORTING
-        e_total_months    = lv_total_months
-        e_elapsed_months  = lv_elapsed_months ).
+        e_total_months    = DATA(l_total_months)
+        e_elapsed_months  = DATA(l_elapsed_months) ).
 
-*--------------------------------------------------------------------*
-* XSA SF_calcSTL_wtdAmountPer:
-*
-* If all calculated service periods have elapsed, XSA calculates the
-* completed value as a 1 / 1 interval.
-*--------------------------------------------------------------------*
-    IF lv_total_months = lv_elapsed_months.
-
-      lv_total_months =
-        1.
-
-      lv_elapsed_months =
-        1.
-
+*   If all calculated service periods have elapsed, calculates the completed value as a 1 / 1 interval
+    IF l_total_months = l_elapsed_months.
+      l_total_months   = 1.
+      l_elapsed_months = 1.
     ENDIF.
 
-*--------------------------------------------------------------------*
-* XSA:
-*
-* IF MONTH_BET > 0 THEN
-*   LV_AMOUNT = ROUND(
-*     ( IV_POVALUE / MONTH_BET ) * MONTH_BET_CRR,
-*     2
-*   );
-* ELSE
-*   LV_AMOUNT = 0.00;
-* END IF;
-*
-* Important:
-*
-* Do not evaluate the complete expression as a single DECFLOAT34
-* expression. The HANA division is materialized at a finite decimal
-* scale before multiplication. The observed parity behavior requires
-* truncation to eight decimals at that exact boundary.
-*--------------------------------------------------------------------*
-    IF lv_total_months > 0.
+    IF l_total_months > 0.
 
-      lv_division =
-          i_po_value
-        / lv_total_months.
+      DATA(l_division) = CONV t_amount_high( i_po_value / l_total_months ).
 
-      lv_monthly_amount =
-        CONV t_amount_precision(
-          zcl_fi_das_utility=>truncate_decimal(
-            i_value    = CONV decfloat34( lv_division )
-            i_decimals = mc_calculation_decimals ) ).
+      DATA(l_monthly_amount) = CONV t_amount_precision( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( l_division )
+                                                                                              i_decimals = mc_calculation_decimals ) ).
+      DATA(l_unrounded_amount) = CONV t_amount_high( l_monthly_amount * l_elapsed_months ).
 
-      lv_unrounded_amount =
-          lv_monthly_amount
-        * lv_elapsed_months.
+      DATA(l_amount) = CONV t_amount( round( val  = CONV decfloat34( l_unrounded_amount )
+                                             dec  = mc_amount_decimals
+                                             mode = cl_abap_math=>round_half_up ) ).
 
-      lv_amount =
-        CONV t_amount(
-          round(
-            val  = CONV decfloat34( lv_unrounded_amount )
-            dec  = mc_amount_decimals
-            mode = cl_abap_math=>round_half_up ) ).
-
-*--------------------------------------------------------------------*
-* XSA cap: the completed amount cannot exceed the original PO amount.
-*--------------------------------------------------------------------*
-      IF lv_amount >
-           CONV t_amount(
-             i_po_value ).
-
-        lv_amount =
-          CONV t_amount(
-            i_po_value ).
-
+*     Completed amount cannot exceed the original PO value
+      IF l_amount > CONV t_amount( i_po_value ).
+        l_amount = CONV t_amount( i_po_value ).
       ENDIF.
-
-    ELSE.
-
-      CLEAR lv_amount.
-
     ENDIF.
 
-    rs_result-total_work_amount =
-      lv_amount.
+    rs_result-totwrkcompamt = l_amount.
 
-*--------------------------------------------------------------------*
-* XSA SF_ConvertCurrency is called using source-scale amounts.
-*
-* I_PO_VALUE was supplied in dashboard-normalized units:
-*
-*   JPY/VND: raw amount * 100
-*
-* Therefore the calculated straight-line amount is also normalized.
-* Divide it by 100 before calling CONVERT_TO_USD. That method then:
-*
-* 1. truncates the source input to two decimals;
-* 2. reapplies XSA's JPY/VND x100 factor;
-* 3. multiplies the rate;
-* 4. applies final ROUND(..., 2).
-*--------------------------------------------------------------------*
-    lv_usd_source_amount =
-        CONV t_amount_precision(
-          lv_amount )
-      / get_currency_factor(
-          i_currency = i_po_currency ).
-
-    rs_result-total_work_amount_usd =
-      convert_to_usd(
-        i_amount          = lv_usd_source_amount
-        i_source_currency = i_po_currency ).
-
-*--------------------------------------------------------------------*
-* XSA:
-*
-* STL_PER = ROUND( ( LV_AMOUNT / IV_POVALUE ) * 100, 1 )
-*--------------------------------------------------------------------*
+    rs_result-totwrkcompamt_usd = convert_to_usd( i_amount          = l_amount / get_currency_factor( i_po_currency )
+                                                  i_source_currency = i_po_currency ).
     IF i_po_value > 0.
 
-      lv_percentage =
-          CONV decfloat34(
-            lv_amount )
-        / CONV decfloat34(
-            i_po_value )
-        * 100.
+      DATA(l_percentage) = CONV decfloat34( l_amount ) / CONV decfloat34( i_po_value ) * 100.
 
-      rs_result-total_work_percent =
-        CONV zcl_fi_das_dashboard=>t_percentage(
-          round(
-            val  = lv_percentage
-            dec  = mc_percentage_decimals
-            mode = cl_abap_math=>round_half_up ) ).
-
-    ELSE.
-
-      CLEAR rs_result-total_work_percent.
-
+      rs_result-totwrkcompper =  CONV zcl_fi_das_dashboard=>t_percentage( round( val  = l_percentage
+                                                                                 dec  = mc_percentage_decimals
+                                                                                 mode = cl_abap_math=>round_half_up ) ).
     ENDIF.
-
-    rs_result-accrual_method =
-      zcl_fi_das_dashboard=>mc_accrual_stl.
-
-    rs_result-straight_line =
-      abap_true.
 
   ENDMETHOD.
 
@@ -1937,8 +1640,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD convert_to_usd.
 
-    DATA: l_rate          TYPE ts_exchange_rate,
-          l_source_amount TYPE t_amount_precision,
+    DATA: l_source_amount TYPE t_amount_precision,
           l_usd_amount    TYPE decfloat34.
 
     CLEAR r_amount.
@@ -1957,9 +1659,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 *   Apply the historical currency factor before conversion.
     l_source_amount = l_source_amount * get_currency_factor( i_source_currency ).
 
-    l_rate = get_exchange_rate( i_source_currency ).
+    DATA(l_rate) = get_exchange_rate( i_source_currency ).
 
-    l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate-rate ).
+    l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate ).
 
     r_amount = round( val  = l_usd_amount
                       dec  = mc_amount_decimals
@@ -2358,8 +2060,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_exchange_rate.
 
-    rs_rate-source_currency = i_source_currency.
-
     READ TABLE mt_exchrt ASSIGNING FIELD-SYMBOL(<l_exchange_rate>) WITH TABLE KEY source_curr = i_source_currency
                                                                                   target_curr = i_target_currency.
 
@@ -2368,7 +2068,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         MESSAGE e017(zfi_das) WITH i_source_currency i_target_currency.
     ENDIF.
 
-    rs_rate-rate = <l_exchange_rate>-exchange_rate.
+    r_rate = <l_exchange_rate>-exchange_rate.
 
   ENDMETHOD.
 
@@ -3010,67 +2710,51 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_month_difference.
-    CLEAR: e_total_months, e_elapsed_months.
-    IF i_work_start_date IS INITIAL OR i_work_end_date IS INITIAL.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason = 'Service start and end dates are required for straight-line calculation'.
+
+*   on days 1-6 the previous month is still the current period
+    DATA(l_current_date) = sy-datum.
+    DATA(l_current_day)  = CONV i( l_current_date+6(2) ).
+
+    IF l_current_day BETWEEN mc_period_first_day AND mc_period_last_day.
+      l_current_date = l_current_date - l_current_day.
     ENDIF.
 
-    DATA(lv_current_date) = sy-datum.
-    DATA(lv_current_day) = CONV i( lv_current_date+6(2) ).
-    IF lv_current_day BETWEEN 1 AND mc_stl_grace_day.
-      lv_current_date = lv_current_date - lv_current_day.
-    ENDIF.
-
-    DATA(lv_start_bucket) = zcl_fi_das_utility=>month_bucket(
-      i_date      = i_work_start_date
-      i_split_day = mc_stl_split_day ).
-    DATA(lv_end_bucket) = zcl_fi_das_utility=>month_bucket(
-      i_date      = i_work_end_date
-      i_split_day = mc_stl_split_day ).
-    DATA(lv_current_bucket) = zcl_fi_das_utility=>month_bucket(
-      i_date      = lv_current_date
-      i_split_day = mc_stl_grace_day ).
-
-    IF i_work_end_date+0(6) < lv_current_date+0(6).
-      e_total_months = 1.
+*   Work end date already elapsed -> 100%
+    IF i_work_end_date(6) < l_current_date(6).
+      e_total_months   = 1.
       e_elapsed_months = 1.
       RETURN.
     ENDIF.
 
-    IF i_work_end_date+0(6) = lv_current_date+0(6).
-      lv_end_bucket = zcl_fi_das_utility=>month_bucket(
-        i_date      = i_work_end_date
-        i_split_day = mc_stl_split_day ).
-      lv_current_bucket = lv_end_bucket.
-    ENDIF.
+    DATA(l_start_bucket) = zcl_fi_das_utility=>month_bucket( i_date      = i_work_start_date
+                                                             i_split_day = mc_stl_split_day ).
 
-    IF i_work_start_date+0(6) = lv_current_date+0(6).
-      lv_start_bucket = zcl_fi_das_utility=>month_bucket(
-        i_date      = i_work_start_date
-        i_split_day = mc_stl_split_day ).
-    ENDIF.
+    DATA(l_end_bucket) = zcl_fi_das_utility=>month_bucket( i_date      = i_work_end_date
+                                                           i_split_day = mc_stl_split_day ).
 
-    e_total_months = zcl_fi_das_utility=>months_between(
-      i_from = lv_start_bucket
-      i_to   = lv_end_bucket ).
-    e_elapsed_months = zcl_fi_das_utility=>months_between(
-      i_from = lv_start_bucket
-      i_to   = lv_current_bucket ).
+*   Work end date in current month -> current period follows end date
+    DATA(l_current_bucket) = COND d( WHEN i_work_end_date(6) = l_current_date(6)
+                                        THEN l_end_bucket
+                                        ELSE zcl_fi_das_utility=>month_bucket( i_date      = l_current_date
+                                                                               i_split_day = mc_period_last_day ) ).
 
+    e_total_months = zcl_fi_das_utility=>months_between( i_from = l_start_bucket
+                                                         i_to   = l_end_bucket ).
+
+    e_elapsed_months = zcl_fi_das_utility=>months_between( i_from = l_start_bucket
+                                                           i_to   = l_current_bucket ).
     IF e_elapsed_months <= 0.
-      IF i_work_end_date+0(6) = lv_current_date+0(6).
-        e_elapsed_months = 1.
-      ELSE.
-        CLEAR e_elapsed_months.
-      ENDIF.
+
+      e_elapsed_months = COND #( WHEN i_work_end_date(6) = l_current_date(6)
+                                    THEN 1
+                                    ELSE 0 ).
     ENDIF.
+
     IF e_total_months <= 0.
       e_total_months = 1.
     ENDIF.
-  ENDMETHOD.
 
+  ENDMETHOD.
 
   METHOD get_notifications.
 

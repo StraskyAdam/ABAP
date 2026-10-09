@@ -850,15 +850,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_review_day          TYPE i
       CHANGING
         cs_result             TYPE ts_result
-      RETURNING
-        VALUE(rs_calculation) TYPE ts_calculation
       RAISING
         zcx_fi_das_error.
 
     METHODS apply_calculation
       IMPORTING
         is_detail      TYPE ts_source_detail
-        is_calculation TYPE ts_calculation
       CHANGING
         cs_result      TYPE ts_result
       RAISING
@@ -1169,7 +1166,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ls_result =
       calculate_accrual(
         is_detail         = is_detail
-        i_accrual_method = is_calculation-accrual_method ).
+        i_accrual_method = cs_result-accrualmethod ).
 
     cs_result-totwrkcompamt =
       ls_result-total_work_amount.
@@ -1462,7 +1459,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-changed_on  = zcl_fi_das_utility=>utc_to_cet_timestamp( is_status-changed_on ).
     cs_result-edgewtdamt  = is_status-wtd_amount.
     cs_result-po_closure  = is_closed( is_status-po_closure ).
-    rs_calculation-accrual_method = is_status-accrual_method.
+    cs_result-accrualmethod = is_status-accrual_method.
 
     determine_status( EXPORTING is_status    = is_status
                                 i_review_day = i_review_day
@@ -3397,17 +3394,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                        itemno   = is_key-itemno ] OPTIONAL )
                    CHANGING  cs_result = rs_row ).
 
-    DATA(ls_calculation) = apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
-                                                                                               itemno   = is_key-itemno ] OPTIONAL )
+    apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
+                                                                        itemno   = is_key-itemno ] OPTIONAL )
 
-                                                   is_audit    = VALUE #( is_context-last_month_audit[ ponumber = is_key-ponumber
-                                                                                                       itemno   = is_key-itemno ] OPTIONAL )
-                                                   i_mode       = is_request-mode
-                                                   i_review_day = is_context-review_day
-                                         CHANGING  cs_result    = rs_row ).
+                            is_audit    = VALUE #( is_context-last_month_audit[ ponumber = is_key-ponumber
+                                                                                itemno   = is_key-itemno ] OPTIONAL )
+                            i_mode       = is_request-mode
+                            i_review_day = is_context-review_day
+                  CHANGING  cs_result    = rs_row ).
 
     apply_calculation( EXPORTING is_detail      = <fs_detail>
-                                 is_calculation = ls_calculation
                        CHANGING  cs_result      = rs_row ).
 
     apply_currency( EXPORTING is_detail = <fs_detail>

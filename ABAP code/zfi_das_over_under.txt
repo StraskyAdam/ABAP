@@ -22,8 +22,8 @@ define type zfi_das_over_under {
   grvalue_cocdecurr       : abap.dec(13,2);
   username                : xubname;
   full_name               : ad_namtext;
-  decimal_format          : abap.char(1);
-  datfm                   : abap.char(1);
+  decimal_format          : xudcpfm;
+  datfm                   : xudatfm;
   invvalue_cal            : abap.dec(13,2);
 
 }

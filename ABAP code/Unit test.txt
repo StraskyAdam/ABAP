@@ -23,24 +23,24 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     TYPES:
       BEGIN OF ts_case,
-        fixture       TYPE string,
-        email         TYPE zif_fi_das_dashboard=>t_email,
-        poowner       TYPE zif_fi_das_dashboard=>t_poowner,
-        flow          TYPE zif_fi_das_dashboard=>t_mode,
-        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
+        fixture               TYPE string,
+        email                 TYPE zif_fi_das_dashboard=>t_email,
+        poowner               TYPE zif_fi_das_dashboard=>t_poowner,
+        flow                  TYPE zif_fi_das_dashboard=>t_mode,
+        pstype                TYPE zif_fi_das_dashboard=>t_pstype,
 *        ponumber      TYPE zif_fi_das_dashboard=>tr_ponumber,
 *        itemno        TYPE zif_fi_das_dashboard=>tr_itemno,
 *        po_contains   TYPE zif_fi_das_dashboard=>tt_po_contains,
 *        item_contains TYPE zif_fi_das_dashboard=>tt_item_contains,
 *        supplier      TYPE zif_fi_das_dashboard=>tt_supplier_contains,
         filter_select_options TYPE zif_fi_das_dashboard=>tt_filter_select_options,
-        filter_raw    TYPE string,
-        orderby       TYPE string,
-        orderby_desc  TYPE abap_bool,
-        select_list   TYPE string,
-        top           TYPE i,
-        top_specified TYPE abap_bool,
-        inlinecount   TYPE abap_bool,
+        filter_raw            TYPE string,
+        orderby               TYPE string,
+        orderby_desc          TYPE abap_bool,
+        select_list           TYPE string,
+        top                   TYPE i,
+        top_specified         TYPE abap_bool,
+        inlinecount           TYPE abap_bool,
       END OF ts_case,
 
       BEGIN OF ts_expected_index,
@@ -57,9 +57,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       BEGIN OF ts_property_name,
         name TYPE string,
       END OF ts_property_name,
-
-      tt_property_name TYPE HASHED TABLE OF ts_property_name
-        WITH UNIQUE KEY name,
 
       tt_string TYPE STANDARD TABLE OF string
         WITH EMPTY KEY,
@@ -81,9 +78,9 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       mc_page_size TYPE i VALUE 40000.
 
     DATA:
-      mt_differences       TYPE stringtab,
-      mv_difference_count  TYPE i,
-      mv_unused TYPE abap_bool.
+      mt_differences      TYPE stringtab,
+      mv_difference_count TYPE i,
+      mv_unused           TYPE abap_bool.
 
     METHODS setup.
 
@@ -136,204 +133,204 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       RAISING cx_static_check.
 
     METHODS test_y_format
-   FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_x_format
-   FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
-     METHODS test_empty_format
-   FOR TESTING
+    METHODS test_empty_format
+              FOR TESTING
       RAISING cx_static_check.
 
-   METHODS test_inlinecount_with_top_one
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_inlinecount_with_top_one
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_no_inlinecount
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_no_inlinecount
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_skip_beyond_result_set
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_skip_beyond_result_set
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_top_zero
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_top_zero
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_po_value_help
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_po_value_help
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_item_value_help
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_item_value_help
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_supplier_value_help
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_supplier_value_help
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_sort_and_paging
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_sort_and_paging
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_under_paging
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_under_paging
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_excl_paging
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_excl_paging
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_exclusion_pstype_desc
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_exclusion_pstype_desc
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_exclusion_pstype_asc
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_exclusion_pstype_asc
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_excl_pstype_pages
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_excl_pstype_pages
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_orderby_invalid
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_orderby_invalid
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_nonexistent_supplier
-             FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_nonexistent_supplier
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_companycode
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_companycode
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_polinedesc
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_polinedesc
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_curr_company
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_curr_company
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_supplierid
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_supplierid
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_filter_po_or_supplier
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_filter_po_or_supplier
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_select_calc_status
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_select_calc_status
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_sort_amountaccrued
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_sort_amountaccrued
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_sort_reviewed_by
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_sort_reviewed_by
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_skip_high_sorted
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_skip_high_sorted
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_empty_contains_po
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_empty_contains_po
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_under_po_help
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_under_po_help
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_excl_po_help
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_excl_po_help
+              FOR TESTING
+      RAISING cx_static_check.
 
-   METHODS test_under_supplier_help
-            FOR TESTING
-     RAISING cx_static_check.
+    METHODS test_under_supplier_help
+              FOR TESTING
+      RAISING cx_static_check.
 
     " ---- Scope NULL / wildcard matrix -------------------------------
-   METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
-   METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
-       METHODS test_scope_18
-      FOR TESTING
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_scope_19
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_scope_20
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_scope_21
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_scope_22
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
     METHODS test_scope_23
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
 
 
     METHODS test_scope_24
-      FOR TESTING
+              FOR TESTING
       RAISING cx_static_check.
 
-      METHODS test_scope_25
-      FOR TESTING
+    METHODS test_scope_25
+              FOR TESTING
       RAISING cx_static_check.
-          METHODS test_scope_26
-      FOR TESTING
+    METHODS test_scope_26
+              FOR TESTING
       RAISING cx_static_check.
-          METHODS test_scope_27
-      FOR TESTING
+    METHODS test_scope_27
+              FOR TESTING
       RAISING cx_static_check.
-          METHODS test_scope_28
-      FOR TESTING
+    METHODS test_scope_28
+              FOR TESTING
       RAISING cx_static_check.
-          METHODS test_scope_29
-      FOR TESTING
+    METHODS test_scope_29
+              FOR TESTING
       RAISING cx_static_check.
-          METHODS test_scope_30
-      FOR TESTING
+    METHODS test_scope_30
+              FOR TESTING
       RAISING cx_static_check.
 
 
-   METHODS run_scope_case
-     IMPORTING
-       i_number TYPE numc2
-     RAISING
-       zcx_fi_das_error
-       cx_sy_conversion_error
-       cx_sy_open_sql_db.
+    METHODS run_scope_case
+      IMPORTING
+        i_number TYPE numc2
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
 
 
 
@@ -348,21 +345,21 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     METHODS fetch_gateway_page
       IMPORTING
-        is_case           TYPE ts_case
-        i_skip            TYPE i
+        is_case       TYPE ts_case
+        i_skip        TYPE i
       EXPORTING
-        e_json            TYPE string
-        e_total_count     TYPE int8
+        e_json        TYPE string
+        e_total_count TYPE int8
       RAISING
         zcx_fi_das_error.
 
     METHODS get_gateway_response
       IMPORTING
-        is_case         TYPE ts_case
-        i_skip          TYPE i DEFAULT 0
+        is_case        TYPE ts_case
+        i_skip         TYPE i DEFAULT 0
       EXPORTING
-        e_json          TYPE string
-        e_inline_count  TYPE int8
+        e_json         TYPE string
+        e_inline_count TYPE int8
       RAISING
         zcx_fi_das_error.
 
@@ -421,18 +418,18 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     METHODS assert_all_rows_match_filter
       IMPORTING
-        i_json      TYPE string
-        i_property  TYPE string
-        i_value     TYPE string
-        i_contains  TYPE abap_bool DEFAULT abap_false
+        i_json     TYPE string
+        i_property TYPE string
+        i_value    TYPE string
+        i_contains TYPE abap_bool DEFAULT abap_false
       RAISING
         zcx_fi_das_error.
 
     METHODS assert_rows_sorted
       IMPORTING
-        i_json        TYPE string
-        i_property    TYPE string
-        i_descending  TYPE abap_bool DEFAULT abap_false
+        i_json       TYPE string
+        i_property   TYPE string
+        i_descending TYPE abap_bool DEFAULT abap_false
       RAISING
         zcx_fi_das_error.
 
@@ -497,59 +494,59 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     METHODS read_first_result_key
       IMPORTING
-               i_json     TYPE string
+                i_json     TYPE string
       EXPORTING
-               e_ponumber TYPE string
-               e_itemno   TYPE string
+                e_ponumber TYPE string
+                e_itemno   TYPE string
       RAISING   zcx_fi_das_error.
 
     METHODS read_first_result_property
       IMPORTING
-               i_json         TYPE string
-               i_property     TYPE string
+                i_json          TYPE string
+                i_property      TYPE string
       RETURNING
-               VALUE(rv_token) TYPE string
+                VALUE(rv_token) TYPE string
       RAISING   zcx_fi_das_error.
 
     METHODS read_result_property
       IMPORTING
-               i_json         TYPE string
-               i_index        TYPE i
-               i_property     TYPE string
+                i_json          TYPE string
+                i_index         TYPE i
+                i_property      TYPE string
       RETURNING
-               VALUE(rv_token) TYPE string
+                VALUE(rv_token) TYPE string
       RAISING   zcx_fi_das_error.
 
     METHODS compare_actual_page
       IMPORTING
-        i_fixture          TYPE string
-        i_expected_json    TYPE string
-        i_actual_json      TYPE string
-        it_actual_index    TYPE tt_expected_index
+        i_fixture         TYPE string
+        i_expected_json   TYPE string
+        i_actual_json     TYPE string
+        it_actual_index   TYPE tt_expected_index
       CHANGING
-        ct_expected_index  TYPE tt_expected_index
+        ct_expected_index TYPE tt_expected_index
       RAISING
         zcx_fi_das_error.
 
     METHODS compare_raw_object
       IMPORTING
-        i_fixture          TYPE string
-        i_ponumber         TYPE string
-        i_itemno           TYPE string
-        i_expected_json    TYPE string
-        i_expected_from    TYPE i
-        i_expected_to      TYPE i
-        i_actual_json      TYPE string
-        i_actual_from      TYPE i
-        i_actual_to        TYPE i
+        i_fixture       TYPE string
+        i_ponumber      TYPE string
+        i_itemno        TYPE string
+        i_expected_json TYPE string
+        i_expected_from TYPE i
+        i_expected_to   TYPE i
+        i_actual_json   TYPE string
+        i_actual_from   TYPE i
+        i_actual_to     TYPE i
       RAISING
         zcx_fi_das_error.
 
     METHODS read_object_properties
       IMPORTING
-        i_json              TYPE string
-        i_object_from       TYPE i
-        i_object_to         TYPE i
+        i_json               TYPE string
+        i_object_from        TYPE i
+        i_object_to          TYPE i
       RETURNING
         VALUE(rt_properties) TYPE tt_json_property
       RAISING
@@ -557,10 +554,10 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     METHODS compare_raw_property
       IMPORTING
-        i_fixture       TYPE string
-        i_ponumber      TYPE string
-        i_itemno        TYPE string
-        i_name          TYPE string
+        i_fixture        TYPE string
+        i_ponumber       TYPE string
+        i_itemno         TYPE string
+        i_name           TYPE string
         i_expected_token TYPE string
         i_actual_token   TYPE string.
 
@@ -766,31 +763,31 @@ CLASS ltc_request_processing IMPLEMENTATION.
   METHOD setup.
     mo_cut = NEW #( ).
   ENDMETHOD.
-METHOD test_cp_case_sensitive_include.
-  DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+  METHOD test_cp_case_sensitive_include.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
 
-  lt_result = VALUE #(
-    ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
-    ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
-    ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Quality Solutions' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'quantum corp' )
+      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Fuji Electric' ) ).
 
-  DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-    filter-filter_string = `SUPPLIERNAME LIKE '%Q%'` ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `SUPPLIERNAME LIKE '%Q%'` ).
 
-  mo_cut->apply_generic_filter(
-    EXPORTING is_request = ls_request
-    CHANGING  ct_result  = lt_result ).
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lines( lt_result )
-    exp = 1
-    msg = 'A case-sensitive Q pattern matches Quality, not lowercase quantum' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1
+      msg = 'A case-sensitive Q pattern matches Quality, not lowercase quantum' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 1 ]-suppliername
-    exp = 'Quality Solutions' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername
+      exp = 'Quality Solutions' ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
 
   METHOD test_cp_case_sensitive_exclude.
@@ -1425,7 +1422,7 @@ ENDMETHOD.
 
   ENDMETHOD.
 
-    METHOD pstype_sort_noop_for_over.
+  METHOD pstype_sort_noop_for_over.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
 
@@ -1886,7 +1883,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     run_scope_case( '17' ).
   ENDMETHOD.
 
-   METHOD test_scope_18.
+  METHOD test_scope_18.
 
     run_scope_case( '18' ).
 
@@ -1927,43 +1924,43 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-    METHOD test_scope_24.
+  METHOD test_scope_24.
 
     run_scope_case( '24' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_25.
+  METHOD test_scope_25.
 
     run_scope_case( '25' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_26.
+  METHOD test_scope_26.
 
     run_scope_case( '26' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_27.
+  METHOD test_scope_27.
 
     run_scope_case( '27' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_28.
+  METHOD test_scope_28.
 
     run_scope_case( '28' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_29.
+  METHOD test_scope_29.
 
     run_scope_case( '29' ).
 
   ENDMETHOD.
 
-    METHOD test_scope_30.
+  METHOD test_scope_30.
 
     run_scope_case( '30' ).
 
@@ -2298,7 +2295,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-   METHOD test_x_format.
+  METHOD test_x_format.
 
     DATA ls_case TYPE ts_case.
 
@@ -2323,7 +2320,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
-   METHOD test_empty_format.
+  METHOD test_empty_format.
 
     DATA ls_case TYPE ts_case.
 
@@ -2422,8 +2419,8 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   METHOD test_no_inlinecount.
 
     DATA:
-      ls_case TYPE ts_case,
-      lv_json TYPE string,
+      ls_case  TYPE ts_case,
+      lv_json  TYPE string,
       lv_count TYPE int8.
 
     ls_case-email =
@@ -2512,10 +2509,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   METHOD test_top_zero.
 
     DATA:
-      ls_case_full TYPE ts_case,
-      ls_case_zero TYPE ts_case,
-      lv_json_full TYPE string,
-      lv_json_zero TYPE string,
+      ls_case_full  TYPE ts_case,
+      ls_case_zero  TYPE ts_case,
+      lv_json_full  TYPE string,
+      lv_json_zero  TYPE string,
       lv_count_full TYPE int8,
       lv_count_zero TYPE int8.
 
@@ -2975,8 +2972,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_json_desc_1 TYPE string,
       lv_json_desc_2 TYPE string,
       lv_json_asc_1  TYPE string,
-      lv_json_asc_2  TYPE string,
-      lv_count       TYPE i.
+      lv_json_asc_2  TYPE string.
 
     ls_case-email = 'adam.strasky@takeda.com'.
     ls_case-flow = zif_fi_das_dashboard=>mc_exclude.
@@ -3341,92 +3337,92 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
- METHOD test_select_calc_status.
-   DATA:
-     ls_case_select TYPE ts_case,
-     ls_case_full   TYPE ts_case,
-     lv_json_select TYPE string,
-     lv_json_full   TYPE string,
-     lv_status_sel  TYPE string,
-     lv_status_full TYPE string,
-     lv_ponumber    TYPE string,
-     lv_itemno      TYPE string.
+  METHOD test_select_calc_status.
+    DATA:
+      ls_case_select TYPE ts_case,
+      ls_case_full   TYPE ts_case,
+      lv_json_select TYPE string,
+      lv_json_full   TYPE string,
+      lv_status_sel  TYPE string,
+      lv_status_full TYPE string,
+      lv_ponumber    TYPE string,
+      lv_itemno      TYPE string.
 
-   ls_case_select-email = 'adam.strasky@takeda.com'.
-   ls_case_select-flow = zif_fi_das_dashboard=>mc_over.
-   ls_case_select-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-   ls_case_select-select_list = 'PONUMBER,ITEMNO,STATUS'.
-   ls_case_select-top = 1.
-   ls_case_select-top_specified = abap_true.
+    ls_case_select-email = 'adam.strasky@takeda.com'.
+    ls_case_select-flow = zif_fi_das_dashboard=>mc_over.
+    ls_case_select-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    ls_case_select-select_list = 'PONUMBER,ITEMNO,STATUS'.
+    ls_case_select-top = 1.
+    ls_case_select-top_specified = abap_true.
 
-   get_gateway_response(
-     EXPORTING
-       is_case = ls_case_select
-     IMPORTING
-       e_json  = lv_json_select ).
+    get_gateway_response(
+      EXPORTING
+        is_case = ls_case_select
+      IMPORTING
+        e_json  = lv_json_select ).
 
-   cl_abap_unit_assert=>assert_equals(
-     act = get_result_count( lv_json_select )
-     exp = 1
-     msg = 'Calculated select request must return exactly one row' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = get_result_count( lv_json_select )
+      exp = 1
+      msg = 'Calculated select request must return exactly one row' ).
 
-   read_first_result_key(
-     EXPORTING
-       i_json     = lv_json_select
-     IMPORTING
-       e_ponumber = lv_ponumber
-       e_itemno   = lv_itemno ).
+    read_first_result_key(
+      EXPORTING
+        i_json     = lv_json_select
+      IMPORTING
+        e_ponumber = lv_ponumber
+        e_itemno   = lv_itemno ).
 
-   cl_abap_unit_assert=>assert_not_initial(
-     act = lv_ponumber
-     msg = 'Selected response must contain PONUMBER' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_ponumber
+      msg = 'Selected response must contain PONUMBER' ).
 
-   cl_abap_unit_assert=>assert_not_initial(
-     act = lv_itemno
-     msg = 'Selected response must contain ITEMNO' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_itemno
+      msg = 'Selected response must contain ITEMNO' ).
 
-   lv_status_sel =
-     read_first_result_property(
-       i_json     = lv_json_select
-       i_property = 'STATUS' ).
+    lv_status_sel =
+      read_first_result_property(
+        i_json     = lv_json_select
+        i_property = 'STATUS' ).
 
-   cl_abap_unit_assert=>assert_true(
-     act = xsdbool(
-       lv_status_sel IS NOT INITIAL
-       AND to_upper( lv_status_sel ) <> 'NULL' )
-     msg = 'Calculated STATUS must be present in restricted $select' ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        lv_status_sel IS NOT INITIAL
+        AND to_upper( lv_status_sel ) <> 'NULL' )
+      msg = 'Calculated STATUS must be present in restricted $select' ).
 
-   ls_case_full = ls_case_select.
-   CLEAR:
-     ls_case_full-select_list,
-     ls_case_full-top,
-     ls_case_full-top_specified.
-   ls_case_full-filter_raw =
-     |PONUMBER eq '{ lv_ponumber }' and ITEMNO eq '{ lv_itemno }'|.
+    ls_case_full = ls_case_select.
+    CLEAR:
+      ls_case_full-select_list,
+      ls_case_full-top,
+      ls_case_full-top_specified.
+    ls_case_full-filter_raw =
+      |PONUMBER eq '{ lv_ponumber }' and ITEMNO eq '{ lv_itemno }'|.
 
-   get_gateway_response(
-     EXPORTING
-       is_case = ls_case_full
-     IMPORTING
-       e_json  = lv_json_full ).
+    get_gateway_response(
+      EXPORTING
+        is_case = ls_case_full
+      IMPORTING
+        e_json  = lv_json_full ).
 
-   cl_abap_unit_assert=>assert_equals(
-     act = get_result_count( lv_json_full )
-     exp = 1
-     msg = |Full request for { lv_ponumber }/{ lv_itemno } must return one row| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = get_result_count( lv_json_full )
+      exp = 1
+      msg = |Full request for { lv_ponumber }/{ lv_itemno } must return one row| ).
 
-   lv_status_full =
-     read_first_result_property(
-       i_json     = lv_json_full
-       i_property = 'STATUS' ).
+    lv_status_full =
+      read_first_result_property(
+        i_json     = lv_json_full
+        i_property = 'STATUS' ).
 
-   cl_abap_unit_assert=>assert_equals(
-     act = lv_status_sel
-     exp = lv_status_full
-     msg = |Restricted $select returned a different STATUS for |
-        && |{ lv_ponumber }/{ lv_itemno }| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status_sel
+      exp = lv_status_full
+      msg = |Restricted $select returned a different STATUS for |
+         && |{ lv_ponumber }/{ lv_itemno }| ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD test_sort_amountaccrued.
 
@@ -3722,14 +3718,14 @@ ENDMETHOD.
   METHOD run_paged_case.
 
     DATA:
-      lv_expected_json   TYPE string,
-      lv_actual_json     TYPE string,
-      lt_expected_index  TYPE tt_expected_index,
-      lt_actual_index    TYPE tt_expected_index,
-      lv_skip            TYPE i,
-      lv_page_rows       TYPE i,
-      lv_total_count     TYPE int8,
-      lv_finished        TYPE abap_bool.
+      lv_expected_json  TYPE string,
+      lv_actual_json    TYPE string,
+      lt_expected_index TYPE tt_expected_index,
+      lt_actual_index   TYPE tt_expected_index,
+      lv_skip           TYPE i,
+      lv_page_rows      TYPE i,
+      lv_total_count    TYPE int8,
+      lv_finished       TYPE abap_bool.
 
     lv_expected_json =
       read_mime_fixture(
@@ -3859,12 +3855,12 @@ ENDMETHOD.
   METHOD build_resource_path.
 
     DATA:
-      lv_email   TYPE string,
-      lv_poowner TYPE string,
-      lv_pstype  TYPE string,
-      lv_top     TYPE i,
-      lv_orderby TYPE string,
-      lv_orderby_upper TYPE string,
+      lv_email             TYPE string,
+      lv_poowner           TYPE string,
+      lv_pstype            TYPE string,
+      lv_top               TYPE i,
+      lv_orderby           TYPE string,
+      lv_orderby_upper     TYPE string,
       lv_orderby_direction TYPE string.
 
     lv_email = odata_quote( i_value = is_case-email ).
@@ -4002,8 +3998,8 @@ ENDMETHOD.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING
           i_reason =
-              |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
-            && |URI={ i_resource_path }; Body={ rv_json }|.
+                     |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
+                     && |URI={ i_resource_path }; Body={ rv_json }|.
     ENDIF.
 
   ENDMETHOD.
@@ -4071,9 +4067,13 @@ ENDMETHOD.
       i_text     = i_json
       i_position = lv_start + 1 ).
 
+   TRY.
     lv_end = read_json_value_end(
       i_text  = i_json
       i_start = lv_start ).
+      CATCH cx_root.
+
+      ENDTRY.
 
     lv_token = substring(
       val = i_json
@@ -4215,148 +4215,148 @@ ENDMETHOD.
 
   METHOD assert_rows_sorted.
 
-  DATA:
-    lv_row_count  TYPE i,
-    lv_row_index  TYPE i,
-    lv_previous   TYPE string,
-    lv_current    TYPE string,
-    lv_previous_i TYPE i,
-    lv_current_i  TYPE i,
-    lv_previous_n TYPE decfloat34,
-    lv_current_n  TYPE decfloat34.
+    DATA:
+      lv_row_count  TYPE i,
+      lv_row_index  TYPE i,
+      lv_previous   TYPE string,
+      lv_current    TYPE string,
+      lv_previous_i TYPE i,
+      lv_current_i  TYPE i,
+      lv_previous_n TYPE decfloat34,
+      lv_current_n  TYPE decfloat34.
 
-  IF i_property <> 'PSTYPE'
-     AND i_property <> 'SUPPLIERNAME'
-     AND i_property <> 'AMOUNTACCRUED'
-     AND i_property <> 'REVIWED_BY'.
+    IF i_property <> 'PSTYPE'
+       AND i_property <> 'SUPPLIERNAME'
+       AND i_property <> 'AMOUNTACCRUED'
+       AND i_property <> 'REVIWED_BY'.
 
-    cl_abap_unit_assert=>fail(
-      msg = |assert_rows_sorted does not support { i_property }| ).
+      cl_abap_unit_assert=>fail(
+        msg = |assert_rows_sorted does not support { i_property }| ).
 
-  ENDIF.
-
-  lv_row_count =
-    get_result_count( i_json ).
-
-  WHILE lv_row_index < lv_row_count.
-
-    lv_row_index = lv_row_index + 1.
-
-    DATA(lv_token) =
-      read_result_property(
-        i_json     = i_json
-        i_index    = lv_row_index
-        i_property = i_property ).
-
-    lv_current =
-      unquote_json(
-        i_token = lv_token ).
-
-    IF to_upper( lv_current ) = 'NULL'.
-      CLEAR lv_current.
     ENDIF.
 
-    " JSON strings do not contain the fixed-length ABAP trailing
-    " spaces, but remove surrounding whitespace consistently.
-    lv_current = trim_text( lv_current ).
+    lv_row_count =
+      get_result_count( i_json ).
 
-    IF lv_row_index > 1.
+    WHILE lv_row_index < lv_row_count.
 
-      IF i_property = 'PSTYPE'.
+      lv_row_index = lv_row_index + 1.
 
-        lv_previous_i =
-          COND i(
-            WHEN lv_previous IS INITIAL
-            THEN 0
-            ELSE CONV i( lv_previous ) ).
+      DATA(lv_token) =
+        read_result_property(
+          i_json     = i_json
+          i_index    = lv_row_index
+          i_property = i_property ).
 
-        lv_current_i =
-          COND i(
-            WHEN lv_current IS INITIAL
-            THEN 0
-            ELSE CONV i( lv_current ) ).
+      lv_current =
+        unquote_json(
+          i_token = lv_token ).
 
-        IF i_descending = abap_true.
+      IF to_upper( lv_current ) = 'NULL'.
+        CLEAR lv_current.
+      ENDIF.
 
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous_i >= lv_current_i )
-            msg =
-              |PSTYPE descending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
+      " JSON strings do not contain the fixed-length ABAP trailing
+      " spaces, but remove surrounding whitespace consistently.
+      lv_current = trim_text( lv_current ).
+
+      IF lv_row_index > 1.
+
+        IF i_property = 'PSTYPE'.
+
+          lv_previous_i =
+            COND i(
+              WHEN lv_previous IS INITIAL
+              THEN 0
+              ELSE CONV i( lv_previous ) ).
+
+          lv_current_i =
+            COND i(
+              WHEN lv_current IS INITIAL
+              THEN 0
+              ELSE CONV i( lv_current ) ).
+
+          IF i_descending = abap_true.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_i >= lv_current_i )
+              msg =
+                |PSTYPE descending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
+
+          ELSE.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_i <= lv_current_i )
+              msg =
+                |PSTYPE ascending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
+
+          ENDIF.
+
+        ELSEIF i_property = 'AMOUNTACCRUED'.
+
+          lv_previous_n =
+            COND decfloat34(
+              WHEN lv_previous IS INITIAL
+              THEN 0
+              ELSE CONV decfloat34( lv_previous ) ).
+
+          lv_current_n =
+            COND decfloat34(
+              WHEN lv_current IS INITIAL
+              THEN 0
+              ELSE CONV decfloat34( lv_current ) ).
+
+          IF i_descending = abap_true.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_n >= lv_current_n )
+              msg =
+                |AMOUNTACCRUED descending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
+
+          ELSE.
+
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous_n <= lv_current_n )
+              msg =
+                |AMOUNTACCRUED ascending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
+
+          ENDIF.
 
         ELSE.
 
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous_i <= lv_current_i )
-            msg =
-              |PSTYPE ascending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
+          " Do not uppercase: production ABAP SORT uses the original
+          " character values. The assertion must use the same values.
+          IF i_descending = abap_true.
 
-        ENDIF.
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous >= lv_current )
+              msg =
+                |{ i_property } descending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
 
-      ELSEIF i_property = 'AMOUNTACCRUED'.
+          ELSE.
 
-        lv_previous_n =
-          COND decfloat34(
-            WHEN lv_previous IS INITIAL
-            THEN 0
-            ELSE CONV decfloat34( lv_previous ) ).
+            cl_abap_unit_assert=>assert_true(
+              act = xsdbool( lv_previous <= lv_current )
+              msg =
+                |{ i_property } ascending violation at row { lv_row_index }: |
+                && |previous="{ lv_previous }", current="{ lv_current }"| ).
 
-        lv_current_n =
-          COND decfloat34(
-            WHEN lv_current IS INITIAL
-            THEN 0
-            ELSE CONV decfloat34( lv_current ) ).
-
-        IF i_descending = abap_true.
-
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous_n >= lv_current_n )
-            msg =
-              |AMOUNTACCRUED descending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
-
-        ELSE.
-
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous_n <= lv_current_n )
-            msg =
-              |AMOUNTACCRUED ascending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
-
-        ENDIF.
-
-      ELSE.
-
-        " Do not uppercase: production ABAP SORT uses the original
-        " character values. The assertion must use the same values.
-        IF i_descending = abap_true.
-
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous >= lv_current )
-            msg =
-              |{ i_property } descending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
-
-        ELSE.
-
-          cl_abap_unit_assert=>assert_true(
-            act = xsdbool( lv_previous <= lv_current )
-            msg =
-              |{ i_property } ascending violation at row { lv_row_index }: |
-              && |previous="{ lv_previous }", current="{ lv_current }"| ).
+          ENDIF.
 
         ENDIF.
 
       ENDIF.
 
-    ENDIF.
+      lv_previous = lv_current.
 
-    lv_previous = lv_current.
+    ENDWHILE.
 
-  ENDWHILE.
-
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD assert_no_duplica_across_pages.
 
@@ -4390,15 +4390,15 @@ ENDMETHOD.
   METHOD assert_row_keys_match.
 
     DATA:
-      lv_left_from   TYPE i,
-      lv_left_to     TYPE i,
-      lv_right_from  TYPE i,
-      lv_right_to    TYPE i,
-      lv_left_po     TYPE string,
-      lv_left_item   TYPE string,
-      lv_right_po    TYPE string,
-      lv_right_item  TYPE string,
-      lv_match       TYPE abap_bool.
+      lv_left_from  TYPE i,
+      lv_left_to    TYPE i,
+      lv_right_from TYPE i,
+      lv_right_to   TYPE i,
+      lv_left_po    TYPE string,
+      lv_left_item  TYPE string,
+      lv_right_po   TYPE string,
+      lv_right_item TYPE string,
+      lv_match      TYPE abap_bool.
 
     find_result_object_bounds(
       EXPORTING
@@ -4609,7 +4609,7 @@ ENDMETHOD.
           RAISE EXCEPTION TYPE zcx_fi_das_error
             EXPORTING
               i_reason =
-                |Result row { i_index } is not a JSON object|.
+                         |Result row { i_index } is not a JSON object|.
         ENDIF.
 
         e_object_from = lv_position.
@@ -4624,7 +4624,7 @@ ENDMETHOD.
     RAISE EXCEPTION TYPE zcx_fi_das_error
       EXPORTING
         i_reason =
-          |Result row { i_index } was not found in the Gateway response|.
+                   |Result row { i_index } was not found in the Gateway response|.
 
   ENDMETHOD.
 
@@ -5392,7 +5392,7 @@ ENDMETHOD.
 *----------------------------------------------------------------------*
   METHOD is_equivalent_null.
 
-  rv_result = abap_false.
+    rv_result = abap_false.
 
 *--------------------------------------------------------------------*
 * TODO_PARITY_FUNCTIONAL_NULL_001
@@ -5443,11 +5443,11 @@ ENDMETHOD.
 * Review this allowlist whenever UI consumption or the OData contract
 * changes.
 *--------------------------------------------------------------------*
-  IF i_expected_token <> 'null'.
-    RETURN.
-  ENDIF.
+    IF i_expected_token <> 'null'.
+      RETURN.
+    ENDIF.
 
-  CASE i_name.
+    CASE i_name.
 
 *--------------------------------------------------------------------*
 * Character properties serialized by SEGW as ""
@@ -5517,19 +5517,19 @@ ENDMETHOD.
 *   REVIWED_BY:
 *     XSA=null, SEGW="USER123"
 *--------------------------------------------------------------------*
-    WHEN 'COSTCENTERDESC'
-      OR 'DATFM'
-      OR 'DECIMAL_FORMAT'
-      OR 'FULL_NAME'
-      OR 'MANAGEUNIT'
-      OR 'NOTIF_24_HR'
-      OR 'REVIWED_BY'
-      OR 'USERNAME'.
+      WHEN 'COSTCENTERDESC'
+        OR 'DATFM'
+        OR 'DECIMAL_FORMAT'
+        OR 'FULL_NAME'
+        OR 'MANAGEUNIT'
+        OR 'NOTIF_24_HR'
+        OR 'REVIWED_BY'
+        OR 'USERNAME'.
 
-      rv_result =
-        xsdbool(
-          i_actual_token = '""'
-        ).
+        rv_result =
+          xsdbool(
+            i_actual_token = '""'
+          ).
 
 *--------------------------------------------------------------------*
 * Decimal properties serialized by SEGW as "0.00"
@@ -5605,16 +5605,16 @@ ENDMETHOD.
 *
 *   XSA="0.00", SEGW=null
 *--------------------------------------------------------------------*
-    WHEN 'EDGEWTDAMT'
-      OR 'GRVALUE_USD'
-      OR 'INVVALUE_CAL'
-      OR 'INVVALUE_USD'
-      OR 'LASTMONTHWRKCOMP'.
+      WHEN 'EDGEWTDAMT'
+        OR 'GRVALUE_USD'
+        OR 'INVVALUE_CAL'
+        OR 'INVVALUE_USD'
+        OR 'LASTMONTHWRKCOMP'.
 
-      rv_result =
-        xsdbool(
-          i_actual_token = '"0.00"'
-        ).
+        rv_result =
+          xsdbool(
+            i_actual_token = '"0.00"'
+          ).
 
 *--------------------------------------------------------------------*
 * Time property serialized by SEGW as "PT00H00M00S"
@@ -5646,16 +5646,16 @@ ENDMETHOD.
 *   CHANGEDTIME:
 *     XSA="PT00H00M00S", SEGW=null
 *--------------------------------------------------------------------*
-    WHEN 'CHANGEDTIME'.
+      WHEN 'CHANGEDTIME'.
 
-      rv_result =
-        xsdbool(
-          i_actual_token = '"PT00H00M00S"'
-        ).
+        rv_result =
+          xsdbool(
+            i_actual_token = '"PT00H00M00S"'
+          ).
 
-  ENDCASE.
+    ENDCASE.
 
-ENDMETHOD.
+  ENDMETHOD.
 
 
 *----------------------------------------------------------------------*

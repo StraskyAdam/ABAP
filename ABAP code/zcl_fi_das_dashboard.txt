@@ -116,6 +116,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_range_low    TYPE string VALUE `LOW`,
       mc_range_high   TYPE string VALUE `HIGH`.
 
+      CONSTANTS mc_space TYPE string VALUE ` `.
+
 
     CONSTANTS:
       mc_grace_period_start TYPE i VALUE 1,
@@ -263,14 +265,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
         costcenterdesc TYPE t_text_5000,
       END OF ts_specific_fields,
 
-      BEGIN OF ts_result.
-        INCLUDE TYPE ts_shared_fields.
-        INCLUDE TYPE ts_over_under_fields.
-        INCLUDE TYPE ts_specific_fields.
-      TYPES:
-      END OF ts_result,
-
-      tt_result TYPE TABLE OF ts_result WITH EMPTY KEY,
+*      BEGIN OF ts_result.
+*        INCLUDE TYPE ts_shared_fields.
+*        INCLUDE TYPE ts_over_under_fields.
+*        INCLUDE TYPE ts_specific_fields.
+*      TYPES:
+*      END OF ts_result,
+*
+*      tt_result TYPE TABLE OF ts_result WITH EMPTY KEY,
 
       BEGIN OF ts_odata_result.
         INCLUDE TYPE zfi_das_shared.
@@ -322,13 +324,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
         WITH UNIQUE KEY value wildcard is_null.
 
     TYPES:
-      BEGIN OF ts_last_month_audit,
+      BEGIN OF ts_audit,
         ponumber TYPE ebeln,
         itemno   TYPE ebelp,
         amount   TYPE t_amount,
-      END OF ts_last_month_audit,
+      END OF ts_audit,
 
-      tt_last_month_audit TYPE HASHED TABLE OF ts_last_month_audit  WITH UNIQUE KEY ponumber itemno.
+      tt_audit TYPE HASHED TABLE OF ts_audit  WITH UNIQUE KEY ponumber itemno.
 
     TYPES:
       BEGIN OF ts_management_scope,
@@ -480,7 +482,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         exclusions       TYPE tt_exclusion_aggregate,
         users            TYPE tt_user,
         review_day       TYPE i,
-        last_month_audit TYPE tt_last_month_audit,
+        audit TYPE tt_audit,
       END OF ts_context.
 
     TYPES tt_string_range TYPE RANGE OF string.
@@ -774,11 +776,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_row
       IMPORTING
-        is_key        TYPE ts_key
-        is_context    TYPE ts_context
-        is_request    TYPE ts_internal_request
+        is_key           TYPE ts_key
+        is_context       TYPE ts_context
+        is_request       TYPE ts_internal_request
+        i_decimal_format TYPE t_decimal_format
       RETURNING
-        VALUE(rs_row) TYPE ts_result
+        VALUE(rs_result) TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -786,7 +789,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_detail TYPE ts_source_detail
       CHANGING
-        cs_result TYPE ts_result
+        cs_result TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -794,7 +797,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_user   TYPE ts_user
       CHANGING
-        cs_result TYPE ts_result.
+        cs_result TYPE ts_odata_result.
 
 
 
@@ -819,13 +822,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
 
 
-    METHODS get_odata_row
+    METHODS apply_odata_format
       IMPORTING
-        is_row           TYPE ts_result
         i_mode           TYPE zif_fi_das_dashboard=>t_mode
         i_decimal_format TYPE t_decimal_format
-      RETURNING
-        VALUE(rs_result) TYPE ts_odata_result
+      CHANGING
+        cs_result        TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -836,24 +838,24 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_account TYPE ts_account_aggregate
       CHANGING
-        cs_result  TYPE ts_result.
+        cs_result  TYPE ts_odata_result.
 
     METHODS apply_history
       IMPORTING
         is_history TYPE ts_history_aggregate
       CHANGING
-        cs_result  TYPE ts_result
+        cs_result  TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
     METHODS apply_status
       IMPORTING
         is_status    TYPE ts_status
-        is_audit     TYPE ts_last_month_audit
+        is_audit     TYPE ts_audit
         i_mode       TYPE zif_fi_das_dashboard=>t_mode
         i_review_day TYPE i
       CHANGING
-        cs_result    TYPE ts_result
+        cs_result    TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -861,7 +863,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_detail TYPE ts_source_detail
       CHANGING
-        cs_result TYPE ts_result
+        cs_result TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -869,19 +871,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_detail TYPE ts_source_detail
       CHANGING
-        cs_result TYPE ts_result
+        cs_result TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
     METHODS apply_closure
       CHANGING
-        cs_result TYPE ts_result.
+        cs_result TYPE ts_odata_result.
 
     METHODS apply_notification
       IMPORTING
         is_notification TYPE ts_notification
       CHANGING
-        cs_result       TYPE ts_result
+        cs_result       TYPE ts_odata_result
       RAISING
         cx_sy_conversion_error.
 
@@ -889,13 +891,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         is_exclusion TYPE ts_exclusion_aggregate
       CHANGING
-        cs_result    TYPE ts_result.
+        cs_result    TYPE ts_odata_result.
 
     METHODS calculate_accrual
       IMPORTING
         is_detail TYPE ts_source_detail
       CHANGING
-        cs_result TYPE ts_result
+        cs_result TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -923,7 +925,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_status    TYPE ts_status
         i_review_day TYPE i
       CHANGING
-        cs_result    TYPE ts_result
+        cs_result    TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -964,7 +966,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_mode       TYPE zif_fi_das_dashboard=>t_mode
         i_review_day TYPE i
       CHANGING
-        cs_result    TYPE ts_result.
+        cs_result    TYPE ts_odata_result.
 
     METHODS is_closed
       IMPORTING
@@ -972,19 +974,19 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_closed) TYPE abap_bool.
 
-    METHODS get_last_month_audit
+    METHODS get_audit
       IMPORTING
         VALUE(it_keys)  TYPE tt_key
       EXPORTING
-        VALUE(et_audit) TYPE tt_last_month_audit
+        VALUE(et_audit) TYPE tt_audit
       RAISING
         cx_amdp_error.
 
     CLASS-METHODS bool_to_text
       IMPORTING
-        i_value        TYPE abap_bool
+        i_value        TYPE char5
       RETURNING
-        VALUE(r_value) TYPE string.
+        VALUE(r_value) TYPE char5.
 
 
 ************************************************
@@ -1028,7 +1030,7 @@ ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-  METHOD get_last_month_audit
+  METHOD get_audit
     BY DATABASE PROCEDURE
     FOR HDB
     LANGUAGE SQLSCRIPT
@@ -1223,6 +1225,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     cs_result-exchangerate = get_exchange_rate( is_detail-pocurrency ).
 
+    cs_result-exchangerate_dec = cs_result-exchangerate.
+
     cs_result-povalue_usd = convert_to_usd( i_amount          = is_detail-grossvalue
                                             i_source_currency = is_detail-pocurrency ).
 
@@ -1249,7 +1253,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     cs_result-povalue = is_detail-grossvalue * get_currency_factor( is_detail-pocurrency ).
     cs_result-orderquantity = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_detail-orderquantity )
                                                                     i_decimals = mc_amount_decimals ).
-
   ENDMETHOD.
 
   METHOD apply_exclusion.
@@ -1413,7 +1416,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    cs_result-reviewed_by = is_status-reviewed_by.
+    cs_result-reviwed_by = is_status-reviewed_by.
     cs_result-changed_on  = zcl_fi_das_utility=>utc_to_cet_timestamp( is_status-changed_on ).
     cs_result-edgewtdamt  = is_status-wtd_amount.
     cs_result-po_closure  = is_closed( is_status-po_closure ).
@@ -1957,8 +1960,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                IMPORTING et_users   = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
-      get_last_month_audit( EXPORTING it_keys  = it_keys
-                            IMPORTING et_audit = rs_context-last_month_audit ).
+      get_audit( EXPORTING it_keys  = it_keys
+                            IMPORTING et_audit = rs_context-audit ).
     ENDIF.
 
     IF is_request-mode <> zif_fi_das_dashboard=>mc_exclude.
@@ -2825,91 +2828,76 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_odata_row.
+  METHOD apply_odata_format.
 
-    MOVE-CORRESPONDING is_row TO rs_result.
+    CLEAR cs_result-checkflag.
 
-    rs_result-reviwed_by = is_row-reviewed_by.
+    cs_result-invoice_currency = COND #( WHEN cs_result-invoice_currency IS INITIAL
+                                         THEN mc_space
+                                         ELSE CONV string( cs_result-invoice_currency ) ).
 
-    rs_result-invoice_currency = COND #( WHEN is_row-invoice_currency IS INITIAL
-                                          THEN ` `
-                                          ELSE CONV string( is_row-invoice_currency ) ).
+    cs_result-documentdate = COND #( WHEN cs_result-documentdate IS INITIAL
+                                      THEN space
+                                      ELSE CONV char8( cs_result-documentdate ) ).
 
-    rs_result-documentdate = COND #( WHEN is_row-documentdate IS INITIAL
-                                       THEN space
-                                       ELSE CONV char8( is_row-documentdate ) ).
+    cs_result-pstype_text = get_pstype_text( cs_result-pstype ).
 
-    rs_result-pstype_text = get_pstype_text( is_row-pstype ).
+    cs_result-accrualmethod = get_accrual_method_text( cs_result-accrualmethod ).
 
-    rs_result-accrualmethod = get_accrual_method_text( is_row-accrualmethod ).
-
-    rs_result-exchangerate_dec = is_row-exchangerate.
-
-    rs_result-exchangerate =
+    cs_result-exchangerate =
      zcl_fi_das_utility=>format_odata_amount(
-         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( is_row-exchangerate )
-         i_decimal_format = i_decimal_format
-         i_decimals       = 6 ).
+        i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-exchangerate )
+        i_decimal_format = i_decimal_format
+        i_decimals       = 6
+        i_use_grouping   = abap_false
+        i_pad_nonzero_below_ten = abap_false  ).
 
-    rs_result-po_closure = bool_to_text( is_row-po_closure ).
+    cs_result-po_closure = bool_to_text( cs_result-po_closure ).
 
     IF i_mode = zif_fi_das_dashboard=>mc_over OR i_mode = zif_fi_das_dashboard=>mc_under.
 
-      rs_result-straightlinemthd = bool_to_text( is_row-straightlinemthd ).
+      cs_result-straightlinemthd = bool_to_text( cs_result-straightlinemthd ).
 
-      rs_result-markasreviewed = bool_to_text( is_row-markasreviewed ).
+      cs_result-markasreviewed = bool_to_text( cs_result-markasreviewed ).
 
-      rs_result-totwrkcompamt_char =
-        zcl_fi_das_utility=>format_odata_amount(
-          i_amount                = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompamt )
-          i_decimal_format        = i_decimal_format
-          i_decimals              = 2
-          i_use_grouping          = abap_true
-          i_pad_nonzero_below_ten = abap_true ).
+      cs_result-totwrkcompamt_char =
+       zcl_fi_das_utility=>format_odata_amount(
+         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-totwrkcompamt )
+         i_decimal_format = i_decimal_format ).
 
-      rs_result-totwrkcompamt_usd_char =
-        zcl_fi_das_utility=>format_odata_amount(
-          i_amount                = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompamt_usd )
-          i_decimal_format        = i_decimal_format
-          i_decimals              = 2
-          i_use_grouping          = abap_true
-          i_pad_nonzero_below_ten = abap_true ).
+      cs_result-totwrkcompamt_usd_char =
+       zcl_fi_das_utility=>format_odata_amount(
+         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-totwrkcompamt_usd )
+         i_decimal_format = i_decimal_format ).
 
-      rs_result-amountaccrued_char =
-        zcl_fi_das_utility=>format_odata_amount(
-          i_amount                = CONV zcl_fi_das_utility=>t_amount_precision( is_row-amountaccrued )
-          i_decimal_format        = i_decimal_format
-          i_decimals              = 2
-          i_use_grouping          = abap_true
-          i_pad_nonzero_below_ten = abap_true ).
+      cs_result-amountaccrued_char =
+       zcl_fi_das_utility=>format_odata_amount(
+         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-amountaccrued )
+         i_decimal_format = i_decimal_format ).
 
-      rs_result-amountaccrued_usd_char =
-        zcl_fi_das_utility=>format_odata_amount(
-          i_amount                = CONV zcl_fi_das_utility=>t_amount_precision( is_row-amountaccrued_usd )
-          i_decimal_format        = i_decimal_format
-          i_decimals              = 2
-          i_use_grouping          = abap_true
-          i_pad_nonzero_below_ten = abap_true ).
+      cs_result-amountaccrued_usd_char =
+       zcl_fi_das_utility=>format_odata_amount(
+         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-amountaccrued_usd )
+         i_decimal_format = i_decimal_format ).
 
-      rs_result-totwrkcompper_char =
-        zcl_fi_das_utility=>format_odata_amount(
-          i_amount                = CONV zcl_fi_das_utility=>t_amount_precision( is_row-totwrkcompper )
-          i_decimal_format        = i_decimal_format
-          i_decimals              = 2
-          i_pad_nonzero_below_ten = abap_true ).
+      cs_result-totwrkcompper_char =
+       zcl_fi_das_utility=>format_odata_amount(
+         i_amount         = CONV zcl_fi_das_utility=>t_amount_precision( cs_result-totwrkcompper )
+         i_decimal_format = i_decimal_format
+         i_use_grouping   = abap_false ).
     ENDIF.
 
     IF i_mode = zif_fi_das_dashboard=>mc_over.
 
-      rs_result-notif_24_hr = COND #( WHEN is_row-notif_24_hr = abap_true
-                                          THEN mc_yes
-                                          ELSE space ).
+      cs_result-notif_24_hr = COND #( WHEN cs_result-notif_24_hr = abap_true
+                                        THEN mc_yes
+                                        ELSE space ).
 
     ELSEIF i_mode = zif_fi_das_dashboard=>mc_exclude.
 
-      rs_result-straightlinemthd = COND #( WHEN is_row-straightlinemthd = abap_true
-                                              THEN mc_yes
-                                              ELSE space ).
+      cs_result-straightlinemthd = COND #( WHEN cs_result-straightlinemthd = abap_true
+                                             THEN mc_yes
+                                             ELSE space ).
     ENDIF.
 
   ENDMETHOD.
@@ -2975,13 +2963,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       DATA(ls_row) = get_row( is_key     = <fs_key>
                               is_context = is_context
-                              is_request = is_request ).
+                              is_request = is_request
+                              i_decimal_format = l_decimal_format  ).
 
       IF ls_row IS NOT INITIAL.
-
-        INSERT get_odata_row( is_row           = ls_row
-                              i_mode           = is_request-mode
-                              i_decimal_format = l_decimal_format ) INTO TABLE ct_result.
+        INSERT ls_row INTO TABLE ct_result.
       ENDIF.
 
     ENDLOOP.
@@ -3117,49 +3103,50 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
 
     apply_detail( EXPORTING is_detail = <fs_detail>
-                  CHANGING  cs_result = rs_row ).
+                  CHANGING  cs_result = rs_result ).
 
     apply_user( EXPORTING is_user = VALUE #( is_context-users[ email = <fs_detail>-poowner_email ] OPTIONAL )
-                CHANGING  cs_result = rs_row ).
+                CHANGING  cs_result = rs_result ).
 
     apply_account( EXPORTING is_account = VALUE #( is_context-accounts[ ponumber = is_key-ponumber
                                                                         itemno   = is_key-itemno ] OPTIONAL )
-                   CHANGING  cs_result = rs_row ).
+                   CHANGING  cs_result = rs_result ).
 
     apply_history( EXPORTING is_history = VALUE #( is_context-history[ ponumber = is_key-ponumber
                                                                        itemno   = is_key-itemno ] OPTIONAL )
-                   CHANGING  cs_result = rs_row ).
+                   CHANGING  cs_result = rs_result ).
 
     apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
                                                                         itemno   = is_key-itemno ] OPTIONAL )
-
-                            is_audit    = VALUE #( is_context-last_month_audit[ ponumber = is_key-ponumber
-                                                                                itemno   = is_key-itemno ] OPTIONAL )
+                            is_audit    = VALUE #( is_context-audit[ ponumber = is_key-ponumber
+                                                                     itemno   = is_key-itemno ] OPTIONAL )
                             i_mode       = is_request-mode
                             i_review_day = is_context-review_day
-                  CHANGING  cs_result    = rs_row ).
+                   CHANGING cs_result    = rs_result ).
 
-    apply_calculation( EXPORTING is_detail      = <fs_detail>
-                       CHANGING  cs_result      = rs_row ).
+    apply_calculation( EXPORTING is_detail = <fs_detail>
+                       CHANGING  cs_result = rs_result ).
 
     apply_currency( EXPORTING is_detail = <fs_detail>
-                    CHANGING  cs_result = rs_row ).
+                    CHANGING  cs_result = rs_result ).
 
-    apply_closure( CHANGING cs_result = rs_row ).
+    apply_closure( CHANGING cs_result = rs_result ).
 
     apply_notification( EXPORTING is_notification = VALUE #( is_context-notifications[ ponumber = is_key-ponumber
                                                                                        itemno   = is_key-itemno ] OPTIONAL )
-                        CHANGING  cs_result = rs_row ).
+                        CHANGING  cs_result = rs_result ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_exclude.
 
       apply_exclusion( EXPORTING is_exclusion = VALUE #( is_context-exclusions[ ponumber = is_key-ponumber
                                                                                 itemno   = is_key-itemno ] OPTIONAL )
-                       CHANGING  cs_result = rs_row ).
+                       CHANGING  cs_result = rs_result ).
 
     ENDIF.
 
-    CLEAR rs_row-checkflag.
+    apply_odata_format( EXPORTING i_mode           = is_request-mode
+                                  i_decimal_format = i_decimal_format
+                        CHANGING  cs_result        = rs_result ).
 
   ENDMETHOD.
 

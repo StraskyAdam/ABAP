@@ -100,9 +100,9 @@ CLASS zcl_fi_das_utility DEFINITION
       IMPORTING
         i_amount                TYPE t_amount_precision
         i_decimal_format        TYPE zcl_fi_das_dashboard=>t_decimal_format
-        i_decimals              TYPE i
-        i_use_grouping          TYPE abap_bool DEFAULT abap_false
-        i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_false
+        i_decimals              TYPE i DEFAULT 2
+        i_use_grouping          TYPE abap_bool DEFAULT abap_true
+        i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_true
       RETURNING
         VALUE(r_value)          TYPE string
       RAISING

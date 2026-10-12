@@ -92,10 +92,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_value_help_fields TYPE string
         VALUE `PONUMBER,ITEMNO,POLINEDESC,SUPPLIERID,SUPPLIERNAME`,
 
-      " PSTYPE orderby is a no-op: every request is single-pstype
-      " filtered and the AMDP order already includes pstype.
+      " PSTYPE DESC is the UI default sorter for Under/Exclude. It is
+      " handed over to the AMDP key selection instead of full processing.
       mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
 
+      mc_sort_pocreatedat  TYPE string VALUE `POCREATEDAT`,
       mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
       mc_sort_itemno       TYPE string VALUE `ITEMNO`.
 
@@ -181,8 +182,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_internal_request.
         INCLUDE TYPE zif_fi_das_dashboard=>ts_request.
       TYPES:
-        mode            TYPE zif_fi_das_dashboard=>t_mode,
-        filter_for_amdp TYPE ts_filter_for_amdp,
+        mode                 TYPE zif_fi_das_dashboard=>t_mode,
+        filter_for_amdp      TYPE ts_filter_for_amdp,
+        key_sort_pstype_desc TYPE abap_bool,
       END OF ts_internal_request,
 
       BEGIN OF ts_shared_fields,
@@ -294,8 +296,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key TYPE SORTED TABLE OF ts_key
-        WITH UNIQUE KEY ponumber itemno.
+      " Standard table keeps the sort order returned by the AMDP key selection
+      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
 
     TYPES:
       BEGIN OF ts_role,
@@ -513,6 +515,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error.
 
     METHODS get_default_orderby
+      IMPORTING
+        i_mode            TYPE zif_fi_das_dashboard=>t_mode
       RETURNING
         VALUE(rt_orderby) TYPE zif_fi_das_dashboard=>tt_orderby.
 
@@ -630,6 +634,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_ponumber_filter)   TYPE ts_internal_request-filter_for_amdp-ponumber
         VALUE(i_item_filter)       TYPE ts_internal_request-filter_for_amdp-item
         VALUE(i_supplier_filter)   TYPE ts_internal_request-filter_for_amdp-suppliername
+        VALUE(i_sort_pstype_desc)  TYPE ts_internal_request-key_sort_pstype_desc
         VALUE(it_japan_brazil)     TYPE tt_company_scope
         VALUE(it_company_codes)    TYPE tt_company_scope
         VALUE(it_cost_centers)     TYPE tt_cost_center_scope
@@ -1351,10 +1356,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     ENDLOOP.
 
-*   Use the default order as tie-breakers after the requested sort fields
+*   Append the scenario default order as missing tie-breakers after the requested sort fields
     IF lt_sort_order IS NOT INITIAL.
 
-      LOOP AT get_default_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_default_orderby>).
+      LOOP AT get_default_orderby( is_request-mode ) ASSIGNING FIELD-SYMBOL(<fs_default_orderby>).
 
         DATA(l_default_property) = to_upper( <fs_default_orderby>-property ).
 
@@ -2064,10 +2069,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             itemno   = @it_keys-itemno
         INTO TABLE @DATA(lt_base).
 
+      DATA lt_key_lookup TYPE HASHED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno.
+      lt_key_lookup = it_keys.
+
       LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
 
-        ASSIGN it_keys[ ponumber = <fs_base>-ponumber
-                        itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+        ASSIGN lt_key_lookup[ ponumber = <fs_base>-ponumber
+                              itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
 
         IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
           CONTINUE.
@@ -2353,7 +2361,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         base.companycode,
         base.pocurrency,
         base.netvalue,
-        base.suppliername
+        base.suppliername,
+        base.pocreatedat
 
       FROM zifidaspobase AS base
 
@@ -2438,7 +2447,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.poowner_email,
           candidate.companycode,
           candidate.pocurrency,
-          candidate.netvalue
+          candidate.netvalue,
+          candidate.pocreatedat
         FROM :lt_base_candidates AS candidate;
 
     ELSE
@@ -2451,7 +2461,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.poowner_email,
           candidate.companycode,
           candidate.pocurrency,
-          candidate.netvalue
+          candidate.netvalue,
+          candidate.pocreatedat
         FROM :lt_base_candidates AS candidate
         LEFT OUTER JOIN ekkn AS account
           ON  account.ebeln = candidate.ponumber
@@ -2554,7 +2565,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.pocreatedat
         FROM :lt_scoped_candidates AS candidate;
     ELSE
       lt_po_totals =
@@ -2601,7 +2613,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.pocreatedat
         FROM :lt_scoped_candidates AS candidate
         INNER JOIN :lt_po_threshold AS threshold
           ON  threshold.ponumber = candidate.ponumber
@@ -2626,7 +2639,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.pocreatedat
         FROM :lt_threshold_classified AS candidate
         WHERE EXISTS
         (
@@ -2643,7 +2657,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.ponumber,
           candidate.itemno,
           candidate.pstype,
-          candidate.poowner_email
+          candidate.poowner_email,
+          candidate.pocreatedat
         FROM :lt_threshold_classified AS candidate
         WHERE NOT EXISTS
         (
@@ -2661,7 +2676,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
-        candidate.poowner_email
+        candidate.poowner_email,
+        candidate.pocreatedat
       FROM :lt_exclusion_applied AS candidate;
 
     IF :i_item_filter <> lc_empty_string THEN
@@ -2685,7 +2701,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         ROW_NUMBER() OVER
         (
           ORDER BY
-            candidate.pstype DESC,
+            CASE
+              WHEN :i_sort_pstype_desc = :lc_true
+                THEN candidate.pstype
+              ELSE :lc_empty_string
+            END DESC,
+            CASE
+              WHEN :i_mode = :lc_mode_over
+                THEN :lc_initial_date
+              ELSE candidate.pocreatedat
+            END ASC,
             candidate.ponumber ASC,
             candidate.itemno ASC
         ) AS row_number_value
@@ -2944,6 +2969,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_ponumber_filter   = is_request-filter_for_amdp-ponumber
         i_item_filter       = is_request-filter_for_amdp-item
         i_supplier_filter   = is_request-filter_for_amdp-suppliername
+        i_sort_pstype_desc  = is_request-key_sort_pstype_desc
         i_threshold_usd     = get_threshold( )
         it_japan_brazil     = get_japan_brazil( )
         it_company_codes    = lt_company_codes
@@ -3294,18 +3320,28 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD remove_default_sorting.
 
-*   Skip sorting when the requested order matches the AMDP default
-    DATA(lt_default_orderby) = get_default_orderby( ).
+*   The UI default sorter PSTYPE DESC for Under/Exclude is served by the
+*   AMDP key selection, so it does not trigger generic full processing
+    CLEAR cs_request-key_sort_pstype_desc.
 
-    LOOP AT cs_request-orderby ASSIGNING FIELD-SYMBOL(<fs_orderby>).
+    IF cs_request-mode <> zif_fi_das_dashboard=>mc_under AND
+       cs_request-mode <> zif_fi_das_dashboard=>mc_exclude.
+      RETURN.
+    ENDIF.
 
-      IF sy-tabix > lines( lt_default_orderby ) OR <fs_orderby> <> lt_default_orderby[ sy-tabix ].
-        RETURN.
-      ENDIF.
+    IF lines( cs_request-orderby ) <> 1.
+      RETURN.
+    ENDIF.
 
-    ENDLOOP.
+    DATA(ls_orderby) = cs_request-orderby[ 1 ].
 
-    CLEAR cs_request-orderby.
+    IF to_upper( ls_orderby-property ) = mc_orderby_pstype AND
+       ls_orderby-descending = abap_true.
+
+      cs_request-key_sort_pstype_desc = abap_true.
+      CLEAR cs_request-orderby.
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -3372,10 +3408,22 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_default_orderby.
 
-    rt_orderby = VALUE #(
-      ( property = mc_orderby_pstype descending = abap_true  )
-      ( property = mc_sort_ponumber  descending = abap_false )
-      ( property = mc_sort_itemno    descending = abap_false ) ).
+*   Scenario order followed by PONUMBER/ITEMNO as stable tie-breakers
+    IF i_mode = zif_fi_das_dashboard=>mc_under OR
+       i_mode = zif_fi_das_dashboard=>mc_exclude.
+
+      rt_orderby = VALUE #(
+        ( property = mc_sort_pocreatedat descending = abap_false )
+        ( property = mc_sort_ponumber    descending = abap_false )
+        ( property = mc_sort_itemno      descending = abap_false ) ).
+
+    ELSE.
+
+      rt_orderby = VALUE #(
+        ( property = mc_sort_ponumber descending = abap_false )
+        ( property = mc_sort_itemno   descending = abap_false ) ).
+
+    ENDIF.
 
   ENDMETHOD.
 

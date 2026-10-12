@@ -57,9 +57,9 @@ CLASS zcl_fi_das_utility DEFINITION
 
     CLASS-METHODS is_current_utc_day
       IMPORTING
-        i_timestamp     TYPE timestampl
+        i_timestamp         TYPE timestampl
       RETURNING
-        VALUE(r_result) TYPE abap_bool.
+        VALUE(r_is_current) TYPE abap_bool.
 
 
 
@@ -95,11 +95,12 @@ CLASS zcl_fi_das_utility DEFINITION
         i_to            TYPE d
       RETURNING
         VALUE(r_months) TYPE i.
+
     CLASS-METHODS format_odata_amount
       IMPORTING
         i_amount                TYPE t_amount_precision
-        i_decimals              TYPE i
         i_decimal_format        TYPE zcl_fi_das_dashboard=>t_decimal_format
+        i_decimals              TYPE i
         i_use_grouping          TYPE abap_bool DEFAULT abap_false
         i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -133,7 +134,7 @@ CLASS zcl_fi_das_utility DEFINITION
         i_integer            TYPE string
         i_grouping_separator TYPE char1
       RETURNING
-        VALUE(rv_integer)    TYPE string.
+        VALUE(r_integer)     TYPE string.
 
 
     CONSTANTS:
@@ -142,21 +143,39 @@ CLASS zcl_fi_das_utility DEFINITION
       mc_max_decimals  TYPE i VALUE 14.
 
     CONSTANTS:
-      mc_first_day_of_month TYPE d VALUE '01',
+      mc_first_day_of_month TYPE c LENGTH 2 VALUE '01',
       mc_month_roll_days    TYPE i VALUE 32.
 
     CONSTANTS:
       mc_percentage_pattern TYPE string VALUE '^[+-]?[0-9]+([.][0-9]+)?$',
       mc_dot                TYPE c LENGTH 1 VALUE '.',
       mc_comma              TYPE c LENGTH 1 VALUE ','.
+    CONSTANTS mc_timezone_cet TYPE ttzz-tzone VALUE 'CET'.
 
+    CONSTANTS mc_timezone_utc TYPE ttzz-tzone VALUE 'UTC'.
+
+    CONSTANTS:
+      mc_zero               TYPE i VALUE 0,
+      mc_padding_length     TYPE i VALUE 2,
+      mc_single_digit_limit TYPE i VALUE 10,
+
+      mc_zero_character     TYPE c LENGTH 1 VALUE '0'.
+
+
+    CONSTANTS:
+
+
+      mc_min_odata_decimals TYPE i VALUE 0,
+      mc_max_odata_decimals TYPE i VALUE 8,
+      mc_group_size         TYPE i VALUE 3,
+      mc_plus_sign          TYPE c LENGTH 1 VALUE '+',
+      mc_minus_sign         TYPE c LENGTH 1 VALUE '-'.
 
 ENDCLASS.
 
 
 
 CLASS zcl_fi_das_utility IMPLEMENTATION.
-
 
   METHOD alpha_output.
 
@@ -169,15 +188,14 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    SHIFT l_value LEFT DELETING LEADING '0'.
+    SHIFT l_value LEFT DELETING LEADING mc_zero_character.
 
     r_value = COND #(
       WHEN l_value IS INITIAL
-      THEN '0'
+      THEN mc_zero_character
       ELSE l_value ).
 
   ENDMETHOD.
-
 
   METHOD append_delimited.
 
@@ -203,195 +221,215 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD format_odata_amount.
-    DATA:
-      ls_parts        TYPE ts_number_parts,
-      lv_decimal_sep  TYPE char1,
-      lv_grouping_sep TYPE char1.
 
-    CLEAR r_value.
-    IF i_decimals < 0 OR i_decimals > 8.
+    IF i_decimals < mc_min_odata_decimals OR i_decimals > mc_max_odata_decimals.
+
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason = |Unsupported OData decimal count: { i_decimals }|.
+         MESSAGE e018(zfi_das) WITH i_decimals.
+
     ENDIF.
 
-    ls_parts = get_number_parts(
-      i_amount   = i_amount
-      i_decimals = i_decimals ).
+    DATA(l_parts) = get_number_parts( i_amount   = i_amount
+                                      i_decimals = i_decimals ).
 
-    IF i_pad_nonzero_below_ten = abap_true
-       AND i_amount <> 0
-       AND i_amount > -10
-       AND i_amount < 10.
-      WHILE strlen( ls_parts-integer ) < 2.
-        ls_parts-integer = '0' && ls_parts-integer.
+    IF i_pad_nonzero_below_ten = abap_true AND i_amount <> mc_zero AND i_amount > - mc_single_digit_limit AND i_amount < mc_single_digit_limit.
+
+      WHILE strlen( l_parts-integer ) < mc_padding_length.
+        l_parts-integer = mc_zero_character && l_parts-integer.
       ENDWHILE.
+
     ENDIF.
 
     get_number_separators(
       EXPORTING
         i_decimal_format     = i_decimal_format
       IMPORTING
-        e_decimal_separator  = lv_decimal_sep
-        e_grouping_separator = lv_grouping_sep ).
+        e_decimal_separator  = DATA(l_decimal_separator)
+        e_grouping_separator = DATA(l_grouping_separator) ).
 
     IF i_use_grouping = abap_true.
-      ls_parts-integer = group_integer(
-        i_integer             = ls_parts-integer
-        i_grouping_separator = lv_grouping_sep ).
+
+      l_parts-integer = group_integer( i_integer            = l_parts-integer
+                                       i_grouping_separator = l_grouping_separator ).
+
     ENDIF.
 
-    r_value = ls_parts-sign && ls_parts-integer.
+    r_value = l_parts-sign && l_parts-integer.
+
     IF i_decimals > 0.
-      r_value = r_value && lv_decimal_sep && ls_parts-fraction.
+
+      r_value = r_value && l_decimal_separator && l_parts-fraction.
+
     ENDIF.
+
   ENDMETHOD.
 
-
   METHOD get_number_parts.
-    DATA:
-      lv_write_text       TYPE c LENGTH 100,
-      lv_normalized       TYPE string,
-      lv_decimal_position TYPE i,
-      lv_position         TYPE i,
-      lv_fraction_length  TYPE i,
-      lv_character        TYPE char1.
 
-    WRITE i_amount TO lv_write_text
+    DATA l_write_text TYPE c LENGTH 100.
+
+    WRITE i_amount TO l_write_text
       DECIMALS i_decimals
       NO-GROUPING.
 
-    lv_normalized = lv_write_text.
-    CONDENSE lv_normalized NO-GAPS.
-    IF lv_normalized IS INITIAL.
-      lv_normalized = '0'.
-    ENDIF.
-    REPLACE ALL OCCURRENCES OF ',' IN lv_normalized WITH '.'.
+    DATA(l_normalized) = CONV string( l_write_text ).
 
-    lv_character = substring( val = lv_normalized off = 0 len = 1 ).
-    IF lv_character = '-'.
-      rs_parts-sign = '-'.
-      lv_normalized = substring( val = lv_normalized off = 1 ).
-    ELSEIF lv_character = '+'.
-      lv_normalized = substring( val = lv_normalized off = 1 ).
+    CONDENSE l_normalized NO-GAPS.
+
+    IF l_normalized IS INITIAL.
+      l_normalized = mc_zero_character.
     ENDIF.
 
-    FIND FIRST OCCURRENCE OF '.'
-      IN lv_normalized
-      MATCH OFFSET lv_decimal_position.
+    REPLACE ALL OCCURRENCES OF mc_comma IN l_normalized WITH mc_dot.
+
+*   WRITE can place the minus sign after the number
+    DATA(l_last_position) = strlen( l_normalized ) - 1.
+
+    IF substring( val = l_normalized
+                  off = l_last_position
+                  len = 1 ) = mc_minus_sign.
+
+      rs_parts-sign = mc_minus_sign.
+
+      l_normalized = substring( val = l_normalized
+                                off = 0
+                                len = l_last_position ).
+    ENDIF.
+
+    DATA(l_character) = substring( val = l_normalized
+                                   off = 0
+                                   len = 1 ).
+
+    IF l_character = mc_minus_sign.
+
+      IF rs_parts-sign IS INITIAL.
+        rs_parts-sign = mc_minus_sign.
+      ENDIF.
+
+      l_normalized = substring( val = l_normalized
+                                off = 1 ).
+
+    ELSEIF l_character = mc_plus_sign.
+
+      l_normalized = substring( val = l_normalized
+                                off = 1 ).
+
+    ENDIF.
+
+    FIND FIRST OCCURRENCE OF mc_dot IN l_normalized MATCH OFFSET DATA(l_decimal_position).
+
     IF sy-subrc = 0.
-      IF lv_decimal_position > 0.
-        rs_parts-integer = substring(
-          val = lv_normalized
-          off = 0
-          len = lv_decimal_position ).
+
+      IF l_decimal_position > mc_zero.
+
+        rs_parts-integer = substring( val = l_normalized
+                                      off = mc_zero
+                                      len = l_decimal_position ).
       ENDIF.
-      lv_position = lv_decimal_position + 1.
-      IF lv_position < strlen( lv_normalized ).
-        rs_parts-fraction = substring(
-          val = lv_normalized
-          off = lv_position ).
+
+      DATA(l_position) = l_decimal_position + 1.
+
+      IF l_position < strlen( l_normalized ).
+
+        rs_parts-fraction = substring( val = l_normalized
+                                       off = l_position ).
       ENDIF.
+
     ELSE.
-      rs_parts-integer = lv_normalized.
+      rs_parts-integer = l_normalized.
     ENDIF.
 
     IF rs_parts-integer IS INITIAL.
-      rs_parts-integer = '0'.
+      rs_parts-integer = mc_zero_character.
     ENDIF.
 
-    lv_fraction_length = strlen( rs_parts-fraction ).
-    IF lv_fraction_length > i_decimals.
-      rs_parts-fraction = substring(
-        val = rs_parts-fraction
-        off = 0
-        len = i_decimals ).
-    ELSEIF lv_fraction_length < i_decimals.
-      rs_parts-fraction =
-        rs_parts-fraction
-        && repeat(
-             val = '0'
-             occ = i_decimals - lv_fraction_length ).
+    DATA(l_fraction_length) = strlen( rs_parts-fraction ).
+
+    IF l_fraction_length > i_decimals.
+
+      rs_parts-fraction = substring( val = rs_parts-fraction
+                                     off = mc_zero
+                                     len = i_decimals ).
+
+    ELSEIF l_fraction_length < i_decimals.
+
+      rs_parts-fraction = rs_parts-fraction && repeat( val = mc_zero_character
+                                                       occ = i_decimals - l_fraction_length ).
+
     ENDIF.
+
   ENDMETHOD.
-
 
   METHOD get_number_separators.
 
     CASE i_decimal_format.
+
       WHEN mc_decimal_dot.
-        e_decimal_separator = '.'.
-        e_grouping_separator = ','.
+        e_decimal_separator  = mc_dot.
+        e_grouping_separator = mc_comma.
+
       WHEN mc_decimal_space.
-        e_decimal_separator = ','.
+        e_decimal_separator  = mc_comma.
         e_grouping_separator = space.
-      WHEN OTHERS.
-        e_decimal_separator = ','.
-        e_grouping_separator = '.'.
+
+      WHEN space.
+        e_decimal_separator  = mc_comma.
+        e_grouping_separator = mc_dot.
+
     ENDCASE.
 
   ENDMETHOD.
 
-
   METHOD group_integer.
 
-    DATA(lv_length) = strlen( i_integer ).
-    DATA(lv_first_group) = lv_length MOD 3.
+    DATA(l_length) = strlen( i_integer ).
 
-    IF lv_first_group = 0.
-      lv_first_group = 3.
+    DATA(l_first_group) = l_length MOD mc_group_size.
+
+    IF l_first_group = 0.
+      l_first_group = mc_group_size.
     ENDIF.
 
-    rv_integer = substring(
-      val = i_integer
-      off = 0
-      len = lv_first_group ).
+    r_integer = substring( val = i_integer
+                           off = 0
+                           len = l_first_group ).
 
-    DATA(lv_position) = lv_first_group.
+    DATA(l_position) = l_first_group.
 
-    WHILE lv_position < lv_length.
-      rv_integer =
-          rv_integer
-        && i_grouping_separator
-        && substring(
-             val = i_integer
-             off = lv_position
-             len = 3 ).
-      lv_position = lv_position + 3.
+    WHILE l_position < l_length.
+
+      DATA(l_group) = substring( val = i_integer
+                                 off = l_position
+                                 len = mc_group_size ).
+
+      r_integer = |{ r_integer }{ i_grouping_separator }{ l_group }|.
+
+      l_position = l_position + mc_group_size.
+
     ENDWHILE.
 
   ENDMETHOD.
 
-
   METHOD is_current_utc_day.
-
-    DATA:
-      lv_now        TYPE timestampl,
-      lv_now_date   TYPE d,
-      lv_now_time   TYPE t,
-      lv_value_date TYPE d,
-      lv_value_time TYPE t.
 
     IF i_timestamp IS INITIAL.
       RETURN.
     ENDIF.
 
-    GET TIME STAMP FIELD lv_now.
+    GET TIME STAMP FIELD DATA(l_now).
 
-    CONVERT TIME STAMP lv_now
-      TIME ZONE 'UTC'
-      INTO DATE lv_now_date
-           TIME lv_now_time.
+    CONVERT TIME STAMP l_now
+      TIME ZONE mc_timezone_utc
+      INTO DATE DATA(l_current_date)
+           TIME DATA(l_current_time).
 
     CONVERT TIME STAMP i_timestamp
-      TIME ZONE 'UTC'
-      INTO DATE lv_value_date
-           TIME lv_value_time.
+      TIME ZONE mc_timezone_utc
+      INTO DATE DATA(l_timestamp_date)
+           TIME DATA(l_timestamp_time).
 
-    r_result =
-      xsdbool( lv_value_date = lv_now_date ).
+    r_is_current = xsdbool( l_timestamp_date = l_current_date ).
 
   ENDMETHOD.
 
@@ -520,43 +558,23 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
 
   METHOD utc_to_cet_timestamp.
 
-    DATA:
-      lv_utc_whole  TYPE timestampl,
-      lv_fraction   TYPE decfloat34,
-      lv_local_date TYPE d,
-      lv_local_time TYPE t.
-
     IF i_timestamp IS INITIAL.
       RETURN.
     ENDIF.
 
-*--------------------------------------------------------------------*
-* Do not assign the long timestamp to TYPE timestamp: that conversion
-* rounds its fractional seconds. Derive the integer UTC portion by
-* truncation, then retain the original fraction separately.
-*--------------------------------------------------------------------*
-    lv_utc_whole =
-      CONV timestampl(
-        trunc(
-          CONV decfloat34(
-            i_timestamp ) ) ).
+*   Separate whole seconds without rounding the input
+    DATA(l_utc_whole) = CONV timestampl( trunc( CONV decfloat34( i_timestamp ) ) ).
 
-    lv_fraction =
-        CONV decfloat34(
-          i_timestamp )
-      - CONV decfloat34(
-          lv_utc_whole ).
+    DATA(l_fraction) = CONV decfloat34( i_timestamp ) - CONV decfloat34( l_utc_whole ).
 
-    CONVERT TIME STAMP lv_utc_whole
-      TIME ZONE 'CET'
-      INTO DATE lv_local_date
-           TIME lv_local_time.
+*   UTC -> local civil time using SAP CET time zone rules
+    CONVERT TIME STAMP l_utc_whole TIME ZONE mc_timezone_cet
+      INTO DATE DATA(l_local_date)
+           TIME DATA(l_local_time).
 
-    r_timestamp =
-      CONV timestampl(
-        |{ lv_local_date }{ lv_local_time }| )
-      + CONV timestampl(
-          lv_fraction ).
+*   Preserve the original seven fractional digits
+    r_timestamp =  CONV timestampl(  |{ l_local_date DATE = RAW }{ l_local_time TIME = RAW }| ) + CONV timestampl( l_fraction ).
 
   ENDMETHOD.
+
 ENDCLASS.

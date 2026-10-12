@@ -1424,13 +1424,18 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   METHOD pstype_sort_noop_for_over.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode    = zif_fi_das_dashboard=>mc_under
       orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-orderby
-      msg = 'The requested PSTYPE-descending order matches the AMDP default prefix' ).
+      msg = 'The UI default PSTYPE-descending order is moved to the AMDP key selection' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = ls_request-key_sort_pstype_desc
+      msg = 'PSTYPE-descending is flagged for the AMDP key selection' ).
 
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )

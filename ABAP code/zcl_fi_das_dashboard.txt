@@ -3320,28 +3320,46 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD remove_default_sorting.
 
-*   The UI default sorter PSTYPE DESC for Under/Exclude is served by the
-*   AMDP key selection, so it does not trigger generic full processing
+*   Skip sorting when the requested order is a prefix of the AMDP order.
+*   For Under/Exclude the AMDP can additionally lead with PSTYPE DESC.
+    DATA l_sort_pstype_desc TYPE abap_bool.
+
     CLEAR cs_request-key_sort_pstype_desc.
 
-    IF cs_request-mode <> zif_fi_das_dashboard=>mc_under AND
-       cs_request-mode <> zif_fi_das_dashboard=>mc_exclude.
+    DATA(lt_default_orderby) = get_default_orderby( cs_request-mode ).
+
+    IF ( cs_request-mode = zif_fi_das_dashboard=>mc_under OR
+         cs_request-mode = zif_fi_das_dashboard=>mc_exclude ) AND
+       cs_request-orderby IS NOT INITIAL AND
+       to_upper( cs_request-orderby[ 1 ]-property ) = mc_orderby_pstype AND
+       cs_request-orderby[ 1 ]-descending = abap_true.
+
+      INSERT VALUE #( property   = mc_orderby_pstype
+                      descending = abap_true ) INTO lt_default_orderby INDEX 1.
+
+      l_sort_pstype_desc = abap_true.
+
+    ENDIF.
+
+    IF lines( cs_request-orderby ) > lines( lt_default_orderby ).
       RETURN.
     ENDIF.
 
-    IF lines( cs_request-orderby ) <> 1.
-      RETURN.
-    ENDIF.
+    LOOP AT cs_request-orderby INTO DATA(ls_orderby).
 
-    DATA(ls_orderby) = cs_request-orderby[ 1 ].
+      DATA(l_index) = sy-tabix.
 
-    IF to_upper( ls_orderby-property ) = mc_orderby_pstype AND
-       ls_orderby-descending = abap_true.
+      ls_orderby-property = to_upper( ls_orderby-property ).
 
-      cs_request-key_sort_pstype_desc = abap_true.
-      CLEAR cs_request-orderby.
+      IF ls_orderby <> lt_default_orderby[ l_index ].
+        RETURN.
+      ENDIF.
 
-    ENDIF.
+    ENDLOOP.
+
+    cs_request-key_sort_pstype_desc = l_sort_pstype_desc.
+
+    CLEAR cs_request-orderby.
 
   ENDMETHOD.
 

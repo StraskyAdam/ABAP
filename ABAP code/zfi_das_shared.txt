@@ -47,7 +47,7 @@ define type zfi_das_shared {
   invvalue_usd      : abap.dec(13,2);
   grvalue           : abap.dec(13,2);
   grvalue_usd       : abap.dec(13,2);
-  zactivitynbr      : abap.char(200);
+  zactivitynbr      : zactivitynbr;
   distpercentage    : abap.char(5000);
 
 }

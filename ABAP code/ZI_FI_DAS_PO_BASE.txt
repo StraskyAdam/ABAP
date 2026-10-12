@@ -27,8 +27,8 @@ define view ZI_FI_DAS_PO_BASE
   key ekpo.ebelp        as ItemNo,
 
       ekpo.pstyp        as PsType,
-      ekpo.zstart_date  as WorkStartDateRaw,
-      ekpo.zend_date    as WorkEndDateRaw,
+      ekpo.zstart_date  as WrkStrtDate,
+      ekpo.zend_date    as WrkEndDate,
       ekpo.bukrs        as ItemCompanyCode,
 
       @Semantics.amount.currencyCode: 'PoCurrency'
@@ -52,8 +52,8 @@ define view ZI_FI_DAS_PO_BASE
       ekpo.po_preparer  as PoPreparer,
       ekpo.zserv_amt    as ServiceAmount,
       ekpo.zserv_perc   as ServicePercentage,
-      ekpo.txz01        as PoLineDescription,
-      ekpo.zactivitynbr as ActivityNumber,
+      ekpo.txz01        as PoLineDesc,
+      ekpo.zactivitynbr,
 
       ekko.bukrs        as CompanyCode,
 
@@ -71,7 +71,7 @@ define view ZI_FI_DAS_PO_BASE
       t001.land1        as Region,
 
       @Semantics.currencyCode: true
-      t001.waers        as CompanyCodeCurrency
+      t001.waers        as CocDeCurr
 }
 where ekko.bsart       = 'ZARP'
   and ekko.reason_code = ''

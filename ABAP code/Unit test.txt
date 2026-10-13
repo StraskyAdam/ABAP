@@ -28,11 +28,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
         poowner               TYPE zif_fi_das_dashboard=>t_poowner,
         flow                  TYPE zif_fi_das_dashboard=>t_mode,
         pstype                TYPE zif_fi_das_dashboard=>t_pstype,
-*        ponumber      TYPE zif_fi_das_dashboard=>tr_ponumber,
-*        itemno        TYPE zif_fi_das_dashboard=>tr_itemno,
-*        po_contains   TYPE zif_fi_das_dashboard=>tt_po_contains,
-*        item_contains TYPE zif_fi_das_dashboard=>tt_item_contains,
-*        supplier      TYPE zif_fi_das_dashboard=>tt_supplier_contains,
         filter_select_options TYPE zif_fi_das_dashboard=>tt_filter_select_options,
         filter_raw            TYPE string,
         orderby               TYPE string,
@@ -720,9 +715,9 @@ CLASS ltc_request_processing DEFINITION FINAL
     " Unresolved: APPLY_FILTER does not ignore unknown properties.
     METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
     METHODS package_mapping_preserves_ord FOR TESTING RAISING cx_static_check.
-     METHODS empty_package_is_ignored FOR TESTING RAISING cx_static_check.
-     METHODS multiple_packages_keep_ord FOR TESTING RAISING cx_static_check.
-     METHODS filter_sort_and_page_across FOR TESTING RAISING cx_static_check.
+    METHODS empty_package_is_ignored FOR TESTING RAISING cx_static_check.
+    METHODS multiple_packages_keep_ord FOR TESTING RAISING cx_static_check.
+    METHODS filter_sort_and_page_across FOR TESTING RAISING cx_static_check.
 
 
     " AMDP-supported sort prefixes
@@ -1408,199 +1403,199 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
- METHOD package_mapping_preserves_ord.
+  METHOD package_mapping_preserves_ord.
 
-  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
-  DATA lt_result  TYPE tt_projected_result.
+    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA lt_result  TYPE tt_projected_result.
 
-  lt_package = VALUE #(
-    ( ponumber = '8000000003' itemno = '00001' suppliername = 'Charlie' pocurrency = 'USD' )
-    ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo'   pocurrency = 'JPY' ) ).
+    lt_package = VALUE #(
+      ( ponumber = '8000000003' itemno = '00001' suppliername = 'Charlie' pocurrency = 'USD' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo'   pocurrency = 'JPY' ) ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
-  cl_abap_unit_assert=>assert_initial( lt_package ).
+    cl_abap_unit_assert=>assert_initial( lt_package ).
 
-  lt_package = VALUE #(
-    ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' pocurrency = 'EUR' ) ).
+    lt_package = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' pocurrency = 'EUR' ) ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lines( lt_result )
-    exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 3 ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 1 ]-suppliername
-    exp = 'Charlie' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername
+      exp = 'Charlie' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 2 ]-suppliername
-    exp = 'Bravo' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-suppliername
+      exp = 'Bravo' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 3 ]-suppliername
-    exp = 'Alpha' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 3 ]-suppliername
+      exp = 'Alpha' ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
-METHOD empty_package_is_ignored.
+  METHOD empty_package_is_ignored.
 
-  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
-  DATA lt_result  TYPE tt_projected_result.
+    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA lt_result  TYPE tt_projected_result.
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
-  cl_abap_unit_assert=>assert_initial( lt_result ).
+    cl_abap_unit_assert=>assert_initial( lt_result ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
-METHOD multiple_packages_keep_ord.
+  METHOD multiple_packages_keep_ord.
 
-  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
-  DATA lt_result  TYPE tt_projected_result.
+    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA lt_result  TYPE tt_projected_result.
 
-  lt_package = VALUE #(
-    ( ponumber = '1' )
-    ( ponumber = '2' ) ).
+    lt_package = VALUE #(
+      ( ponumber = '1' )
+      ( ponumber = '2' ) ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
-  lt_package = VALUE #(
-    ( ponumber = '3' )
-    ( ponumber = '4' ) ).
+    lt_package = VALUE #(
+      ( ponumber = '3' )
+      ( ponumber = '4' ) ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 1 ]-ponumber
-    exp = '1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '1' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 2 ]-ponumber
-    exp = '2' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-ponumber
+      exp = '2' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 3 ]-ponumber
-    exp = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 3 ]-ponumber
+      exp = '3' ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 4 ]-ponumber
-    exp = '4' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 4 ]-ponumber
+      exp = '4' ).
 
-ENDMETHOD.
-METHOD filter_sort_and_page_across.
+  ENDMETHOD.
+  METHOD filter_sort_and_page_across.
 
-  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
-  DATA lt_result  TYPE tt_projected_result.
+    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA lt_result  TYPE tt_projected_result.
 
-  DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-    filter-filter_string = `POCURRENCY = 'JPY'`
-    orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
-    paging = VALUE #( skip = 1 top = 1 ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `POCURRENCY = 'JPY'`
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
+      paging = VALUE #( skip = 1 top = 1 ) ).
 
 *--------------------------------------------------------------------
 * package 1
 *--------------------------------------------------------------------
 
-  lt_package = VALUE #(
-    ( ponumber = '8000000001'
-      itemno = '00001'
-      suppliername = 'Zulu'
-      pocurrency = 'USD' ) ).
+    lt_package = VALUE #(
+      ( ponumber = '8000000001'
+        itemno = '00001'
+        suppliername = 'Zulu'
+        pocurrency = 'USD' ) ).
 
-  mo_cut->apply_generic_filter(
-    EXPORTING
-      is_request = ls_request
-    CHANGING
-      ct_result = lt_package ).
+    mo_cut->apply_generic_filter(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result = lt_package ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
 *--------------------------------------------------------------------
 * package 2
 *--------------------------------------------------------------------
 
-  lt_package = VALUE #(
-    ( ponumber = '8000000002'
-      itemno = '00001'
-      suppliername = 'Bravo'
-      pocurrency = 'JPY' )
+    lt_package = VALUE #(
+      ( ponumber = '8000000002'
+        itemno = '00001'
+        suppliername = 'Bravo'
+        pocurrency = 'JPY' )
 
-    ( ponumber = '8000000003'
-      itemno = '00001'
-      suppliername = 'Charlie'
-      pocurrency = 'JPY' )
+      ( ponumber = '8000000003'
+        itemno = '00001'
+        suppliername = 'Charlie'
+        pocurrency = 'JPY' )
 
-    ( ponumber = '8000000004'
-      itemno = '00001'
-      suppliername = 'Delta'
-      pocurrency = 'JPY' ) ).
+      ( ponumber = '8000000004'
+        itemno = '00001'
+        suppliername = 'Delta'
+        pocurrency = 'JPY' ) ).
 
-  mo_cut->apply_generic_filter(
-    EXPORTING
-      is_request = ls_request
-    CHANGING
-      ct_result = lt_package ).
+    mo_cut->apply_generic_filter(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result = lt_package ).
 
-  mo_cut->append_result_package(
-    CHANGING
-      ct_package = lt_package
-      ct_result  = lt_result ).
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
 
 *--------------------------------------------------------------------
 * global sort + paging
 *--------------------------------------------------------------------
 
-  DATA(l_total_count) = lines( lt_result ).
+    DATA(l_total_count) = lines( lt_result ).
 
-  mo_cut->apply_sort(
-    EXPORTING
-      is_request = ls_request
-    CHANGING
-      ct_result  = lt_result ).
+    mo_cut->apply_sort(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result  = lt_result ).
 
-  mo_cut->apply_paging(
-    EXPORTING
-      is_request = ls_request
-    CHANGING
-      ct_result  = lt_result ).
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result  = lt_result ).
 
 *--------------------------------------------------------------------
 * assertions
 *--------------------------------------------------------------------
 
-  cl_abap_unit_assert=>assert_equals(
-    act = l_total_count
-    exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = l_total_count
+      exp = 3 ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lines( lt_result )
-    exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
 
-  cl_abap_unit_assert=>assert_equals(
-    act = lt_result[ 1 ]-suppliername
-    exp = 'Charlie' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername
+      exp = 'Charlie' ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
 
   METHOD generic_eq_filters_rows.
@@ -4490,10 +4485,12 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     IF lv_status_code < 200 OR lv_status_code >= 300.
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
-                     && |URI={ i_resource_path }; Body={ rv_json }|.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH
+            |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
+            && |URI={ i_resource_path }; Body={ rv_json }|.
     ENDIF.
 
   ENDMETHOD.
@@ -4561,13 +4558,13 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_text     = i_json
       i_position = lv_start + 1 ).
 
-   TRY.
-    lv_end = read_json_value_end(
-      i_text  = i_json
-      i_start = lv_start ).
+    TRY.
+        lv_end = read_json_value_end(
+          i_text  = i_json
+          i_start = lv_start ).
       CATCH cx_root.
 
-      ENDTRY.
+    ENDTRY.
 
     lv_token = substring(
       val = i_json
@@ -4967,9 +4964,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
        OR lv_content IS INITIAL.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     |MIME fixture was not found: { mc_mime_root }{ i_fixture }|.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH
+            |MIME fixture was not found: { mc_mime_root }{ i_fixture }|.
 
     ENDIF.
 
@@ -5005,9 +5004,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     IF sy-subrc <> 0.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     'Fixture does not contain the OData results property'.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH 'Fixture does not contain the OData results property'.
 
     ENDIF.
 
@@ -5034,9 +5034,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     IF e_array_from >= lv_json_length.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     'Fixture results array start was not found'.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH 'Fixture results array start was not found'.
 
     ENDIF.
 
@@ -5061,8 +5062,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     IF i_index <= 0.
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason = 'Result row index must be greater than zero'.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH 'Result row index must be greater than zero'.
     ENDIF.
 
     find_results_array_bounds(
@@ -5101,9 +5104,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_found = i_index.
         IF lv_char <> '{'.
           RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING
-              i_reason =
-                         |Result row { i_index } is not a JSON object|.
+            MESSAGE ID 'ZFI_DAS'
+            TYPE 'E'
+            NUMBER '000'
+            WITH
+                |Result row { i_index } is not a JSON object|.
         ENDIF.
 
         e_object_from = lv_position.
@@ -5116,9 +5121,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ENDWHILE.
 
     RAISE EXCEPTION TYPE zcx_fi_das_error
-      EXPORTING
-        i_reason =
-                   |Result row { i_index } was not found in the Gateway response|.
+      MESSAGE ID 'ZFI_DAS'
+      TYPE 'E'
+      NUMBER '000'
+      WITH
+          |Result row { i_index } was not found in the Gateway response|.
 
   ENDMETHOD.
 
@@ -5174,9 +5181,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_char <> '{'.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       |Unexpected character in results array at offset { lv_position }|.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH
+              |Unexpected character in results array at offset { lv_position }|.
 
       ENDIF.
 
@@ -5193,9 +5202,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_object_to > lv_array_to.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       'JSON result object exceeds the results array'.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH 'JSON result object exceeds the results array'.
 
       ENDIF.
 
@@ -5216,9 +5226,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
          OR lv_itemno IS INITIAL.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       'JSON row does not contain PONUMBER and ITEMNO'.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH 'JSON row does not contain PONUMBER and ITEMNO'.
 
       ENDIF.
 
@@ -5300,9 +5311,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_char <> '"'.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       'Invalid JSON object property name'.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH 'Invalid JSON object property name'.
 
       ENDIF.
 
@@ -5331,9 +5343,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
          OR i_json+lv_position(1) <> ':'.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       |JSON property { lv_key } has no colon|.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH
+              |JSON property { lv_key } has no colon|.
 
       ENDIF.
 
@@ -5353,9 +5367,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_value_end > i_object_to + 1.
 
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason =
-                       |JSON property { lv_key } exceeds its object boundary|.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH
+              |JSON property { lv_key } exceeds its object boundary|.
 
       ENDIF.
 
@@ -5636,8 +5652,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
       IF lv_char <> '"'.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason = |Invalid JSON property at offset { lv_position }|.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH
+              |Invalid JSON property at offset { lv_position }|.
       ENDIF.
 
       lv_key_start = lv_position.
@@ -5658,8 +5677,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IF lv_position >= i_object_to
          OR i_json+lv_position(1) <> ':'.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            i_reason = |JSON property { lv_key } has no colon|.
+          MESSAGE ID 'ZFI_DAS'
+          TYPE 'E'
+          NUMBER '000'
+          WITH
+              |JSON property { lv_key } has no colon|.
       ENDIF.
 
       lv_value_start = skip_whitespace(
@@ -5684,8 +5706,11 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING
-              i_reason = |Duplicate JSON property { lv_key }|.
+            MESSAGE ID 'ZFI_DAS'
+            TYPE 'E'
+            NUMBER '000'
+            WITH
+                |Duplicate JSON property { lv_key }|.
         ENDIF.
       ENDIF.
 
@@ -6488,9 +6513,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
        OR i_text+i_start(1) <> '"'.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     'JSON string does not start with quote'.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH 'JSON string does not start with quote'.
 
     ENDIF.
 
@@ -6526,10 +6552,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ENDWHILE.
 
     RAISE EXCEPTION TYPE zcx_fi_das_error
-      EXPORTING
-        i_reason =
-                   'JSON string is not closed'.
-
+      MESSAGE ID 'ZFI_DAS'
+      TYPE 'E'
+      NUMBER '000'
+      WITH 'JSON string is not closed'.
   ENDMETHOD.
 
 
@@ -6548,9 +6574,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     IF i_start >= lv_length.
 
       RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_reason =
-                     'JSON value is missing'.
+        MESSAGE ID 'ZFI_DAS'
+        TYPE 'E'
+        NUMBER '000'
+        WITH 'JSON value is missing'.
 
     ENDIF.
 
@@ -6707,9 +6734,10 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     ENDWHILE.
 
     RAISE EXCEPTION TYPE zcx_fi_das_error
-      EXPORTING
-        i_reason =
-                   'JSON object or array is not closed'.
+      MESSAGE ID 'ZFI_DAS'
+      TYPE 'E'
+      NUMBER '000'
+      WITH 'JSON object or array is not closed'.
 
   ENDMETHOD.
 

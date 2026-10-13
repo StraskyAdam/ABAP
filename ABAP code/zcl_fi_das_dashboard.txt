@@ -97,7 +97,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
 
       mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
-      mc_sort_itemno       TYPE string VALUE `ITEMNO`.
+      mc_sort_itemno       TYPE string VALUE `ITEMNO`,
+      mc_result_package_size TYPE i VALUE 10000.
 
 
     CONSTANTS:
@@ -500,8 +501,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_request       TYPE ts_internal_request
       EXPORTING
         e_total_count    TYPE string
-      RETURNING
-        VALUE(rt_result) TYPE tt_odata_result
+      CHANGING
+        ct_result        TYPE STANDARD TABLE
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
@@ -772,7 +773,16 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_context TYPE ts_context
         is_request TYPE ts_internal_request
       CHANGING
-        ct_result  TYPE tt_odata_result
+        ct_result  TYPE STANDARD TABLE
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS append_result_package
+      IMPORTING
+        is_request TYPE ts_internal_request
+      CHANGING
+        ct_package TYPE tt_odata_result
+        ct_result  TYPE STANDARD TABLE
       RAISING
         zcx_fi_das_error.
 
@@ -1012,7 +1022,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         cx_amdp_error.
 
-    METHODS apply_sort_and_paging
+    METHODS apply_sort
+      IMPORTING
+        is_request TYPE ts_internal_request
+      CHANGING
+        ct_result  TYPE STANDARD TABLE.
+
+    METHODS apply_paging
       IMPORTING
         is_request TYPE ts_internal_request
       CHANGING
@@ -1096,40 +1112,46 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~exclude.
 
-    et_result = CORRESPONDING #(
-       execute_request(
-          EXPORTING
-             is_request = VALUE #( BASE CORRESPONDING #( is_request )
-                                   mode = zif_fi_das_dashboard=>mc_exclude )
-          IMPORTING
-             e_total_count   = e_total_count ) ).
+    execute_request(
+      EXPORTING
+        is_request = VALUE #( BASE CORRESPONDING #( is_request )
+                              mode = zif_fi_das_dashboard=>mc_exclude )
+      IMPORTING
+        e_total_count = e_total_count
+      CHANGING
+        ct_result = et_result ).
 
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~over.
 
-    et_result = CORRESPONDING #(
-        execute_request( EXPORTING
-             is_request = VALUE #( BASE CORRESPONDING #( is_request )
-                                   mode = zif_fi_das_dashboard=>mc_over )
-          IMPORTING
-             e_total_count   = e_total_count ) ).
+    execute_request(
+      EXPORTING
+        is_request = VALUE #( BASE CORRESPONDING #( is_request )
+                              mode = zif_fi_das_dashboard=>mc_over )
+      IMPORTING
+        e_total_count = e_total_count
+      CHANGING
+        ct_result = et_result ).
 
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~under.
 
-    et_result = CORRESPONDING #(
-       execute_request(
-          EXPORTING
-             is_request = VALUE #( BASE CORRESPONDING #( is_request )
-                                   mode = zif_fi_das_dashboard=>mc_under )
-          IMPORTING
-             e_total_count   = e_total_count ) ).
+    execute_request(
+      EXPORTING
+        is_request = VALUE #( BASE CORRESPONDING #( is_request )
+                              mode = zif_fi_das_dashboard=>mc_under )
+      IMPORTING
+        e_total_count = e_total_count
+      CHANGING
+        ct_result = et_result ).
 
   ENDMETHOD.
 
   METHOD execute_request.
+
+    CLEAR ct_result.
 
     validate_request( is_request ).
 
@@ -1151,21 +1173,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           is_context = get_context( it_keys    = lt_keys
                                     is_request = ls_request )
         CHANGING
-          ct_result  = rt_result ).
+          ct_result  = ct_result ).
 
       IF is_full_processing_required( ls_request ).
 
-        apply_generic_filter( EXPORTING is_request = ls_request
-                              CHANGING  ct_result  = rt_result ).
-
 *       Set the filtered total before paging is applied
-        l_total_count = lines( rt_result ).
+        l_total_count = lines( ct_result ).
 
 *       Restore the original paging parameters
         ls_request-paging = is_request-paging.
 
-        apply_sort_and_paging( EXPORTING is_request = ls_request
-                               CHANGING  ct_result  = rt_result ).
+        apply_sort( EXPORTING is_request = ls_request
+                    CHANGING  ct_result  = ct_result ).
+
+        apply_paging( EXPORTING is_request = ls_request
+                      CHANGING  ct_result  = ct_result ).
       ENDIF.
 
     ENDIF.
@@ -1322,7 +1344,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD apply_sort_and_paging.
+  METHOD apply_sort.
 
     DATA lt_sort_order TYPE abap_sortorder_tab.
 
@@ -1375,6 +1397,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       SORT ct_result BY (lt_sort_order).
 
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD apply_paging.
+
+    IF ct_result IS INITIAL.
+      RETURN.
     ENDIF.
 
     DATA(l_skip) = is_request-paging-skip.
@@ -2968,6 +2998,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   METHOD get_results.
 
     DATA(l_decimal_format) = get_decimal_format( is_request-parameter-email ).
+    DATA lt_package TYPE tt_odata_result.
 
     LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
 
@@ -2977,10 +3008,44 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                               i_decimal_format = l_decimal_format  ).
 
       IF ls_row IS NOT INITIAL.
-        INSERT ls_row INTO TABLE ct_result.
+        APPEND ls_row TO lt_package.
       ENDIF.
 
+      IF lines( lt_package ) >= mc_result_package_size.
+        append_result_package(
+          EXPORTING
+            is_request = is_request
+          CHANGING
+            ct_package = lt_package
+            ct_result  = ct_result ).
+      ENDIF.
     ENDLOOP.
+
+    IF lt_package IS NOT INITIAL.
+      append_result_package(
+        EXPORTING
+          is_request = is_request
+        CHANGING
+          ct_package = lt_package
+          ct_result  = ct_result ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD append_result_package.
+
+    apply_generic_filter(
+      EXPORTING
+        is_request = is_request
+      CHANGING
+        ct_result  = ct_package ).
+
+    LOOP AT ct_package ASSIGNING FIELD-SYMBOL(<fs_package_row>).
+      APPEND INITIAL LINE TO ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      MOVE-CORRESPONDING <fs_package_row> TO <fs_result>.
+    ENDLOOP.
+
+    CLEAR ct_package.
 
   ENDMETHOD.
 

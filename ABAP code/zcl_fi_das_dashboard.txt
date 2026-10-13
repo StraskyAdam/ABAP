@@ -92,8 +92,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_value_help_fields TYPE string
         VALUE `PONUMBER,ITEMNO,POLINEDESC,SUPPLIERID,SUPPLIERNAME`,
 
-      " PSTYPE orderby is a no-op: every request is single-pstype
-      " filtered and the AMDP order already includes pstype.
+      " PSTYPE DESC is the UI default sorter for Under/Exclude. It is
+      " handed over to the AMDP key selection instead of full processing.
       mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
 
       mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
@@ -181,8 +181,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_internal_request.
         INCLUDE TYPE zif_fi_das_dashboard=>ts_request.
       TYPES:
-        mode            TYPE zif_fi_das_dashboard=>t_mode,
-        filter_for_amdp TYPE ts_filter_for_amdp,
+        mode                 TYPE zif_fi_das_dashboard=>t_mode,
+        filter_for_amdp      TYPE ts_filter_for_amdp,
+        pstype_desc_requested TYPE abap_bool,
       END OF ts_internal_request,
 
       BEGIN OF ts_shared_fields,
@@ -294,8 +295,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key TYPE SORTED TABLE OF ts_key
-        WITH UNIQUE KEY ponumber itemno.
+      " Standard table keeps the sort order returned by the AMDP key selection
+      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
 
     TYPES:
       BEGIN OF ts_role,
@@ -630,6 +631,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_ponumber_filter)   TYPE ts_internal_request-filter_for_amdp-ponumber
         VALUE(i_item_filter)       TYPE ts_internal_request-filter_for_amdp-item
         VALUE(i_supplier_filter)   TYPE ts_internal_request-filter_for_amdp-suppliername
+        VALUE(i_pstype_desc_requested)  TYPE ts_internal_request-pstype_desc_requested
         VALUE(it_japan_brazil)     TYPE tt_company_scope
         VALUE(it_company_codes)    TYPE tt_company_scope
         VALUE(it_cost_centers)     TYPE tt_cost_center_scope
@@ -1351,7 +1353,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     ENDLOOP.
 
-*   Use the default order as tie-breakers after the requested sort fields
+*   Append missing stable tie-breakers after the requested sort fields
     IF lt_sort_order IS NOT INITIAL.
 
       LOOP AT get_default_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_default_orderby>).
@@ -2064,10 +2066,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             itemno   = @it_keys-itemno
         INTO TABLE @DATA(lt_base).
 
+      DATA lt_key_lookup TYPE HASHED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno.
+      lt_key_lookup = it_keys.
+
       LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
 
-        ASSIGN it_keys[ ponumber = <fs_base>-ponumber
-                        itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+        ASSIGN lt_key_lookup[ ponumber = <fs_base>-ponumber
+                              itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
 
         IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
           CONTINUE.
@@ -2685,7 +2690,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         ROW_NUMBER() OVER
         (
           ORDER BY
-            candidate.pstype DESC,
+            CASE
+              WHEN :i_pstype_desc_requested = :lc_true
+                THEN candidate.pstype
+              ELSE :lc_empty_string
+            END DESC,
             candidate.ponumber ASC,
             candidate.itemno ASC
         ) AS row_number_value
@@ -2944,6 +2953,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_ponumber_filter   = is_request-filter_for_amdp-ponumber
         i_item_filter       = is_request-filter_for_amdp-item
         i_supplier_filter   = is_request-filter_for_amdp-suppliername
+        i_pstype_desc_requested  = is_request-pstype_desc_requested
         i_threshold_usd     = get_threshold( )
         it_japan_brazil     = get_japan_brazil( )
         it_company_codes    = lt_company_codes
@@ -3294,16 +3304,42 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD remove_default_sorting.
 
-*   Skip sorting when the requested order matches the AMDP default
+*   Skip sorting when the requested order is a prefix of the AMDP order
+*   The AMDP can additionally lead with PSTYPE DESC when requested
+    DATA l_pstype_desc_requested TYPE abap_bool.
+
+    CLEAR cs_request-pstype_desc_requested.
+
     DATA(lt_default_orderby) = get_default_orderby( ).
 
-    LOOP AT cs_request-orderby ASSIGNING FIELD-SYMBOL(<fs_orderby>).
+    IF cs_request-orderby IS NOT INITIAL AND
+       to_upper( cs_request-orderby[ 1 ]-property ) = mc_orderby_pstype AND
+                 cs_request-orderby[ 1 ]-descending = abap_true.
 
-      IF sy-tabix > lines( lt_default_orderby ) OR <fs_orderby> <> lt_default_orderby[ sy-tabix ].
+      INSERT VALUE #( property   = mc_orderby_pstype
+                      descending = abap_true ) INTO lt_default_orderby INDEX 1.
+
+      l_pstype_desc_requested = abap_true.
+
+    ENDIF.
+
+    IF lines( cs_request-orderby ) > lines( lt_default_orderby ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT cs_request-orderby INTO DATA(ls_orderby).
+
+      DATA(l_index) = sy-tabix.
+
+      ls_orderby-property = to_upper( ls_orderby-property ).
+
+      IF ls_orderby <> lt_default_orderby[ l_index ].
         RETURN.
       ENDIF.
 
     ENDLOOP.
+
+    cs_request-pstype_desc_requested = l_pstype_desc_requested.
 
     CLEAR cs_request-orderby.
 
@@ -3372,10 +3408,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_default_orderby.
 
-    rt_orderby = VALUE #(
-      ( property = mc_orderby_pstype descending = abap_true  )
-      ( property = mc_sort_ponumber  descending = abap_false )
-      ( property = mc_sort_itemno    descending = abap_false ) ).
+    rt_orderby = VALUE #( ( property = mc_sort_ponumber descending = abap_false )
+                          ( property = mc_sort_itemno   descending = abap_false ) ).
 
   ENDMETHOD.
 

@@ -701,6 +701,7 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS top_zero_not_requested_all    FOR TESTING.
     METHODS paging_window_boundaries      FOR TESTING.
     METHODS no_orderby_leaves_table_asis  FOR TESTING.
+    METHODS generic_sort_gets_stable_ties FOR TESTING.
 
     " generic column filters
     METHODS generic_eq_filters_rows        FOR TESTING RAISING cx_static_check.
@@ -710,14 +711,14 @@ CLASS ltc_request_processing DEFINITION FINAL
     " Unresolved: APPLY_FILTER does not ignore unknown properties.
     METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
 
-    " M1: PSTYPE sort handling per mode
+    " AMDP-supported sort prefixes
     METHODS pstype_desc_moved_for_under   FOR TESTING.
-    METHODS pstype_desc_date_prefix_moved FOR TESTING.
-    METHODS date_po_prefix_removed        FOR TESTING.
-    METHODS pstype_desc_po_gap_kept       FOR TESTING.
-    METHODS over_po_item_prefix_removed   FOR TESTING.
+    METHODS pstype_desc_moved_for_over    FOR TESTING.
+    METHODS pstype_desc_po_prefix_moved  FOR TESTING.
+    METHODS pstype_desc_po_item_prefix_moved FOR TESTING.
+    METHODS po_item_prefix_removed       FOR TESTING.
+    METHODS itemno_sort_kept             FOR TESTING.
     METHODS pstype_asc_kept               FOR TESTING.
-    METHODS pstype_desc_kept_for_over     FOR TESTING.
     METHODS orderby_longer_than_amdp_kept FOR TESTING.
     METHODS custom_orderby_kept           FOR TESTING.
     METHODS pstype_sort_kept_for_exclude  FOR TESTING.
@@ -1315,6 +1316,36 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD generic_sort_gets_stable_ties.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000002' itemno = '00002' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00002' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Same' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) ) ).
+
+    mo_cut->apply_sort_and_paging(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-itemno
+      exp = '00001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-itemno
+      exp = '00002' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 3 ]-ponumber
+      exp = '8000000002' ).
+
+  ENDMETHOD.
+
   METHOD generic_eq_filters_rows.
     DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
 
@@ -1451,17 +1482,31 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD pstype_desc_date_prefix_moved.
+  METHOD pstype_desc_moved_for_over.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode    = zif_fi_das_dashboard=>mc_over
+      orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
+
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_initial( act = ls_request-orderby ).
+    cl_abap_unit_assert=>assert_true( act = ls_request-key_sort_pstype_desc ).
+    cl_abap_unit_assert=>assert_false(
+      act = mo_cut->is_full_processing_required( ls_request ) ).
+
+  ENDMETHOD.
+
+  METHOD pstype_desc_po_prefix_moved.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_exclude
       orderby = VALUE #( ( property = `PSTYPE`      descending = abap_true )
-                         ( property = `POCREATEDAT` descending = abap_false ) ) ).
+                         ( property = `PONUMBER`    descending = abap_false ) ) ).
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-orderby
-      msg = 'PSTYPE DESC, POCREATEDAT ASC is a prefix of the AMDP order' ).
+      msg = 'PSTYPE DESC, PONUMBER ASC is a prefix of the AMDP order' ).
 
     cl_abap_unit_assert=>assert_true(
       act = ls_request-key_sort_pstype_desc
@@ -1473,21 +1518,22 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD date_po_prefix_removed.
+  METHOD pstype_desc_po_item_prefix_moved.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_under
-      orderby = VALUE #( ( property = `pocreatedat` descending = abap_false )
-                         ( property = `PONUMBER`    descending = abap_false ) ) ).
+      orderby = VALUE #( ( property = `PSTYPE`   descending = abap_true )
+                         ( property = `PONUMBER` descending = abap_false )
+                         ( property = `ITEMNO`   descending = abap_false ) ) ).
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-orderby
-      msg = 'POCREATEDAT ASC, PONUMBER ASC is a prefix of the AMDP order' ).
+      msg = 'PSTYPE DESC, PONUMBER ASC, ITEMNO ASC is a prefix of the AMDP order' ).
 
-    cl_abap_unit_assert=>assert_false(
+    cl_abap_unit_assert=>assert_true(
       act = ls_request-key_sort_pstype_desc
-      msg = 'PSTYPE-descending is not flagged without a leading PSTYPE sorter' ).
+      msg = 'PSTYPE-descending is flagged for the AMDP key selection' ).
 
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
@@ -1495,30 +1541,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD pstype_desc_po_gap_kept.
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      mode    = zif_fi_das_dashboard=>mc_exclude
-      orderby = VALUE #( ( property = `PSTYPE`   descending = abap_true )
-                         ( property = `PONUMBER` descending = abap_false ) ) ).
-
-    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( ls_request-orderby )
-      exp = 2
-      msg = 'PSTYPE DESC, PONUMBER ASC skips POCREATEDAT and is not an AMDP prefix' ).
-
-    cl_abap_unit_assert=>assert_false(
-      act = ls_request-key_sort_pstype_desc
-      msg = 'PSTYPE-descending is not flagged when the order is kept' ).
-
-    cl_abap_unit_assert=>assert_true(
-      act = mo_cut->is_full_processing_required( ls_request )
-      msg = 'A non-prefix order requires generic full processing' ).
-
-  ENDMETHOD.
-
-  METHOD over_po_item_prefix_removed.
+  METHOD po_item_prefix_removed.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_over
       orderby = VALUE #( ( property = `PONUMBER` descending = abap_false )
@@ -1526,17 +1549,51 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
-    cl_abap_unit_assert=>assert_initial(
-      act = ls_request-orderby
-      msg = 'PONUMBER ASC, ITEMNO ASC matches the Open AMDP order' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-orderby )
+      exp = 0
+      msg = 'PONUMBER ASC, ITEMNO ASC is an AMDP prefix in every mode' ).
 
     cl_abap_unit_assert=>assert_false(
       act = ls_request-key_sort_pstype_desc
-      msg = 'PSTYPE-descending is never flagged for Open' ).
+      msg = 'PSTYPE-descending is not flagged without a leading PSTYPE sorter' ).
 
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
-      msg = 'An AMDP-supported order avoids generic full processing' ).
+      msg = 'AMDP-supported stable order avoids generic full processing' ).
+
+    DATA(ls_po_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode    = zif_fi_das_dashboard=>mc_under
+      orderby = VALUE #( ( property = `PONUMBER` descending = abap_false ) ) ).
+
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_po_request ).
+
+    cl_abap_unit_assert=>assert_initial( act = ls_po_request-orderby ).
+    cl_abap_unit_assert=>assert_false(
+      act = mo_cut->is_full_processing_required( ls_po_request )
+      msg = 'PONUMBER ASC is an AMDP-order prefix' ).
+
+  ENDMETHOD.
+
+  METHOD itemno_sort_kept.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode    = zif_fi_das_dashboard=>mc_under
+      orderby = VALUE #( ( property = `ITEMNO` descending = abap_false ) ) ).
+
+    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_request-orderby )
+      exp = 1
+      msg = 'ITEMNO ASC alone is not an AMDP-order prefix' ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = ls_request-key_sort_pstype_desc
+      msg = 'PSTYPE-descending is not flagged for ITEMNO-only order' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = mo_cut->is_full_processing_required( ls_request )
+      msg = 'ITEMNO ASC alone requires generic full processing' ).
 
   ENDMETHOD.
 
@@ -1562,32 +1619,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD pstype_desc_kept_for_over.
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      mode    = zif_fi_das_dashboard=>mc_over
-      orderby = VALUE #( ( property = `PSTYPE` descending = abap_true ) ) ).
-
-    mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( ls_request-orderby )
-      exp = 1
-      msg = 'PSTYPE DESC is not part of the Open AMDP order' ).
-
-    cl_abap_unit_assert=>assert_false(
-      act = ls_request-key_sort_pstype_desc
-      msg = 'PSTYPE-descending is never flagged for Open' ).
-
-    cl_abap_unit_assert=>assert_true(
-      act = mo_cut->is_full_processing_required( ls_request )
-      msg = 'PSTYPE DESC in Open requires generic full processing' ).
-
-  ENDMETHOD.
-
   METHOD orderby_longer_than_amdp_kept.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      mode    = zif_fi_das_dashboard=>mc_over
-      orderby = VALUE #( ( property = `PONUMBER`     descending = abap_false )
+      mode    = zif_fi_das_dashboard=>mc_under
+      orderby = VALUE #( ( property = `PSTYPE`       descending = abap_true )
+                         ( property = `PONUMBER`     descending = abap_false )
                          ( property = `ITEMNO`       descending = abap_false )
                          ( property = `SUPPLIERNAME` descending = abap_false ) ) ).
 
@@ -1595,8 +1631,12 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( ls_request-orderby )
-      exp = 3
+      exp = 4
       msg = 'An order longer than the AMDP order is kept' ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = ls_request-key_sort_pstype_desc
+      msg = 'Unsupported longer orders do not set the AMDP PSTYPE flag' ).
 
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
@@ -1607,14 +1647,15 @@ CLASS ltc_request_processing IMPLEMENTATION.
   METHOD custom_orderby_kept.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_exclude
-      orderby = VALUE #( ( property = `SUPPLIERNAME` descending = abap_false ) ) ).
+      orderby = VALUE #( ( property = `PSTYPE`       descending = abap_true )
+                         ( property = `SUPPLIERNAME` descending = abap_false ) ) ).
 
     mo_cut->remove_default_sorting( CHANGING cs_request = ls_request ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( ls_request-orderby )
-      exp = 1
-      msg = 'A custom order on an unrelated field is kept' ).
+      exp = 2
+      msg = 'PSTYPE DESC, SUPPLIERNAME ASC is not an AMDP-supported prefix' ).
 
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )

@@ -670,6 +670,14 @@ CLASS ltc_request_processing DEFINITION FINAL
 
   PRIVATE SECTION.
 
+    TYPES:
+      BEGIN OF ts_projected_result,
+        ponumber     TYPE ebeln,
+        itemno       TYPE ebelp,
+        suppliername TYPE string,
+      END OF ts_projected_result,
+      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
+
     DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
 
     METHODS setup.
@@ -696,6 +704,7 @@ CLASS ltc_request_processing DEFINITION FINAL
     " sort + paging
     METHODS sort_ascending_with_paging    FOR TESTING.
     METHODS sort_descending               FOR TESTING.
+    METHODS explicit_po_desc_is_preserved FOR TESTING.
     METHODS sort_unknown_property_no_dump FOR TESTING.
     METHODS top_zero_requested_empty      FOR TESTING.
     METHODS top_zero_not_requested_all    FOR TESTING.
@@ -710,6 +719,11 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS generic_same_prop_is_ored      FOR TESTING RAISING cx_static_check.
     " Unresolved: APPLY_FILTER does not ignore unknown properties.
     METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
+    METHODS package_mapping_preserves_ord FOR TESTING RAISING cx_static_check.
+     METHODS empty_package_is_ignored FOR TESTING RAISING cx_static_check.
+     METHODS multiple_packages_keep_ord FOR TESTING RAISING cx_static_check.
+     METHODS filter_sort_and_page_across FOR TESTING RAISING cx_static_check.
+
 
     " AMDP-supported sort prefixes
     METHODS pstype_desc_moved_for_under   FOR TESTING.
@@ -1166,7 +1180,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
       paging  = VALUE #( skip = 1 top = 1 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1191,13 +1209,45 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( ( property = `SUPPLIERNAME`
                           descending = abap_true ) ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Bravo' ).
+
+  ENDMETHOD.
+
+  METHOD explicit_po_desc_is_preserved.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00002' suppliername = 'Same' )
+      ( ponumber = '8000000002' itemno = '00001' suppliername = 'Same' )
+      ( ponumber = '8000000001' itemno = '00001' suppliername = 'Same' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      orderby = VALUE #( ( property = `SUPPLIERNAME` )
+                         ( property = `PONUMBER` descending = abap_true )
+                         ( property = `PONUMBER` descending = abap_false ) ) ).
+
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000002'
+      msg = 'An explicit descending PO sorter is retained instead of being overridden' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-itemno
+      exp = '00001'
+      msg = 'The missing item tie-breaker remains ascending' ).
 
   ENDMETHOD.
 
@@ -1211,7 +1261,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       orderby = VALUE #( ( property = `NOT_A_COLUMN` ) ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1232,7 +1286,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       paging = VALUE #( top = 0 top_requested = abap_true ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1252,7 +1306,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       paging = VALUE #( top = 0 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1276,7 +1330,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( ( property = `PONUMBER` ) )
       paging  = VALUE #( skip = 8 top = 5 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1301,7 +1359,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       paging = VALUE #( skip = 0 top = 0 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1327,7 +1389,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       orderby = VALUE #( ( property = `SUPPLIERNAME` ) ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1345,6 +1407,201 @@ CLASS ltc_request_processing IMPLEMENTATION.
       exp = '8000000002' ).
 
   ENDMETHOD.
+
+ METHOD package_mapping_preserves_ord.
+
+  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+  DATA lt_result  TYPE tt_projected_result.
+
+  lt_package = VALUE #(
+    ( ponumber = '8000000003' itemno = '00001' suppliername = 'Charlie' pocurrency = 'USD' )
+    ( ponumber = '8000000002' itemno = '00001' suppliername = 'Bravo'   pocurrency = 'JPY' ) ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+  cl_abap_unit_assert=>assert_initial( lt_package ).
+
+  lt_package = VALUE #(
+    ( ponumber = '8000000001' itemno = '00001' suppliername = 'Alpha' pocurrency = 'EUR' ) ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lines( lt_result )
+    exp = 3 ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 1 ]-suppliername
+    exp = 'Charlie' ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 2 ]-suppliername
+    exp = 'Bravo' ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 3 ]-suppliername
+    exp = 'Alpha' ).
+
+ENDMETHOD.
+
+METHOD empty_package_is_ignored.
+
+  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+  DATA lt_result  TYPE tt_projected_result.
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+  cl_abap_unit_assert=>assert_initial( lt_result ).
+
+ENDMETHOD.
+
+METHOD multiple_packages_keep_ord.
+
+  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+  DATA lt_result  TYPE tt_projected_result.
+
+  lt_package = VALUE #(
+    ( ponumber = '1' )
+    ( ponumber = '2' ) ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+  lt_package = VALUE #(
+    ( ponumber = '3' )
+    ( ponumber = '4' ) ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 1 ]-ponumber
+    exp = '1' ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 2 ]-ponumber
+    exp = '2' ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 3 ]-ponumber
+    exp = '3' ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 4 ]-ponumber
+    exp = '4' ).
+
+ENDMETHOD.
+METHOD filter_sort_and_page_across.
+
+  DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+  DATA lt_result  TYPE tt_projected_result.
+
+  DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+    filter-filter_string = `POCURRENCY = 'JPY'`
+    orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
+    paging = VALUE #( skip = 1 top = 1 ) ).
+
+*--------------------------------------------------------------------
+* package 1
+*--------------------------------------------------------------------
+
+  lt_package = VALUE #(
+    ( ponumber = '8000000001'
+      itemno = '00001'
+      suppliername = 'Zulu'
+      pocurrency = 'USD' ) ).
+
+  mo_cut->apply_generic_filter(
+    EXPORTING
+      is_request = ls_request
+    CHANGING
+      ct_result = lt_package ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* package 2
+*--------------------------------------------------------------------
+
+  lt_package = VALUE #(
+    ( ponumber = '8000000002'
+      itemno = '00001'
+      suppliername = 'Bravo'
+      pocurrency = 'JPY' )
+
+    ( ponumber = '8000000003'
+      itemno = '00001'
+      suppliername = 'Charlie'
+      pocurrency = 'JPY' )
+
+    ( ponumber = '8000000004'
+      itemno = '00001'
+      suppliername = 'Delta'
+      pocurrency = 'JPY' ) ).
+
+  mo_cut->apply_generic_filter(
+    EXPORTING
+      is_request = ls_request
+    CHANGING
+      ct_result = lt_package ).
+
+  mo_cut->append_result_package(
+    CHANGING
+      ct_package = lt_package
+      ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* global sort + paging
+*--------------------------------------------------------------------
+
+  DATA(l_total_count) = lines( lt_result ).
+
+  mo_cut->apply_sort(
+    EXPORTING
+      is_request = ls_request
+    CHANGING
+      ct_result  = lt_result ).
+
+  mo_cut->apply_paging(
+    EXPORTING
+      is_request = ls_request
+    CHANGING
+      ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* assertions
+*--------------------------------------------------------------------
+
+  cl_abap_unit_assert=>assert_equals(
+    act = l_total_count
+    exp = 3 ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lines( lt_result )
+    exp = 1 ).
+
+  cl_abap_unit_assert=>assert_equals(
+    act = lt_result[ 1 ]-suppliername
+    exp = 'Charlie' ).
+
+ENDMETHOD.
+
 
   METHOD generic_eq_filters_rows.
     DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
@@ -1450,7 +1707,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1675,7 +1936,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( ( property = `PSTYPE`
                            descending = abap_true ) ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1704,7 +1965,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
                            descending = abap_true ) )
       paging  = VALUE #( skip = 2 top = 1 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 
@@ -1947,7 +2212,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
       orderby = VALUE #( ( property = 'SUPPLIERNAME' ) )
       paging  = VALUE #( skip = 999999 top = 100 ) ).
 
-    mo_cut->apply_sort_and_paging(
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
       EXPORTING is_request = ls_request
       CHANGING  ct_result  = lt_result ).
 

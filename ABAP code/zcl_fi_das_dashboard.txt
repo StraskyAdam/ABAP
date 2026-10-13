@@ -778,8 +778,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error.
 
     METHODS append_result_package
-      IMPORTING
-        is_request TYPE ts_internal_request
       CHANGING
         ct_package TYPE tt_odata_result
         ct_result  TYPE STANDARD TABLE
@@ -2995,59 +2993,63 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_results.
+METHOD get_results.
 
-    DATA(l_decimal_format) = get_decimal_format( is_request-parameter-email ).
-    DATA lt_package TYPE tt_odata_result.
+  DATA(l_decimal_format) =
+    get_decimal_format( is_request-parameter-email ).
 
-    LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+  DATA(l_keys_count) = lines( it_keys ).
 
-      DATA(ls_row) = get_row( is_key     = <fs_key>
-                              is_context = is_context
-                              is_request = is_request
-                              i_decimal_format = l_decimal_format  ).
+  DATA lt_package TYPE tt_odata_result.
 
-      IF ls_row IS NOT INITIAL.
-        APPEND ls_row TO lt_package.
-      ENDIF.
+  LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
 
-      IF lines( lt_package ) >= mc_result_package_size.
-        append_result_package(
-          EXPORTING
-            is_request = is_request
-          CHANGING
-            ct_package = lt_package
-            ct_result  = ct_result ).
-      ENDIF.
-    ENDLOOP.
+    DATA(ls_row) = get_row(
+      is_key            = <fs_key>
+      is_context        = is_context
+      is_request        = is_request
+      i_decimal_format  = l_decimal_format ).
 
-    IF lt_package IS NOT INITIAL.
-      append_result_package(
+    IF ls_row IS NOT INITIAL.
+      APPEND ls_row TO lt_package.
+    ENDIF.
+
+    IF lines( lt_package ) >= mc_result_package_size
+       OR sy-tabix = l_keys_count.
+
+      apply_generic_filter(
         EXPORTING
           is_request = is_request
         CHANGING
+          ct_result  = lt_package ).
+
+      append_result_package(
+        CHANGING
           ct_package = lt_package
           ct_result  = ct_result ).
+
     ENDIF.
 
-  ENDMETHOD.
+  ENDLOOP.
 
-  METHOD append_result_package.
+ENDMETHOD.
 
-    apply_generic_filter(
-      EXPORTING
-        is_request = is_request
-      CHANGING
-        ct_result  = ct_package ).
+METHOD append_result_package.
 
+  IF ct_package IS INITIAL.
+    RETURN.
+  ENDIF.
+ 
     LOOP AT ct_package ASSIGNING FIELD-SYMBOL(<fs_package_row>).
       APPEND INITIAL LINE TO ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
       MOVE-CORRESPONDING <fs_package_row> TO <fs_result>.
     ENDLOOP.
 
-    CLEAR ct_package.
+*  APPEND LINES OF ct_package TO ct_result.
 
-  ENDMETHOD.
+  FREE ct_package.
+
+ENDMETHOD.
 
   METHOD get_review_action.
 

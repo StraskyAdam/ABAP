@@ -125,7 +125,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         ruletype       TYPE t_text_5000,
         ruletypetext   TYPE t_text_5000,
         costcenterdesc TYPE t_text_5000,
-        source_index   TYPE i,
+        original_order   TYPE i,
       END OF ts_odata_result,
 
       tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
@@ -137,55 +137,46 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
+      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
 
-    TYPES:
       BEGIN OF ts_role,
         company_code    TYPE string,
         cost_center     TYPE string,
         management_unit TYPE string,
-      END OF ts_role.
+      END OF ts_role,
 
-    TYPES:
       BEGIN OF ts_company_scope,
         value    TYPE bukrs,
         wildcard TYPE abap_bool,
       END OF ts_company_scope,
 
-      tt_company_scope TYPE SORTED TABLE OF ts_company_scope
-        WITH UNIQUE KEY value wildcard.
+      tt_company_scope TYPE SORTED TABLE OF ts_company_scope WITH UNIQUE KEY value wildcard,
 
-    TYPES:
       BEGIN OF ts_cost_center_scope,
         value    TYPE kostl,
         wildcard TYPE abap_bool,
         is_null  TYPE abap_bool,
       END OF ts_cost_center_scope,
 
-      tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope
-        WITH UNIQUE KEY value wildcard is_null.
+      tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard is_null,
 
-    TYPES:
       BEGIN OF ts_audit,
         ponumber TYPE ebeln,
         itemno   TYPE ebelp,
         amount   TYPE t_amount,
       END OF ts_audit,
 
-      tt_audit TYPE HASHED TABLE OF ts_audit  WITH UNIQUE KEY ponumber itemno.
+      tt_audit TYPE HASHED TABLE OF ts_audit  WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_management_scope,
         value    TYPE csks-zzrptun,
         wildcard TYPE abap_bool,
         is_null  TYPE abap_bool,
       END OF ts_management_scope,
 
-      tt_management_scope TYPE SORTED TABLE OF ts_management_scope
-        WITH UNIQUE KEY value wildcard is_null.
+      tt_management_scope TYPE SORTED TABLE OF ts_management_scope WITH UNIQUE KEY value wildcard is_null,
 
-    TYPES:
-      BEGIN OF ts_source_detail,
+      BEGIN OF ts_detail,
         ponumber               TYPE ebeln,
         itemno                 TYPE ebelp,
         effective_pstype       TYPE zif_fi_das_dashboard=>t_pstype,
@@ -212,11 +203,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
         region                 TYPE t001-land1,
         cocdecurr              TYPE waers,
         poowner_email          TYPE zif_fi_das_dashboard=>t_email,
-      END OF ts_source_detail,
+      END OF ts_detail,
 
-      tt_source_detail TYPE HASHED TABLE OF ts_source_detail WITH UNIQUE KEY ponumber itemno.
+      tt_detail TYPE HASHED TABLE OF ts_detail WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_account_aggregate,
         ponumber              TYPE ebeln,
         itemno                TYPE ebelp,
@@ -234,9 +224,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         entry_count           TYPE i,
       END OF ts_account_aggregate,
 
-      tt_account_aggregate TYPE HASHED TABLE OF ts_account_aggregate WITH UNIQUE KEY ponumber itemno.
+      tt_account_aggregate TYPE HASHED TABLE OF ts_account_aggregate WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_history_aggregate,
         ponumber           TYPE ebeln,
         itemno             TYPE ebelp,
@@ -247,10 +236,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         invvalue_usd       TYPE t_amount_precision,
       END OF ts_history_aggregate,
 
-      tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate
-        WITH UNIQUE KEY ponumber itemno.
+      tt_history_aggregate TYPE HASHED TABLE OF ts_history_aggregate WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_status,
         ponumber          TYPE ebeln,
         itemno            TYPE ebelp,
@@ -265,19 +252,16 @@ CLASS zcl_fi_das_dashboard DEFINITION
         last_month_amount TYPE zfi_das_postatus-workcomplastmonthamt,
       END OF ts_status,
 
-      tt_status TYPE HASHED TABLE OF ts_status WITH UNIQUE KEY ponumber itemno.
+      tt_status TYPE HASHED TABLE OF ts_status WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_notification,
         ponumber      TYPE ebeln,
         itemno        TYPE ebelp,
         last_notif_on TYPE timestampl,
       END OF ts_notification,
 
-      tt_notification TYPE HASHED TABLE OF ts_notification WITH UNIQUE KEY ponumber itemno.
+      tt_notification TYPE HASHED TABLE OF ts_notification WITH UNIQUE KEY ponumber itemno,
 
-
-    TYPES:
       BEGIN OF ts_exclusion_aggregate,
         ponumber     TYPE ebeln,
         itemno       TYPE ebelp,
@@ -285,10 +269,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         ruletypetext TYPE string,
       END OF ts_exclusion_aggregate,
 
-      tt_exclusion_aggregate TYPE HASHED TABLE OF ts_exclusion_aggregate
-        WITH UNIQUE KEY ponumber itemno.
+      tt_exclusion_aggregate TYPE HASHED TABLE OF ts_exclusion_aggregate WITH UNIQUE KEY ponumber itemno,
 
-    TYPES:
       BEGIN OF ts_user,
         email          TYPE ad_smtpadr,
         username       TYPE xubname,
@@ -297,26 +279,18 @@ CLASS zcl_fi_das_dashboard DEFINITION
         datfm          TYPE xudatfm,
       END OF ts_user,
 
-      tt_user TYPE HASHED TABLE OF ts_user WITH UNIQUE KEY email.
+      tt_user TYPE HASHED TABLE OF ts_user WITH UNIQUE KEY email,
 
-    TYPES:
-      BEGIN OF ts_exchange_rate,
-        source_currency TYPE waers,
-        rate            TYPE t_amount_precision,
-      END OF ts_exchange_rate.
-
-    TYPES:
       BEGIN OF ts_calculation,
         totwrkcompamt     TYPE t_amount,
         totwrkcompamt_usd TYPE t_amount,
         totwrkcompper     TYPE t_percentage,
         straightlinemthd  TYPE abap_bool,
         accrualmethod     TYPE t_text_50,
-      END OF ts_calculation.
+      END OF ts_calculation,
 
-    TYPES:
       BEGIN OF ts_context,
-        details       TYPE tt_source_detail,
+        details       TYPE tt_detail,
         accounts      TYPE tt_account_aggregate,
         history       TYPE tt_history_aggregate,
         statuses      TYPE tt_status,
@@ -325,16 +299,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
         users         TYPE tt_user,
         review_day    TYPE i,
         audit         TYPE tt_audit,
-      END OF ts_context.
+      END OF ts_context,
 
-    TYPES tt_string_range TYPE RANGE OF string.
-    TYPES ts_string_range TYPE LINE OF tt_string_range.
+      tt_string_range TYPE RANGE OF string,
 
-    DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
-
-************************************************
-************************************************
-************************************************
+      ts_string_range TYPE LINE OF tt_string_range.
 
     METHODS execute_request
       IMPORTING
@@ -477,7 +446,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(it_company_codes)        TYPE tt_company_scope
         VALUE(it_cost_centers)         TYPE tt_cost_center_scope
         VALUE(it_management_units)     TYPE tt_management_scope
-
       EXPORTING
         VALUE(et_keys)                 TYPE tt_key
         VALUE(e_total_count)           TYPE int8.
@@ -498,7 +466,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         it_keys           TYPE tt_key
       RETURNING
-        VALUE(rt_details) TYPE tt_source_detail
+        VALUE(rt_details) TYPE tt_detail
       RAISING
         cx_sy_open_sql_db.
 
@@ -513,7 +481,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS get_history
       IMPORTING
         it_keys           TYPE tt_key
-        it_details        TYPE tt_source_detail
+        it_details        TYPE tt_detail
       RETURNING
         VALUE(rt_history) TYPE tt_history_aggregate
       RAISING
@@ -546,7 +514,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_users
       IMPORTING
-        VALUE(it_details) TYPE tt_source_detail
+        VALUE(it_details) TYPE tt_detail
       EXPORTING
         VALUE(et_users)   TYPE tt_user
       RAISING
@@ -617,7 +585,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS append_result_package
+    METHODS append_package_to_result
       CHANGING
         ct_package TYPE tt_odata_result
         ct_result  TYPE STANDARD TABLE
@@ -637,7 +605,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_detail
       IMPORTING
-        is_detail TYPE ts_source_detail
+        is_detail TYPE ts_detail
       CHANGING
         cs_result TYPE ts_odata_result
       RAISING
@@ -649,29 +617,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       CHANGING
         cs_result TYPE ts_odata_result.
 
-
-
-************************************************
-************************************************
-************************************************
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     METHODS apply_odata_format
       IMPORTING
         i_mode           TYPE zif_fi_das_dashboard=>t_mode
@@ -680,9 +625,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         cs_result        TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
-
-
-
 
     METHODS apply_account
       IMPORTING
@@ -711,7 +653,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_calculation
       IMPORTING
-        is_detail TYPE ts_source_detail
+        is_detail TYPE ts_detail
       CHANGING
         cs_result TYPE ts_odata_result
       RAISING
@@ -719,7 +661,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_currency
       IMPORTING
-        is_detail TYPE ts_source_detail
+        is_detail TYPE ts_detail
       CHANGING
         cs_result TYPE ts_odata_result
       RAISING
@@ -745,7 +687,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_accrual
       IMPORTING
-        is_detail TYPE ts_source_detail
+        is_detail TYPE ts_detail
       CHANGING
         cs_result TYPE ts_odata_result
       RAISING
@@ -838,11 +780,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_value) TYPE char5.
 
-
-************************************************
-************************************************
-************************************************
-
     METHODS apply_generic_filter
       IMPORTING
         is_request TYPE ts_internal_request
@@ -879,10 +816,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_inline_count) TYPE string.
 
+    DATA mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
 ENDCLASS.
-
-
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
@@ -965,12 +901,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     execute_request(
       EXPORTING
-        is_request = VALUE #( BASE CORRESPONDING #( is_request )
-                              mode = zif_fi_das_dashboard=>mc_over )
+         is_request = VALUE #( BASE CORRESPONDING #( is_request )
+                               mode = zif_fi_das_dashboard=>mc_over )
       IMPORTING
-        e_total_count = e_total_count
+         e_total_count = e_total_count
       CHANGING
-        ct_result = et_result ).
+         ct_result = et_result ).
 
   ENDMETHOD.
 
@@ -1015,14 +951,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       IF is_full_processing_required( ls_request ).
 
-*       Set the filtered total before paging is applied
-        l_total_count = lines( ct_result ).
+        apply_sort( EXPORTING is_request = ls_request
+                    CHANGING  ct_result  = ct_result ).
 
 *       Restore the original paging parameters
         ls_request-paging = is_request-paging.
 
-        apply_sort( EXPORTING is_request = ls_request
-                    CHANGING  ct_result  = ct_result ).
+*       Set the filtered total before paging is applied
+        l_total_count = lines( ct_result ).
 
         apply_paging( EXPORTING is_request = ls_request
                       CHANGING  ct_result  = ct_result ).
@@ -1131,18 +1067,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-*   Preserve the current row order because AMDP filtering does not guarantee it
+*   Preserve the original row order before applying the generic filter
     LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-      <fs_result>-source_index = sy-tabix.
+      <fs_result>-original_order = sy-tabix.
     ENDLOOP.
 
     TRY.
         filter_result(
           EXPORTING
-            it_result        = ct_result
+            it_result       = ct_result
             i_filter_string = is_request-filter-filter_string
           IMPORTING
-            et_result        = ct_result ).
+            et_result       = ct_result ).
 
       CATCH cx_amdp_error INTO DATA(lx_amdp).
 
@@ -1583,6 +1519,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+*   Separate filters that can be pushed down to the AMDP layer
+*   All remaining filters will be handled by the generic ABAP filter logic
     LOOP AT cs_request-filter-filter_select_options ASSIGNING FIELD-SYMBOL(<fs_filter_select_options>).
 
       DATA(ls_range) = VALUE ts_string_range( sign = <fs_filter_select_options>-sign
@@ -1631,12 +1569,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     et_result =
       SELECT *
         FROM :lt_filtered
-      ORDER BY source_index ASC;
+      ORDER BY original_order ASC;
 
   ENDMETHOD.
 
   METHOD get_access_scope.
 
+*   PO owner mode and wild card email have unrestricted access
     IF i_poowner = abap_true OR i_email = mc_percent.
 
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_company_codes.
@@ -1792,6 +1731,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
+*   Wildcard access is only valid when '*' is the only configured value
     DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
@@ -1848,6 +1788,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
+*   Wildcard access is only valid when '*' is the only configured value
     DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
@@ -1957,7 +1898,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_email.
 
-    r_email = zcl_fi_das_utility=>normalize_email( i_email = i_email ).
+    r_email = zcl_fi_das_utility=>normalize_email( i_email ).
 
     IF r_email = mc_asterisk.
       r_email = mc_percent.
@@ -2598,6 +2539,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
 
+*   Wildcard access is only valid when '*' is the only configured value
     DATA(l_single_value) = xsdbool( lines( lt_values ) = 1 ).
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
@@ -2810,23 +2752,23 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     get_keys(
       EXPORTING
-        i_mode              = is_request-mode
-        i_pstype            = get_pstype( is_request )
-        i_email             = is_request-parameter-email
-        i_poowner           = is_request-parameter-poowner
-        i_count_requested   = is_request-paging-count_requested
-        i_top_requested     = is_request-paging-top_requested
-        i_skip              = is_request-paging-skip
-        i_top               = is_request-paging-top
-        i_ponumber_filter   = is_request-filter_for_amdp-ponumber
-        i_item_filter       = is_request-filter_for_amdp-item
-        i_supplier_filter   = is_request-filter_for_amdp-suppliername
-        i_pstype_desc_requested  = is_request-pstype_desc_requested
-        i_threshold_usd     = get_threshold( )
-        it_japan_brazil     = get_japan_brazil( )
-        it_company_codes    = lt_company_codes
-        it_cost_centers     = lt_cost_centers
-        it_management_units = lt_management_units
+        i_mode                  = is_request-mode
+        i_pstype                = get_pstype( is_request )
+        i_email                 = is_request-parameter-email
+        i_poowner               = is_request-parameter-poowner
+        i_count_requested       = is_request-paging-count_requested
+        i_top_requested         = is_request-paging-top_requested
+        i_skip                  = is_request-paging-skip
+        i_top                   = is_request-paging-top
+        i_ponumber_filter       = is_request-filter_for_amdp-ponumber
+        i_item_filter           = is_request-filter_for_amdp-item
+        i_supplier_filter       = is_request-filter_for_amdp-suppliername
+        i_threshold_usd         = get_threshold( )
+        it_japan_brazil         = get_japan_brazil( )
+        it_company_codes        = lt_company_codes
+        it_cost_centers         = lt_cost_centers
+        it_management_units     = lt_management_units
+        i_pstype_desc_requested = is_request-pstype_desc_requested
       IMPORTING
         et_keys             = et_keys
         e_total_count       = e_total_count ).
@@ -2835,38 +2777,28 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_results.
 
-    DATA(l_decimal_format) =
-      get_decimal_format( is_request-parameter-email ).
+    DATA lt_result TYPE tt_odata_result.
 
-    DATA(l_keys_count) = lines( it_keys ).
+    DATA(l_decimal_format) = get_decimal_format( is_request-parameter-email ).
 
-    DATA lt_package TYPE tt_odata_result.
+    DATA(l_last_key) = lines( it_keys ).
 
     LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
 
-      DATA(ls_row) = get_row(
-        is_key            = <fs_key>
-        is_context        = is_context
-        is_request        = is_request
-        i_decimal_format  = l_decimal_format ).
+      DATA(l_index) = sy-tabix.
 
-      IF ls_row IS NOT INITIAL.
-        APPEND ls_row TO lt_package.
-      ENDIF.
+      APPEND get_row( is_key           = <fs_key>
+                      is_context       = is_context
+                      is_request       = is_request
+                      i_decimal_format = l_decimal_format ) TO lt_result.
 
-      IF lines( lt_package ) >= mc_package_size
-         OR sy-tabix = l_keys_count.
+      IF lines( lt_result ) >= mc_package_size OR l_index = l_last_key.
 
-        apply_generic_filter(
-          EXPORTING
-            is_request = is_request
-          CHANGING
-            ct_result  = lt_package ).
+        apply_generic_filter( EXPORTING is_request = is_request
+                              CHANGING  ct_result  = lt_result ).
 
-        append_result_package(
-          CHANGING
-            ct_package = lt_package
-            ct_result  = ct_result ).
+        append_package_to_result( CHANGING ct_package = lt_result
+                                           ct_result  = ct_result ).
 
       ENDIF.
 
@@ -2874,18 +2806,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD append_result_package.
+  METHOD append_package_to_result.
 
     IF ct_package IS INITIAL.
       RETURN.
     ENDIF.
 
-    LOOP AT ct_package ASSIGNING FIELD-SYMBOL(<fs_package_row>).
+    LOOP AT ct_package ASSIGNING FIELD-SYMBOL(<fs_package_row>) WHERE ponumber IS NOT INITIAL.
       APPEND INITIAL LINE TO ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
       MOVE-CORRESPONDING <fs_package_row> TO <fs_result>.
     ENDLOOP.
-
-*  APPEND LINES OF ct_package TO ct_result.
 
     FREE ct_package.
 

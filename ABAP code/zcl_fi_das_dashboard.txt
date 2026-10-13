@@ -8,171 +8,100 @@ CLASS zcl_fi_das_dashboard DEFINITION
     INTERFACES zif_fi_das_dashboard.
     INTERFACES if_amdp_marker_hdb.
 
-    TYPES:
-  t_percentage     TYPE p LENGTH 7 DECIMALS 1 .
-
-    TYPES:
-   t_decimal_format TYPE c LENGTH 1 .
+    TYPES: t_percentage TYPE p LENGTH 7 DECIMALS 1.
 
   PRIVATE SECTION.
 
     TYPES:
       t_amount_precision TYPE p LENGTH 16 DECIMALS 8,
       t_amount_high      TYPE p LENGTH 16 DECIMALS 14,
-      t_service_amount   TYPE c LENGTH 20,
-      t_rule_type        TYPE c LENGTH 2,
-      t_review_action    TYPE c LENGTH 1.
+      t_amount           TYPE p LENGTH 7  DECIMALS 2,
+
+      t_text_5000        TYPE c LENGTH 5000,
+      t_text_500         TYPE c LENGTH 500,
+      t_text_50          TYPE c LENGTH 50.
 
     CONSTANTS:
-      mc_yes                    TYPE c LENGTH 1 VALUE 'X',
-      mc_currency_jpy           TYPE waers VALUE 'JPY',
-      mc_currency_vnd           TYPE waers VALUE 'VND',
+      mc_currency_jpy             TYPE waers VALUE 'JPY',
+      mc_currency_vnd             TYPE waers VALUE 'VND',
 
-      mc_bewtp_e                TYPE ekbe-bewtp VALUE 'E',
-      mc_bewtp_q                TYPE ekbe-bewtp VALUE 'Q',
-      mc_bewtp_n                TYPE ekbe-bewtp VALUE 'N',
-      mc_vgabe_2                TYPE ekbe-vgabe VALUE '2',
-      mc_vgabe_3                TYPE ekbe-vgabe VALUE '3',
-      mc_credit_indicator       TYPE ekbe-shkzg VALUE 'H',
+      mc_bewtp_e                  TYPE ekbe-bewtp VALUE 'E',
+      mc_bewtp_q                  TYPE ekbe-bewtp VALUE 'Q',
+      mc_bewtp_n                  TYPE ekbe-bewtp VALUE 'N',
+      mc_vgabe_2                  TYPE ekbe-vgabe VALUE '2',
+      mc_vgabe_3                  TYPE ekbe-vgabe VALUE '3',
+      mc_credit_indicator         TYPE ekbe-shkzg VALUE 'H',
 
-      mc_rule_gl                TYPE t_rule_type VALUE 'GL',
-      mc_rule_cost_center       TYPE t_rule_type VALUE 'CC',
-      mc_rule_profit_center     TYPE t_rule_type VALUE 'PC',
-      mc_rule_po                TYPE t_rule_type VALUE 'PO',
-      mc_rule_vendor            TYPE t_rule_type VALUE 'VD',
-      mc_rule_internal_order    TYPE t_rule_type VALUE 'IV',
+      mc_rule_gl                  TYPE zfi_das_po_excl-ruletype VALUE 'GL',
+      mc_rule_cost_center         TYPE zfi_das_po_excl-ruletype VALUE 'CC',
+      mc_rule_profit_center       TYPE zfi_das_po_excl-ruletype VALUE 'PC',
+      mc_rule_po                  TYPE zfi_das_po_excl-ruletype VALUE 'PO',
+      mc_rule_vendor              TYPE zfi_das_po_excl-ruletype VALUE 'VD',
+      mc_rule_internal_order      TYPE zfi_das_po_excl-ruletype VALUE 'IV',
 
-      mc_config_japan_brazil    TYPE zfi_das_conf_val-config_name
-        VALUE 'Japan_Brazil',
-      mc_config_review_day      TYPE zfi_das_conf_val-config_name
-        VALUE 'ACCRUAL_REVIEW_DATE',
-
-      mc_default_decimal_format TYPE xudcpfm VALUE 'X',
-      mc_null                   TYPE string VALUE 'NULL',
-      mc_asterisk_sign          TYPE c LENGTH 1 VALUE '*',
-      mc_percent_sign           TYPE c LENGTH 1 VALUE '%',
-      mc_comma                  TYPE c LENGTH 1 VALUE ',',
-      mc_amount_decimals        TYPE i VALUE 2,
-      mc_calculation_decimals   TYPE i VALUE 8,
-      mc_percentage_decimals    TYPE i VALUE 1,
-      mc_stl_split_day          TYPE i VALUE 15.
-*      mc_stl_grace_day          TYPE i VALUE 6.
-    CONSTANTS:
-      mc_period_first_day TYPE i VALUE 1,
-      mc_period_last_day  TYPE i VALUE 6.
-
-    CONSTANTS:
-
-      mc_first_half_month_day TYPE n LENGTH 2 VALUE '06',
-
-      mc_first_day_of_month   TYPE c LENGTH 2 VALUE '01',
-
-      mc_next_month_offset    TYPE i VALUE 32.
-
-    CONSTANTS:
-      mc_default_review_day TYPE i VALUE 7,
-      mc_min_review_day     TYPE i VALUE 1,
-      mc_max_review_day     TYPE i VALUE 31.
-    CONSTANTS:
-      mc_review_action_none  TYPE t_review_action VALUE space,
-      mc_review_action_keep  TYPE t_review_action VALUE 'K',
-      mc_review_action_reset TYPE t_review_action VALUE 'R'.
-
-    CONSTANTS:
       mc_rule_text_gl             TYPE string VALUE 'Cost Element (GL/BL)',
       mc_rule_text_cost_center    TYPE string VALUE 'Cost Center',
       mc_rule_text_profit_center  TYPE string VALUE 'Profit Centre',
       mc_rule_text_po             TYPE string VALUE 'Purchase Order',
       mc_rule_text_vendor         TYPE string VALUE 'Vendor',
-      mc_rule_text_internal_order TYPE string VALUE 'Internal Order'.
+      mc_rule_text_internal_order TYPE string VALUE 'Internal Order',
 
-    CONSTANTS:
-      " Fields fully served by APPLY_DETAIL. A $select restricted to
-      " these fields (value-help request) skips all calculations.
-      mc_value_help_fields TYPE string
-        VALUE `PONUMBER,ITEMNO,POLINEDESC,SUPPLIERID,SUPPLIERNAME`,
+      mc_config_japan_brazil      TYPE zfi_das_conf_val-config_name VALUE 'Japan_Brazil',
+      mc_config_review_day        TYPE zfi_das_conf_val-config_name VALUE 'ACCRUAL_REVIEW_DATE',
 
-      " PSTYPE DESC is the UI default sorter for Under/Exclude. It is
-      " handed over to the AMDP key selection instead of full processing.
-      mc_orderby_pstype    TYPE string VALUE `PSTYPE`,
+      mc_default_decimal_format   TYPE xudcpfm VALUE 'X',
+      mc_null                     TYPE string VALUE 'NULL',
+      mc_asterisk                 TYPE c LENGTH 1 VALUE '*',
+      mc_percent                  TYPE c LENGTH 1 VALUE '%',
+      mc_space                    TYPE string VALUE ` `,
 
-      mc_sort_ponumber     TYPE string VALUE `PONUMBER`,
-      mc_sort_itemno       TYPE string VALUE `ITEMNO`,
-      mc_result_package_size TYPE i VALUE 10000.
+      mc_amount_decimals          TYPE i VALUE 2,
+      mc_calculation_decimals     TYPE i VALUE 8,
+      mc_percentage_decimals      TYPE i VALUE 1,
 
+      mc_stl_split_day            TYPE i VALUE 15,
+      mc_period_first_day         TYPE i VALUE 1,
+      mc_period_last_day          TYPE i VALUE 6,
 
-    CONSTANTS:
-      mc_user_type_dialog TYPE usr02-ustyp VALUE 'A',
-      mc_rpa_pattern      TYPE string VALUE '%RPA%',
-      mc_digit_chars      TYPE string VALUE '0123456789'.
+      mc_first_half_month_day     TYPE n LENGTH 2 VALUE '06',
+      mc_first_day_of_month       TYPE c LENGTH 2 VALUE '01',
+      mc_next_month_offset        TYPE i VALUE 32,
 
-    CONSTANTS:
-      mc_property_ponumber     TYPE string   VALUE `PONUMBER`,
-      mc_property_itemno       TYPE string   VALUE `ITEMNO`,
-      mc_property_suppliername TYPE string   VALUE `SUPPLIERNAME`.
+      mc_default_review_day       TYPE i VALUE 7,
+      mc_min_review_day           TYPE i VALUE 1,
+      mc_max_review_day           TYPE i VALUE 31,
 
-    CONSTANTS:
-      mc_range_sign   TYPE string VALUE `SIGN`,
-      mc_range_option TYPE string VALUE `OPTION`,
-      mc_range_low    TYPE string VALUE `LOW`,
-      mc_range_high   TYPE string VALUE `HIGH`.
+      mc_review_action_none       TYPE c LENGTH 1 VALUE space,
+      mc_review_action_keep       TYPE c LENGTH 1 VALUE 'K',
+      mc_review_action_reset      TYPE c LENGTH 1 VALUE 'R',
 
-      CONSTANTS mc_space TYPE string VALUE ` `.
+      mc_pstype                   TYPE string VALUE `PSTYPE`,
+      mc_ponumber                 TYPE string VALUE `PONUMBER`,
+      mc_itemno                   TYPE string VALUE `ITEMNO`,
+      mc_suppliername             TYPE string   VALUE `SUPPLIERNAME`,
 
+      mc_package_size             TYPE i VALUE 10000,
 
-    CONSTANTS:
-      mc_grace_period_start TYPE i VALUE 1,
-      mc_grace_period_end   TYPE i VALUE 6.
+      mc_user_type_dialog         TYPE usr02-ustyp VALUE 'A',
+      mc_rpa_pattern              TYPE string VALUE '%RPA%',
+      mc_digit_chars              TYPE string VALUE '0123456789',
 
+      mc_boolean_true             TYPE c LENGTH 5 VALUE 'true',
+      mc_boolean_false            TYPE c LENGTH 5 VALUE 'false',
 
+      mc_pstype_material_text     TYPE c LENGTH 10 VALUE 'Material',
+      mc_pstype_service_text      TYPE c LENGTH 10 VALUE 'Service',
+
+      mc_currency_usd             TYPE waers VALUE 'USD',
+
+      mc_status_pending           TYPE c LENGTH 20 VALUE 'Pending',
+      mc_status_reviewed          TYPE c LENGTH 20 VALUE 'Reviewed',
+      mc_accrual_wtd              TYPE t_text_50 VALUE 'WTD',
+      mc_accrual_stl              TYPE t_text_50 VALUE 'STL',
+      mc_accrual_wtd_text         TYPE t_text_50 VALUE 'Work To Date',
+      mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line'.
 
     TYPES:
-      t_supplier       TYPE c LENGTH 500 .
-    TYPES:
-      t_text_500       TYPE c LENGTH 500 .
-    TYPES:
-      t_text_5000      TYPE c LENGTH 5000 .
-    TYPES:
-      t_status         TYPE c LENGTH 20 .
-    TYPES:
-      t_accrual_method TYPE c LENGTH 50 .
-
-
-    TYPES:
-      t_amount         TYPE p LENGTH 7 DECIMALS 2 .
-
-    TYPES:
-      t_rate           TYPE p LENGTH 5 DECIMALS 6 .
-
-
-
-    CONSTANTS mc_currency_usd TYPE waers VALUE 'USD' ##NO_TEXT.
-    CONSTANTS mc_status_pending TYPE t_status VALUE 'Pending' ##NO_TEXT.
-    CONSTANTS mc_status_reviewed TYPE t_status VALUE 'Reviewed' ##NO_TEXT.
-    CONSTANTS mc_accrual_wtd TYPE t_accrual_method VALUE 'WTD' ##NO_TEXT.
-    CONSTANTS mc_accrual_stl TYPE t_accrual_method VALUE 'STL' ##NO_TEXT.
-    CONSTANTS mc_accrual_wtd_text TYPE t_accrual_method VALUE 'Work To Date' ##NO_TEXT.
-    CONSTANTS mc_accrual_stl_text TYPE t_accrual_method VALUE 'Straight Line' ##NO_TEXT.
-    CONSTANTS:
-      mc_boolean_true  TYPE c LENGTH 5 VALUE 'true' ##NO_TEXT.
-    CONSTANTS:
-      mc_boolean_false TYPE c LENGTH 5 VALUE 'false' ##NO_TEXT.
-*  CONSTANTS mc_null TYPE string VALUE 'NULL' ##NO_TEXT.
-    CONSTANTS:
-      mc_pstype_material_text TYPE c LENGTH 10 VALUE 'Material' ##NO_TEXT.
-    CONSTANTS:
-      mc_pstype_service_text  TYPE c LENGTH 10 VALUE 'Service' ##NO_TEXT.
-*  CONSTANTS:
-*    mc_asterisk_sign TYPE c LENGTH 1 VALUE '*' ##NO_TEXT.
-*  CONSTANTS:
-*    mc_percent_sign TYPE c LENGTH 1 VALUE '%' ##NO_TEXT.
-*  CONSTANTS:
-*    mc_comma TYPE c LENGTH 1 VALUE ',' ##NO_TEXT.
-
-
-**********************************************************
-    TYPES:
-
       BEGIN OF ts_filter_for_amdp,
         ponumber     TYPE string,
         item         TYPE string,
@@ -182,113 +111,25 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_internal_request.
         INCLUDE TYPE zif_fi_das_dashboard=>ts_request.
       TYPES:
-        mode                 TYPE zif_fi_das_dashboard=>t_mode,
-        filter_for_amdp      TYPE ts_filter_for_amdp,
+        mode                  TYPE zif_fi_das_dashboard=>t_mode,
+        filter_for_amdp       TYPE ts_filter_for_amdp,
         pstype_desc_requested TYPE abap_bool,
       END OF ts_internal_request,
 
-      BEGIN OF ts_shared_fields,
-        poowner_email     TYPE zif_fi_das_dashboard=>t_email,
-        companycode       TYPE bukrs,
-        purchasingunit    TYPE t001-butxt,
-        region            TYPE t001-land1,
-        cocdecurr         TYPE waers,
-        totwrkcompper     TYPE t_amount,
-        glaccount         TYPE t_text_5000,
-        costcenter        TYPE t_text_5000,
-        manageunit        TYPE t_text_5000,
-        ponumber          TYPE ebeln,
-        itemno            TYPE ebelp,
-        pocreatedat       TYPE d,
-        supplierid        TYPE lifnr,
-        suppliername      TYPE t_text_500,
-        polinedesc        TYPE t_text_5000,
-        pstype            TYPE zif_fi_das_dashboard=>t_pstype,
-        povalue           TYPE t_amount,
-        pocurrency        TYPE waers,
-        invoice_currency  TYPE waers,
-        wrkstrtdate       TYPE d,
-        wrkenddate        TYPE d,
-        totwrkcompamt     TYPE t_amount,
-        internalorder     TYPE t_text_5000,
-        assetid           TYPE t_text_5000,
-        profitcenter      TYPE t_text_5000,
-        epnumber          TYPE unsez,
-        status            TYPE t_status,
-        lastmonthwrkcomp  TYPE t_amount,
-        straightlinemthd  TYPE abap_bool,
-        povalue_coco      TYPE t_amount,
-        accrualmethod     TYPE t_accrual_method,
-        bbp_acc_no        TYPE t_text_5000,
-        documentdate      TYPE d,
-        exchangerate      TYPE t_rate,
-        po_preparer       TYPE zif_fi_das_dashboard=>t_email,
-        changed_on        TYPE timestampl,
-        povalue_usd       TYPE t_amount,
-        totwrkcompamt_usd TYPE t_amount,
-        po_closure        TYPE abap_bool,
-        poclosure_flag    TYPE i,
-*        poclosure_flag_local TYPE abap_bool,
-        checkflag         TYPE c LENGTH 10,
-        grvalue           TYPE t_amount,
-        invvalue          TYPE t_amount,
-        invvalue_usd      TYPE t_amount,
-        grvalue_usd       TYPE t_amount,
-        decimal_format    TYPE xudcpfm,
-        zactivitynbr      TYPE zactivitynbr,
-        distpercentage    TYPE t_text_5000,
-      END OF ts_shared_fields,
-
-      BEGIN OF ts_over_under_fields,
-        totwrkcompamt_cocdecurr TYPE t_amount,
-        markasreviewed          TYPE abap_bool,
-        edgewtdamt              TYPE t_amount,
-        changeddate             TYPE d,
-        changedtime             TYPE t,
-        reviewed_by             TYPE c LENGTH 225,
-        purchasingorganization  TYPE ekorg,
-        orderquantity           TYPE t_amount,
-        amountaccrued           TYPE t_amount,
-        amountaccrued_cocdecurr TYPE t_amount,
-        invvalue_cocdecurr      TYPE t_amount,
-        grvalue_cocdecurr       TYPE t_amount,
-        username                TYPE xubname,
-        full_name               TYPE ad_namtext,
-        datfm                   TYPE xudatfm,
-        invvalue_cal            TYPE t_amount,
-        amountaccrued_usd       TYPE t_amount,
-      END OF ts_over_under_fields,
-
-      BEGIN OF ts_specific_fields,
+      BEGIN OF ts_odata_result.
+        INCLUDE TYPE zfi_das_shared.
+        INCLUDE TYPE zfi_das_over_under.
+      TYPES:
         last_notif_on  TYPE timestampl,
         notif_24_hr    TYPE abap_bool,
         ruletype       TYPE t_text_5000,
         ruletypetext   TYPE t_text_5000,
         costcenterdesc TYPE t_text_5000,
-      END OF ts_specific_fields,
-
-*      BEGIN OF ts_result.
-*        INCLUDE TYPE ts_shared_fields.
-*        INCLUDE TYPE ts_over_under_fields.
-*        INCLUDE TYPE ts_specific_fields.
-*      TYPES:
-*      END OF ts_result,
-*
-*      tt_result TYPE TABLE OF ts_result WITH EMPTY KEY,
-
-      BEGIN OF ts_odata_result.
-        INCLUDE TYPE zfi_das_shared.
-        INCLUDE TYPE zfi_das_over_under.
-        INCLUDE TYPE ts_specific_fields.
-      TYPES:
-        original_row_index TYPE i,
+        source_index   TYPE i,
       END OF ts_odata_result,
 
-      tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY.
+      tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
 
-
-**********************************************************
-    TYPES:
       BEGIN OF ts_key,
         ponumber      TYPE ebeln,
         itemno        TYPE ebelp,
@@ -296,7 +137,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      " Standard table keeps the sort order returned by the AMDP key selection
       tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
 
     TYPES:
@@ -356,7 +196,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         priceunit              TYPE ekpo-peinh,
         orderquantity          TYPE ekpo-menge,
         popreparer             TYPE zif_fi_das_dashboard=>t_email,
-        serviceamount          TYPE t_service_amount,
+        serviceamount          TYPE ekpo-zserv_amt,
         servicepercentage      TYPE ekpo-zserv_perc,
         polinedesc             TYPE t_text_5000,
         zactivitynbr           TYPE zactivitynbr,
@@ -471,20 +311,20 @@ CLASS zcl_fi_das_dashboard DEFINITION
         totwrkcompamt_usd TYPE t_amount,
         totwrkcompper     TYPE t_percentage,
         straightlinemthd  TYPE abap_bool,
-        accrualmethod     TYPE t_accrual_method,
+        accrualmethod     TYPE t_text_50,
       END OF ts_calculation.
 
     TYPES:
       BEGIN OF ts_context,
-        details          TYPE tt_source_detail,
-        accounts         TYPE tt_account_aggregate,
-        history          TYPE tt_history_aggregate,
-        statuses         TYPE tt_status,
-        notifications    TYPE tt_notification,
-        exclusions       TYPE tt_exclusion_aggregate,
-        users            TYPE tt_user,
-        review_day       TYPE i,
-        audit TYPE tt_audit,
+        details       TYPE tt_source_detail,
+        accounts      TYPE tt_account_aggregate,
+        history       TYPE tt_history_aggregate,
+        statuses      TYPE tt_status,
+        notifications TYPE tt_notification,
+        exclusions    TYPE tt_exclusion_aggregate,
+        users         TYPE tt_user,
+        review_day    TYPE i,
+        audit         TYPE tt_audit,
       END OF ts_context.
 
     TYPES tt_string_range TYPE RANGE OF string.
@@ -498,11 +338,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS execute_request
       IMPORTING
-        is_request       TYPE ts_internal_request
+        is_request    TYPE ts_internal_request
       EXPORTING
-        e_total_count    TYPE string
+        e_total_count TYPE string
       CHANGING
-        ct_result        TYPE STANDARD TABLE
+        ct_result     TYPE STANDARD TABLE
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
@@ -620,27 +460,27 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     CLASS-METHODS get_keys
       IMPORTING
-        VALUE(i_mode)              TYPE zif_fi_das_dashboard=>t_mode
-        VALUE(i_pstype)            TYPE zif_fi_das_dashboard=>t_pstype
-        VALUE(i_email)             TYPE zif_fi_das_dashboard=>t_email
-        VALUE(i_poowner)           TYPE zif_fi_das_dashboard=>t_poowner
-        VALUE(i_count_requested)   TYPE zif_fi_das_dashboard=>ts_paging-count_requested
-        VALUE(i_top_requested)     TYPE zif_fi_das_dashboard=>ts_paging-top_requested
-        VALUE(i_skip)              TYPE zif_fi_das_dashboard=>ts_paging-skip
-        VALUE(i_top)               TYPE zif_fi_das_dashboard=>ts_paging-top
-        VALUE(i_threshold_usd)     TYPE zfi_das_thresh-po_threshold
-        VALUE(i_ponumber_filter)   TYPE ts_internal_request-filter_for_amdp-ponumber
-        VALUE(i_item_filter)       TYPE ts_internal_request-filter_for_amdp-item
-        VALUE(i_supplier_filter)   TYPE ts_internal_request-filter_for_amdp-suppliername
-        VALUE(i_pstype_desc_requested)  TYPE ts_internal_request-pstype_desc_requested
-        VALUE(it_japan_brazil)     TYPE tt_company_scope
-        VALUE(it_company_codes)    TYPE tt_company_scope
-        VALUE(it_cost_centers)     TYPE tt_cost_center_scope
-        VALUE(it_management_units) TYPE tt_management_scope
+        VALUE(i_mode)                  TYPE zif_fi_das_dashboard=>t_mode
+        VALUE(i_pstype)                TYPE zif_fi_das_dashboard=>t_pstype
+        VALUE(i_email)                 TYPE zif_fi_das_dashboard=>t_email
+        VALUE(i_poowner)               TYPE zif_fi_das_dashboard=>t_poowner
+        VALUE(i_count_requested)       TYPE zif_fi_das_dashboard=>ts_paging-count_requested
+        VALUE(i_top_requested)         TYPE zif_fi_das_dashboard=>ts_paging-top_requested
+        VALUE(i_skip)                  TYPE zif_fi_das_dashboard=>ts_paging-skip
+        VALUE(i_top)                   TYPE zif_fi_das_dashboard=>ts_paging-top
+        VALUE(i_threshold_usd)         TYPE zfi_das_thresh-po_threshold
+        VALUE(i_ponumber_filter)       TYPE ts_internal_request-filter_for_amdp-ponumber
+        VALUE(i_item_filter)           TYPE ts_internal_request-filter_for_amdp-item
+        VALUE(i_supplier_filter)       TYPE ts_internal_request-filter_for_amdp-suppliername
+        VALUE(i_pstype_desc_requested) TYPE ts_internal_request-pstype_desc_requested
+        VALUE(it_japan_brazil)         TYPE tt_company_scope
+        VALUE(it_company_codes)        TYPE tt_company_scope
+        VALUE(it_cost_centers)         TYPE tt_cost_center_scope
+        VALUE(it_management_units)     TYPE tt_management_scope
 
       EXPORTING
-        VALUE(et_keys)             TYPE tt_key
-        VALUE(e_total_count)       TYPE int8.
+        VALUE(et_keys)                 TYPE tt_key
+        VALUE(e_total_count)           TYPE int8.
 
     METHODS get_context
       IMPORTING
@@ -749,7 +589,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_rule_text
       IMPORTING
-        i_rule_type   TYPE t_rule_type
+        i_rule_type   TYPE zfi_das_po_excl-ruletype
       RETURNING
         VALUE(r_text) TYPE string.
 
@@ -789,7 +629,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_key           TYPE ts_key
         is_context       TYPE ts_context
         is_request       TYPE ts_internal_request
-        i_decimal_format TYPE t_decimal_format
+        i_decimal_format TYPE xudcpfm
       RETURNING
         VALUE(rs_result) TYPE ts_odata_result
       RAISING
@@ -835,7 +675,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS apply_odata_format
       IMPORTING
         i_mode           TYPE zif_fi_das_dashboard=>t_mode
-        i_decimal_format TYPE t_decimal_format
+        i_decimal_format TYPE xudcpfm
       CHANGING
         cs_result        TYPE ts_odata_result
       RAISING
@@ -928,7 +768,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_review_day           TYPE i
         i_current_date         TYPE d OPTIONAL
       RETURNING
-        VALUE(r_review_action) TYPE t_review_action.
+        VALUE(r_review_action) TYPE char1.
 
     METHODS determine_status
       IMPORTING
@@ -966,9 +806,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_accrual_method_text
       IMPORTING
-        i_method      TYPE t_accrual_method
+        i_method      TYPE t_text_50
       RETURNING
-        VALUE(r_text) TYPE t_accrual_method.
+        VALUE(r_text) TYPE t_text_50.
 
     METHODS determine_review
       IMPORTING
@@ -1293,7 +1133,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
 *   Preserve the current row order because AMDP filtering does not guarantee it
     LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-      <fs_result>-original_row_index = sy-tabix.
+      <fs_result>-source_index = sy-tabix.
     ENDLOOP.
 
     TRY.
@@ -1751,11 +1591,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                               high = <fs_filter_select_options>-high ).
 
       CASE to_upper( <fs_filter_select_options>-property ).
-        WHEN mc_property_ponumber.
+        WHEN mc_ponumber.
           APPEND ls_range TO lr_ponumber.
-        WHEN mc_property_itemno.
+        WHEN mc_itemno.
           APPEND ls_range TO lr_item.
-        WHEN mc_property_suppliername.
+        WHEN mc_suppliername.
           APPEND ls_range TO lr_suppliername.
         WHEN OTHERS.
           l_has_non_standard_for_amdp = abap_true.
@@ -1765,9 +1605,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     TRY.
         cs_request-filter_for_amdp = VALUE #(
-           ponumber     = convert_range_to_where( i_column = mc_property_ponumber     ir_range = lr_ponumber )
-           item         = convert_range_to_where( i_column = mc_property_itemno       ir_range = lr_item )
-           suppliername = convert_range_to_where( i_column = mc_property_suppliername ir_range = lr_suppliername ) ).
+           ponumber     = convert_range_to_where( i_column = mc_ponumber     ir_range = lr_ponumber )
+           item         = convert_range_to_where( i_column = mc_itemno       ir_range = lr_item )
+           suppliername = convert_range_to_where( i_column = mc_suppliername ir_range = lr_suppliername ) ).
 
       CATCH cx_shdb_exception.
         CLEAR cs_request-filter_for_amdp.
@@ -1791,13 +1631,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     et_result =
       SELECT *
         FROM :lt_filtered
-      ORDER BY original_row_index ASC;
+      ORDER BY source_index ASC;
 
   ENDMETHOD.
 
   METHOD get_access_scope.
 
-    IF i_poowner = abap_true OR i_email = mc_percent_sign.
+    IF i_poowner = abap_true OR i_email = mc_percent.
 
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_company_codes.
       INSERT VALUE #( wildcard = abap_true ) INTO TABLE et_cost_centers.
@@ -1956,7 +1796,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+      IF <f_value> = mc_asterisk AND l_single_value = abap_true.
 
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
@@ -2012,7 +1852,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+      IF <f_value> = mc_asterisk AND l_single_value = abap_true.
 
         INSERT VALUE #(  wildcard = abap_true ) INTO TABLE rt_scope.
 
@@ -2119,8 +1959,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     r_email = zcl_fi_das_utility=>normalize_email( i_email = i_email ).
 
-    IF r_email = mc_asterisk_sign.
-      r_email = mc_percent_sign.
+    IF r_email = mc_asterisk.
+      r_email = mc_percent.
     ENDIF.
 
   ENDMETHOD.
@@ -2189,7 +2029,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       <fs_aggregate>-ruletypetext = zcl_fi_das_utility=>append_delimited(
                                       i_current      = <fs_aggregate>-ruletypetext
-                                      i_value        = get_rule_text( CONV t_rule_type( <fs_exclusion>-ruletype )  )
+                                      i_value        = get_rule_text( <fs_exclusion>-ruletype )
                                       i_skip_initial = abap_true ).
 
     ENDLOOP.
@@ -2762,7 +2602,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<f_value>).
 
-      IF <f_value> = mc_asterisk_sign AND l_single_value = abap_true.
+      IF <f_value> = mc_asterisk AND l_single_value = abap_true.
 
         INSERT VALUE #( wildcard = abap_true ) INTO TABLE rt_scope.
 
@@ -2924,18 +2764,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
          i_use_grouping   = abap_false ).
     ENDIF.
 
-    IF i_mode = zif_fi_das_dashboard=>mc_over.
-
-      cs_result-notif_24_hr = COND #( WHEN cs_result-notif_24_hr = abap_true
-                                        THEN mc_yes
-                                        ELSE space ).
-
-    ELSEIF i_mode = zif_fi_das_dashboard=>mc_exclude.
-
-      cs_result-straightlinemthd = COND #( WHEN cs_result-straightlinemthd = abap_true
-                                             THEN mc_yes
-                                             ELSE space ).
-    ENDIF.
+*    IF i_mode = zif_fi_das_dashboard=>mc_over.
+*
+*      cs_result-notif_24_hr = COND #( WHEN cs_result-notif_24_hr = abap_true
+*                                        THEN mc_yes
+*                                        ELSE space ).
+*
+*    ELSEIF i_mode = zif_fi_das_dashboard=>mc_exclude.
+*
+*      cs_result-straightlinemthd = COND #( WHEN cs_result-straightlinemthd = abap_true
+*                                             THEN mc_yes
+*                                             ELSE space ).
+*    ENDIF.
 
   ENDMETHOD.
 
@@ -2993,53 +2833,53 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-METHOD get_results.
+  METHOD get_results.
 
-  DATA(l_decimal_format) =
-    get_decimal_format( is_request-parameter-email ).
+    DATA(l_decimal_format) =
+      get_decimal_format( is_request-parameter-email ).
 
-  DATA(l_keys_count) = lines( it_keys ).
+    DATA(l_keys_count) = lines( it_keys ).
 
-  DATA lt_package TYPE tt_odata_result.
+    DATA lt_package TYPE tt_odata_result.
 
-  LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+    LOOP AT it_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
 
-    DATA(ls_row) = get_row(
-      is_key            = <fs_key>
-      is_context        = is_context
-      is_request        = is_request
-      i_decimal_format  = l_decimal_format ).
+      DATA(ls_row) = get_row(
+        is_key            = <fs_key>
+        is_context        = is_context
+        is_request        = is_request
+        i_decimal_format  = l_decimal_format ).
 
-    IF ls_row IS NOT INITIAL.
-      APPEND ls_row TO lt_package.
+      IF ls_row IS NOT INITIAL.
+        APPEND ls_row TO lt_package.
+      ENDIF.
+
+      IF lines( lt_package ) >= mc_package_size
+         OR sy-tabix = l_keys_count.
+
+        apply_generic_filter(
+          EXPORTING
+            is_request = is_request
+          CHANGING
+            ct_result  = lt_package ).
+
+        append_result_package(
+          CHANGING
+            ct_package = lt_package
+            ct_result  = ct_result ).
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD append_result_package.
+
+    IF ct_package IS INITIAL.
+      RETURN.
     ENDIF.
 
-    IF lines( lt_package ) >= mc_result_package_size
-       OR sy-tabix = l_keys_count.
-
-      apply_generic_filter(
-        EXPORTING
-          is_request = is_request
-        CHANGING
-          ct_result  = lt_package ).
-
-      append_result_package(
-        CHANGING
-          ct_package = lt_package
-          ct_result  = ct_result ).
-
-    ENDIF.
-
-  ENDLOOP.
-
-ENDMETHOD.
-
-METHOD append_result_package.
-
-  IF ct_package IS INITIAL.
-    RETURN.
-  ENDIF.
- 
     LOOP AT ct_package ASSIGNING FIELD-SYMBOL(<fs_package_row>).
       APPEND INITIAL LINE TO ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
       MOVE-CORRESPONDING <fs_package_row> TO <fs_result>.
@@ -3047,9 +2887,9 @@ METHOD append_result_package.
 
 *  APPEND LINES OF ct_package TO ct_result.
 
-  FREE ct_package.
+    FREE ct_package.
 
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD get_review_action.
 
@@ -3071,7 +2911,7 @@ ENDMETHOD.
     DATA(l_changed_month) = CONV i( i_changed_date+4(2) ).
     DATA(l_changed_day)   = CONV i( i_changed_date+6(2) ).
 
-    DATA(l_grace_period) = xsdbool( l_current_day BETWEEN mc_grace_period_start AND mc_grace_period_end ).
+    DATA(l_grace_period) = xsdbool( l_current_day BETWEEN mc_period_first_day AND mc_period_last_day ).
 
 *    Previous year: keep Reviewed only during the grace period when the review belongs to the immediately preceding month
     IF l_changed_year < l_current_year.
@@ -3380,10 +3220,10 @@ ENDMETHOD.
     DATA(lt_default_orderby) = get_default_orderby( ).
 
     IF cs_request-orderby IS NOT INITIAL AND
-       to_upper( cs_request-orderby[ 1 ]-property ) = mc_orderby_pstype AND
+       to_upper( cs_request-orderby[ 1 ]-property ) = mc_pstype AND
                  cs_request-orderby[ 1 ]-descending = abap_true.
 
-      INSERT VALUE #( property   = mc_orderby_pstype
+      INSERT VALUE #( property   = mc_pstype
                       descending = abap_true ) INTO lt_default_orderby INDEX 1.
 
       l_pstype_desc_requested = abap_true.
@@ -3475,8 +3315,8 @@ ENDMETHOD.
 
   METHOD get_default_orderby.
 
-    rt_orderby = VALUE #( ( property = mc_sort_ponumber descending = abap_false )
-                          ( property = mc_sort_itemno   descending = abap_false ) ).
+    rt_orderby = VALUE #( ( property = mc_ponumber descending = abap_false )
+                          ( property = mc_itemno   descending = abap_false ) ).
 
   ENDMETHOD.
 

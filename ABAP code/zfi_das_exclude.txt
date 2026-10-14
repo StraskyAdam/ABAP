@@ -4,6 +4,6 @@ define type zfi_das_exclude {
   include zfi_das_shared;
   ruletype       : abap.char(5000);
   ruletypetext   : abap.char(5000);
-  costcenterdesc : abap.char(5000);
+  costcenterdesc : abap.char(40);
 
 }

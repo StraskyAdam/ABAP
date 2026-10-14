@@ -3,8 +3,8 @@
 define type zfi_das_shared {
   poowner_email     : abap.char(255);
   companycode       : bukrs;
-  purchasingunit    : abap.char(25);
-  region            : abap.char(3);
+  purchasingunit    : butxt;
+  region            : land1;
   totwrkcompper     : abap.dec(13,2);
   cocdecurr         : waers;
   glaccount         : abap.char(5000);
@@ -26,13 +26,13 @@ define type zfi_das_shared {
   internalorder     : abap.char(5000);
   assetid           : abap.char(5000);
   profitcenter      : abap.char(5000);
-  epnumber          : abap.char(12);
+  epnumber          : unsez;
   status            : abap.char(20);
   lastmonthwrkcomp  : abap.dec(13,2);
   straightlinemthd  : abap.char(5);
   povalue_coco      : abap.dec(13,2);
   accrualmethod     : abap.char(50);
-  po_preparer       : abap.char(255);
+  po_preparer       : abap.char(241);
   changed_on        : timestampl;
   pstype_text       : abap.char(10);
   povalue_usd       : abap.dec(13,2);

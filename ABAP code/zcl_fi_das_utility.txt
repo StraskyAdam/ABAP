@@ -11,6 +11,7 @@ CLASS zcl_fi_das_utility DEFINITION
     CONSTANTS:
       mc_dot                TYPE c LENGTH 1 VALUE '.',
       mc_comma              TYPE c LENGTH 1 VALUE ',',
+      mc_semicolon          TYPE c LENGTH 1 VALUE ';',
       mc_percentage_pattern TYPE string VALUE '^[+-]?[0-9]+([.][0-9]+)?$',
 
       mc_decimal_dot        TYPE xudcpfm VALUE 'X',
@@ -55,7 +56,7 @@ CLASS zcl_fi_das_utility DEFINITION
       IMPORTING
         i_current       TYPE string
         i_value         TYPE string
-        i_delimiter     TYPE char1 DEFAULT ';'
+        i_delimiter     TYPE char1 DEFAULT mc_semicolon
         i_skip_initial  TYPE abap_bool DEFAULT abap_false
         i_first         TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -64,7 +65,7 @@ CLASS zcl_fi_das_utility DEFINITION
     CLASS-METHODS trim_delimiters
       IMPORTING
         i_value        TYPE string
-        i_delimiter    TYPE char1 DEFAULT ';'
+        i_delimiter    TYPE char1 DEFAULT mc_semicolon
       RETURNING
         VALUE(r_value) TYPE string.
 

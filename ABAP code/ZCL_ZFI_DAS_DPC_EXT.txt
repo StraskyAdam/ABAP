@@ -49,7 +49,8 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       RETURNING
-        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby .
+        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby.
+
 ENDCLASS.
 
 CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.

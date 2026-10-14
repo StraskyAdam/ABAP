@@ -5,11 +5,38 @@ CLASS zcl_fi_das_utility DEFINITION
 
   PUBLIC SECTION.
 
-    TYPES:
-      tt_string          TYPE STANDARD TABLE OF string
-        WITH EMPTY KEY,
+    TYPES: tt_string          TYPE STANDARD TABLE OF string  WITH EMPTY KEY,
+           t_amount_precision TYPE p LENGTH 16 DECIMALS 8.
 
-      t_amount_precision TYPE p LENGTH 16 DECIMALS 8.
+    CONSTANTS:
+      mc_dot                TYPE c LENGTH 1 VALUE '.',
+      mc_comma              TYPE c LENGTH 1 VALUE ',',
+      mc_percentage_pattern TYPE string VALUE '^[+-]?[0-9]+([.][0-9]+)?$',
+
+      mc_decimal_dot        TYPE xudcpfm VALUE 'X',
+      mc_decimal_space      TYPE xudcpfm VALUE 'Y',
+
+      mc_max_decimals       TYPE i VALUE 14,
+
+      mc_first_day_of_month TYPE c LENGTH 2 VALUE '01',
+      mc_month_roll_days    TYPE i VALUE 32,
+
+      mc_timezone_cet       TYPE ttzz-tzone VALUE 'CET',
+      mc_timezone_utc       TYPE ttzz-tzone VALUE 'UTC',
+
+      mc_zero               TYPE i VALUE 0,
+      mc_padding_length     TYPE i VALUE 2,
+      mc_single_digit_limit TYPE i VALUE 10,
+      mc_zero_character     TYPE c LENGTH 1 VALUE '0',
+
+      mc_boolean_true       TYPE c LENGTH 5 VALUE 'true',
+      mc_boolean_false      TYPE c LENGTH 5 VALUE 'false',
+
+      mc_min_odata_decimals TYPE i VALUE 0,
+      mc_max_odata_decimals TYPE i VALUE 8,
+      mc_group_size         TYPE i VALUE 3,
+      mc_plus_sign          TYPE c LENGTH 1 VALUE '+',
+      mc_minus_sign         TYPE c LENGTH 1 VALUE '-'.
 
     CLASS-METHODS normalize_email
       IMPORTING
@@ -20,7 +47,7 @@ CLASS zcl_fi_das_utility DEFINITION
     CLASS-METHODS split_list
       IMPORTING
         i_value          TYPE string
-        i_delimiter      TYPE char1 DEFAULT ','
+        i_delimiter      TYPE char1 DEFAULT mc_comma
       RETURNING
         VALUE(rt_values) TYPE tt_string.
 
@@ -61,10 +88,11 @@ CLASS zcl_fi_das_utility DEFINITION
       RETURNING
         VALUE(r_is_current) TYPE abap_bool.
 
-
-
-
-
+    CLASS-METHODS bool_to_text
+      IMPORTING
+        i_value        TYPE char5
+      RETURNING
+        VALUE(r_value) TYPE char5.
 
     CLASS-METHODS truncate_decimal
       IMPORTING
@@ -89,6 +117,7 @@ CLASS zcl_fi_das_utility DEFINITION
         i_split_day     TYPE i
       RETURNING
         VALUE(r_bucket) TYPE d.
+
     CLASS-METHODS months_between
       IMPORTING
         i_from          TYPE d
@@ -99,7 +128,7 @@ CLASS zcl_fi_das_utility DEFINITION
     CLASS-METHODS format_odata_amount
       IMPORTING
         i_amount                TYPE t_amount_precision
-        i_decimal_format        TYPE zcl_fi_das_dashboard=>t_decimal_format
+        i_decimal_format        TYPE xudcpfm
         i_decimals              TYPE i DEFAULT 2
         i_use_grouping          TYPE abap_bool DEFAULT abap_true
         i_pad_nonzero_below_ten TYPE abap_bool DEFAULT abap_true
@@ -109,12 +138,14 @@ CLASS zcl_fi_das_utility DEFINITION
         zcx_fi_das_error.
 
   PRIVATE SECTION.
+
     TYPES:
       BEGIN OF ts_number_parts,
         sign     TYPE char1,
         integer  TYPE string,
         fraction TYPE string,
       END OF ts_number_parts.
+
     CLASS-METHODS get_number_parts
       IMPORTING
         i_amount        TYPE t_amount_precision
@@ -124,7 +155,7 @@ CLASS zcl_fi_das_utility DEFINITION
 
     CLASS-METHODS get_number_separators
       IMPORTING
-        i_decimal_format     TYPE zcl_fi_das_dashboard=>t_decimal_format
+        i_decimal_format     TYPE xudcpfm
       EXPORTING
         e_decimal_separator  TYPE char1
         e_grouping_separator TYPE char1.
@@ -136,44 +167,7 @@ CLASS zcl_fi_das_utility DEFINITION
       RETURNING
         VALUE(r_integer)     TYPE string.
 
-
-    CONSTANTS:
-      mc_decimal_dot   TYPE xudcpfm VALUE 'X',
-      mc_decimal_space TYPE xudcpfm VALUE 'Y',
-      mc_max_decimals  TYPE i VALUE 14.
-
-    CONSTANTS:
-      mc_first_day_of_month TYPE c LENGTH 2 VALUE '01',
-      mc_month_roll_days    TYPE i VALUE 32.
-
-    CONSTANTS:
-      mc_percentage_pattern TYPE string VALUE '^[+-]?[0-9]+([.][0-9]+)?$',
-      mc_dot                TYPE c LENGTH 1 VALUE '.',
-      mc_comma              TYPE c LENGTH 1 VALUE ','.
-    CONSTANTS mc_timezone_cet TYPE ttzz-tzone VALUE 'CET'.
-
-    CONSTANTS mc_timezone_utc TYPE ttzz-tzone VALUE 'UTC'.
-
-    CONSTANTS:
-      mc_zero               TYPE i VALUE 0,
-      mc_padding_length     TYPE i VALUE 2,
-      mc_single_digit_limit TYPE i VALUE 10,
-
-      mc_zero_character     TYPE c LENGTH 1 VALUE '0'.
-
-
-    CONSTANTS:
-
-
-      mc_min_odata_decimals TYPE i VALUE 0,
-      mc_max_odata_decimals TYPE i VALUE 8,
-      mc_group_size         TYPE i VALUE 3,
-      mc_plus_sign          TYPE c LENGTH 1 VALUE '+',
-      mc_minus_sign         TYPE c LENGTH 1 VALUE '-'.
-
 ENDCLASS.
-
-
 
 CLASS zcl_fi_das_utility IMPLEMENTATION.
 
@@ -190,10 +184,9 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
 
     SHIFT l_value LEFT DELETING LEADING mc_zero_character.
 
-    r_value = COND #(
-      WHEN l_value IS INITIAL
-      THEN mc_zero_character
-      ELSE l_value ).
+    r_value = COND #( WHEN l_value IS INITIAL
+                         THEN mc_zero_character
+                         ELSE l_value ).
 
   ENDMETHOD.
 
@@ -513,7 +506,6 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD trim_delimiters.
 
     DATA(l_value) = i_value.
@@ -574,6 +566,14 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
 
 *   Preserve the original seven fractional digits
     r_timestamp =  CONV timestampl(  |{ l_local_date DATE = RAW }{ l_local_time TIME = RAW }| ) + CONV timestampl( l_fraction ).
+
+  ENDMETHOD.
+
+  METHOD bool_to_text.
+
+    r_value = COND #( WHEN i_value = abap_true
+                        THEN mc_boolean_true
+                        ELSE mc_boolean_false ).
 
   ENDMETHOD.
 

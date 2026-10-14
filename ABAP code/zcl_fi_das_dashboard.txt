@@ -125,7 +125,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         ruletype       TYPE t_text_5000,
         ruletypetext   TYPE t_text_5000,
         costcenterdesc TYPE t_text_5000,
-        original_order   TYPE i,
+        original_order TYPE i,
       END OF ts_odata_result,
 
       tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
@@ -137,7 +137,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+      tt_key        TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+
+      tt_unique_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
 
       BEGIN OF ts_role,
         company_code    TYPE string,
@@ -460,11 +462,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error
         cx_sy_open_sql_db.
 
-    METHODS get_exchrt.
+    METHODS get_unique_keys
+      IMPORTING it_key        TYPE tt_key
+      RETURNING VALUE(rt_key) TYPE tt_unique_key.
+
+    METHODS get_exchrt
+      IMPORTING
+        ir_source_curr TYPE tt_string_range OPTIONAL.
 
     METHODS get_details
       IMPORTING
-        it_keys           TYPE tt_key
+        it_keys           TYPE tt_unique_key
       RETURNING
         VALUE(rt_details) TYPE tt_detail
       RAISING
@@ -472,7 +480,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_accounts
       IMPORTING
-        it_keys            TYPE tt_key
+        it_keys            TYPE tt_unique_key
       RETURNING
         VALUE(rt_accounts) TYPE tt_account_aggregate
       RAISING
@@ -480,7 +488,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_history
       IMPORTING
-        it_keys           TYPE tt_key
+        it_keys           TYPE tt_unique_key
         it_details        TYPE tt_detail
       RETURNING
         VALUE(rt_history) TYPE tt_history_aggregate
@@ -490,7 +498,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_status
       IMPORTING
-        it_keys            TYPE tt_key
+        it_keys            TYPE tt_unique_key
       RETURNING
         VALUE(rt_statuses) TYPE tt_status
       RAISING
@@ -498,7 +506,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_notifications
       IMPORTING
-        it_keys                 TYPE tt_key
+        it_keys                 TYPE tt_unique_key
       RETURNING
         VALUE(rt_notifications) TYPE tt_notification
       RAISING
@@ -506,7 +514,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_exclusions
       IMPORTING
-        it_keys              TYPE tt_key
+        it_keys              TYPE tt_unique_key
       RETURNING
         VALUE(rt_exclusions) TYPE tt_exclusion_aggregate
       RAISING
@@ -768,17 +776,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_audit
       IMPORTING
-        VALUE(it_keys)  TYPE tt_key
+        VALUE(it_keys)  TYPE tt_unique_key
       EXPORTING
         VALUE(et_audit) TYPE tt_audit
       RAISING
         cx_amdp_error.
-
-    CLASS-METHODS bool_to_text
-      IMPORTING
-        i_value        TYPE char5
-      RETURNING
-        VALUE(r_value) TYPE char5.
 
     METHODS apply_generic_filter
       IMPORTING
@@ -823,64 +825,49 @@ ENDCLASS.
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_audit
-    BY DATABASE PROCEDURE
-    FOR HDB
-    LANGUAGE SQLSCRIPT
-    OPTIONS READ-ONLY
-    USING zfi_das_auditlog.
+   BY DATABASE PROCEDURE
+   FOR HDB
+   LANGUAGE SQLSCRIPT
+   OPTIONS READ-ONLY
+   USING zfi_das_auditlog.
 
-    DECLARE lc_services_completed CONSTANT NVARCHAR(50)
-      = 'Services Completed Amount';
+    DECLARE lc_services_completed CONSTANT NVARCHAR(50) = 'Services Completed Amount';
 
-    DECLARE lc_client_context CONSTANT NVARCHAR(10)
-      = 'CLIENT';
-
-    lt_audit =
-      SELECT audit.ponumber,
-             audit.lineitem AS itemno,
-             audit.changedon,
-             audit.newvalue
-        FROM zfi_das_auditlog AS audit
-       WHERE audit.mandt = SESSION_CONTEXT( lc_client_context )
-         AND audit.fname = lc_services_completed
-         AND ( audit.ponumber, audit.lineitem ) IN (
-               SELECT ponumber,
-                      itemno
-                 FROM :it_keys )
-         AND audit.changedon IN (
-               SELECT MAX( _max.changedon )
-                 FROM zfi_das_auditlog AS _max
-                WHERE _max.mandt = SESSION_CONTEXT( lc_client_context )
-                  AND TO_INTEGER(
-                        SUBSTR(
-                          TO_NVARCHAR(
-                            TO_BIGINT( _max.changedon ) ),
-                          5,
-                          2 ) )
-                      = MONTH(
-                          ADD_MONTHS(
-                            CURRENT_DATE,
-                            -1 ) )
-                GROUP BY _max.ponumber,
-                         _max.lineitem );
+    DECLARE lc_client_context CONSTANT NVARCHAR(10) = 'CLIENT';
 
     lt_ranked =
-      SELECT ponumber,
-             itemno,
-             newvalue,
-             ROW_NUMBER() OVER (
-               PARTITION BY ponumber,
-                            itemno
-               ORDER BY changedon DESC
-             ) AS row_number
-        FROM :lt_audit;
+      SELECT
+        audit.ponumber,
+        audit.lineitem AS itemno,
+        audit.newvalue,
+        ROW_NUMBER() OVER (
+          PARTITION BY audit.ponumber,
+                       audit.lineitem
+          ORDER BY audit.changedon DESC
+        ) AS row_number
+      FROM zfi_das_auditlog AS audit
+      WHERE audit.mandt = SESSION_CONTEXT( lc_client_context )
+        AND audit.fname = lc_services_completed
+        AND ( audit.ponumber, audit.lineitem ) IN (
+              SELECT ponumber,
+                     itemno
+                FROM :it_keys )
+        AND audit.changedon IN (
+              SELECT MAX( _max.changedon )
+                FROM zfi_das_auditlog AS _max
+               WHERE _max.mandt = SESSION_CONTEXT( lc_client_context )
+                 AND TO_INTEGER( SUBSTR( TO_NVARCHAR( TO_BIGINT( _max.changedon ) ), 5, 2 ) )
+                     = MONTH( ADD_MONTHS( CURRENT_DATE, -1 ) )
+               GROUP BY _max.ponumber,
+                        _max.lineitem );
 
     et_audit =
-      SELECT ponumber,
-             itemno,
-             TO_DECIMAL( newvalue, 13, 2 ) AS amount
-        FROM :lt_ranked
-       WHERE row_number = 1;
+      SELECT
+        ponumber,
+        itemno,
+        TO_DECIMAL( newvalue, 13, 2 ) AS amount
+      FROM :lt_ranked
+      WHERE row_number = 1;
 
   ENDMETHOD.
 
@@ -1030,7 +1017,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     cs_result-povalue_coco = cs_result-povalue.
 
-    cs_result-totwrkcompamt_cocdecurr = convert_to_usd( i_amount         = CONV t_amount_precision( cs_result-totwrkcompamt )
+    cs_result-totwrkcompamt_cocdecurr = convert_to_usd( i_amount          = CONV t_amount_precision( cs_result-totwrkcompamt )
                                                         i_source_currency = is_detail-pocurrency ).
 
     cs_result-amountaccrued_cocdecurr = cs_result-totwrkcompamt_cocdecurr - cs_result-invvalue_cocdecurr.
@@ -1094,7 +1081,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     cs_result-grvalue = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_history-gr_value )
                                                               i_decimals = mc_amount_decimals ).
-    cs_result-grvalue = cs_result-grvalue.
     cs_result-grvalue_cocdecurr = cs_result-grvalue.
     cs_result-grvalue_usd = is_history-grvalue_usd.
     cs_result-invvalue = is_history-invvalue.
@@ -1614,10 +1600,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ekkn~vproz   AS distpercentage,
       ekkn~menge   AS quantity
     FROM ekkn
+
      LEFT OUTER JOIN cskt ON cskt~kokrs = ekkn~kokrs AND
                              cskt~kostl = ekkn~kostl AND
                              cskt~spras = 'E' AND
                              cskt~datbi >= @sy-datum
+
      LEFT OUTER JOIN csks ON csks~kokrs = ekkn~kokrs AND
                              csks~kostl = ekkn~kostl AND
                              csks~datbi >= @sy-datum
@@ -1753,16 +1741,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_context.
 
+    DATA(lt_keys) = get_unique_keys( it_keys ).
+
     get_exchrt( ).
 
-    rs_context-details = get_details( it_keys ).
+    rs_context-details = get_details( lt_keys ).
 
-    rs_context-accounts = get_accounts( it_keys ).
+    rs_context-accounts = get_accounts( lt_keys ).
 
-    rs_context-history = get_history( it_keys    = it_keys
+    rs_context-history = get_history( it_keys    = lt_keys
                                       it_details = rs_context-details ).
 
-    rs_context-statuses = get_status( it_keys ).
+    rs_context-statuses = get_status( lt_keys ).
 
     rs_context-review_day = get_review_day( ).
 
@@ -1770,16 +1760,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                IMPORTING et_users   = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
-      get_audit( EXPORTING it_keys  = it_keys
-                            IMPORTING et_audit = rs_context-audit ).
-    ENDIF.
 
-    IF is_request-mode <> zif_fi_das_dashboard=>mc_exclude.
-      rs_context-notifications = get_notifications( it_keys ).
+      get_audit( EXPORTING it_keys  = lt_keys
+                 IMPORTING et_audit = rs_context-audit ).
+
+      rs_context-notifications = get_notifications( lt_keys ).
+
     ENDIF.
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_exclude.
-      rs_context-exclusions = get_exclusions( it_keys ).
+      rs_context-exclusions = get_exclusions( lt_keys ).
     ENDIF.
 
   ENDMETHOD.
@@ -1863,6 +1853,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_details.
 
+    DATA lt_unique_key TYPE HASHED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno.
+
     IF it_keys IS NOT INITIAL.
 
       SELECT ponumber,itemno,wrkstrtdate,wrkenddate,grossvalue,netprice,priceunit,orderquantity,
@@ -1875,23 +1867,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             itemno   = @it_keys-itemno
         INTO TABLE @DATA(lt_base).
 
-      DATA lt_key_lookup TYPE HASHED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno.
-      lt_key_lookup = it_keys.
+      IF sy-subrc = 0.
 
-      LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
+        lt_unique_key = it_keys.
 
-        ASSIGN lt_key_lookup[ ponumber = <fs_base>-ponumber
-                              itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
+        LOOP AT lt_base ASSIGNING FIELD-SYMBOL(<fs_base>).
 
-        IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
-          CONTINUE.
-        ENDIF.
+          ASSIGN lt_unique_key[ ponumber = <fs_base>-ponumber
+                                itemno   = <fs_base>-itemno ] TO FIELD-SYMBOL(<fs_key>).
 
-        INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
-                        effective_pstype = <fs_key>-pstype
-                        poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
+          IF <fs_key> IS NOT ASSIGNED OR sy-subrc <> 0.
+            CONTINUE.
+          ENDIF.
 
-      ENDLOOP.
+          INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
+                          effective_pstype = <fs_key>-pstype
+                          poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
+
+        ENDLOOP.
+      ENDIF.
     ENDIF.
 
   ENDMETHOD.
@@ -1926,7 +1920,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       SELECT source_curr, target_curr,exchange_rate, reference_date,last_replicated_at,rev_exchange_rate
         FROM zfi_das_exchrt
-      INTO CORRESPONDING FIELDS OF TABLE @mt_exchrt.
+      WHERE source_curr IN @ir_source_curr
+        INTO CORRESPONDING FIELDS OF TABLE @mt_exchrt.
 
       IF sy-subrc <> 0.
         CLEAR mt_exchrt.
@@ -2671,13 +2666,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_use_grouping   = abap_false
         i_pad_nonzero_below_ten = abap_false  ).
 
-    cs_result-po_closure = bool_to_text( cs_result-po_closure ).
+    cs_result-po_closure = zcl_fi_das_utility=>bool_to_text( cs_result-po_closure ).
 
     IF i_mode = zif_fi_das_dashboard=>mc_over OR i_mode = zif_fi_das_dashboard=>mc_under.
 
-      cs_result-straightlinemthd = bool_to_text( cs_result-straightlinemthd ).
+      cs_result-straightlinemthd = zcl_fi_das_utility=>bool_to_text( cs_result-straightlinemthd ).
 
-      cs_result-markasreviewed = bool_to_text( cs_result-markasreviewed ).
+      cs_result-markasreviewed = zcl_fi_das_utility=>bool_to_text( cs_result-markasreviewed ).
 
       cs_result-totwrkcompamt_char =
        zcl_fi_das_utility=>format_odata_amount(
@@ -2705,19 +2700,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
          i_decimal_format = i_decimal_format
          i_use_grouping   = abap_false ).
     ENDIF.
-
-*    IF i_mode = zif_fi_das_dashboard=>mc_over.
-*
-*      cs_result-notif_24_hr = COND #( WHEN cs_result-notif_24_hr = abap_true
-*                                        THEN mc_yes
-*                                        ELSE space ).
-*
-*    ELSEIF i_mode = zif_fi_das_dashboard=>mc_exclude.
-*
-*      cs_result-straightlinemthd = COND #( WHEN cs_result-straightlinemthd = abap_true
-*                                             THEN mc_yes
-*                                             ELSE space ).
-*    ENDIF.
 
   ENDMETHOD.
 
@@ -2979,9 +2961,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     apply_closure( CHANGING cs_result = rs_result ).
 
-    apply_notification( EXPORTING is_notification = VALUE #( is_context-notifications[ ponumber = is_key-ponumber
-                                                                                       itemno   = is_key-itemno ] OPTIONAL )
-                        CHANGING  cs_result = rs_result ).
+    IF is_request-mode = zif_fi_das_dashboard=>mc_over.
+
+      apply_notification( EXPORTING is_notification = VALUE #( is_context-notifications[ ponumber = is_key-ponumber
+                                                                                         itemno   = is_key-itemno ] OPTIONAL )
+                          CHANGING  cs_result = rs_result ).
+    ENDIF.
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_exclude.
 
@@ -3083,12 +3068,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
         user_defaults.datfm              AS datfm,
-        user_defaults.bname              AS usr01_bname,
         user_data.bname                  AS usr21_bname,
         email.addrnumber                 AS adr6_addrnumber,
-        email.persnumber                 AS adr6_persnumber,
-        person.persnumber                AS adrp_persnumber,
-        user_logon.bname                 AS usr02_bname
+        email.persnumber                 AS adr6_persnumber
       FROM usr21 AS user_data
 
       INNER JOIN adrp AS person ON person.persnumber = user_data.persnumber
@@ -3250,11 +3232,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD bool_to_text.
+  METHOD get_unique_keys.
 
-    r_value = COND #( WHEN i_value = abap_true
-                        THEN mc_boolean_true
-                        ELSE mc_boolean_false ).
+    LOOP AT it_key ASSIGNING FIELD-SYMBOL(<fs_key>).
+      INSERT <fs_key> INTO TABLE rt_key.
+    ENDLOOP.
 
   ENDMETHOD.
 

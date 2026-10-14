@@ -58,13 +58,17 @@ INTERFACE zif_fi_das_dashboard
            filter    TYPE ts_filter,
            orderby   TYPE tt_orderby,
            paging    TYPE ts_paging,
-         END OF ts_request.
+         END OF ts_request,
+
+         tt_zfi_das_over TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude.
 
   METHODS over
     IMPORTING
       !is_request    TYPE ts_request
     EXPORTING
-      !et_result     TYPE zcl_zfi_das_mpc=>tt_openpotype
+      !et_result     TYPE tt_zfi_das_over
       !e_total_count TYPE string
     RAISING
       zcx_fi_das_error
@@ -75,7 +79,7 @@ INTERFACE zif_fi_das_dashboard
     IMPORTING
       !is_request    TYPE ts_request
     EXPORTING
-      !et_result     TYPE zcl_zfi_das_mpc=>tt_thresholdtype
+      !et_result     TYPE tt_zfi_das_under
       !e_total_count TYPE string
     RAISING
       zcx_fi_das_error
@@ -86,7 +90,7 @@ INTERFACE zif_fi_das_dashboard
     IMPORTING
       !is_request    TYPE ts_request
     EXPORTING
-      !et_result     TYPE zcl_zfi_das_mpc=>tt_exclusionpotype
+      !et_result     TYPE tt_zfi_das_exclude
       !e_total_count TYPE string
     RAISING
       zcx_fi_das_error

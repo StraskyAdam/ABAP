@@ -17,7 +17,7 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false"/>
 <Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false"/>
@@ -25,8 +25,8 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false"/>
 <Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false"/>
@@ -59,7 +59,7 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="TOTWRKCOMPPER_CHAR" sap:creatable="false" sap:updatable="false"/>
 <Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="MARKASREVIEWED" sap:creatable="false" sap:updatable="false"/>
 <Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="EDGEWTDAMT" sap:creatable="false" sap:updatable="false"/>
-<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:label="Field of type TIMS" sap:creatable="false" sap:updatable="false"/>
 <Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:label="REVIWED_BY" sap:creatable="false" sap:updatable="false"/>
 <Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="BBP_ACC_NO" sap:creatable="false" sap:updatable="false"/>
@@ -97,7 +97,7 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false"/>
 <Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false"/>
@@ -105,8 +105,8 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false"/>
 <Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false"/>
@@ -139,7 +139,7 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="TOTWRKCOMPPER_CHAR" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="TOTWRKCOMPPER_CHAR" sap:creatable="false" sap:updatable="false"/>
 <Property Name="MARKASREVIEWED" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="MARKASREVIEWED" sap:creatable="false" sap:updatable="false"/>
 <Property Name="EDGEWTDAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="EDGEWTDAMT" sap:creatable="false" sap:updatable="false"/>
-<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="CHANGEDDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="CHANGEDTIME" Type="Edm.Time" Precision="0" sap:unicode="false" sap:label="Field of type TIMS" sap:creatable="false" sap:updatable="false"/>
 <Property Name="REVIWED_BY" Type="Edm.String" MaxLength="225" sap:unicode="false" sap:label="REVIWED_BY" sap:creatable="false" sap:updatable="false"/>
 <Property Name="BBP_ACC_NO" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="BBP_ACC_NO" sap:creatable="false" sap:updatable="false"/>
@@ -178,7 +178,7 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="MANAGEUNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEUNIT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:label="Purchasing Doc." sap:creatable="false" sap:updatable="false"/>
 <Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:label="Item" sap:creatable="false" sap:updatable="false"/>
-<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="POCREATEDAT" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERID" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="Vendor" sap:creatable="false" sap:updatable="false"/>
 <Property Name="SUPPLIERNAME" Type="Edm.String" MaxLength="500" sap:unicode="false" sap:label="SUPPLIERNAME" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POLINEDESC" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="POLINEDESC" sap:creatable="false" sap:updatable="false"/>
@@ -186,8 +186,8 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="POVALUE" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="POVALUE" sap:creatable="false" sap:updatable="false"/>
 <Property Name="POCURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="Currency" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INVOICE_CURRENCY" Type="Edm.String" MaxLength="3" sap:unicode="false" sap:label="INVOICE_CURRENCY" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
-<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="7" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKSTRTDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
+<Property Name="WRKENDDATE" Type="Edm.DateTime" Precision="0" sap:unicode="false" sap:label="Date" sap:creatable="false" sap:updatable="false"/>
 <Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false"/>
 <Property Name="INTERNALORDER" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="INTERNALORDER" sap:creatable="false" sap:updatable="false"/>
 <Property Name="ASSETID" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="ASSETID" sap:creatable="false" sap:updatable="false"/>

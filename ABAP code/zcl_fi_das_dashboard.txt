@@ -1593,6 +1593,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       cskt~ltext   AS costcenterdesc,
       csks~zzrptun AS manageunit,
       csks~kostl   AS management_unit_found,
+      cskt~datbi   AS valid_to,
+      csks~datbi   AS csks_valid_to,
       ekkn~aufnr   AS internalorder,
       ekkn~anln1   AS assetid,
       ekkn~prctr   AS profitcenter,
@@ -1972,7 +1974,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD get_history.
 
     IF it_keys IS INITIAL.
@@ -2035,13 +2036,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        DATA(l_gr_amount) = CONV t_amount_precision( <fs_history>-quantity * <fs_detail>-netprice /
-                                                     <fs_detail>-priceunit * l_sign  ).
+        DATA(l_gr_amount) = CONV decfloat34( <fs_history>-quantity ) * CONV decfloat34( <fs_detail>-netprice ) /
+                            CONV decfloat34( <fs_detail>-priceunit ) * l_sign.
 
         <fs_aggregate>-gr_value = <fs_aggregate>-gr_value + l_gr_amount * l_currency_factor.
 
         <fs_aggregate>-grvalue_usd = <fs_aggregate>-grvalue_usd + convert_to_usd(
-                                                                      i_amount          = l_gr_amount
+                                                                      i_amount          = CONV #( l_gr_amount )
                                                                       i_source_currency = <fs_detail>-pocurrency
                                                                       i_keep_precision  = abap_true ).
 

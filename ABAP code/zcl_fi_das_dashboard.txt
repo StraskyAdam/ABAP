@@ -1817,7 +1817,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     r_decimal_format = mc_default_decimal_format.
 
-    DATA(l_email) = CONV ad_smtpadr( i_email ).
+    DATA(l_email) = CONV ad_smtpadr( to_lower( i_email ) ).
 
     IF l_email IS INITIAL.
       RETURN.
@@ -1835,7 +1835,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       WHERE email~smtp_addr = @l_email AND
             logon_data~ustyp = @mc_user_type_dialog AND
             logon_data~class NOT LIKE @mc_rpa_pattern AND
-            logon_data~gltgv <= @sy-datum AND
+            logon_data~gltgv < @sy-datum AND
             logon_data~gltgb >= @sy-datum
     ORDER BY user_data~bname
       INTO TABLE @DATA(lt_candidates).

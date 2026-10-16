@@ -910,6 +910,235 @@ CLASS ltc_request_processing DEFINITION FINAL
 
 ENDCLASS.
 
+CLASS ltcl_review_grace_test DEFINITION FINAL
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS:
+      prev_month_before_boundary   FOR TESTING,
+      prev_month_equal_boundary    FOR TESTING,
+      prev_month_after_boundary    FOR TESTING,
+      prev_year_before_boundary    FOR TESTING,
+      prev_year_equal_boundary     FOR TESTING,
+      prev_year_after_boundary     FOR TESTING,
+      same_month_before_review_day FOR TESTING,
+      same_month_on_review_day     FOR TESTING,
+      same_month_after_review_day  FOR TESTING.
+ENDCLASS.
+
+CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
+
+CLASS zcl_fi_das_dashboard DEFINITION
+  LOCAL FRIENDS ltcl_invoice_null_propagation.
+
+CLASS ltcl_invoice_null_propagation DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS invoice_zero           FOR TESTING RAISING cx_static_check.
+    METHODS invoice_negative       FOR TESTING RAISING cx_static_check.
+    METHODS invoice_positive       FOR TESTING RAISING cx_static_check.
+    METHODS service_zero_invoice   FOR TESTING RAISING cx_static_check.
+    METHODS material_zero_invoice  FOR TESTING RAISING cx_static_check.
+    METHODS accrual_clamped_zero   FOR TESTING RAISING cx_static_check.
+    METHODS accrual_difference     FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltcl_invoice_null_propagation IMPLEMENTATION.
+
+  METHOD setup.
+    CREATE OBJECT mo_cut.
+  ENDMETHOD.
+
+  METHOD invoice_zero.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_invoice_value( 0 )
+      exp = 0
+      msg = 'Invoice value 0 must stay 0' ).
+  ENDMETHOD.
+
+  METHOD invoice_negative.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_invoice_value( -1 )
+      exp = 0
+      msg = 'Negative invoice value must be normalized to 0' ).
+  ENDMETHOD.
+
+  METHOD invoice_positive.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_invoice_value( CONV zcl_fi_das_dashboard=>t_amount( '12.34' ) )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '12.34' )
+      msg = 'Positive invoice value must pass through unchanged' ).
+  ENDMETHOD.
+
+  METHOD service_zero_invoice.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_accrued_amount(
+              i_pstype            = zif_fi_das_dashboard=>mc_pstype_service
+              i_total_work_amount = CONV zcl_fi_das_dashboard=>t_amount( '100.00' )
+              i_gr_value          = CONV zcl_fi_das_dashboard=>t_amount( '50.00' )
+              i_invoice_value     = CONV zcl_fi_das_dashboard=>t_amount( '0.00' ) )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '100.00' )
+      msg = 'Service item with zero invoice must accrue full work amount' ).
+  ENDMETHOD.
+
+  METHOD material_zero_invoice.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_accrued_amount(
+              i_pstype            = 'M'
+              i_total_work_amount = CONV zcl_fi_das_dashboard=>t_amount( '100.00' )
+              i_gr_value          = CONV zcl_fi_das_dashboard=>t_amount( '75.00' )
+              i_invoice_value     = CONV zcl_fi_das_dashboard=>t_amount( '0.00' ) )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '75.00' )
+      msg = 'Material item with zero invoice must accrue GR value' ).
+  ENDMETHOD.
+
+  METHOD accrual_clamped_zero.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_accrued_amount(
+              i_pstype            = zif_fi_das_dashboard=>mc_pstype_service
+              i_total_work_amount = CONV zcl_fi_das_dashboard=>t_amount( '100.00' )
+              i_gr_value          = CONV zcl_fi_das_dashboard=>t_amount( '50.00' )
+              i_invoice_value     = CONV zcl_fi_das_dashboard=>t_amount( '120.00' ) )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '0.00' )
+      msg = 'Accrued amount must never go below 0' ).
+  ENDMETHOD.
+
+  METHOD accrual_difference.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_accrued_amount(
+              i_pstype            = zif_fi_das_dashboard=>mc_pstype_service
+              i_total_work_amount = CONV zcl_fi_das_dashboard=>t_amount( '100.00' )
+              i_gr_value          = CONV zcl_fi_das_dashboard=>t_amount( '50.00' )
+              i_invoice_value     = CONV zcl_fi_das_dashboard=>t_amount( '40.00' ) )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '60.00' )
+      msg = 'Accrued amount must equal base minus invoice' ).
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS zcl_fi_das_dashboard DEFINITION
+  LOCAL FRIENDS ltcl_review_grace_test.
+
+CLASS ltcl_review_grace_test IMPLEMENTATION.
+
+  METHOD prev_month_before_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260905'
+              i_review_day   = 7
+              i_current_date = '20261006' )
+      exp = lo_cut->mc_review_action_reset
+      msg = '09/05 -> 10/06 must be R' ).
+  ENDMETHOD.
+
+  METHOD prev_month_equal_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260906'
+              i_review_day   = 7
+              i_current_date = '20261006' )
+      exp = lo_cut->mc_review_action_reset
+      msg = '09/06 -> 10/06 must be R' ).
+  ENDMETHOD.
+
+  METHOD prev_month_after_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260907'
+              i_review_day   = 7
+              i_current_date = '20261006' )
+      exp = lo_cut->mc_review_action_keep
+      msg = '09/07 -> 10/06 must be K' ).
+  ENDMETHOD.
+
+  METHOD prev_year_before_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20261201'
+              i_review_day   = 7
+              i_current_date = '20270106' )
+      exp = lo_cut->mc_review_action_reset
+      msg = '12/01 -> 01/06 must be R' ).
+  ENDMETHOD.
+
+  METHOD prev_year_equal_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20261206'
+              i_review_day   = 7
+              i_current_date = '20270106' )
+      exp = lo_cut->mc_review_action_reset
+      msg = '12/06 -> 01/06 must be R' ).
+  ENDMETHOD.
+
+  METHOD prev_year_after_boundary.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20261207'
+              i_review_day   = 7
+              i_current_date = '20270106' )
+      exp = lo_cut->mc_review_action_keep
+      msg = '12/07 -> 01/06 must be K' ).
+  ENDMETHOD.
+
+  METHOD same_month_before_review_day.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260905'
+              i_review_day   = 7
+              i_current_date = '20260906' )
+      exp = lo_cut->mc_review_action_keep
+      msg = 'same month before review day must be K' ).
+  ENDMETHOD.
+
+  METHOD same_month_on_review_day.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260907'
+              i_review_day   = 7
+              i_current_date = '20260907' )
+      exp = lo_cut->mc_review_action_keep
+      msg = 'same month on review day must be K' ).
+  ENDMETHOD.
+
+  METHOD same_month_after_review_day.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_review_action(
+              i_changed_date = '20260908'
+              i_review_day   = 7
+              i_current_date = '20260908' )
+      exp = lo_cut->mc_review_action_keep
+      msg = 'same month after review day must be K' ).
+  ENDMETHOD.
+
+ENDCLASS.
+
 CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_request_processing.
 
 CLASS ltc_request_processing IMPLEMENTATION.

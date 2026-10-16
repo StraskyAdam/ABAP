@@ -1,15 +1,255 @@
 " Test suite categories
-" - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
-" - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
 " - ltc_utility_unit: strings, dates, formatting and validation (SHORT)
 " - ltc_parity_helpers: in-memory JSON/serialization contracts (SHORT)
-" - ltc_request_processing: filters, sorting/paging, request/package flow
-" - ltcl_review_grace_test: review dates and year rollover (SHORT)
 " - ltcl_invoice_null_propagation: preserved arithmetic regressions (SHORT)
+" - ltcl_review_grace_test: review dates and year rollover (SHORT)
+" - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
+" - ltc_request_processing: filters, sorting/paging, request/package flow
+" - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
-"
-" ============================================================================
+
+CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
+CLASS ltc_parity_helpers DEFINITION DEFERRED.
+CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
+CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
+CLASS ltcl_review_grace_test DEFINITION DEFERRED.
+CLASS ltc_request_processing DEFINITION DEFERRED.
+CLASS ltc_amdp_filters DEFINITION DEFERRED.
+
+CLASS zcl_fi_das_dashboard DEFINITION
+  LOCAL FRIENDS ltcl_invoice_null_propagation
+                ltc_dash_pure_branches
+                ltcl_review_grace_test
+                ltc_request_processing
+                ltc_amdp_filters.
+
+CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS email_normalized FOR TESTING.
+    METHODS email_blank FOR TESTING.
+    METHODS split_default FOR TESTING.
+    METHODS split_custom FOR TESTING.
+    METHODS append_default FOR TESTING.
+    METHODS append_flags FOR TESTING.
+    METHODS append_spaces FOR TESTING.
+    METHODS trim_edges FOR TESTING.
+    METHODS alpha_values FOR TESTING.
+    METHODS alpha_spaces FOR TESTING.
+    METHODS boolean_values FOR TESTING.
+    METHODS truncate_values FOR TESTING RAISING cx_static_check.
+    METHODS truncate_bounds FOR TESTING RAISING cx_static_check.
+    METHODS truncate_errors FOR TESTING.
+    METHODS percentage_numbers FOR TESTING RAISING cx_static_check.
+    METHODS percentage_blank FOR TESTING RAISING cx_static_check.
+    METHODS percentage_invalid FOR TESTING.
+    METHODS percentage_overflow FOR TESTING.
+    METHODS bucket_split FOR TESTING.
+    METHODS bucket_rollover FOR TESTING.
+    METHODS month_differences FOR TESTING.
+    METHODS amount_grouping FOR TESTING RAISING cx_static_check.
+    METHODS amount_no_grouping FOR TESTING RAISING cx_static_check.
+    METHODS amount_padding FOR TESTING RAISING cx_static_check.
+    METHODS amount_rounding FOR TESTING RAISING cx_static_check.
+    METHODS amount_bounds FOR TESTING RAISING cx_static_check.
+    METHODS amount_errors FOR TESTING.
+    METHODS amount_negative FOR TESTING RAISING cx_static_check.
+    METHODS current_day_initial FOR TESTING.
+    METHODS timezone_initial FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+" Unit: in-memory serialization/parity helpers, no Gateway or MIME access.
+CLASS ltc_parity_helpers DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO ltc_fi_das_gateway_parity.
+
+    METHODS setup.
+
+    " Serialization contracts
+    METHODS null_allowlist FOR TESTING.
+    METHODS null_rejections FOR TESTING.
+    METHODS time_padding FOR TESTING.
+    METHODS time_invalid FOR TESTING.
+    METHODS missing_property_scope FOR TESTING.
+    METHODS aggregate_order FOR TESTING.
+    METHODS aggregate_multiplicity FOR TESTING.
+    METHODS aggregate_empty_slots FOR TESTING.
+    METHODS aggregate_field_scope FOR TESTING.
+    METHODS escaped_strings FOR TESTING.
+    METHODS strict_property_diff FOR TESTING.
+
+    " Parser, indexing and diagnostics
+    METHODS empty_results FOR TESTING RAISING cx_static_check.
+    METHODS nested_json FOR TESTING RAISING cx_static_check.
+    METHODS duplicate_keys FOR TESTING RAISING cx_static_check.
+    METHODS missing_key FOR TESTING RAISING cx_static_check.
+    METHODS unclosed_string FOR TESTING RAISING cx_static_check.
+    METHODS diagnostic_cap FOR TESTING.
+ENDCLASS.
+
+" Unit: ABAP arithmetic only; these tests do not establish XSA SQL parity.
+CLASS ltcl_invoice_null_propagation DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS invoice_zero FOR TESTING RAISING cx_static_check.
+    METHODS invoice_negative FOR TESTING RAISING cx_static_check.
+    METHODS invoice_positive FOR TESTING RAISING cx_static_check.
+    METHODS service_zero_invoice FOR TESTING RAISING cx_static_check.
+    METHODS material_zero_invoice FOR TESTING RAISING cx_static_check.
+    METHODS accrual_clamped_zero FOR TESTING RAISING cx_static_check.
+    METHODS accrual_difference FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+" Unit: review grace-period boundaries, including year rollover.
+CLASS ltcl_review_grace_test DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS:
+      prev_month_before_boundary FOR TESTING,
+      prev_month_equal_boundary FOR TESTING,
+      prev_month_after_boundary FOR TESTING,
+      prev_year_before_boundary FOR TESTING,
+      prev_year_equal_boundary FOR TESTING,
+      prev_year_after_boundary FOR TESTING,
+      same_month_before_review_day FOR TESTING,
+      same_month_on_review_day FOR TESTING,
+      same_month_after_review_day FOR TESTING.
+ENDCLASS.
+
+" Integration: requires HANA AMDP even with synthetic input.
+CLASS ltc_amdp_filters DEFINITION FINAL FOR TESTING
+  DURATION MEDIUM
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ts_projected_result,
+        ponumber     TYPE ebeln,
+        itemno       TYPE ebelp,
+        suppliername TYPE string,
+      END OF ts_projected_result,
+      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
+
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS invalid_filter_wraps_error FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_case_sensitive_include FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_case_sensitive_exclude FOR TESTING RAISING cx_static_check.
+    METHODS test_eq_matches_exact_value FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_and_eq_combined FOR TESTING RAISING cx_static_check.
+    METHODS test_multiple_cp_filters_or FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_empty_pattern FOR TESTING RAISING cx_static_check.
+    METHODS filter_sort_and_page_across FOR TESTING RAISING cx_static_check.
+    METHODS generic_eq_filters_rows FOR TESTING RAISING cx_static_check.
+    METHODS generic_contains_filters_rows FOR TESTING RAISING cx_static_check.
+    METHODS generic_two_props_are_anded FOR TESTING RAISING cx_static_check.
+    METHODS generic_same_prop_is_ored FOR TESTING RAISING cx_static_check.
+    METHODS generic_with_sort_and_paging FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+" Unit: request processing, filters, sorting/paging and package assembly.
+CLASS ltc_request_processing DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ts_projected_result,
+        ponumber     TYPE ebeln,
+        itemno       TYPE ebelp,
+        suppliername TYPE string,
+      END OF ts_projected_result,
+      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
+
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+
+    " Generic filter early exits do not invoke HANA AMDP
+    METHODS empty_filter_keeps_rows FOR TESTING RAISING cx_static_check.
+    METHODS empty_rows_skip_filter FOR TESTING RAISING cx_static_check.
+
+    " Orchestration: full-processing decisions
+    METHODS amdp_po_filter_no_full FOR TESTING.
+    METHODS amdp_item_filter_no_full FOR TESTING.
+    METHODS amdp_supplier_filter_no FOR TESTING.
+    METHODS no_filter_no_full_processing FOR TESTING.
+    METHODS generic_filter_requires_full FOR TESTING.
+    METHODS orderby_requires_full FOR TESTING.
+
+    " Filters: AMDP extraction and contains semantics
+    METHODS po_contains_builds_like FOR TESTING.
+    METHODS item_contains_keeps_zeros FOR TESTING.
+    METHODS mixed_eq_and_contains FOR TESTING.
+    METHODS supplier_contains_builds_like FOR TESTING.
+    METHODS supplier_pattern_no_wildcards FOR TESTING.
+    METHODS supplier_keeps_inner_spaces FOR TESTING.
+    METHODS item_contains_digit_two FOR TESTING.
+    METHODS amdp_filter_empty_by_default FOR TESTING.
+
+    " Sorting/paging: ordering, stable ties and bounds
+    METHODS sort_ascending_with_paging FOR TESTING.
+    METHODS sort_descending FOR TESTING.
+    METHODS explicit_po_desc_is_preserved FOR TESTING.
+    METHODS sort_unknown_property_no_dump FOR TESTING.
+    METHODS top_zero_requested_empty FOR TESTING.
+    METHODS top_zero_not_requested_all FOR TESTING.
+    METHODS paging_window_boundaries FOR TESTING.
+    METHODS no_orderby_leaves_table_asis FOR TESTING.
+    METHODS generic_sort_gets_stable_ties FOR TESTING.
+
+    " Result assembly: package projection and cross-package processing
+    METHODS package_mapping_preserves_ord FOR TESTING RAISING cx_static_check.
+    METHODS empty_package_is_ignored FOR TESTING RAISING cx_static_check.
+    METHODS multiple_packages_keep_ord FOR TESTING RAISING cx_static_check.
+
+    " Sorting/paging: AMDP-supported sort prefixes
+    METHODS pstype_desc_moved_for_under FOR TESTING.
+    METHODS pstype_desc_moved_for_over FOR TESTING.
+    METHODS pstype_desc_po_prefix_moved FOR TESTING.
+    METHODS pstype_desc_po_item_prefix FOR TESTING.
+    METHODS po_item_prefix_removed FOR TESTING.
+    METHODS itemno_sort_kept FOR TESTING.
+    METHODS pstype_asc_kept FOR TESTING.
+    METHODS orderby_longer_than_amdp_kept FOR TESTING.
+    METHODS custom_orderby_kept FOR TESTING.
+    METHODS pstype_sort_kept_for_exclude FOR TESTING.
+    METHODS pstype_sort_desc_mixed_rows FOR TESTING.
+
+    " Review boundary (production grace-period matrix is in its own class)
+    METHODS review_day_boundary FOR TESTING.
+
+    " Filters: mixed EQ/CP options
+    METHODS po_multiple_eq_same_property FOR TESTING.
+    METHODS po_eq_and_cp_same_property FOR TESTING.
+    METHODS supplier_multiple_cp_same_prop FOR TESTING.
+    METHODS item_multiple_eq_same_property FOR TESTING.
+    METHODS item_cp_digit_two FOR TESTING.
+
+    " Filters and paging: invalid inputs and boundary conditions
+    METHODS empty_contains_pattern FOR TESTING.
+    METHODS item_number_with_leading_zeros FOR TESTING.
+    METHODS exclude_sign_filters FOR TESTING.
+    METHODS unsupported_option_generic FOR TESTING.
+    METHODS supplier_filter_with_case_sens FOR TESTING.
+    METHODS skip_high_sorted FOR TESTING.
+    METHODS amdp_filter_mixed_properties FOR TESTING.
+ENDCLASS.
+
 " XSA vs SEGW functional JSON parity test - paged low-memory implementation
 "
 " Memory strategy:
@@ -22,20 +262,14 @@
 "   objects are held in memory.
 "
 " Paging relies on the stable ORDER BY implemented by all dashboard flows.
-" ============================================================================
-
-CLASS ltc_parity_helpers DEFINITION DEFERRED.
 
 " Integration/parity: requires live Gateway, database and MIME fixtures.
-CLASS ltc_fi_das_gateway_parity DEFINITION
-  FINAL
-  FOR TESTING
-  RISK LEVEL HARMLESS
+CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
+  RISK LEVEL HARMLESS
   FRIENDS ltc_parity_helpers.
 
   PRIVATE SECTION.
-
     TYPES:
       BEGIN OF ts_case,
         fixture               TYPE string,
@@ -64,10 +298,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       tt_expected_index TYPE HASHED TABLE OF ts_expected_index
         WITH UNIQUE KEY ponumber itemno,
 
-      BEGIN OF ts_property_name,
-        name TYPE string,
-      END OF ts_property_name,
-
       tt_string TYPE STANDARD TABLE OF string
         WITH EMPTY KEY,
 
@@ -89,187 +319,19 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     DATA:
       mt_differences      TYPE stringtab,
-      mv_difference_count TYPE i,
-      mv_unused           TYPE abap_bool.
+      mv_difference_count TYPE i.
 
     METHODS setup.
 
+    " Scope NULL / wildcard matrix
+    METHODS run_scope_case
+      IMPORTING
+        i_number TYPE numc2
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
 
-    " Integration: primary flows
-    METHODS test_over_material
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_over_service
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_material
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_service
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_exclude
-              FOR TESTING
-      RAISING cx_static_check.
-
-    " Integration: owner scope, filters, selection and paging
-    METHODS test_over_material_owner
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_over_service_owner
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_material_owner
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_service_owner
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_exclude_owner
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_selection
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_y_format
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_x_format
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_empty_format
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_inlinecount_with_top_one
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_no_inlinecount
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_skip_beyond_result_set
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_top_zero
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_po_value_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_item_value_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_supplier_value_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_sort_and_paging
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_paging
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_excl_paging
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_exclusion_pstype_desc
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_exclusion_pstype_asc
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_excl_pstype_pages
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_orderby_invalid
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_nonexistent_supplier
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_companycode
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_polinedesc
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_curr_company
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_supplierid
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_filter_po_or_supplier
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_select_calc_status
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_sort_amountaccrued
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_sort_reviewed_by
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_skip_high_sorted
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_empty_contains_po
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_po_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_excl_po_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_under_supplier_help
-              FOR TESTING
-      RAISING cx_static_check.
-
-    " ---- Scope NULL / wildcard matrix -------------------------------
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -287,196 +349,98 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_18
-              FOR TESTING
-      RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
 
-    METHODS test_scope_19
-              FOR TESTING
-      RAISING cx_static_check.
+    " Integration: primary flows
+    METHODS test_over_material FOR TESTING RAISING cx_static_check.
+    METHODS test_over_service FOR TESTING RAISING cx_static_check.
+    METHODS test_under_material FOR TESTING RAISING cx_static_check.
+    METHODS test_under_service FOR TESTING RAISING cx_static_check.
+    METHODS test_exclude FOR TESTING RAISING cx_static_check.
 
-    METHODS test_scope_20
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_21
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_22
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_23
-              FOR TESTING
-      RAISING cx_static_check.
-
-
-
-    METHODS test_scope_24
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_25
-              FOR TESTING
-      RAISING cx_static_check.
-    METHODS test_scope_26
-              FOR TESTING
-      RAISING cx_static_check.
-    METHODS test_scope_27
-              FOR TESTING
-      RAISING cx_static_check.
-    METHODS test_scope_28
-              FOR TESTING
-      RAISING cx_static_check.
-    METHODS test_scope_29
-              FOR TESTING
-      RAISING cx_static_check.
-    METHODS test_scope_30
-              FOR TESTING
-      RAISING cx_static_check.
-
-
-     METHODS test_scope_31
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_32
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_33
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_34
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_35
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_36
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_37
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_38
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_39
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_40
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_41
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_42
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_43
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_44
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_45
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_46
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_47
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_48
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_49
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_50
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_51
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_52
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_53
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_54
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_55
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_56
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_57
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_58
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_59
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_60
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_61
-              FOR TESTING
-      RAISING cx_static_check.
-
-    METHODS test_scope_62
-              FOR TESTING
-      RAISING cx_static_check.
-
-
-
-    METHODS run_scope_case
-      IMPORTING
-        i_number TYPE numc2
-      RAISING
-        zcx_fi_das_error
-        cx_sy_conversion_error
-        cx_sy_open_sql_db.
-
-
-
+    " Integration: owner scope, filters, selection and paging
+    METHODS test_over_material_owner FOR TESTING RAISING cx_static_check.
+    METHODS test_over_service_owner FOR TESTING RAISING cx_static_check.
+    METHODS test_under_material_owner FOR TESTING RAISING cx_static_check.
+    METHODS test_under_service_owner FOR TESTING RAISING cx_static_check.
+    METHODS test_exclude_owner FOR TESTING RAISING cx_static_check.
+    METHODS test_filter FOR TESTING RAISING cx_static_check.
+    METHODS test_selection FOR TESTING RAISING cx_static_check.
+    METHODS test_y_format FOR TESTING RAISING cx_static_check.
+    METHODS test_x_format FOR TESTING RAISING cx_static_check.
+    METHODS test_empty_format FOR TESTING RAISING cx_static_check.
+    METHODS test_inlinecount_with_top_one FOR TESTING RAISING cx_static_check.
+    METHODS test_no_inlinecount FOR TESTING RAISING cx_static_check.
+    METHODS test_skip_beyond_result_set FOR TESTING RAISING cx_static_check.
+    METHODS test_top_zero FOR TESTING RAISING cx_static_check.
+    METHODS test_po_value_help FOR TESTING RAISING cx_static_check.
+    METHODS test_item_value_help FOR TESTING RAISING cx_static_check.
+    METHODS test_supplier_value_help FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_sort_and_paging FOR TESTING RAISING cx_static_check.
+    METHODS test_under_paging FOR TESTING RAISING cx_static_check.
+    METHODS test_excl_paging FOR TESTING RAISING cx_static_check.
+    METHODS test_exclusion_pstype_desc FOR TESTING RAISING cx_static_check.
+    METHODS test_exclusion_pstype_asc FOR TESTING RAISING cx_static_check.
+    METHODS test_excl_pstype_pages FOR TESTING RAISING cx_static_check.
+    METHODS test_orderby_invalid FOR TESTING RAISING cx_static_check.
+    METHODS test_nonexistent_supplier FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_companycode FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_polinedesc FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_curr_company FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_supplierid FOR TESTING RAISING cx_static_check.
+    METHODS test_filter_po_or_supplier FOR TESTING RAISING cx_static_check.
+    METHODS test_select_calc_status FOR TESTING RAISING cx_static_check.
+    METHODS test_sort_amountaccrued FOR TESTING RAISING cx_static_check.
+    METHODS test_sort_reviewed_by FOR TESTING RAISING cx_static_check.
+    METHODS test_skip_high_sorted FOR TESTING RAISING cx_static_check.
+    METHODS test_empty_contains_po FOR TESTING RAISING cx_static_check.
+    METHODS test_under_po_help FOR TESTING RAISING cx_static_check.
+    METHODS test_excl_po_help FOR TESTING RAISING cx_static_check.
+    METHODS test_under_supplier_help FOR TESTING RAISING cx_static_check.
 
     METHODS run_paged_case
       IMPORTING
@@ -593,6 +557,23 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    METHODS read_mime_fixture
+      IMPORTING
+        i_fixture      TYPE string
+      RETURNING
+        VALUE(rv_json) TYPE string
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS find_results_array_bounds
+      IMPORTING
+        i_json       TYPE string
+      EXPORTING
+        e_array_from TYPE i
+        e_array_to   TYPE i
+      RAISING
+        zcx_fi_das_error.
+
     METHODS find_result_object_bounds
       IMPORTING
         i_json        TYPE string
@@ -603,62 +584,52 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
       RAISING
         zcx_fi_das_error.
 
-    METHODS read_mime_fixture
-      IMPORTING
-                i_fixture      TYPE string
-      RETURNING
-                VALUE(rv_json) TYPE string
-      RAISING   zcx_fi_das_error.
-
     METHODS build_expected_index
       IMPORTING
-                i_json          TYPE string
+        i_json          TYPE string
       RETURNING
-                VALUE(rt_index) TYPE tt_expected_index
-      RAISING   zcx_fi_das_error.
-
-    METHODS find_results_array_bounds
-      IMPORTING
-                i_json       TYPE string
-      EXPORTING
-                e_array_from TYPE i
-                e_array_to   TYPE i
-      RAISING   zcx_fi_das_error.
+        VALUE(rt_index) TYPE tt_expected_index
+      RAISING
+        zcx_fi_das_error.
 
     METHODS read_json_row_key
       IMPORTING
-                i_json        TYPE string
-                i_object_from TYPE i
-                i_object_to   TYPE i
+        i_json        TYPE string
+        i_object_from TYPE i
+        i_object_to   TYPE i
       EXPORTING
-                e_ponumber    TYPE string
-                e_itemno      TYPE string
-      RAISING   zcx_fi_das_error.
+        e_ponumber    TYPE string
+        e_itemno      TYPE string
+      RAISING
+        zcx_fi_das_error.
 
     METHODS read_first_result_key
       IMPORTING
-                i_json     TYPE string
+        i_json     TYPE string
       EXPORTING
-                e_ponumber TYPE string
-                e_itemno   TYPE string
-      RAISING   zcx_fi_das_error.
+        e_ponumber TYPE string
+        e_itemno   TYPE string
+      RAISING
+        zcx_fi_das_error.
 
     METHODS read_first_result_property
       IMPORTING
-                i_json          TYPE string
-                i_property      TYPE string
+        i_json          TYPE string
+        i_property      TYPE string
       RETURNING
-                VALUE(rv_token) TYPE string
-      RAISING   zcx_fi_das_error.
+        VALUE(rv_token) TYPE string
+      RAISING
+        zcx_fi_das_error.
 
     METHODS read_result_property
       IMPORTING
-                i_json          TYPE string
-                i_index         TYPE i
-                i_property      TYPE string
+        i_json          TYPE string
+        i_index         TYPE i
+        i_property      TYPE string
       RETURNING
-                VALUE(rv_token) TYPE string
-      RAISING   zcx_fi_das_error.
+        VALUE(rv_token) TYPE string
+      RAISING
+        zcx_fi_das_error.
 
     METHODS compare_actual_page
       IMPORTING
@@ -745,29 +716,32 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
     METHODS read_json_string_end
       IMPORTING
-                i_text        TYPE string
-                i_start       TYPE i
+        i_text        TYPE string
+        i_start       TYPE i
       RETURNING
-                VALUE(rv_end) TYPE i
-      RAISING   zcx_fi_das_error.
+        VALUE(rv_end) TYPE i
+      RAISING
+        zcx_fi_das_error.
 
     METHODS read_json_value_end
       IMPORTING
-                i_text        TYPE string
-                i_start       TYPE i
+        i_text        TYPE string
+        i_start       TYPE i
       RETURNING
-                VALUE(rv_end) TYPE i
-      RAISING   zcx_fi_das_error.
+        VALUE(rv_end) TYPE i
+      RAISING
+        zcx_fi_das_error.
 
     METHODS find_matching_end
       IMPORTING
-                i_text        TYPE string
-                i_start       TYPE i
-                i_open        TYPE char1
-                i_close       TYPE char1
+        i_text        TYPE string
+        i_start       TYPE i
+        i_open        TYPE char1
+        i_close       TYPE char1
       RETURNING
-                VALUE(rv_end) TYPE i
-      RAISING   zcx_fi_das_error.
+        VALUE(rv_end) TYPE i
+      RAISING
+        zcx_fi_das_error.
 
     METHODS skip_whitespace
       IMPORTING
@@ -799,47 +773,79 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
         i_text TYPE string.
 
     METHODS assert_no_differences.
-
-
-
-
-
 ENDCLASS.
 
-CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
+" Dashboard production branches: in-memory fixtures only, no database access.
+" Rates are injected into the cache; dates/timestamps avoid clock and CET paths.
+CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
+
   PRIVATE SECTION.
-    METHODS email_normalized FOR TESTING.
-    METHODS email_blank FOR TESTING.
-    METHODS split_default FOR TESTING.
-    METHODS split_custom FOR TESTING.
-    METHODS append_default FOR TESTING.
-    METHODS append_flags FOR TESTING.
-    METHODS append_spaces FOR TESTING.
-    METHODS trim_edges FOR TESTING.
-    METHODS alpha_values FOR TESTING.
-    METHODS alpha_spaces FOR TESTING.
-    METHODS boolean_values FOR TESTING.
-    METHODS truncate_values FOR TESTING RAISING cx_static_check.
-    METHODS truncate_bounds FOR TESTING RAISING cx_static_check.
-    METHODS truncate_errors FOR TESTING.
-    METHODS percentage_numbers FOR TESTING RAISING cx_static_check.
-    METHODS percentage_blank FOR TESTING RAISING cx_static_check.
-    METHODS percentage_invalid FOR TESTING.
-    METHODS percentage_overflow FOR TESTING.
-    METHODS bucket_split FOR TESTING.
-    METHODS bucket_rollover FOR TESTING.
-    METHODS month_differences FOR TESTING.
-    METHODS amount_grouping FOR TESTING RAISING cx_static_check.
-    METHODS amount_no_grouping FOR TESTING RAISING cx_static_check.
-    METHODS amount_padding FOR TESTING RAISING cx_static_check.
-    METHODS amount_rounding FOR TESTING RAISING cx_static_check.
-    METHODS amount_bounds FOR TESTING RAISING cx_static_check.
-    METHODS amount_errors FOR TESTING.
-    METHODS amount_negative FOR TESTING RAISING cx_static_check.
-    METHODS current_day_initial FOR TESTING.
-    METHODS timezone_initial FOR TESTING RAISING cx_static_check.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+    DATA ms_request TYPE zcl_fi_das_dashboard=>ts_internal_request.
+    DATA ms_context TYPE zcl_fi_das_dashboard=>ts_context.
+    DATA ms_detail TYPE zcl_fi_das_dashboard=>ts_detail.
+    DATA ms_key TYPE zcl_fi_das_dashboard=>ts_key.
+    DATA ms_row TYPE zcl_fi_das_dashboard=>ts_odata_result.
+
+    METHODS setup.
+    METHODS read_row RAISING zcx_fi_das_error.
+    METHODS assert_rejected
+      IMPORTING
+        i_msgno TYPE symsgno.
+
+    " Arithmetic and cached currency conversion
+    METHODS currency_factors FOR TESTING.
+    METHODS usd_truncates_source FOR TESTING RAISING zcx_fi_das_error.
+    METHODS usd_keeps_precision FOR TESTING RAISING zcx_fi_das_error.
+    METHODS zero_needs_no_rate FOR TESTING RAISING zcx_fi_das_error.
+    METHODS missing_rate_rejected FOR TESTING.
+    METHODS rate_target_key FOR TESTING RAISING zcx_fi_das_error.
+
+    " Context component mapping
+    METHODS detail_mapping FOR TESTING RAISING zcx_fi_das_error.
+    METHODS account_mapping FOR TESTING.
+    METHODS history_mapping FOR TESTING RAISING zcx_fi_das_error.
+    METHODS user_mapping_guard FOR TESTING.
+    METHODS exclusion_mapping FOR TESTING.
+
+    " Row assembly from an injected context
+    METHODS row_missing_detail FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_material_and_audit FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_service_wtd FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_optional_context FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_exclusion FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_uses_complete_key FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_closed_status FOR TESTING RAISING zcx_fi_das_error.
+    METHODS missing_notification_clears FOR TESTING RAISING cx_sy_conversion_error.
+
+    " Scope parsing: singleton wildcard, NULL and normalization
+    METHODS company_wildcard FOR TESTING.
+    METHODS company_mixed_values FOR TESTING.
+    METHODS cost_null_and_alpha FOR TESTING.
+    METHODS cost_mixed_wildcard FOR TESTING.
+    METHODS management_scope FOR TESTING.
+
+    " Validation and request adjustment without filter SQL generation
+    METHODS valid_request_modes FOR TESTING RAISING zcx_fi_das_error.
+    METHODS invalid_mode FOR TESTING.
+    METHODS missing_email FOR TESTING.
+    METHODS invalid_owner FOR TESTING.
+    METHODS invalid_pstype FOR TESTING.
+    METHODS negative_paging FOR TESTING.
+    METHODS missing_filter_text FOR TESTING.
+    METHODS adjust_default_request FOR TESTING.
+    METHODS adjust_generic_request FOR TESTING.
+
+    " Status and calculation early-return/boundary branches
+    METHODS closed_overrides_status FOR TESTING RAISING zcx_fi_das_error.
+    METHODS unknown_status_cleared FOR TESTING RAISING zcx_fi_das_error.
+    METHODS reviewed_without_date FOR TESTING RAISING zcx_fi_das_error.
+    METHODS material_resets_work FOR TESTING RAISING zcx_fi_das_error.
+    METHODS unsupported_method FOR TESTING RAISING zcx_fi_das_error.
+    METHODS straight_line_missing_dates FOR TESTING RAISING zcx_fi_das_error.
+    METHODS accrued_exact_boundary FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_utility_unit IMPLEMENTATION.
@@ -1005,10 +1011,11 @@ CLASS ltc_utility_unit IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD percentage_numbers.
-    TYPES: BEGIN OF ts_case,
-             input TYPE string,
-             expected TYPE zcl_fi_das_dashboard=>t_percentage,
-           END OF ts_case.
+    TYPES:
+      BEGIN OF ts_case,
+        input    TYPE string,
+        expected TYPE zcl_fi_das_dashboard=>t_percentage,
+      END OF ts_case.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( input = '12.34' expected = '12.3' )
@@ -1094,10 +1101,11 @@ CLASS ltc_utility_unit IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD amount_grouping.
-    TYPES: BEGIN OF ts_case,
-             format TYPE xudcpfm,
-             expected TYPE string,
-           END OF ts_case.
+    TYPES:
+      BEGIN OF ts_case,
+        format   TYPE xudcpfm,
+        expected TYPE string,
+      END OF ts_case.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( format = 'X' expected = '1,234,567.89' )
@@ -1113,10 +1121,11 @@ CLASS ltc_utility_unit IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD amount_no_grouping.
-    TYPES: BEGIN OF ts_case,
-             format TYPE xudcpfm,
-             expected TYPE string,
-           END OF ts_case.
+    TYPES:
+      BEGIN OF ts_case,
+        format   TYPE xudcpfm,
+        expected TYPE string,
+      END OF ts_case.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( format = 'X' expected = '1234567.89' )
@@ -1204,38 +1213,6 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       zcl_fi_das_utility=>utc_to_cet_timestamp( CONV timestampl( 0 ) ) ).
   ENDMETHOD.
-ENDCLASS.
-
-" Unit: in-memory serialization/parity helpers, no Gateway or MIME access.
-CLASS ltc_parity_helpers DEFINITION FINAL FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-    DATA mo_cut TYPE REF TO ltc_fi_das_gateway_parity.
-
-    METHODS setup.
-
-    " Serialization contracts
-    METHODS null_allowlist          FOR TESTING.
-    METHODS null_rejections         FOR TESTING.
-    METHODS time_padding            FOR TESTING.
-    METHODS time_invalid            FOR TESTING.
-    METHODS missing_property_scope  FOR TESTING.
-    METHODS aggregate_order         FOR TESTING.
-    METHODS aggregate_multiplicity  FOR TESTING.
-    METHODS aggregate_empty_slots   FOR TESTING.
-    METHODS aggregate_field_scope   FOR TESTING.
-    METHODS escaped_strings         FOR TESTING.
-    METHODS strict_property_diff    FOR TESTING.
-
-    " Parser, indexing and diagnostics
-    METHODS empty_results           FOR TESTING RAISING cx_static_check.
-    METHODS nested_json             FOR TESTING RAISING cx_static_check.
-    METHODS duplicate_keys          FOR TESTING RAISING cx_static_check.
-    METHODS missing_key             FOR TESTING RAISING cx_static_check.
-    METHODS unclosed_string         FOR TESTING RAISING cx_static_check.
-    METHODS diagnostic_cap          FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_parity_helpers IMPLEMENTATION.
@@ -1460,142 +1437,7 @@ CLASS ltc_parity_helpers IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-" Unit: request processing, filters, sorting/paging and package assembly.
-CLASS ltc_request_processing DEFINITION FINAL
-  FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-
-    TYPES:
-      BEGIN OF ts_projected_result,
-        ponumber     TYPE ebeln,
-        itemno       TYPE ebelp,
-        suppliername TYPE string,
-      END OF ts_projected_result,
-      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
-
-    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
-
-    METHODS setup.
-
-    " Orchestration: full-processing decisions
-    METHODS amdp_po_filter_no_full       FOR TESTING.
-    METHODS amdp_item_filter_no_full     FOR TESTING.
-    METHODS amdp_supplier_filter_no       FOR TESTING.
-    METHODS no_filter_no_full_processing  FOR TESTING.
-    METHODS generic_filter_requires_full FOR TESTING.
-    METHODS orderby_requires_full       FOR TESTING.
-
-    " Generic filter early exits do not invoke HANA AMDP
-    METHODS empty_filter_keeps_rows FOR TESTING RAISING cx_static_check.
-    METHODS empty_rows_skip_filter  FOR TESTING RAISING cx_static_check.
-
-    " Filters: AMDP extraction and contains semantics
-    METHODS po_contains_builds_like       FOR TESTING.
-    METHODS item_contains_keeps_zeros     FOR TESTING.
-    METHODS mixed_eq_and_contains         FOR TESTING.
-    METHODS supplier_contains_builds_like FOR TESTING.
-    METHODS supplier_pattern_no_wildcards FOR TESTING.
-    METHODS supplier_keeps_inner_spaces   FOR TESTING.
-    METHODS item_contains_digit_two       FOR TESTING.
-    METHODS amdp_filter_empty_by_default  FOR TESTING.
-
-    " Sorting/paging: ordering, stable ties and bounds
-    METHODS sort_ascending_with_paging    FOR TESTING.
-    METHODS sort_descending               FOR TESTING.
-    METHODS explicit_po_desc_is_preserved FOR TESTING.
-    METHODS sort_unknown_property_no_dump FOR TESTING.
-    METHODS top_zero_requested_empty      FOR TESTING.
-    METHODS top_zero_not_requested_all    FOR TESTING.
-    METHODS paging_window_boundaries      FOR TESTING.
-    METHODS no_orderby_leaves_table_asis  FOR TESTING.
-    METHODS generic_sort_gets_stable_ties FOR TESTING.
-
-    " Result assembly: package projection and cross-package processing
-    METHODS package_mapping_preserves_ord  FOR TESTING RAISING cx_static_check.
-    METHODS empty_package_is_ignored       FOR TESTING RAISING cx_static_check.
-    METHODS multiple_packages_keep_ord     FOR TESTING RAISING cx_static_check.
-
-    " Sorting/paging: AMDP-supported sort prefixes
-    METHODS pstype_desc_moved_for_under   FOR TESTING.
-    METHODS pstype_desc_moved_for_over    FOR TESTING.
-    METHODS pstype_desc_po_prefix_moved  FOR TESTING.
-    METHODS pstype_desc_po_item_prefix FOR TESTING.
-    METHODS po_item_prefix_removed       FOR TESTING.
-    METHODS itemno_sort_kept             FOR TESTING.
-    METHODS pstype_asc_kept               FOR TESTING.
-    METHODS orderby_longer_than_amdp_kept FOR TESTING.
-    METHODS custom_orderby_kept           FOR TESTING.
-    METHODS pstype_sort_kept_for_exclude  FOR TESTING.
-    METHODS pstype_sort_desc_mixed_rows   FOR TESTING.
-
-    " Review boundary (production grace-period matrix is in its own class)
-    METHODS review_day_boundary           FOR TESTING.
-    " Filters: mixed EQ/CP options
-    METHODS po_multiple_eq_same_property  FOR TESTING.
-    METHODS po_eq_and_cp_same_property    FOR TESTING.
-    METHODS supplier_multiple_cp_same_prop FOR TESTING.
-    METHODS item_multiple_eq_same_property FOR TESTING.
-    METHODS item_cp_digit_two             FOR TESTING.
-    " Filters and paging: invalid inputs and boundary conditions
-    METHODS empty_contains_pattern        FOR TESTING.
-    METHODS item_number_with_leading_zeros FOR TESTING.
-    METHODS exclude_sign_filters          FOR TESTING.
-    METHODS unsupported_option_generic FOR TESTING.
-    METHODS supplier_filter_with_case_sens FOR TESTING.
-
-    METHODS skip_high_sorted FOR TESTING.
-    METHODS amdp_filter_mixed_properties FOR TESTING.
-ENDCLASS.
-
-" Unit: review grace-period boundaries, including year rollover.
-CLASS ltcl_review_grace_test DEFINITION FINAL
-  FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-    METHODS:
-      prev_month_before_boundary   FOR TESTING,
-      prev_month_equal_boundary    FOR TESTING,
-      prev_month_after_boundary    FOR TESTING,
-      prev_year_before_boundary    FOR TESTING,
-      prev_year_equal_boundary     FOR TESTING,
-      prev_year_after_boundary     FOR TESTING,
-      same_month_before_review_day FOR TESTING,
-      same_month_on_review_day     FOR TESTING,
-      same_month_after_review_day  FOR TESTING.
-ENDCLASS.
-
-" Unit: ABAP arithmetic only; these tests do not establish XSA SQL parity.
-CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
-CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
-
-CLASS zcl_fi_das_dashboard DEFINITION
-  LOCAL FRIENDS ltcl_invoice_null_propagation
-                ltc_dash_pure_branches.
-
-CLASS ltcl_invoice_null_propagation DEFINITION FINAL FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
-
-    METHODS setup.
-    METHODS invoice_zero           FOR TESTING RAISING cx_static_check.
-    METHODS invoice_negative       FOR TESTING RAISING cx_static_check.
-    METHODS invoice_positive       FOR TESTING RAISING cx_static_check.
-    METHODS service_zero_invoice   FOR TESTING RAISING cx_static_check.
-    METHODS material_zero_invoice  FOR TESTING RAISING cx_static_check.
-    METHODS accrual_clamped_zero   FOR TESTING RAISING cx_static_check.
-    METHODS accrual_difference     FOR TESTING RAISING cx_static_check.
-ENDCLASS.
-
 CLASS ltcl_invoice_null_propagation IMPLEMENTATION.
-
   METHOD setup.
     CREATE OBJECT mo_cut.
   ENDMETHOD.
@@ -1664,15 +1506,9 @@ CLASS ltcl_invoice_null_propagation IMPLEMENTATION.
       exp = CONV zcl_fi_das_dashboard=>t_amount( '60.00' )
       msg = 'Accrued amount must equal base minus invoice' ).
   ENDMETHOD.
-
 ENDCLASS.
 
-
-CLASS zcl_fi_das_dashboard DEFINITION
-  LOCAL FRIENDS ltcl_review_grace_test.
-
 CLASS ltcl_review_grace_test IMPLEMENTATION.
-
   METHOD prev_month_before_boundary.
     DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
 
@@ -1780,49 +1616,9 @@ CLASS ltcl_review_grace_test IMPLEMENTATION.
       exp = lo_cut->mc_review_action_keep
       msg = 'same month after review day must be K' ).
   ENDMETHOD.
-
-ENDCLASS.
-
-CLASS ltc_amdp_filters DEFINITION DEFERRED.
-
-CLASS zcl_fi_das_dashboard DEFINITION
-  LOCAL FRIENDS ltc_request_processing ltc_amdp_filters.
-
-" Integration: requires HANA AMDP even with synthetic input.
-CLASS ltc_amdp_filters DEFINITION FINAL
-  FOR TESTING
-  DURATION MEDIUM
-  RISK LEVEL HARMLESS.
-
-  PRIVATE SECTION.
-    TYPES:
-      BEGIN OF ts_projected_result,
-        ponumber     TYPE ebeln,
-        itemno       TYPE ebelp,
-        suppliername TYPE string,
-      END OF ts_projected_result,
-      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
-
-    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
-
-    METHODS setup.
-    METHODS test_cp_case_sensitive_include    FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_case_sensitive_exclude    FOR TESTING RAISING cx_static_check.
-    METHODS test_eq_matches_exact_value       FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_and_eq_combined           FOR TESTING RAISING cx_static_check.
-    METHODS test_multiple_cp_filters_or       FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_empty_pattern             FOR TESTING RAISING cx_static_check.
-    METHODS invalid_filter_wraps_error FOR TESTING RAISING cx_static_check.
-    METHODS filter_sort_and_page_across    FOR TESTING RAISING cx_static_check.
-    METHODS generic_eq_filters_rows        FOR TESTING RAISING cx_static_check.
-    METHODS generic_contains_filters_rows  FOR TESTING RAISING cx_static_check.
-    METHODS generic_two_props_are_anded    FOR TESTING RAISING cx_static_check.
-    METHODS generic_same_prop_is_ored      FOR TESTING RAISING cx_static_check.
-    METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
 ENDCLASS.
 
 CLASS ltc_amdp_filters IMPLEMENTATION.
-
   METHOD setup.
     mo_cut = NEW #( ).
   ENDMETHOD.
@@ -1866,9 +1662,7 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Quality Solutions' ).
-
   ENDMETHOD.
-
 
   METHOD test_cp_case_sensitive_exclude.
     DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
@@ -1897,10 +1691,7 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( line_exists( lt_result[ suppliername = 'Fuji Electric' ] ) )
       msg = 'Fuji has no uppercase Q and remains in the result' ).
-
   ENDMETHOD.
-
-
 
   METHOD test_eq_matches_exact_value.
     DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
@@ -1926,7 +1717,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'FUJI' ).
-
   ENDMETHOD.
 
   METHOD test_cp_and_eq_combined.
@@ -1958,9 +1748,7 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( line_exists( lt_result[ suppliername = 'BioClinica Inc' ] ) )
       msg = 'The CP branch matches BioClinica' ).
-
   ENDMETHOD.
-
 
   METHOD test_multiple_cp_filters_or.
     "Testuje: viacerí CP filtre v tej istej property (OR logika)
@@ -1990,7 +1778,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( line_exists( lt_result[ suppliername = 'Quantum' ] ) )
       msg = 'Quantum begins with uppercase Q and must match the Q pattern' ).
-
   ENDMETHOD.
 
   METHOD test_cp_empty_pattern.
@@ -2011,11 +1798,9 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
       act = lines( lt_result )
       exp = 2
       msg = 'A percent-only LIKE pattern matches both nonempty and empty names' ).
-
   ENDMETHOD.
 
   METHOD filter_sort_and_page_across.
-
     DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
     DATA lt_result  TYPE tt_projected_result.
 
@@ -2109,7 +1894,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Charlie' ).
-
   ENDMETHOD.
 
   METHOD generic_eq_filters_rows.
@@ -2128,7 +1912,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
-
   ENDMETHOD.
 
   METHOD generic_contains_filters_rows.
@@ -2151,7 +1934,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-ponumber
       exp = '8000000001' ).
-
   ENDMETHOD.
 
   METHOD generic_two_props_are_anded.
@@ -2173,7 +1955,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-ponumber
       exp = '8000000001' ).
-
   ENDMETHOD.
 
   METHOD generic_same_prop_is_ored.
@@ -2196,7 +1977,6 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
       act = xsdbool( line_exists( lt_result[ ponumber = '8000000001' ] ) ) ).
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( line_exists( lt_result[ ponumber = '8000000002' ] ) ) ).
-
   ENDMETHOD.
 
   METHOD generic_with_sort_and_paging.
@@ -2228,12 +2008,10 @@ CLASS ltc_amdp_filters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Charlie' ).
-
   ENDMETHOD.
 ENDCLASS.
 
 CLASS ltc_request_processing IMPLEMENTATION.
-
   METHOD setup.
     mo_cut = NEW #( ).
   ENDMETHOD.
@@ -2283,7 +2061,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'PO number AMDP filter does not require generic full processing' ).
-
   ENDMETHOD.
 
   METHOD amdp_item_filter_no_full.
@@ -2294,7 +2071,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'Item number AMDP filter does not require generic full processing' ).
-
   ENDMETHOD.
 
   METHOD amdp_supplier_filter_no.
@@ -2305,7 +2081,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'Supplier name AMDP filter does not require generic full processing' ).
-
   ENDMETHOD.
 
   METHOD no_filter_no_full_processing.
@@ -2314,7 +2089,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'No generic filter or orderby leaves full processing unnecessary' ).
-
   ENDMETHOD.
 
   METHOD generic_filter_requires_full.
@@ -2326,7 +2100,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'A generic filter still requires full processing when an AMDP filter is present' ).
-
   ENDMETHOD.
 
   METHOD orderby_requires_full.
@@ -2336,16 +2109,9 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'An orderby requires full processing' ).
-
   ENDMETHOD.
 
-*----------------------------------------------------------------------
-* contains filters
-*----------------------------------------------------------------------
-
-*----------------------------------------------------------------------
-* contains filters (opravené pre amdp_filter)
-*----------------------------------------------------------------------
+    " Contains filters
 
   METHOD po_contains_builds_like.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
@@ -2365,7 +2131,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-filter-filter_string
       msg = 'An AMDP-only filter does not require generic filtering' ).
-
   ENDMETHOD.
 
   METHOD item_contains_keeps_zeros.
@@ -2378,7 +2143,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-item CS '%2%' )
       msg = 'ITEMNO contains keeps the searched digit without zero-padding' ).
-
   ENDMETHOD.
 
   METHOD mixed_eq_and_contains.
@@ -2403,7 +2167,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
   METHOD supplier_contains_builds_like.
@@ -2416,7 +2179,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Fuji%' )
       msg = 'Supplier filter preserves the supplied case in the AMDP predicate' ).
-
   ENDMETHOD.
 
   METHOD supplier_pattern_no_wildcards.
@@ -2433,7 +2195,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = xsdbool( ls_request-filter_for_amdp-suppliername CS '*Fuji*' )
       msg = 'ABAP CP asterisks are not retained in the SQL predicate' ).
-
   ENDMETHOD.
 
   METHOD supplier_keeps_inner_spaces.
@@ -2447,7 +2208,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%Lee Hecht%' )
       msg = 'Supplier search preserves the internal space and source case' ).
-
   ENDMETHOD.
 
   METHOD item_contains_digit_two.
@@ -2460,7 +2220,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-item CS '%2%' )
       msg = 'Searching digit 2 does not convert it to zero-padded ITEMNO' ).
-
   ENDMETHOD.
 
   METHOD amdp_filter_empty_by_default.
@@ -2470,7 +2229,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial( ls_request-filter_for_amdp ).
     cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
 *----------------------------------------------------------------------
@@ -2504,7 +2262,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Bravo' ).
-
   ENDMETHOD.
 
   METHOD sort_descending.
@@ -2529,7 +2286,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-suppliername
       exp = 'Bravo' ).
-
   ENDMETHOD.
 
   METHOD explicit_po_desc_is_preserved.
@@ -2557,7 +2313,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = lt_result[ 2 ]-itemno
       exp = '00001'
       msg = 'The missing item tie-breaker remains ascending' ).
-
   ENDMETHOD.
 
   METHOD sort_unknown_property_no_dump.
@@ -2582,7 +2337,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = lt_result[ 1 ]-ponumber
       exp = '8000000002'
       msg = 'An unknown sort component is ignored without changing input order' ).
-
   ENDMETHOD.
 
   METHOD top_zero_requested_empty.
@@ -2602,7 +2356,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = lt_result
       msg = 'Explicit $top=0 must empty the page result' ).
-
   ENDMETHOD.
 
   METHOD top_zero_not_requested_all.
@@ -2623,7 +2376,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = lines( lt_result )
       exp = 2
       msg = 'An unrequested top=0 keeps the unpaged result set' ).
-
   ENDMETHOD.
 
   METHOD paging_window_boundaries.
@@ -2655,7 +2407,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-ponumber
       exp = '8000000009' ).
-
   ENDMETHOD.
 
   METHOD no_orderby_leaves_table_asis.
@@ -2684,7 +2435,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = lt_result[ 1 ]-ponumber
       exp = '8000000002'
       msg = 'Without orderby, row order is left untouched' ).
-
   ENDMETHOD.
 
   METHOD generic_sort_gets_stable_ties.
@@ -2714,11 +2464,9 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 3 ]-ponumber
       exp = '8000000002' ).
-
   ENDMETHOD.
 
   METHOD package_mapping_preserves_ord.
-
     DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
     DATA lt_result  TYPE tt_projected_result.
 
@@ -2756,11 +2504,9 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 3 ]-suppliername
       exp = 'Alpha' ).
-
   ENDMETHOD.
 
   METHOD empty_package_is_ignored.
-
     DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
     DATA lt_result  TYPE tt_projected_result.
 
@@ -2770,11 +2516,9 @@ CLASS ltc_request_processing IMPLEMENTATION.
         ct_result  = lt_result ).
 
     cl_abap_unit_assert=>assert_initial( lt_result ).
-
   ENDMETHOD.
 
   METHOD multiple_packages_keep_ord.
-
     DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
     DATA lt_result  TYPE tt_projected_result.
 
@@ -2811,8 +2555,8 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 4 ]-ponumber
       exp = '4' ).
-
   ENDMETHOD.
+
   METHOD pstype_desc_moved_for_under.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_under
@@ -2831,7 +2575,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'Removing default sorting avoids generic full processing' ).
-
   ENDMETHOD.
 
   METHOD pstype_desc_moved_for_over.
@@ -2845,7 +2588,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( act = ls_request-pstype_desc_requested ).
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request ) ).
-
   ENDMETHOD.
 
   METHOD pstype_desc_po_prefix_moved.
@@ -2867,7 +2609,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'An AMDP-supported prefix order avoids generic full processing' ).
-
   ENDMETHOD.
 
   METHOD pstype_desc_po_item_prefix.
@@ -2890,7 +2631,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'An AMDP-supported prefix order avoids generic full processing' ).
-
   ENDMETHOD.
 
   METHOD po_item_prefix_removed.
@@ -2924,7 +2664,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = mo_cut->is_full_processing_required( ls_po_request )
       msg = 'PONUMBER ASC is an AMDP-order prefix' ).
-
   ENDMETHOD.
 
   METHOD itemno_sort_kept.
@@ -2946,7 +2685,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'ITEMNO ASC alone requires generic full processing' ).
-
   ENDMETHOD.
 
   METHOD pstype_asc_kept.
@@ -2968,7 +2706,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'PSTYPE ASC requires generic full processing' ).
-
   ENDMETHOD.
 
   METHOD orderby_longer_than_amdp_kept.
@@ -2993,7 +2730,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'An order longer than the AMDP order requires full processing' ).
-
   ENDMETHOD.
 
   METHOD custom_orderby_kept.
@@ -3012,7 +2748,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = mo_cut->is_full_processing_required( ls_request )
       msg = 'A custom order requires generic full processing' ).
-
   ENDMETHOD.
 
   METHOD pstype_sort_kept_for_exclude.
@@ -3040,7 +2775,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = lt_result[ 2 ]-ponumber
       exp = '8000000001'
       msg = 'Default ascending PO tie-breaker remains within PSTYPE' ).
-
   ENDMETHOD.
 
   METHOD pstype_sort_desc_mixed_rows.
@@ -3071,11 +2805,9 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-pstype
       exp = '0' ).
-
   ENDMETHOD.
 
   METHOD review_day_boundary.
-
     cl_abap_unit_assert=>assert_equals(
       act = mo_cut->get_review_action(
               i_changed_date = '20260906'
@@ -3099,7 +2831,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
               i_current_date = '20260907' )
       exp = 'K'
       msg = 'A review performed on the review day must stay reviewed on that day' ).
-
   ENDMETHOD.
 
   METHOD po_multiple_eq_same_property.
@@ -3121,7 +2852,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       msg = 'Multiple included EQ values for one property are OR alternatives' ).
 
     cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
   METHOD po_eq_and_cp_same_property.
@@ -3145,7 +2875,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       msg = 'EQ and CP on PONUMBER are combined as OR alternatives' ).
 
     cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
   METHOD supplier_multiple_cp_same_prop.
@@ -3165,7 +2894,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-suppliername CS 'OR' )
       msg = 'Multiple CP options on SUPPLIERNAME are OR alternatives' ).
-
   ENDMETHOD.
 
   METHOD item_multiple_eq_same_property.
@@ -3185,7 +2913,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-item CS 'OR' )
       msg = 'Multiple ITEMNO EQ values are OR alternatives' ).
-
   ENDMETHOD.
 
   METHOD item_cp_digit_two.
@@ -3198,13 +2925,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-item CS '%2%' )
       msg = 'ITEMNO CP keeps the searched digit instead of converting to EBELP' ).
-
   ENDMETHOD.
-
-*----------------------------------------------------------------------
-* GENERIC FILTERS - ABAP Unit Tests
-*----------------------------------------------------------------------
-
 
 *----------------------------------------------------------------------
 * EDGE CASES AND BOUNDARY CONDITIONS
@@ -3224,7 +2945,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-filter-filter_string
       msg = 'An AMDP-only empty CP range does not leave generic filtering active' ).
-
   ENDMETHOD.
 
   METHOD item_number_with_leading_zeros.
@@ -3237,7 +2957,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-item CS '00001' )
       msg = 'ITEMNO EQ preserves its leading zeroes in the generated predicate' ).
-
   ENDMETHOD.
 
   METHOD exclude_sign_filters.
@@ -3253,7 +2972,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial(
       act = ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
   METHOD unsupported_option_generic.
@@ -3272,7 +2990,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       msg = 'A between range includes its lower and upper bounds in the AMDP predicate' ).
 
     cl_abap_unit_assert=>assert_initial( ls_request-filter-filter_string ).
-
   ENDMETHOD.
 
   METHOD supplier_filter_with_case_sens.
@@ -3285,7 +3002,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( ls_request-filter_for_amdp-suppliername CS '%FUJI%' )
       msg = 'The filter extractor preserves uppercase supplier search text' ).
-
   ENDMETHOD.
 
 *----------------------------------------------------------------------
@@ -3314,16 +3030,11 @@ CLASS ltc_request_processing IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = lt_result
       msg = 'A skip beyond the sorted rows returns no data' ).
-
   ENDMETHOD.
-
-
-
 
 *----------------------------------------------------------------------
 * AMDP FILTER EXTRACTION COVERAGE
 *----------------------------------------------------------------------
-
 
   METHOD amdp_filter_mixed_properties.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
@@ -3349,17 +3060,15 @@ CLASS ltc_request_processing IMPLEMENTATION.
       act = ls_request-filter-filter_string
       exp = `COMPANYCODE = '2028'`
       msg = 'The generic property condition remains available for generic filtering' ).
-
   ENDMETHOD.
-
-
-
-
-
 ENDCLASS.
 
-
 CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
+  METHOD setup.
+    CLEAR:
+      mt_differences,
+      mv_difference_count.
+  ENDMETHOD.
 
 *----------------------------------------------------------------------
 * Scope NULL / wildcard matrix
@@ -3369,7 +3078,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 *----------------------------------------------------------------------
 
   METHOD run_scope_case.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture = |xsa-scope-{ i_number }.json|.
@@ -3380,7 +3088,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     run_paged_case( is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   " CC=NULL, MU=*
@@ -3469,294 +3176,186 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD test_scope_18.
-
     run_scope_case( '18' ).
-
   ENDMETHOD.
-
 
   METHOD test_scope_19.
-
     run_scope_case( '19' ).
-
   ENDMETHOD.
-
 
   METHOD test_scope_20.
-
     run_scope_case( '20' ).
-
   ENDMETHOD.
-
 
   METHOD test_scope_21.
-
     run_scope_case( '21' ).
-
   ENDMETHOD.
-
 
   METHOD test_scope_22.
-
     run_scope_case( '22' ).
-
   ENDMETHOD.
 
-
   METHOD test_scope_23.
-
     run_scope_case( '23' ).
-
   ENDMETHOD.
 
   METHOD test_scope_24.
-
     run_scope_case( '24' ).
-
   ENDMETHOD.
 
   METHOD test_scope_25.
-
     run_scope_case( '25' ).
-
   ENDMETHOD.
 
   METHOD test_scope_26.
-
     run_scope_case( '26' ).
-
   ENDMETHOD.
 
   METHOD test_scope_27.
-
     run_scope_case( '27' ).
-
   ENDMETHOD.
 
   METHOD test_scope_28.
-
     run_scope_case( '28' ).
-
   ENDMETHOD.
 
   METHOD test_scope_29.
-
     run_scope_case( '29' ).
-
   ENDMETHOD.
 
   METHOD test_scope_30.
-
     run_scope_case( '30' ).
-
   ENDMETHOD.
 
-
   METHOD test_scope_31.
-
     run_scope_case( '31' ).
-
   ENDMETHOD.
 
   METHOD test_scope_32.
-
     run_scope_case( '32' ).
-
   ENDMETHOD.
 
   METHOD test_scope_33.
-
     run_scope_case( '33' ).
-
   ENDMETHOD.
 
   METHOD test_scope_34.
-
     run_scope_case( '34' ).
-
   ENDMETHOD.
 
   METHOD test_scope_35.
-
     run_scope_case( '35' ).
-
   ENDMETHOD.
 
   METHOD test_scope_36.
-
     run_scope_case( '36' ).
-
   ENDMETHOD.
 
   METHOD test_scope_37.
-
     run_scope_case( '37' ).
-
   ENDMETHOD.
 
   METHOD test_scope_38.
-
     run_scope_case( '38' ).
-
   ENDMETHOD.
 
   METHOD test_scope_39.
-
     run_scope_case( '39' ).
-
   ENDMETHOD.
 
   METHOD test_scope_40.
-
     run_scope_case( '40' ).
-
   ENDMETHOD.
 
   METHOD test_scope_41.
-
     run_scope_case( '41' ).
-
   ENDMETHOD.
 
   METHOD test_scope_42.
-
     run_scope_case( '42' ).
-
   ENDMETHOD.
 
   METHOD test_scope_43.
-
     run_scope_case( '43' ).
-
   ENDMETHOD.
 
   METHOD test_scope_44.
-
     run_scope_case( '44' ).
-
   ENDMETHOD.
 
   METHOD test_scope_45.
-
     run_scope_case( '45' ).
-
   ENDMETHOD.
 
   METHOD test_scope_46.
-
     run_scope_case( '46' ).
-
   ENDMETHOD.
 
   METHOD test_scope_47.
-
     run_scope_case( '47' ).
-
   ENDMETHOD.
 
   METHOD test_scope_48.
-
     run_scope_case( '48' ).
-
   ENDMETHOD.
 
   METHOD test_scope_49.
-
     run_scope_case( '49' ).
-
   ENDMETHOD.
 
   METHOD test_scope_50.
-
     run_scope_case( '50' ).
-
   ENDMETHOD.
 
   METHOD test_scope_51.
-
     run_scope_case( '51' ).
-
   ENDMETHOD.
 
   METHOD test_scope_52.
-
     run_scope_case( '52' ).
-
   ENDMETHOD.
 
   METHOD test_scope_53.
-
     run_scope_case( '53' ).
-
   ENDMETHOD.
 
   METHOD test_scope_54.
-
     run_scope_case( '54' ).
-
   ENDMETHOD.
 
   METHOD test_scope_55.
-
     run_scope_case( '55' ).
-
   ENDMETHOD.
 
   METHOD test_scope_56.
-
     run_scope_case( '56' ).
-
   ENDMETHOD.
 
   METHOD test_scope_57.
-
     run_scope_case( '57' ).
-
   ENDMETHOD.
 
   METHOD test_scope_58.
-
     run_scope_case( '58' ).
-
   ENDMETHOD.
 
   METHOD test_scope_59.
-
     run_scope_case( '59' ).
-
   ENDMETHOD.
 
   METHOD test_scope_60.
-
     run_scope_case( '60' ).
-
   ENDMETHOD.
 
   METHOD test_scope_61.
-
     run_scope_case( '61' ).
-
   ENDMETHOD.
 
   METHOD test_scope_62.
-
     run_scope_case( '62' ).
-
   ENDMETHOD.
-
-  METHOD setup.
-
-    CLEAR:
-      mt_differences,
-      mv_difference_count.
-
-    CLEAR mv_unused.
-
-  ENDMETHOD.
-
 
   METHOD test_over_material.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3775,12 +3374,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_over_service.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3799,12 +3395,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_under_material.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3823,12 +3416,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_under_service.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3847,12 +3437,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_exclude.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3871,11 +3458,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_over_material_owner.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3896,12 +3481,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_over_service_owner.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3922,12 +3504,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_under_material_owner.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3948,12 +3527,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_under_service_owner.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -3974,12 +3550,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_exclude_owner.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -4000,11 +3573,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_filter.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -4023,7 +3594,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_selection.
@@ -4041,11 +3611,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_y_format.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -4066,11 +3634,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_x_format.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -4091,11 +3657,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
   METHOD test_empty_format.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-fixture =
@@ -4116,12 +3680,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       is_case = ls_case ).
 
     assert_no_differences( ).
-
   ENDMETHOD.
 
-
   METHOD test_inlinecount_with_top_one.
-
     DATA:
       ls_case        TYPE ts_case,
       lv_json_page_1 TYPE string,
@@ -4187,11 +3748,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
-
   ENDMETHOD.
 
   METHOD test_no_inlinecount.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -4227,11 +3786,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = get_result_count( lv_json )
       exp = 1 ).
-
   ENDMETHOD.
 
   METHOD test_skip_beyond_result_set.
-
     DATA:
       ls_case        TYPE ts_case,
       lv_json_page_1 TYPE string,
@@ -4277,11 +3834,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       act = lv_count_2
       exp = lv_count_1
       msg = '__count must remain valid even when the page is empty' ).
-
   ENDMETHOD.
 
   METHOD test_top_zero.
-
     DATA:
       ls_case_full  TYPE ts_case,
       ls_case_zero  TYPE ts_case,
@@ -4329,7 +3884,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       act = lv_count_zero
       exp = lv_count_full
       msg = '$top=0 must preserve the same total inline count' ).
-
   ENDMETHOD.
 
   METHOD test_po_value_help.
@@ -4370,7 +3924,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'PONUMBER'
       i_value    = '40102'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_item_value_help.
@@ -4410,7 +3963,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'ITEMNO'
       i_value    = '00002'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_supplier_value_help.
@@ -4450,7 +4002,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'SUPPLIERNAME'
       i_value    = 'Fuji'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_filter_sort_and_paging.
@@ -4525,11 +4076,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         i_json_page_1 = lv_json_page_1
         i_json_page_2 = lv_json_page_2 ).
     ENDIF.
-
   ENDMETHOD.
 
   METHOD test_under_paging.
-
     DATA:
       ls_case        TYPE ts_case,
       lv_json_page_1 TYPE string,
@@ -4585,11 +4134,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
-
   ENDMETHOD.
 
   METHOD test_excl_paging.
-
     DATA:
       ls_case        TYPE ts_case,
       lv_json_page_1 TYPE string,
@@ -4645,11 +4192,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json_right     = lv_json_page_2
       i_right_index    = 1
       i_expected_match = abap_false ).
-
   ENDMETHOD.
 
   METHOD test_exclusion_pstype_desc.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -4691,11 +4236,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
               i_property = 'PSTYPE' )
       exp = '9'
       msg = 'Descending PSTYPE on exclude must start with service rows' ).
-
   ENDMETHOD.
 
   METHOD test_exclusion_pstype_asc.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -4736,11 +4279,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
               i_property = 'PSTYPE' )
       exp = '0'
       msg = 'Ascending PSTYPE on exclude must start with material rows' ).
-
   ENDMETHOD.
 
   METHOD test_excl_pstype_pages.
-
     DATA:
       ls_case        TYPE ts_case,
       lv_json_desc_1 TYPE string,
@@ -4832,11 +4373,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
                   i_index    = 1
                   i_property = 'PSTYPE' ) ) )
       msg = 'Ascending PSTYPE order must stay correct across the page boundary' ).
-
   ENDMETHOD.
 
   METHOD test_orderby_invalid.
-
     DATA ls_case TYPE ts_case.
 
     ls_case-email = 'adam.strasky@takeda.com'.
@@ -4875,7 +4414,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( lv_status_text IS NOT INITIAL )
       msg = 'The raw Gateway helper must expose the HTTP status text' ).
-
   ENDMETHOD.
 
   METHOD test_nonexistent_supplier.
@@ -4907,7 +4445,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       act = lv_count
       exp = 0
       msg = 'A non-existent supplier must produce __count=0' ).
-
   ENDMETHOD.
 
   METHOD test_filter_companycode.
@@ -4942,7 +4479,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json     = lv_json
       i_property = 'COMPANYCODE'
       i_value    = '2028' ).
-
   ENDMETHOD.
 
   METHOD test_filter_polinedesc.
@@ -4978,7 +4514,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'POLINEDESC'
       i_value    = 'Local Support'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_filter_curr_company.
@@ -5014,7 +4549,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json     = lv_json
       i_property = 'COMPANYCODE'
       i_value    = '2028' ).
-
   ENDMETHOD.
 
   METHOD test_filter_supplierid.
@@ -5049,11 +4583,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json     = lv_json
       i_property = 'SUPPLIERID'
       i_value    = '426870' ).
-
   ENDMETHOD.
 
   METHOD test_filter_po_or_supplier.
-
     DATA:
       ls_case      TYPE ts_case,
       lv_json      TYPE string,
@@ -5108,7 +4640,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           OR lv_ponumber = '8002077289' )
         msg = |Row { lv_index } must belong to one of the requested PO numbers| ).
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD test_select_calc_status.
@@ -5195,11 +4726,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       exp = lv_status_full
       msg = |Restricted $select returned a different STATUS for |
          && |{ lv_ponumber }/{ lv_itemno }| ).
-
   ENDMETHOD.
 
   METHOD test_sort_amountaccrued.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -5228,12 +4757,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json       = lv_json
       i_property   = 'AMOUNTACCRUED'
       i_descending = abap_true ).
-
   ENDMETHOD.
 
-
   METHOD test_sort_reviewed_by.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -5262,11 +4788,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_json       = lv_json
       i_property   = 'REVIWED_BY'
       i_descending = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_skip_high_sorted.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -5296,11 +4820,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       act = xsdbool( lv_count > 0 )
       msg = 'The inline count must still expose the real filtered result size' ).
-
   ENDMETHOD.
 
   METHOD test_empty_contains_po.
-
     DATA:
       ls_case_base   TYPE ts_case,
       ls_case_empty  TYPE ts_case,
@@ -5367,11 +4889,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
               itemno   = <ls_empty_row>-itemno ] ) )
         msg = 'Empty substring filter must not change the returned row keys' ).
     ENDLOOP.
-
   ENDMETHOD.
 
   METHOD test_under_po_help.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -5405,11 +4925,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'PONUMBER'
       i_value    = '89065'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_excl_po_help.
-
     DATA:
       ls_case  TYPE ts_case,
       lv_json  TYPE string,
@@ -5443,7 +4961,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'PONUMBER'
       i_value    = '98339'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
   METHOD test_under_supplier_help.
@@ -5480,17 +4997,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       i_property = 'SUPPLIERNAME'
       i_value    = 'Lee Hecht'
       i_contains = abap_true ).
-
   ENDMETHOD.
 
-
-
-
-
-
-
   METHOD run_paged_case.
-
     DATA:
       lv_expected_json  TYPE string,
       lv_actual_json    TYPE string,
@@ -5583,11 +5092,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lt_actual_index,
       lv_expected_json,
       lv_actual_json.
-
   ENDMETHOD.
 
   METHOD fetch_gateway_page.
-
     CLEAR:
       e_json,
       e_total_count.
@@ -5599,11 +5106,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IMPORTING
         e_json         = e_json
         e_inline_count = e_total_count ).
-
   ENDMETHOD.
 
   METHOD get_gateway_response.
-
     DATA lv_path TYPE string.
 
     lv_path =
@@ -5623,11 +5128,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           i_json = e_json ).
 
     ENDIF.
-
   ENDMETHOD.
 
   METHOD build_resource_path.
-
     DATA:
       lv_email             TYPE string,
       lv_poowner           TYPE string,
@@ -5723,7 +5226,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         is_case = is_case
       CHANGING
         cv_path = rv_path ).
-
   ENDMETHOD.
 
   METHOD append_filter.
@@ -5740,22 +5242,18 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         escaped   = lv_filter ).
 
     cv_path = cv_path && |&$filter={ lv_filter }|.
-
   ENDMETHOD.
 
   METHOD odata_quote.
-
     rv_value = CONV string( i_value ).
     SHIFT rv_value RIGHT DELETING TRAILING space.
 
     REPLACE ALL OCCURRENCES OF ''''
       IN rv_value
       WITH ''''''.
-
   ENDMETHOD.
 
   METHOD execute_gateway_get.
-
     DATA:
       lv_status_code TYPE i,
       lv_status_text TYPE string.
@@ -5777,11 +5275,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
             |SEGW returned HTTP { lv_status_code } { lv_status_text }; |
             && |URI={ i_resource_path }; Body={ rv_json }|.
     ENDIF.
-
   ENDMETHOD.
 
   METHOD execute_gateway_raw.
-
     DATA:
       lo_client          TYPE REF TO /iwfnd/cl_sutil_client_proxy,
       lt_request_header  TYPE /iwfnd/sutil_property_t,
@@ -5811,11 +5307,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     e_json =
       /iwfnd/cl_sutil_xml_helper=>transform_to_string(
         lv_response_body ).
-
   ENDMETHOD.
 
   METHOD read_inline_count.
-
     DATA:
       lv_offset TYPE i,
       lv_start  TYPE i,
@@ -5862,11 +5356,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     IF lv_token IS NOT INITIAL.
       rv_count = CONV int8( lv_token ).
     ENDIF.
-
   ENDMETHOD.
 
   METHOD get_result_count.
-
     DATA:
       lv_array_from TYPE i,
       lv_array_to   TYPE i,
@@ -5910,19 +5402,15 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_position = lv_value_end.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD assert_inlinecount_absent.
-
     cl_abap_unit_assert=>assert_false(
       act = xsdbool( i_json CS '"__count"' )
       msg = 'Response must not contain __count when $inlinecount was not requested' ).
-
   ENDMETHOD.
 
   METHOD assert_all_rows_match_filter.
-
     DATA:
       lv_row_count   TYPE i,
       lv_row_index   TYPE i,
@@ -5986,11 +5474,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       ENDIF.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD assert_rows_sorted.
-
     DATA:
       lv_row_count  TYPE i,
       lv_row_index  TYPE i,
@@ -6131,11 +5617,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_previous = lv_current.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD assert_no_duplica_across_pages.
-
     DATA:
       lt_page_1 TYPE tt_expected_index,
       lt_page_2 TYPE tt_expected_index.
@@ -6160,11 +5644,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           |Page 2 must not repeat page 1 row { <ls_page_2>-ponumber }/{ <ls_page_2>-itemno }| ).
 
     ENDLOOP.
-
   ENDMETHOD.
 
   METHOD assert_row_keys_match.
-
     DATA:
       lv_left_from  TYPE i,
       lv_left_to    TYPE i,
@@ -6220,11 +5702,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       exp = i_expected_match
       msg =
         |Unexpected row-key match result between row { i_left_index } and row { i_right_index }| ).
-
   ENDMETHOD.
 
   METHOD read_mime_fixture.
-
     DATA:
       lo_mime    TYPE REF TO if_mr_api,
       lo_conv    TYPE REF TO cl_abap_conv_in_ce,
@@ -6271,12 +5751,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     CLEAR:
       lo_conv,
       lo_mime.
-
   ENDMETHOD.
 
-
   METHOD find_results_array_bounds.
-
     DATA:
       lv_results_offset TYPE i,
       lv_json_length    TYPE i,
@@ -6332,11 +5809,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         i_start = e_array_from
         i_open  = '['
         i_close = ']' ).
-
   ENDMETHOD.
 
   METHOD find_result_object_bounds.
-
     DATA:
       lv_array_from TYPE i,
       lv_array_to   TYPE i,
@@ -6411,12 +5886,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       NUMBER '000'
       WITH
           |Result row { i_index } was not found in the Gateway response|.
-
   ENDMETHOD.
 
-
   METHOD build_expected_index.
-
     DATA:
       lv_array_from  TYPE i,
       lv_array_to    TYPE i,
@@ -6548,11 +6020,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         lv_object_to + 1.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD read_json_row_key.
-
     DATA:
       lv_position    TYPE i,
       lv_key_start   TYPE i,
@@ -6703,11 +6173,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         lv_value_end + 1.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD read_first_result_key.
-
     DATA:
       lv_array_from  TYPE i,
       lv_array_to    TYPE i,
@@ -6746,21 +6214,17 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       IMPORTING
         e_ponumber    = e_ponumber
         e_itemno      = e_itemno ).
-
   ENDMETHOD.
 
   METHOD read_first_result_property.
-
     rv_token =
       read_result_property(
         i_json     = i_json
         i_index    = 1
         i_property = i_property ).
-
   ENDMETHOD.
 
   METHOD read_result_property.
-
     find_result_object_bounds(
       EXPORTING
         i_json        = i_json
@@ -6785,12 +6249,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     rv_token =
       unquote_json(
         i_token = rv_token ).
-
   ENDMETHOD.
 
-
   METHOD compare_actual_page.
-
     LOOP AT it_actual_index ASSIGNING FIELD-SYMBOL(<ls_actual>).
 
       READ TABLE ct_expected_index
@@ -6830,11 +6291,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       <ls_expected>-matched = abap_true.
 
     ENDLOOP.
-
   ENDMETHOD.
 
   METHOD compare_raw_object.
-
     DATA:
       lt_expected TYPE tt_json_property,
       lt_actual   TYPE tt_json_property.
@@ -6901,11 +6360,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     FREE:
       lt_expected,
       lt_actual.
-
   ENDMETHOD.
 
   METHOD read_object_properties.
-
     DATA:
       lv_position    TYPE i,
       lv_key_start   TYPE i,
@@ -7006,11 +6463,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       lv_position = lv_value_end + 1.
 
     ENDWHILE.
-
   ENDMETHOD.
 
   METHOD compare_raw_property.
-
     DATA:
       lv_expected_token TYPE string,
       lv_actual_token   TYPE string,
@@ -7168,7 +6623,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           && |Field={ i_name }; XSA={ lv_expected_token }; |
           && |SEGW={ lv_actual_token }| ).
     ENDIF.
-
   ENDMETHOD.
 
 *----------------------------------------------------------------------*
@@ -7195,7 +6649,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 * changes. Do not extend it based on ABAP or EDM type alone.
 *----------------------------------------------------------------------*
   METHOD is_equivalent_null.
-
     rv_result = abap_false.
 
 *--------------------------------------------------------------------*
@@ -7458,9 +6911,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           ).
 
     ENDCASE.
-
   ENDMETHOD.
-
 
 *----------------------------------------------------------------------*
 * Normalize an OData V2 Edm.Time duration token
@@ -7478,7 +6929,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 * allowing the normal strict comparison to report a real difference.
 *----------------------------------------------------------------------*
   METHOD normalize_odata_time.
-
     DATA:
       lv_value       TYPE string,
       lv_remainder   TYPE string,
@@ -7615,9 +7065,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       && 'M'
       && |{ lv_second WIDTH = 2 PAD = '0' ALIGN = RIGHT }|
       && 'S"'.
-
   ENDMETHOD.
-
 
 *----------------------------------------------------------------------*
 * TODO_PARITY_CONTRACT_001 - SYNTHETIC XSA PROPERTY
@@ -7631,12 +7079,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 * becomes part of the functional UI contract.
 *----------------------------------------------------------------------*
   METHOD ignore_missing_property.
-
     rv_result =
       xsdbool( i_name = 'ID' ).
-
   ENDMETHOD.
-
 
 *----------------------------------------------------------------------*
 * TODO_PARITY_STRICT_001 - TEMPORARY EXCEPTION
@@ -7645,7 +7090,6 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 * aligned between XSA and SEGW.
 *----------------------------------------------------------------------*
   METHOD is_unordered_aggregate_field.
-
     CASE i_name.
 
       WHEN 'GLACCOUNT'
@@ -7664,12 +7108,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           abap_true.
 
     ENDCASE.
-
   ENDMETHOD.
 
-
   METHOD equal_aggregate_content.
-
     DATA:
       lt_expected TYPE tt_string,
       lt_actual   TYPE tt_string.
@@ -7718,11 +7159,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     FREE:
       lt_expected,
       lt_actual.
-
   ENDMETHOD.
 
   METHOD split_aggregate_empty.
-
     DATA:
       lv_length TYPE i,
       lv_start  TYPE i,
@@ -7778,12 +7217,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     APPEND lv_token
       TO rt_tokens.
-
   ENDMETHOD.
 
-
   METHOD read_json_string_end.
-
     DATA:
       lv_position TYPE i,
       lv_length   TYPE i,
@@ -7843,9 +7279,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       WITH 'JSON string is not closed'.
   ENDMETHOD.
 
-
   METHOD read_json_value_end.
-
     DATA:
       lv_position TYPE i,
       lv_length   TYPE i,
@@ -7940,12 +7374,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     rv_end =
       lv_length.
-
   ENDMETHOD.
 
-
   METHOD find_matching_end.
-
     DATA:
       lv_position TYPE i,
       lv_length   TYPE i,
@@ -8023,11 +7454,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
       TYPE 'E'
       NUMBER '000'
       WITH 'JSON object or array is not closed'.
-
   ENDMETHOD.
 
   METHOD skip_whitespace.
-
     DATA:
       lv_length TYPE i,
       lv_char   TYPE char1.
@@ -8055,12 +7484,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         rv_position + 1.
 
     ENDWHILE.
-
   ENDMETHOD.
 
-
   METHOD is_whitespace.
-
     IF i_char = space
        OR i_char = cl_abap_char_utilities=>horizontal_tab
        OR i_char = cl_abap_char_utilities=>newline
@@ -8071,12 +7497,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
         abap_true.
 
     ENDIF.
-
   ENDMETHOD.
 
-
   METHOD trim_text.
-
     DATA:
       lv_start         TYPE i,
       lv_end           TYPE i,
@@ -8137,12 +7560,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
           len = lv_end - lv_start ).
 
     ENDIF.
-
   ENDMETHOD.
 
-
   METHOD unquote_json.
-
     DATA:
       lv_token        TYPE string,
       lv_length       TYPE i,
@@ -8255,12 +7675,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     REPLACE ALL OCCURRENCES OF '\\'
       IN rv_value
       WITH '\'.
-
   ENDMETHOD.
 
-
   METHOD add_difference.
-
     mv_difference_count =
       mv_difference_count + 1.
 
@@ -8274,12 +7691,9 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     APPEND i_text
       TO mt_differences.
-
   ENDMETHOD.
 
-
   METHOD assert_no_differences.
-
     DATA:
       lv_text   TYPE string,
       lv_line   TYPE string,
@@ -8329,80 +7743,7 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
     cl_abap_unit_assert=>fail(
       msg = lv_text ).
-
   ENDMETHOD.
-
-ENDCLASS.
-
-" ============================================================================
-" Dashboard production branches: in-memory fixtures only, no database access.
-" Rates are injected into the cache; dates/timestamps avoid clock and CET paths.
-" ============================================================================
-CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
-  DURATION SHORT RISK LEVEL HARMLESS.
-  PRIVATE SECTION.
-    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
-    DATA ms_request TYPE zcl_fi_das_dashboard=>ts_internal_request.
-    DATA ms_context TYPE zcl_fi_das_dashboard=>ts_context.
-    DATA ms_detail TYPE zcl_fi_das_dashboard=>ts_detail.
-    DATA ms_key TYPE zcl_fi_das_dashboard=>ts_key.
-    DATA ms_row TYPE zcl_fi_das_dashboard=>ts_odata_result.
-    METHODS setup.
-    METHODS read_row RAISING zcx_fi_das_error.
-    METHODS assert_rejected
-      IMPORTING i_msgno TYPE symsgno.
-
-    " Arithmetic and cached currency conversion
-    METHODS currency_factors FOR TESTING.
-    METHODS usd_truncates_source FOR TESTING RAISING zcx_fi_das_error.
-    METHODS usd_keeps_precision FOR TESTING RAISING zcx_fi_das_error.
-    METHODS zero_needs_no_rate FOR TESTING RAISING zcx_fi_das_error.
-    METHODS missing_rate_rejected FOR TESTING.
-    METHODS rate_target_key FOR TESTING RAISING zcx_fi_das_error.
-
-    " Context component mapping
-    METHODS detail_mapping FOR TESTING RAISING zcx_fi_das_error.
-    METHODS account_mapping FOR TESTING.
-    METHODS history_mapping FOR TESTING RAISING zcx_fi_das_error.
-    METHODS user_mapping_guard FOR TESTING.
-    METHODS exclusion_mapping FOR TESTING.
-
-    " Row assembly from an injected context
-    METHODS row_missing_detail FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_material_and_audit FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_service_wtd FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_optional_context FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_exclusion FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_uses_complete_key FOR TESTING RAISING zcx_fi_das_error.
-    METHODS row_closed_status FOR TESTING RAISING zcx_fi_das_error.
-    METHODS missing_notification_clears FOR TESTING RAISING cx_sy_conversion_error.
-
-    " Scope parsing: singleton wildcard, NULL and normalization
-    METHODS company_wildcard FOR TESTING.
-    METHODS company_mixed_values FOR TESTING.
-    METHODS cost_null_and_alpha FOR TESTING.
-    METHODS cost_mixed_wildcard FOR TESTING.
-    METHODS management_scope FOR TESTING.
-
-    " Validation and request adjustment without filter SQL generation
-    METHODS valid_request_modes FOR TESTING RAISING zcx_fi_das_error.
-    METHODS invalid_mode FOR TESTING.
-    METHODS missing_email FOR TESTING.
-    METHODS invalid_owner FOR TESTING.
-    METHODS invalid_pstype FOR TESTING.
-    METHODS negative_paging FOR TESTING.
-    METHODS missing_filter_text FOR TESTING.
-    METHODS adjust_default_request FOR TESTING.
-    METHODS adjust_generic_request FOR TESTING.
-
-    " Status and calculation early-return/boundary branches
-    METHODS closed_overrides_status FOR TESTING RAISING zcx_fi_das_error.
-    METHODS unknown_status_cleared FOR TESTING RAISING zcx_fi_das_error.
-    METHODS reviewed_without_date FOR TESTING RAISING zcx_fi_das_error.
-    METHODS material_resets_work FOR TESTING RAISING zcx_fi_das_error.
-    METHODS unsupported_method FOR TESTING RAISING zcx_fi_das_error.
-    METHODS straight_line_missing_dates FOR TESTING RAISING zcx_fi_das_error.
-    METHODS accrued_exact_boundary FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_dash_pure_branches IMPLEMENTATION.

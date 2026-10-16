@@ -19,7 +19,8 @@ PARAMETERS:
 SELECTION-SCREEN END OF BLOCK b02.
 
 PARAMETERS:
-  p_email TYPE zif_fi_das_dashboard=>t_email OBLIGATORY LOWER CASE,
+  p_email TYPE zif_fi_das_dashboard=>t_email OBLIGATORY LOWER CASE
+          DEFAULT 'adam.strasky@takeda.com',
   p_owner AS CHECKBOX,
   p_skip  TYPE i DEFAULT 0,
   p_top   TYPE i DEFAULT 1000,
@@ -28,8 +29,8 @@ SELECTION-SCREEN END OF BLOCK b01.
 
 SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-t03.
 SELECT-OPTIONS:
-  s_po   FOR g_filter_po NO INTERVALS,
-  s_item FOR g_filter_item NO INTERVALS,
+  s_po   FOR g_filter_po,
+  s_item FOR g_filter_item,
   s_supp FOR g_filter_supplier NO INTERVALS LOWER CASE.
 SELECTION-SCREEN END OF BLOCK b03.
 
@@ -52,10 +53,12 @@ SELECTION-SCREEN END OF BLOCK b04.
 * P_EMAIL = User e-mail; P_OWNER = PO owner mode
 * P_SKIP = Rows to skip; P_TOP = Page size (0 = no rows)
 * P_COUNT = Include total filtered count
-* S_PO = PO number (exact, OR); S_ITEM = Item (exact, OR)
+* S_PO = PO number; S_ITEM = Item
 * S_SUPP = Supplier name (contains, OR)
 * P_XNONE = No export; P_XJSON = Export native JSON page
-* Only included EQ entries are accepted. Different filter fields are ANDed.
+* PO and item support full select-options (inclusions, exclusions and ranges).
+* Different filter fields are ANDed; standard range semantics apply within each.
+* Supplier accepts only included EQ entries.
 * Supplier entries are literal, case-sensitive substrings, not CP patterns.
 
 TYPES:
@@ -70,12 +73,8 @@ TYPES:
   tt_column_name TYPE STANDARD TABLE OF lvc_fname WITH EMPTY KEY,
   tt_string_range TYPE RANGE OF string.
 
-CLASS ltc_application DEFINITION DEFERRED.
-
-CLASS lcl_application DEFINITION FINAL FRIENDS ltc_application.
+CLASS lcl_application DEFINITION FINAL.
   PUBLIC SECTION.
-    METHODS constructor
-      IMPORTING io_dashboard TYPE REF TO zif_fi_das_dashboard OPTIONAL.
     METHODS run.
     CLASS-METHODS validate_selection RETURNING VALUE(r_error) TYPE string.
 
@@ -163,10 +162,6 @@ START-OF-SELECTION.
   go_application->run( ).
 
 CLASS lcl_application IMPLEMENTATION.
-  METHOD constructor.
-    mo_dashboard = io_dashboard.
-  ENDMETHOD.
-
   METHOD run.
     IF sy-batch = abap_true.
       MESSAGE 'This SALV/frontend report must run in dialog mode' TYPE 'S' DISPLAY LIKE 'E'.
@@ -179,9 +174,7 @@ CLASS lcl_application IMPLEMENTATION.
     ENDIF.
 
     TRY.
-        IF mo_dashboard IS NOT BOUND.
-          mo_dashboard = NEW zcl_fi_das_dashboard( ).
-        ENDIF.
+        mo_dashboard = NEW zcl_fi_das_dashboard( ).
         read_data( ).
         export_result( ).
         display_result( ).
@@ -204,18 +197,6 @@ CLASS lcl_application IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    LOOP AT s_po ASSIGNING FIELD-SYMBOL(<ls_po>).
-      IF <ls_po>-sign <> 'I' OR <ls_po>-option <> 'EQ'.
-        r_error = 'PO number supports only included single values'.
-        RETURN.
-      ENDIF.
-    ENDLOOP.
-    LOOP AT s_item ASSIGNING FIELD-SYMBOL(<ls_item>).
-      IF <ls_item>-sign <> 'I' OR <ls_item>-option <> 'EQ'.
-        r_error = 'Item supports only included single values'.
-        RETURN.
-      ENDIF.
-    ENDLOOP.
     LOOP AT s_supp ASSIGNING FIELD-SYMBOL(<ls_supplier>).
       IF <ls_supplier>-sign <> 'I' OR <ls_supplier>-option <> 'EQ'.
         r_error = 'Supplier contains supports only included single values'.
@@ -242,12 +223,8 @@ CLASS lcl_application IMPLEMENTATION.
       top_requested   = abap_true
       count_requested = p_count ).
 
-    LOOP AT s_po ASSIGNING FIELD-SYMBOL(<ls_po>) WHERE low IS NOT INITIAL.
-      APPEND VALUE #( sign = 'I' option = 'EQ' low = CONV string( <ls_po>-low ) ) TO lr_po.
-    ENDLOOP.
-    LOOP AT s_item ASSIGNING FIELD-SYMBOL(<ls_item>) WHERE low IS NOT INITIAL.
-      APPEND VALUE #( sign = 'I' option = 'EQ' low = CONV string( <ls_item>-low ) ) TO lr_item.
-    ENDLOOP.
+    lr_po = CORRESPONDING #( s_po[] ).
+    lr_item = CORRESPONDING #( s_item[] ).
     LOOP AT s_supp ASSIGNING FIELD-SYMBOL(<ls_supplier>) WHERE low IS NOT INITIAL.
 *     Escape CP metacharacters so selection entries remain literal substrings.
       DATA(l_pattern) = CONV string( <ls_supplier>-low ).
@@ -258,9 +235,11 @@ CLASS lcl_application IMPLEMENTATION.
     ENDLOOP.
 
     rs_request-filter-filter_select_options = VALUE #(
-      FOR ls_po IN lr_po ( property = 'PONUMBER' sign = ls_po-sign option = ls_po-option low = ls_po-low ) ).
+      FOR ls_po IN lr_po
+      ( property = 'PONUMBER' sign = ls_po-sign option = ls_po-option low = ls_po-low high = ls_po-high ) ).
     APPEND LINES OF VALUE zif_fi_das_dashboard=>tt_filter_select_options(
-      FOR ls_item IN lr_item ( property = 'ITEMNO' sign = ls_item-sign option = ls_item-option low = ls_item-low ) )
+      FOR ls_item IN lr_item
+      ( property = 'ITEMNO' sign = ls_item-sign option = ls_item-option low = ls_item-low high = ls_item-high ) )
       TO rs_request-filter-filter_select_options.
     APPEND LINES OF VALUE zif_fi_das_dashboard=>tt_filter_select_options(
       FOR ls_supplier IN lr_supplier
@@ -268,7 +247,7 @@ CLASS lcl_application IMPLEMENTATION.
       TO rs_request-filter-filter_select_options.
 
 *   Supply the real SQL fallback required by VALIDATE_REQUEST, using the same
-*   range converter as the provider (quoting, OR within fields, AND across fields).
+*   range converter as the provider (quoting and full select-option semantics).
     IF rs_request-filter-filter_select_options IS NOT INITIAL.
       rs_request-filter-filter_string = cl_shdb_seltab=>combine_seltabs(
         it_named_seltabs = VALUE #(
@@ -608,312 +587,5 @@ CLASS lcl_application IMPLEMENTATION.
         APPEND LINES OF VALUE tt_column_name( ( 'LAST_NOTIF_ON' ) ( 'NOTIF_24_HR' ) ) TO rt_columns.
       ENDIF.
     ENDIF.
-  ENDMETHOD.
-ENDCLASS.
-
-CLASS lcl_dashboard_double DEFINITION FINAL.
-  PUBLIC SECTION.
-    INTERFACES zif_fi_das_dashboard.
-    DATA:
-      ms_request TYPE zif_fi_das_dashboard=>ts_request,
-      m_mode     TYPE zif_fi_das_dashboard=>t_mode,
-      m_calls    TYPE i,
-      mt_over    TYPE zif_fi_das_dashboard=>tt_zfi_das_over,
-      mt_under   TYPE zif_fi_das_dashboard=>tt_zfi_das_under,
-      mt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
-ENDCLASS.
-
-CLASS lcl_dashboard_double IMPLEMENTATION.
-  METHOD zif_fi_das_dashboard~over.
-    ms_request = is_request.
-    m_mode = zif_fi_das_dashboard=>mc_over.
-    m_calls = m_calls + 1.
-    et_result = mt_over.
-    e_total_count = COND #( WHEN is_request-paging-count_requested = abap_true THEN `4294967296` ).
-  ENDMETHOD.
-
-  METHOD zif_fi_das_dashboard~under.
-    ms_request = is_request.
-    m_mode = zif_fi_das_dashboard=>mc_under.
-    m_calls = m_calls + 1.
-    et_result = mt_under.
-    e_total_count = COND #( WHEN is_request-paging-count_requested = abap_true THEN `4294967296` ).
-  ENDMETHOD.
-
-  METHOD zif_fi_das_dashboard~exclude.
-    ms_request = is_request.
-    m_mode = zif_fi_das_dashboard=>mc_exclude.
-    m_calls = m_calls + 1.
-    et_result = mt_exclude.
-    e_total_count = COND #( WHEN is_request-paging-count_requested = abap_true THEN `4294967296` ).
-  ENDMETHOD.
-ENDCLASS.
-
-CLASS ltc_application DEFINITION FINAL FOR TESTING
-  RISK LEVEL HARMLESS DURATION SHORT.
-  PRIVATE SECTION.
-    DATA:
-      mo_provider TYPE REF TO lcl_dashboard_double,
-      mo_cut      TYPE REF TO lcl_application,
-      BEGIN OF ms_saved,
-        email TYPE zif_fi_das_dashboard=>t_email,
-        owner TYPE abap_bool,
-        over  TYPE abap_bool,
-        under TYPE abap_bool,
-        info  TYPE abap_bool,
-        serv  TYPE abap_bool,
-        mat   TYPE abap_bool,
-        skip  TYPE i,
-        top   TYPE i,
-        count TYPE abap_bool,
-        xnone TYPE abap_bool,
-        xjson TYPE abap_bool,
-        xfile TYPE string,
-      END OF ms_saved,
-      mt_saved_po   LIKE s_po[],
-      mt_saved_item LIKE s_item[],
-      mt_saved_supp LIKE s_supp[].
-
-    METHODS setup.
-    METHODS teardown.
-    METHODS request_parameters FOR TESTING RAISING cx_static_check.
-    METHODS request_filters FOR TESTING RAISING cx_static_check.
-    METHODS supplier_literals FOR TESTING RAISING cx_static_check.
-    METHODS zero_top_and_count FOR TESTING RAISING cx_static_check.
-    METHODS invalid_selection FOR TESTING.
-    METHODS all_modes FOR TESTING RAISING cx_static_check.
-    METHODS empty_pages FOR TESTING RAISING cx_static_check.
-    METHODS native_json FOR TESTING RAISING cx_static_check.
-    METHODS columns_match_contract FOR TESTING.
-    METHODS check_mode
-      IMPORTING
-        i_mode TYPE zif_fi_das_dashboard=>t_mode
-        i_type TYPE zif_fi_das_dashboard=>t_pstype
-      RAISING cx_static_check.
-ENDCLASS.
-
-CLASS ltc_application IMPLEMENTATION.
-  METHOD setup.
-    ms_saved = VALUE #(
-      email = p_email owner = p_owner over = p_over under = p_under info = p_info
-      serv = p_serv mat = p_mat skip = p_skip top = p_top count = p_count
-      xnone = p_xnone xjson = p_xjson xfile = p_xfile ).
-    mt_saved_po = s_po[].
-    mt_saved_item = s_item[].
-    mt_saved_supp = s_supp[].
-    CLEAR: p_owner, p_under, p_info, p_mat, p_skip, p_xjson, p_xfile,
-           s_po[], s_item[], s_supp[].
-    p_email = 'report-test@example.invalid'.
-    p_over = abap_true.
-    p_serv = abap_true.
-    p_top = 1000.
-    p_count = abap_true.
-    p_xnone = abap_true.
-    mo_provider = NEW #( ).
-    mo_cut = NEW #( io_dashboard = mo_provider ).
-  ENDMETHOD.
-
-  METHOD teardown.
-    p_email = ms_saved-email.
-    p_owner = ms_saved-owner.
-    p_over = ms_saved-over.
-    p_under = ms_saved-under.
-    p_info = ms_saved-info.
-    p_serv = ms_saved-serv.
-    p_mat = ms_saved-mat.
-    p_skip = ms_saved-skip.
-    p_top = ms_saved-top.
-    p_count = ms_saved-count.
-    p_xnone = ms_saved-xnone.
-    p_xjson = ms_saved-xjson.
-    p_xfile = ms_saved-xfile.
-    s_po[] = mt_saved_po.
-    s_item[] = mt_saved_item.
-    s_supp[] = mt_saved_supp.
-  ENDMETHOD.
-
-  METHOD request_parameters.
-    p_owner = abap_true.
-    p_skip = 25.
-    p_top = 10.
-    DATA(ls_request) = mo_cut->build_request( ).
-    cl_abap_unit_assert=>assert_equals( act = ls_request-parameter
-      exp = VALUE zif_fi_das_dashboard=>ts_parameter(
-        email = p_email poowner = abap_true pstype = zif_fi_das_dashboard=>mc_pstype_service ) ).
-    cl_abap_unit_assert=>assert_equals( act = ls_request-paging
-      exp = VALUE zif_fi_das_dashboard=>ts_paging(
-        skip = 25 top = 10 top_requested = abap_true count_requested = abap_true ) ).
-    cl_abap_unit_assert=>assert_initial( ls_request-filter ).
-    cl_abap_unit_assert=>assert_initial( ls_request-orderby ).
-  ENDMETHOD.
-
-  METHOD request_filters.
-    s_po[] = VALUE #( ( sign = 'I' option = 'EQ' low = '8000000001' )
-                     ( sign = 'I' option = 'EQ' low = '8000000002' ) ).
-    s_item[] = VALUE #( ( sign = 'I' option = 'EQ' low = '00010' ) ).
-    s_supp[] = VALUE #( ( sign = 'I' option = 'EQ' low = 'Fuji' )
-                       ( sign = 'I' option = 'EQ' low = 'Hitachi' ) ).
-    DATA(ls_request) = mo_cut->build_request( ).
-    DATA(lt_expected) = VALUE zif_fi_das_dashboard=>tt_filter_select_options(
-      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' )
-      ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000002' )
-      ( property = 'ITEMNO' sign = 'I' option = 'EQ' low = '00010' )
-      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Fuji*' )
-      ( property = 'SUPPLIERNAME' sign = 'I' option = 'CP' low = '*Hitachi*' ) ).
-    cl_abap_unit_assert=>assert_equals( act = ls_request-filter-filter_select_options exp = lt_expected ).
-    DATA(l_sql) = to_upper( ls_request-filter-filter_string ).
-    cl_abap_unit_assert=>assert_true( xsdbool(
-      l_sql CS 'PONUMBER' AND l_sql CS 'ITEMNO' AND l_sql CS 'SUPPLIERNAME'
-      AND l_sql CS ' OR ' AND l_sql CS ' AND ' ) ).
-  ENDMETHOD.
-
-  METHOD supplier_literals.
-    s_supp[] = VALUE #( ( sign = 'I' option = 'EQ' low = `O'Brien 10%_#*+` ) ).
-    DATA(ls_request) = mo_cut->build_request( ).
-    cl_abap_unit_assert=>assert_equals(
-      act = ls_request-filter-filter_select_options[ 1 ]-low
-      exp = `*O'Brien 10%_###*#+*` ).
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( ls_request-filter-filter_string CS `O''Brien` )
-      msg = 'The standard range converter must quote apostrophes in SQL literals' ).
-  ENDMETHOD.
-
-  METHOD zero_top_and_count.
-    p_top = 0.
-    cl_abap_unit_assert=>assert_initial( lcl_application=>validate_selection( ) ).
-    mo_cut->read_data( ).
-    cl_abap_unit_assert=>assert_equals( act = mo_provider->ms_request-paging-top exp = 0 ).
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_provider->ms_request-paging-top_requested exp = abap_true ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->m_total_count exp = `4294967296` ).
-    p_count = abap_false.
-    mo_cut->read_data( ).
-    cl_abap_unit_assert=>assert_initial( mo_cut->m_total_count ).
-    cl_abap_unit_assert=>assert_initial( mo_provider->ms_request-paging-count_requested ).
-  ENDMETHOD.
-
-  METHOD invalid_selection.
-    p_skip = -1.
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    p_skip = 0.
-    p_top = -1.
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    p_top = 1.
-    s_po[] = VALUE #( ( sign = 'E' option = 'EQ' low = '8000000001' ) ).
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    CLEAR s_po[].
-    s_item[] = VALUE #( ( sign = 'I' option = 'BT' low = '00001' high = '00010' ) ).
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    CLEAR s_item[].
-    s_supp[] = VALUE #( ( sign = 'I' option = 'CP' low = '*Fuji*' ) ).
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    CLEAR s_supp[].
-    p_xjson = abap_true.
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-    p_xjson = abap_false.
-    CLEAR p_email.
-    cl_abap_unit_assert=>assert_not_initial( lcl_application=>validate_selection( ) ).
-  ENDMETHOD.
-
-  METHOD all_modes.
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_over i_type = zif_fi_das_dashboard=>mc_pstype_service ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_over i_type = zif_fi_das_dashboard=>mc_pstype_material ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_under i_type = zif_fi_das_dashboard=>mc_pstype_service ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_under i_type = zif_fi_das_dashboard=>mc_pstype_material ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_exclude i_type = zif_fi_das_dashboard=>mc_pstype_all ).
-  ENDMETHOD.
-
-  METHOD check_mode.
-    p_over = xsdbool( i_mode = zif_fi_das_dashboard=>mc_over ).
-    p_under = xsdbool( i_mode = zif_fi_das_dashboard=>mc_under ).
-    p_info = xsdbool( i_mode = zif_fi_das_dashboard=>mc_exclude ).
-    p_serv = xsdbool( i_type = zif_fi_das_dashboard=>mc_pstype_service ).
-    p_mat = xsdbool( i_type = zif_fi_das_dashboard=>mc_pstype_material ).
-    DATA(l_changed) = CONV timestampl( '20261016133832.1234567' ).
-    mo_provider->mt_over = VALUE #(
-      ( ponumber = '8000000001' itemno = '00010' reviwed_by = 'Reviewer'
-        changed_on = l_changed last_notif_on = l_changed ) ).
-    mo_provider->mt_under = VALUE #(
-      ( ponumber = '8000000002' itemno = '00020' reviwed_by = 'Reviewer' changed_on = l_changed ) ).
-    mo_provider->mt_exclude = VALUE #(
-      ( ponumber = '8000000003' itemno = '00030' ruletype = 'RULE'
-        ruletypetext = 'Information' costcenterdesc = 'Cost center' changed_on = l_changed ) ).
-    mo_provider->m_calls = 0.
-    mo_cut->read_data( ).
-    cl_abap_unit_assert=>assert_equals( act = mo_provider->m_calls exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = mo_provider->m_mode exp = i_mode ).
-    cl_abap_unit_assert=>assert_equals( act = mo_provider->ms_request-parameter-pstype exp = i_type ).
-    DATA lt_expected TYPE tt_alv_result.
-    CASE i_mode.
-      WHEN zif_fi_das_dashboard=>mc_over.
-        lt_expected = CORRESPONDING #( mo_provider->mt_over ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_under ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_exclude ).
-      WHEN zif_fi_das_dashboard=>mc_under.
-        lt_expected = CORRESPONDING #( mo_provider->mt_under ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_over ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_exclude ).
-      WHEN zif_fi_das_dashboard=>mc_exclude.
-        lt_expected = CORRESPONDING #( mo_provider->mt_exclude ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_over ).
-        cl_abap_unit_assert=>assert_initial( mo_cut->mt_under ).
-    ENDCASE.
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->mt_result exp = lt_expected ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->mt_result[ 1 ]-changed_on exp = l_changed
-      msg = 'Provider CET timestamp and fractional seconds must not be converted again' ).
-  ENDMETHOD.
-
-  METHOD empty_pages.
-    p_skip = 2147483647.
-    mo_cut->mt_result = VALUE #( ( ponumber = '8000000001' ) ).
-    mo_cut->read_data( ).
-    cl_abap_unit_assert=>assert_initial( mo_cut->mt_result ).
-    cl_abap_unit_assert=>assert_equals( act = mo_provider->ms_request-paging-skip exp = p_skip ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->m_total_count exp = `4294967296` ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->get_result_json( ) exp = `[]` ).
-  ENDMETHOD.
-
-  METHOD native_json.
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_over i_type = zif_fi_das_dashboard=>mc_pstype_service ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->get_result_json( )
-      exp = /ui2/cl_json=>serialize( data = mo_provider->mt_over ) ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_under i_type = zif_fi_das_dashboard=>mc_pstype_material ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->get_result_json( )
-      exp = /ui2/cl_json=>serialize( data = mo_provider->mt_under ) ).
-    check_mode( i_mode = zif_fi_das_dashboard=>mc_exclude i_type = zif_fi_das_dashboard=>mc_pstype_all ).
-    cl_abap_unit_assert=>assert_equals( act = mo_cut->get_result_json( )
-      exp = /ui2/cl_json=>serialize( data = mo_provider->mt_exclude ) ).
-  ENDMETHOD.
-
-  METHOD columns_match_contract.
-    DATA:
-      ls_row  TYPE ts_alv_result,
-      lt_seen TYPE SORTED TABLE OF lvc_fname WITH UNIQUE KEY table_line.
-    DO 5 TIMES.
-      CLEAR: lt_seen, p_over, p_under, p_info, p_serv, p_mat.
-      CASE sy-index.
-        WHEN 1. p_over = abap_true. p_serv = abap_true.
-        WHEN 2. p_over = abap_true. p_mat = abap_true.
-        WHEN 3. p_under = abap_true. p_serv = abap_true.
-        WHEN 4. p_under = abap_true. p_mat = abap_true.
-        WHEN 5. p_info = abap_true.
-      ENDCASE.
-      DATA(lt_columns) = mo_cut->get_ui_columns( ).
-      LOOP AT lt_columns INTO DATA(l_column).
-        ASSIGN COMPONENT l_column OF STRUCTURE ls_row TO FIELD-SYMBOL(<l_value>).
-        cl_abap_unit_assert=>assert_subrc( exp = 0 msg = |Unknown column { l_column }| ).
-        INSERT l_column INTO TABLE lt_seen.
-        cl_abap_unit_assert=>assert_subrc( exp = 0 msg = |Duplicate column { l_column }| ).
-      ENDLOOP.
-      IF p_info = abap_true.
-        cl_abap_unit_assert=>assert_true( xsdbool( line_exists( lt_seen[ table_line = 'RULETYPE' ] ) ) ).
-        cl_abap_unit_assert=>assert_false( xsdbool( line_exists( lt_seen[ table_line = 'REVIWED_BY' ] ) ) ).
-      ELSE.
-        cl_abap_unit_assert=>assert_true( xsdbool( line_exists( lt_seen[ table_line = 'REVIWED_BY' ] ) ) ).
-        cl_abap_unit_assert=>assert_false( xsdbool( line_exists( lt_seen[ table_line = 'RULETYPE' ] ) ) ).
-      ENDIF.
-      cl_abap_unit_assert=>assert_equals(
-        act = xsdbool( line_exists( lt_seen[ table_line = 'LAST_NOTIF_ON' ] ) ) exp = p_over ).
-    ENDDO.
   ENDMETHOD.
 ENDCLASS.

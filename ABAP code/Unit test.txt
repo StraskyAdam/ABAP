@@ -965,10 +965,10 @@ CLASS ltc_utility_unit IMPLEMENTATION.
       exp = CONV char5( 'true' ) ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>bool_to_text( CONV #( abap_false ) )
-      exp = CONV CHAR5( 'false' ) ).
+      exp = CONV CHAR5( `false` ) ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>bool_to_text( 'true' )
-      exp = CONV CHAR5( 'false' ) ).
+      exp = CONV CHAR5( `false` ) ).
   ENDMETHOD.
 
   METHOD truncate_values.

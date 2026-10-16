@@ -1393,7 +1393,7 @@ CLASS ltc_parity_helpers IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_cut->read_result_property(
         i_json = lv_json i_index = 1 i_property = 'ITEMNO' )
-      exp = '"00010"' ).
+      exp = '00010' ).
   ENDMETHOD.
 
   METHOD duplicate_keys.

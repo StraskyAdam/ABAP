@@ -2822,7 +2822,7 @@ ENDMETHOD.
 
       IF l_grace_period = abap_true.
         DATA(l_previous_month) = CONV d( l_current_date - l_current_day ).
-        IF i_changed_date(6) = l_previous_month(6).
+        IF i_changed_date(6) = l_previous_month(6) AND l_changed_day > l_current_day.
           r_review_action = mc_review_action_keep.
         ENDIF.
       ENDIF.
@@ -2837,7 +2837,7 @@ ENDMETHOD.
 *   Previous month in the same year
     IF l_changed_month < l_current_month.
       r_review_action = mc_review_action_reset.
-      IF l_changed_month = l_current_month - 1 AND l_grace_period = abap_true.
+      IF l_changed_month = l_current_month - 1 AND l_grace_period = abap_true AND l_changed_day > l_current_day.
         r_review_action = mc_review_action_keep.
       ENDIF.
       RETURN.

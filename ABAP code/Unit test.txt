@@ -1,3 +1,14 @@
+" Test suite categories
+" - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
+" - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
+" - ltc_utility_unit: strings, dates, formatting and validation (SHORT)
+" - ltc_parity_helpers: in-memory JSON/serialization contracts (SHORT)
+" - ltc_request_processing: filters, sorting/paging, request/package flow
+" - ltcl_review_grace_test: review dates and year rollover (SHORT)
+" - ltcl_invoice_null_propagation: preserved arithmetic regressions (SHORT)
+" - ltc_dash_pure_branches: currency, mapping, context, validation/status
+" SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
+"
 " ============================================================================
 " XSA vs SEGW functional JSON parity test - paged low-memory implementation
 "
@@ -13,11 +24,15 @@
 " Paging relies on the stable ORDER BY implemented by all dashboard flows.
 " ============================================================================
 
+CLASS ltc_parity_helpers DEFINITION DEFERRED.
+
+" Integration/parity: requires live Gateway, database and MIME fixtures.
 CLASS ltc_fi_das_gateway_parity DEFINITION
   FINAL
   FOR TESTING
   RISK LEVEL HARMLESS
-  DURATION LONG.
+  DURATION LONG
+  FRIENDS ltc_parity_helpers.
 
   PRIVATE SECTION.
 
@@ -80,7 +95,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
     METHODS setup.
 
 
-*********************************************
+    " Integration: primary flows
     METHODS test_over_material
               FOR TESTING
       RAISING cx_static_check.
@@ -101,10 +116,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
               FOR TESTING
       RAISING cx_static_check.
 
-*********************************************
-
-
-
+    " Integration: owner scope, filters, selection and paging
     METHODS test_over_material_owner
               FOR TESTING
       RAISING cx_static_check.
@@ -794,6 +806,636 @@ CLASS ltc_fi_das_gateway_parity DEFINITION
 
 ENDCLASS.
 
+CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS email_normalized FOR TESTING.
+    METHODS email_blank FOR TESTING.
+    METHODS split_default FOR TESTING.
+    METHODS split_custom FOR TESTING.
+    METHODS append_default FOR TESTING.
+    METHODS append_flags FOR TESTING.
+    METHODS trim_edges FOR TESTING.
+    METHODS alpha_values FOR TESTING.
+    METHODS boolean_values FOR TESTING.
+    METHODS truncate_values FOR TESTING RAISING cx_static_check.
+    METHODS truncate_bounds FOR TESTING RAISING cx_static_check.
+    METHODS truncate_errors FOR TESTING.
+    METHODS percentage_numbers FOR TESTING RAISING cx_static_check.
+    METHODS percentage_blank FOR TESTING RAISING cx_static_check.
+    METHODS percentage_invalid FOR TESTING.
+    METHODS percentage_overflow FOR TESTING.
+    METHODS bucket_split FOR TESTING.
+    METHODS bucket_rollover FOR TESTING.
+    METHODS month_differences FOR TESTING.
+    METHODS amount_grouping FOR TESTING RAISING cx_static_check.
+    METHODS amount_no_grouping FOR TESTING RAISING cx_static_check.
+    METHODS amount_padding FOR TESTING RAISING cx_static_check.
+    METHODS amount_rounding FOR TESTING RAISING cx_static_check.
+    METHODS amount_bounds FOR TESTING RAISING cx_static_check.
+    METHODS amount_errors FOR TESTING.
+    METHODS amount_negative FOR TESTING RAISING cx_static_check.
+    METHODS current_day_initial FOR TESTING.
+    METHODS timezone_initial FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_utility_unit IMPLEMENTATION.
+  METHOD email_normalized.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>normalize_email( '  Mixed.Case@EXAMPLE.COM  ' )
+      exp = CONV zif_fi_das_dashboard=>t_email( 'mixed.case@example.com' ) ).
+  ENDMETHOD.
+
+  METHOD email_blank.
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>normalize_email( '   ' ) ).
+  ENDMETHOD.
+
+  METHOD split_default.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>split_list( ', alpha  beta, ,gamma,alpha  beta,' )
+      exp = VALUE zcl_fi_das_utility=>tt_string(
+        ( `alpha beta` ) ( `gamma` ) ( `alpha beta` ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>split_list( '' ) ).
+  ENDMETHOD.
+
+  METHOD split_custom.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>split_list(
+        i_value = ' a,b ; ; c ;' i_delimiter = ';' )
+      exp = VALUE zcl_fi_das_utility=>tt_string( ( `a,b` ) ( `c` ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>split_list( ', ,,' ) ).
+  ENDMETHOD.
+
+  METHOD append_default.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = 'a' i_value = `  b  ` )
+      exp = `a;b  ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = '' i_value = '' )
+      exp = ';' ).
+  ENDMETHOD.
+
+  METHOD append_flags.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = 'old' i_value = ` new ` i_first = abap_true )
+      exp = `new ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = 'old' i_value = `  ` i_skip_initial = abap_true )
+      exp = 'old' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = '' i_value = ` new ` i_skip_initial = abap_true )
+      exp = 'new' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = 'a' i_value = ` b ` i_delimiter = ','
+        i_skip_initial = abap_true )
+      exp = 'a,b' ).
+  ENDMETHOD.
+
+  METHOD trim_edges.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>trim_delimiters( ';;a;;b;;' )
+      exp = 'a;;b' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>trim_delimiters(
+        i_value = ',a,' i_delimiter = ',' )
+      exp = 'a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>trim_delimiters( ` ;a; ` )
+      exp = ` ;a; ` ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>trim_delimiters( ';;;' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>trim_delimiters( '' ) ).
+  ENDMETHOD.
+
+  METHOD alpha_values.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>alpha_output( `  000123  ` ) exp = '123' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>alpha_output( '000' ) exp = '0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>alpha_output( '00AB01' ) exp = 'AB01' ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>alpha_output( '   ' ) ).
+  ENDMETHOD.
+
+  METHOD boolean_values.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>bool_to_text( abap_true )
+      exp = CONV char5( 'true' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>bool_to_text( abap_false )
+      exp = CONV char5( 'false' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>bool_to_text( 'true' )
+      exp = CONV char5( 'false' ) ).
+  ENDMETHOD.
+
+  METHOD truncate_values.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '12.349' ) i_decimals = 2 )
+      exp = CONV decfloat34( '12.34' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '-12.349' ) i_decimals = 2 )
+      exp = CONV decfloat34( '-12.34' ) ).
+  ENDMETHOD.
+
+  METHOD truncate_bounds.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '-1.99' ) i_decimals = 0 )
+      exp = CONV decfloat34( -1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>truncate_decimal(
+        i_value = CONV decfloat34( '1.123456789012349' ) i_decimals = 14 )
+      exp = CONV decfloat34( '1.12345678901234' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>truncate_decimal( i_value = 0 i_decimals = 14 ) ).
+  ENDMETHOD.
+
+  METHOD truncate_errors.
+    DATA lt_decimals TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_decimals = VALUE #( ( -1 ) ( 15 ) ).
+    LOOP AT lt_decimals INTO DATA(l_decimals).
+      TRY.
+          zcl_fi_das_utility=>truncate_decimal(
+            i_value = 1 i_decimals = l_decimals ).
+          cl_abap_unit_assert=>fail( 'Invalid truncation precision accepted' ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '018' ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD percentage_numbers.
+    TYPES: BEGIN OF ts_case,
+             input TYPE string,
+             expected TYPE zcl_fi_das_dashboard=>t_percentage,
+           END OF ts_case.
+    DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
+    lt_cases = VALUE #(
+      ( input = '12.34' expected = '12.3' )
+      ( input = '12,35' expected = '12.4' )
+      ( input = '+7.5' expected = '7.5' )
+      ( input = '-7,5' expected = '-7.5' )
+      ( input = ' 1 2 , 5 ' expected = '12.5' )
+      ( input = '0' expected = '0' ) ).
+    LOOP AT lt_cases INTO DATA(ls_case).
+      cl_abap_unit_assert=>assert_equals(
+        act = zcl_fi_das_utility=>parse_percentage( ls_case-input )
+        exp = ls_case-expected msg = ls_case-input ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD percentage_blank.
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>parse_percentage( '' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>parse_percentage( '   ' ) ).
+  ENDMETHOD.
+
+  METHOD percentage_invalid.
+    DATA(lt_values) = VALUE zcl_fi_das_utility=>tt_string(
+      ( `1,234.5` ) ( `1.2.3` ) ( `abc` ) ( `12%` )
+      ( `+` ) ( `.5` ) ( `5.` ) ( `1E2` ) ( `--1` ) ).
+    LOOP AT lt_values INTO DATA(l_value).
+      TRY.
+          zcl_fi_das_utility=>parse_percentage( l_value ).
+          cl_abap_unit_assert=>fail( |Invalid percentage accepted: { l_value }| ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '012' ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD percentage_overflow.
+    TRY.
+        zcl_fi_das_utility=>parse_percentage( '1000000000000' ).
+        cl_abap_unit_assert=>fail( 'Packed percentage overflow accepted' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->if_t100_message~t100key-msgno exp = '012' ).
+        cl_abap_unit_assert=>assert_bound( lx_error->previous ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD bucket_split.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20240514' i_split_day = 15 ) exp = CONV d( '20240501' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20240515' i_split_day = 15 ) exp = CONV d( '20240501' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20240516' i_split_day = 15 ) exp = CONV d( '20240601' ) ).
+  ENDMETHOD.
+
+  METHOD bucket_rollover.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20241231' i_split_day = 15 ) exp = CONV d( '20250101' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20240229' i_split_day = 28 ) exp = CONV d( '20240301' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>month_bucket(
+        i_date = '20230228' i_split_day = 27 ) exp = CONV d( '20230301' ) ).
+  ENDMETHOD.
+
+  METHOD month_differences.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>months_between(
+        i_from = '20231231' i_to = '20250101' ) exp = 13 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>months_between(
+        i_from = '20250101' i_to = '20231231' ) exp = -13 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>months_between(
+        i_from = '20240229' i_to = '20240201' ) exp = 0 ).
+  ENDMETHOD.
+
+  METHOD amount_grouping.
+    TYPES: BEGIN OF ts_case,
+             format TYPE xudcpfm,
+             expected TYPE string,
+           END OF ts_case.
+    DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
+    lt_cases = VALUE #(
+      ( format = 'X' expected = '1,234,567.89' )
+      ( format = 'Y' expected = '1 234 567,89' )
+      ( format = space expected = '1.234.567,89' ) ).
+    LOOP AT lt_cases INTO DATA(ls_case).
+      cl_abap_unit_assert=>assert_equals(
+        act = zcl_fi_das_utility=>format_odata_amount(
+          i_amount = CONV #( '1234567.89' ) i_decimal_format = ls_case-format )
+        exp = ls_case-expected msg = CONV string( ls_case-format ) ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD amount_no_grouping.
+    TYPES: BEGIN OF ts_case,
+             format TYPE xudcpfm,
+             expected TYPE string,
+           END OF ts_case.
+    DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
+    lt_cases = VALUE #(
+      ( format = 'X' expected = '1234567.89' )
+      ( format = 'Y' expected = '1234567,89' )
+      ( format = space expected = '1234567,89' ) ).
+    LOOP AT lt_cases INTO DATA(ls_case).
+      cl_abap_unit_assert=>assert_equals(
+        act = zcl_fi_das_utility=>format_odata_amount(
+          i_amount = CONV #( '1234567.89' ) i_decimal_format = ls_case-format
+          i_use_grouping = abap_false )
+        exp = ls_case-expected ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD amount_padding.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = 1 i_decimal_format = 'X' ) exp = '01.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = 1 i_decimal_format = 'X'
+        i_pad_nonzero_below_ten = abap_false ) exp = '1.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = 0 i_decimal_format = 'X' ) exp = '0.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = 10 i_decimal_format = 'X' ) exp = '10.00' ).
+  ENDMETHOD.
+
+  METHOD amount_rounding.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '1234.565' ) i_decimal_format = 'X' )
+      exp = '1,234.57' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '999.999' ) i_decimal_format = 'Y' )
+      exp = '1 000,00' ).
+  ENDMETHOD.
+
+  METHOD amount_bounds.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '1234.6' ) i_decimal_format = 'X' i_decimals = 0 )
+      exp = '1,235' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '12.12345678' ) i_decimal_format = 'X'
+        i_decimals = 8 ) exp = '12.12345678' ).
+  ENDMETHOD.
+
+  METHOD amount_errors.
+    DATA lt_decimals TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_decimals = VALUE #( ( -1 ) ( 9 ) ).
+    LOOP AT lt_decimals INTO DATA(l_decimals).
+      TRY.
+          zcl_fi_das_utility=>format_odata_amount(
+            i_amount = 1 i_decimal_format = 'X' i_decimals = l_decimals ).
+          cl_abap_unit_assert=>fail( 'Invalid amount precision accepted' ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '018' ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD amount_negative.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '-1234.5' ) i_decimal_format = space )
+      exp = '-1.234,50' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '-1.5' ) i_decimal_format = 'X' )
+      exp = '-01.50' ).
+  ENDMETHOD.
+
+  METHOD current_day_initial.
+    cl_abap_unit_assert=>assert_false(
+      zcl_fi_das_utility=>is_current_utc_day( CONV timestampl( 0 ) ) ).
+  ENDMETHOD.
+
+  METHOD timezone_initial.
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>utc_to_cet_timestamp( CONV timestampl( 0 ) ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+" Unit: in-memory serialization/parity helpers, no Gateway or MIME access.
+CLASS ltc_parity_helpers DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO ltc_fi_das_gateway_parity.
+
+    METHODS setup.
+
+    " Serialization contracts
+    METHODS null_allowlist          FOR TESTING.
+    METHODS null_rejections         FOR TESTING.
+    METHODS time_padding            FOR TESTING.
+    METHODS time_invalid            FOR TESTING.
+    METHODS missing_property_scope  FOR TESTING.
+    METHODS aggregate_order         FOR TESTING.
+    METHODS aggregate_multiplicity  FOR TESTING.
+    METHODS aggregate_empty_slots   FOR TESTING.
+    METHODS aggregate_field_scope   FOR TESTING.
+    METHODS escaped_strings         FOR TESTING.
+    METHODS strict_property_diff    FOR TESTING.
+
+    " Parser, indexing and diagnostics
+    METHODS empty_results           FOR TESTING RAISING cx_static_check.
+    METHODS nested_json             FOR TESTING RAISING cx_static_check.
+    METHODS duplicate_keys          FOR TESTING RAISING cx_static_check.
+    METHODS missing_key             FOR TESTING RAISING cx_static_check.
+    METHODS unclosed_string         FOR TESTING RAISING cx_static_check.
+    METHODS diagnostic_cap          FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_parity_helpers IMPLEMENTATION.
+  METHOD setup.
+    mo_cut = NEW #( ).
+  ENDMETHOD.
+
+  METHOD null_allowlist.
+    TYPES:
+      BEGIN OF ts_case,
+        name  TYPE string,
+        token TYPE string,
+      END OF ts_case,
+      tt_case TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
+
+    DATA(lt_cases) = VALUE tt_case(
+      ( name = 'COSTCENTERDESC' token = '""' )
+      ( name = 'DATFM'          token = '""' )
+      ( name = 'DECIMAL_FORMAT' token = '""' )
+      ( name = 'FULL_NAME'      token = '""' )
+      ( name = 'MANAGEUNIT'     token = '""' )
+      ( name = 'NOTIF_24_HR'    token = '""' )
+      ( name = 'REVIWED_BY'     token = '""' )
+      ( name = 'USERNAME'       token = '""' )
+      ( name = 'EDGEWTDAMT'     token = '"0.00"' )
+      ( name = 'GRVALUE_USD'    token = '"0.00"' )
+      ( name = 'INVVALUE_CAL'   token = '"0.00"' )
+      ( name = 'INVVALUE_USD'   token = '"0.00"' )
+      ( name = 'LASTMONTHWRKCOMP' token = '"0.00"' )
+      ( name = 'CHANGEDTIME'    token = '"PT00H00M00S"' ) ).
+
+    LOOP AT lt_cases INTO DATA(ls_case).
+      cl_abap_unit_assert=>assert_true(
+        act = mo_cut->is_equivalent_null(
+          i_name = ls_case-name i_expected_token = 'null'
+          i_actual_token = ls_case-token )
+        msg = |Approved NULL mapping for { ls_case-name }| ).
+      cl_abap_unit_assert=>assert_false(
+        act = mo_cut->is_equivalent_null(
+          i_name = ls_case-name i_expected_token = ls_case-token
+          i_actual_token = 'null' )
+        msg = |Reverse NULL mapping forbidden for { ls_case-name }| ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD null_rejections.
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_equivalent_null(
+        i_name = 'INVVALUE' i_expected_token = 'null'
+        i_actual_token = '"0.00"' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_equivalent_null(
+        i_name = 'AMOUNTACCRUED' i_expected_token = 'null'
+        i_actual_token = '"0.00"' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_equivalent_null(
+        i_name = 'EDGEWTDAMT' i_expected_token = 'null'
+        i_actual_token = '"1.00"' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_equivalent_null(
+        i_name = 'NOTIF_24_HR' i_expected_token = 'null'
+        i_actual_token = '"X"' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_equivalent_null(
+        i_name = 'CHANGEDTIME' i_expected_token = 'null'
+        i_actual_token = '"PT01H00M00S"' ) ).
+  ENDMETHOD.
+
+  METHOD time_padding.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->normalize_odata_time( '"PT9H4M1S"' )
+      exp = '"PT09H04M01S"' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->normalize_odata_time( '"PT23H59M59S"' )
+      exp = '"PT23H59M59S"' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->normalize_odata_time( '"PT0H0M0S"' )
+      exp = '"PT00H00M00S"' ).
+  ENDMETHOD.
+
+  METHOD time_invalid.
+    DATA(lt_tokens) = VALUE stringtab(
+      ( `null` ) ( `"PT24H00M00S"` ) ( `"PT00H60M00S"` )
+      ( `"PT00H00M60S"` ) ( `"PTaH0M0S"` )
+      ( `"PT1H2M"` ) ( `"PT1H2M3Sx"` ) ).
+    LOOP AT lt_tokens INTO DATA(lv_token).
+      cl_abap_unit_assert=>assert_equals(
+        act = mo_cut->normalize_odata_time( lv_token )
+        exp = lv_token ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD missing_property_scope.
+    cl_abap_unit_assert=>assert_true(
+      mo_cut->ignore_missing_property( 'ID' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->ignore_missing_property( 'PONUMBER' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->ignore_missing_property( 'INVVALUE' ) ).
+  ENDMETHOD.
+
+  METHOD aggregate_order.
+    cl_abap_unit_assert=>assert_true(
+      mo_cut->equal_aggregate_content(
+        i_expected = 'A;B;C' i_actual = 'C;A;B' ) ).
+  ENDMETHOD.
+
+  METHOD aggregate_multiplicity.
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->equal_aggregate_content(
+        i_expected = 'A;A;B' i_actual = 'A;B' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->equal_aggregate_content(
+        i_expected = 'A;A;B' i_actual = 'A;B;B' ) ).
+  ENDMETHOD.
+
+  METHOD aggregate_empty_slots.
+    cl_abap_unit_assert=>assert_true(
+      mo_cut->equal_aggregate_content(
+        i_expected = ';A;B' i_actual = 'B;A;' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->equal_aggregate_content(
+        i_expected = 'A;;B' i_actual = 'A;B' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      mo_cut->split_aggregate_empty( `` ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->split_aggregate_empty( ';' )
+      exp = VALUE stringtab( ( `` ) ( `` ) ) ).
+  ENDMETHOD.
+
+  METHOD aggregate_field_scope.
+    cl_abap_unit_assert=>assert_true(
+      mo_cut->is_unordered_aggregate_field( 'GLACCOUNT' ) ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_unordered_aggregate_field( 'SUPPLIERNAME' ) ).
+  ENDMETHOD.
+
+  METHOD escaped_strings.
+    mo_cut->compare_raw_property(
+      i_fixture = 'memory' i_ponumber = '1' i_itemno = '00010'
+      i_name = 'SUPPLIERNAME'
+      i_expected_token = '"S \u0026 K"'
+      i_actual_token = '"S & K"' ).
+    mo_cut->compare_raw_property(
+      i_fixture = 'memory' i_ponumber = '1' i_itemno = '00010'
+      i_name = 'CHANGEDTIME'
+      i_expected_token = '"PT9H4M1S"'
+      i_actual_token = '"PT09H04M01S"' ).
+    cl_abap_unit_assert=>assert_initial( mo_cut->mt_differences ).
+  ENDMETHOD.
+
+  METHOD strict_property_diff.
+    mo_cut->compare_raw_property(
+      i_fixture = 'memory' i_ponumber = '1' i_itemno = '00010'
+      i_name = 'INVVALUE'
+      i_expected_token = 'null' i_actual_token = '"0.00"' ).
+    mo_cut->compare_raw_property(
+      i_fixture = 'memory' i_ponumber = '1' i_itemno = '00010'
+      i_name = 'SUPPLIERNAME'
+      i_expected_token = '"A;B"' i_actual_token = '"B;A"' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->mv_difference_count exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_cut->mt_differences ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD empty_results.
+    cl_abap_unit_assert=>assert_initial(
+      mo_cut->build_expected_index( '{"d":{"results":[]}}' ) ).
+  ENDMETHOD.
+
+  METHOD nested_json.
+    DATA(lv_json) =
+      `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"00010",`
+      && `"nested":{"text":"brace } and quote \"","items":[1,2]}}]}}`.
+    DATA(lt_index) = mo_cut->build_expected_index( lv_json ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_index ) exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      xsdbool( line_exists( lt_index[ ponumber = '1' itemno = '00010' ] ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->read_result_property(
+        i_json = lv_json i_index = 1 i_property = 'ITEMNO' )
+      exp = '"00010"' ).
+  ENDMETHOD.
+
+  METHOD duplicate_keys.
+    DATA(lt_index) = mo_cut->build_expected_index(
+      `{"d":{"results":[{"PONUMBER":"1","ITEMNO":"00010"},`
+      && `{"PONUMBER":"1","ITEMNO":"00010"}]}}` ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_index ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->mv_difference_count exp = 1 ).
+  ENDMETHOD.
+
+  METHOD missing_key.
+    TRY.
+        DATA(lt_index) = mo_cut->build_expected_index(
+          '{"d":{"results":[{"PONUMBER":"1"}]}}' ).
+        cl_abap_unit_assert=>fail( 'Missing ITEMNO must be rejected' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD unclosed_string.
+    TRY.
+        DATA(lv_end) = mo_cut->read_json_string_end(
+          i_text = '"open' i_start = 0 ).
+        cl_abap_unit_assert=>fail( 'Unclosed string must be rejected' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD diagnostic_cap.
+    DATA(lv_count) = mo_cut->mc_max_log + 1.
+    DO lv_count TIMES.
+      mo_cut->add_difference( 'difference' ).
+    ENDDO.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->mv_difference_count exp = lv_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_cut->mt_differences ) exp = mo_cut->mc_max_log ).
+  ENDMETHOD.
+ENDCLASS.
+
+" Unit: request processing, filters, sorting/paging and package assembly.
 CLASS ltc_request_processing DEFINITION FINAL
   FOR TESTING
   DURATION SHORT
@@ -813,15 +1455,19 @@ CLASS ltc_request_processing DEFINITION FINAL
 
     METHODS setup.
 
-    " Full-processing decisions for current request structure
+    " Orchestration: full-processing decisions
     METHODS amdp_po_filter_no_full       FOR TESTING.
     METHODS amdp_item_filter_no_full     FOR TESTING.
-    METHODS amdp_supplier_filter_no FOR TESTING.
-    METHODS no_filter_no_full_processing            FOR TESTING.
+    METHODS amdp_supplier_filter_no       FOR TESTING.
+    METHODS no_filter_no_full_processing  FOR TESTING.
     METHODS generic_filter_requires_full FOR TESTING.
     METHODS orderby_requires_full       FOR TESTING.
 
-    " contains filters
+    " Generic filter early exits do not invoke HANA AMDP
+    METHODS empty_filter_keeps_rows FOR TESTING RAISING cx_static_check.
+    METHODS empty_rows_skip_filter  FOR TESTING RAISING cx_static_check.
+
+    " Filters: AMDP extraction and contains semantics
     METHODS po_contains_builds_like       FOR TESTING.
     METHODS item_contains_keeps_zeros     FOR TESTING.
     METHODS mixed_eq_and_contains         FOR TESTING.
@@ -829,10 +1475,9 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS supplier_pattern_no_wildcards FOR TESTING.
     METHODS supplier_keeps_inner_spaces   FOR TESTING.
     METHODS item_contains_digit_two       FOR TESTING.
-    METHODS amdp_filter_empty_by_default      FOR TESTING.
+    METHODS amdp_filter_empty_by_default  FOR TESTING.
 
-
-    " sort + paging
+    " Sorting/paging: ordering, stable ties and bounds
     METHODS sort_ascending_with_paging    FOR TESTING.
     METHODS sort_descending               FOR TESTING.
     METHODS explicit_po_desc_is_preserved FOR TESTING.
@@ -843,20 +1488,12 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS no_orderby_leaves_table_asis  FOR TESTING.
     METHODS generic_sort_gets_stable_ties FOR TESTING.
 
-    " generic column filters
-    METHODS generic_eq_filters_rows        FOR TESTING RAISING cx_static_check.
-    METHODS generic_contains_filters_rows  FOR TESTING RAISING cx_static_check.
-    METHODS generic_two_props_are_anded    FOR TESTING RAISING cx_static_check.
-    METHODS generic_same_prop_is_ored      FOR TESTING RAISING cx_static_check.
-    " Unresolved: APPLY_FILTER does not ignore unknown properties.
-    METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
-    METHODS package_mapping_preserves_ord FOR TESTING RAISING cx_static_check.
-    METHODS empty_package_is_ignored FOR TESTING RAISING cx_static_check.
-    METHODS multiple_packages_keep_ord FOR TESTING RAISING cx_static_check.
-    METHODS filter_sort_and_page_across FOR TESTING RAISING cx_static_check.
+    " Result assembly: package projection and cross-package processing
+    METHODS package_mapping_preserves_ord  FOR TESTING RAISING cx_static_check.
+    METHODS empty_package_is_ignored       FOR TESTING RAISING cx_static_check.
+    METHODS multiple_packages_keep_ord     FOR TESTING RAISING cx_static_check.
 
-
-    " AMDP-supported sort prefixes
+    " Sorting/paging: AMDP-supported sort prefixes
     METHODS pstype_desc_moved_for_under   FOR TESTING.
     METHODS pstype_desc_moved_for_over    FOR TESTING.
     METHODS pstype_desc_po_prefix_moved  FOR TESTING.
@@ -869,24 +1506,15 @@ CLASS ltc_request_processing DEFINITION FINAL
     METHODS pstype_sort_kept_for_exclude  FOR TESTING.
     METHODS pstype_sort_desc_mixed_rows   FOR TESTING.
 
-    " Unresolved: this old arithmetic-only check does not exercise production.
+    " Review boundary (production grace-period matrix is in its own class)
     METHODS review_day_boundary           FOR TESTING.
-
-
-
-
-
-
-    " mixed eq and cp filters (NEW)
+    " Filters: mixed EQ/CP options
     METHODS po_multiple_eq_same_property  FOR TESTING.
     METHODS po_eq_and_cp_same_property    FOR TESTING.
     METHODS supplier_multiple_cp_same_prop FOR TESTING.
     METHODS item_multiple_eq_same_property FOR TESTING.
     METHODS item_cp_digit_two             FOR TESTING.
-
-
-
-    " edge cases and boundary conditions (NEW)
+    " Filters and paging: invalid inputs and boundary conditions
     METHODS empty_contains_pattern        FOR TESTING.
     METHODS item_number_with_leading_zeros FOR TESTING.
     METHODS exclude_sign_filters          FOR TESTING.
@@ -895,21 +1523,9 @@ CLASS ltc_request_processing DEFINITION FINAL
 
     METHODS skip_high_sorted FOR TESTING.
     METHODS amdp_filter_mixed_properties FOR TESTING.
-
-
-
-    METHODS test_cp_case_sensitive_include    FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_case_sensitive_exclude    FOR TESTING RAISING cx_static_check.
-    METHODS test_eq_matches_exact_value       FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_and_eq_combined           FOR TESTING RAISING cx_static_check.
-    METHODS test_multiple_cp_filters_or       FOR TESTING RAISING cx_static_check.
-    METHODS test_cp_empty_pattern             FOR TESTING RAISING cx_static_check.
-
-
-
-
 ENDCLASS.
 
+" Unit: review grace-period boundaries, including year rollover.
 CLASS ltcl_review_grace_test DEFINITION FINAL
   FOR TESTING
   DURATION SHORT
@@ -928,10 +1544,13 @@ CLASS ltcl_review_grace_test DEFINITION FINAL
       same_month_after_review_day  FOR TESTING.
 ENDCLASS.
 
+" Unit: ABAP arithmetic only; these tests do not establish XSA SQL parity.
 CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
+CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
-  LOCAL FRIENDS ltcl_invoice_null_propagation.
+  LOCAL FRIENDS ltcl_invoice_null_propagation
+                ltc_dash_pure_branches.
 
 CLASS ltcl_invoice_null_propagation DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -1139,13 +1758,66 @@ CLASS ltcl_review_grace_test IMPLEMENTATION.
 
 ENDCLASS.
 
-CLASS zcl_fi_das_dashboard DEFINITION LOCAL FRIENDS ltc_request_processing.
+CLASS ltc_amdp_filters DEFINITION DEFERRED.
 
-CLASS ltc_request_processing IMPLEMENTATION.
+CLASS zcl_fi_das_dashboard DEFINITION
+  LOCAL FRIENDS ltc_request_processing ltc_amdp_filters.
+
+" Integration: requires HANA AMDP even with synthetic input.
+CLASS ltc_amdp_filters DEFINITION FINAL
+  FOR TESTING
+  DURATION MEDIUM
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ts_projected_result,
+        ponumber     TYPE ebeln,
+        itemno       TYPE ebelp,
+        suppliername TYPE string,
+      END OF ts_projected_result,
+      tt_projected_result TYPE STANDARD TABLE OF ts_projected_result WITH EMPTY KEY.
+
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS test_cp_case_sensitive_include    FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_case_sensitive_exclude    FOR TESTING RAISING cx_static_check.
+    METHODS test_eq_matches_exact_value       FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_and_eq_combined           FOR TESTING RAISING cx_static_check.
+    METHODS test_multiple_cp_filters_or       FOR TESTING RAISING cx_static_check.
+    METHODS test_cp_empty_pattern             FOR TESTING RAISING cx_static_check.
+    METHODS invalid_filter_wraps_error FOR TESTING RAISING cx_static_check.
+    METHODS filter_sort_and_page_across    FOR TESTING RAISING cx_static_check.
+    METHODS generic_eq_filters_rows        FOR TESTING RAISING cx_static_check.
+    METHODS generic_contains_filters_rows  FOR TESTING RAISING cx_static_check.
+    METHODS generic_two_props_are_anded    FOR TESTING RAISING cx_static_check.
+    METHODS generic_same_prop_is_ored      FOR TESTING RAISING cx_static_check.
+    METHODS generic_with_sort_and_paging   FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_amdp_filters IMPLEMENTATION.
 
   METHOD setup.
     mo_cut = NEW #( ).
   ENDMETHOD.
+
+  METHOD invalid_filter_wraps_error.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    lt_result = VALUE #( ( ponumber = '8000000001' itemno = '00001' ) ).
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `SUPPLIERNAME = (` ).
+
+    TRY.
+        mo_cut->apply_generic_filter(
+          EXPORTING is_request = ls_request
+          CHANGING  ct_result  = lt_result ).
+        cl_abap_unit_assert=>fail( 'Invalid SQL filter must raise a dashboard error' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_bound( lx_error->previous ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD test_cp_case_sensitive_include.
     DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
 
@@ -1317,10 +1989,262 @@ CLASS ltc_request_processing IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD filter_sort_and_page_across.
 
+    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA lt_result  TYPE tt_projected_result.
 
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `POCURRENCY = 'JPY'`
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
+      paging = VALUE #( skip = 1 top = 1 ) ).
 
+*--------------------------------------------------------------------
+* package 1
+*--------------------------------------------------------------------
 
+    lt_package = VALUE #(
+      ( ponumber = '8000000001'
+        itemno = '00001'
+        suppliername = 'Zulu'
+        pocurrency = 'USD' ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result = lt_package ).
+
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* package 2
+*--------------------------------------------------------------------
+
+    lt_package = VALUE #(
+      ( ponumber = '8000000002'
+        itemno = '00001'
+        suppliername = 'Bravo'
+        pocurrency = 'JPY' )
+
+      ( ponumber = '8000000003'
+        itemno = '00001'
+        suppliername = 'Charlie'
+        pocurrency = 'JPY' )
+
+      ( ponumber = '8000000004'
+        itemno = '00001'
+        suppliername = 'Delta'
+        pocurrency = 'JPY' ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result = lt_package ).
+
+    mo_cut->append_package_to_result(
+      CHANGING
+        ct_package = lt_package
+        ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* global sort + paging
+*--------------------------------------------------------------------
+
+    DATA(l_total_count) = lines( lt_result ).
+
+    mo_cut->apply_sort(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = ls_request
+      CHANGING
+        ct_result  = lt_result ).
+
+*--------------------------------------------------------------------
+* assertions
+*--------------------------------------------------------------------
+
+    cl_abap_unit_assert=>assert_equals(
+      act = l_total_count
+      exp = 3 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername
+      exp = 'Charlie' ).
+
+  ENDMETHOD.
+
+  METHOD generic_eq_filters_rows.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '6305' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `COMPANYCODE = '2028'` ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
+
+  ENDMETHOD.
+
+  METHOD generic_contains_filters_rows.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001'
+        polinedesc = 'GSD Local Support (Jan, 2027)' )
+      ( ponumber = '8000000002' itemno = '00001'
+        polinedesc = 'Enterprise Plan' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `POLINEDESC LIKE '%Local Support%'` ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000001' ).
+
+  ENDMETHOD.
+
+  METHOD generic_two_props_are_anded.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' itemno = '00001' companycode = '2028' pocurrency = 'USD' )
+      ( ponumber = '8000000003' itemno = '00001' companycode = '6305' pocurrency = 'JPY' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `COMPANYCODE = '2028' AND POCURRENCY = 'JPY'` ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-ponumber
+      exp = '8000000001' ).
+
+  ENDMETHOD.
+
+  METHOD generic_same_prop_is_ored.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' )
+      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' )
+      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'EUR' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `POCURRENCY = 'JPY' OR POCURRENCY = 'USD'` ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_result[ ponumber = '8000000001' ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_result[ ponumber = '8000000002' ] ) ) ).
+
+  ENDMETHOD.
+
+  METHOD generic_with_sort_and_paging.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+
+    lt_result = VALUE #(
+      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'JPY' suppliername = 'Charlie' )
+      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' suppliername = 'Alpha' )
+      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' suppliername = 'Bravo' ) ).
+
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `POCURRENCY = 'JPY'`
+      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
+      paging  = VALUE #( skip = 1 top = 1 ) ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_sort(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    mo_cut->apply_paging(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-suppliername
+      exp = 'Charlie' ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_request_processing IMPLEMENTATION.
+
+  METHOD setup.
+    mo_cut = NEW #( ).
+  ENDMETHOD.
+
+  METHOD empty_filter_keeps_rows.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    lt_result = VALUE #(
+      ( ponumber = '8000000002' itemno = '00002'
+        suppliername = 'Bravo' original_order = 42 )
+      ( ponumber = '8000000001' itemno = '00001'
+        suppliername = 'Alpha' original_order = 17 ) ).
+    DATA(lt_expected) = lt_result.
+    DATA ls_request TYPE zcl_fi_das_dashboard=>ts_internal_request.
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected
+      msg = 'An empty filter preserves all rows, values and original order' ).
+  ENDMETHOD.
+
+  METHOD empty_rows_skip_filter.
+    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      filter-filter_string = `SUPPLIERNAME = (` ).
+
+    mo_cut->apply_generic_filter(
+      EXPORTING is_request = ls_request
+      CHANGING  ct_result  = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result
+      msg = 'Empty input bypasses AMDP even for invalid SQL' ).
+  ENDMETHOD.
 
 *----------------------------------------------------------------------
 * full-processing decisions
@@ -1864,224 +2788,6 @@ CLASS ltc_request_processing IMPLEMENTATION.
       exp = '4' ).
 
   ENDMETHOD.
-  METHOD filter_sort_and_page_across.
-
-    DATA lt_package TYPE zcl_fi_das_dashboard=>tt_odata_result.
-    DATA lt_result  TYPE tt_projected_result.
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `POCURRENCY = 'JPY'`
-      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
-      paging = VALUE #( skip = 1 top = 1 ) ).
-
-*--------------------------------------------------------------------
-* package 1
-*--------------------------------------------------------------------
-
-    lt_package = VALUE #(
-      ( ponumber = '8000000001'
-        itemno = '00001'
-        suppliername = 'Zulu'
-        pocurrency = 'USD' ) ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING
-        is_request = ls_request
-      CHANGING
-        ct_result = lt_package ).
-
-    mo_cut->append_package_to_result(
-      CHANGING
-        ct_package = lt_package
-        ct_result  = lt_result ).
-
-*--------------------------------------------------------------------
-* package 2
-*--------------------------------------------------------------------
-
-    lt_package = VALUE #(
-      ( ponumber = '8000000002'
-        itemno = '00001'
-        suppliername = 'Bravo'
-        pocurrency = 'JPY' )
-
-      ( ponumber = '8000000003'
-        itemno = '00001'
-        suppliername = 'Charlie'
-        pocurrency = 'JPY' )
-
-      ( ponumber = '8000000004'
-        itemno = '00001'
-        suppliername = 'Delta'
-        pocurrency = 'JPY' ) ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING
-        is_request = ls_request
-      CHANGING
-        ct_result = lt_package ).
-
-    mo_cut->append_package_to_result(
-      CHANGING
-        ct_package = lt_package
-        ct_result  = lt_result ).
-
-*--------------------------------------------------------------------
-* global sort + paging
-*--------------------------------------------------------------------
-
-    DATA(l_total_count) = lines( lt_result ).
-
-    mo_cut->apply_sort(
-      EXPORTING
-        is_request = ls_request
-      CHANGING
-        ct_result  = lt_result ).
-
-    mo_cut->apply_paging(
-      EXPORTING
-        is_request = ls_request
-      CHANGING
-        ct_result  = lt_result ).
-
-*--------------------------------------------------------------------
-* assertions
-*--------------------------------------------------------------------
-
-    cl_abap_unit_assert=>assert_equals(
-      act = l_total_count
-      exp = 3 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result )
-      exp = 1 ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-suppliername
-      exp = 'Charlie' ).
-
-  ENDMETHOD.
-
-
-  METHOD generic_eq_filters_rows.
-    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
-
-    lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' )
-      ( ponumber = '8000000002' itemno = '00001' companycode = '6305' ) ).
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `COMPANYCODE = '2028'` ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-companycode exp = '2028' ).
-
-  ENDMETHOD.
-
-  METHOD generic_contains_filters_rows.
-    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
-
-    lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001'
-        polinedesc = 'GSD Local Support (Jan, 2027)' )
-      ( ponumber = '8000000002' itemno = '00001'
-        polinedesc = 'Enterprise Plan' ) ).
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `POLINEDESC LIKE '%Local Support%'` ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-ponumber
-      exp = '8000000001' ).
-
-  ENDMETHOD.
-
-  METHOD generic_two_props_are_anded.
-    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
-
-    lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001' companycode = '2028' pocurrency = 'JPY' )
-      ( ponumber = '8000000002' itemno = '00001' companycode = '2028' pocurrency = 'USD' )
-      ( ponumber = '8000000003' itemno = '00001' companycode = '6305' pocurrency = 'JPY' ) ).
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `COMPANYCODE = '2028' AND POCURRENCY = 'JPY'` ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-ponumber
-      exp = '8000000001' ).
-
-  ENDMETHOD.
-
-  METHOD generic_same_prop_is_ored.
-    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
-
-    lt_result = VALUE #(
-      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' )
-      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' )
-      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'EUR' ) ).
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `POCURRENCY = 'JPY' OR POCURRENCY = 'USD'` ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( line_exists( lt_result[ ponumber = '8000000001' ] ) ) ).
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( line_exists( lt_result[ ponumber = '8000000002' ] ) ) ).
-
-  ENDMETHOD.
-
-  METHOD generic_with_sort_and_paging.
-    DATA lt_result TYPE zcl_fi_das_dashboard=>tt_odata_result.
-
-    lt_result = VALUE #(
-      ( ponumber = '8000000003' itemno = '00001' pocurrency = 'JPY' suppliername = 'Charlie' )
-      ( ponumber = '8000000001' itemno = '00001' pocurrency = 'JPY' suppliername = 'Alpha' )
-      ( ponumber = '8000000002' itemno = '00001' pocurrency = 'USD' suppliername = 'Bravo' ) ).
-
-    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-      filter-filter_string = `POCURRENCY = 'JPY'`
-      orderby = VALUE #( ( property = `SUPPLIERNAME` ) )
-      paging  = VALUE #( skip = 1 top = 1 ) ).
-
-    mo_cut->apply_generic_filter(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    mo_cut->apply_sort(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    mo_cut->apply_paging(
-      EXPORTING is_request = ls_request
-      CHANGING  ct_result  = lt_result ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals(
-      act = lt_result[ 1 ]-suppliername
-      exp = 'Charlie' ).
-
-  ENDMETHOD.
-
   METHOD pstype_desc_moved_for_under.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
       mode    = zif_fi_das_dashboard=>mc_under
@@ -7601,4 +8307,625 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   ENDMETHOD.
 
+ENDCLASS.
+
+" ============================================================================
+" Dashboard production branches: in-memory fixtures only, no database access.
+" Rates are injected into the cache; dates/timestamps avoid clock and CET paths.
+" ============================================================================
+CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+    DATA ms_request TYPE zcl_fi_das_dashboard=>ts_internal_request.
+    DATA ms_context TYPE zcl_fi_das_dashboard=>ts_context.
+    DATA ms_detail TYPE zcl_fi_das_dashboard=>ts_detail.
+    DATA ms_key TYPE zcl_fi_das_dashboard=>ts_key.
+    DATA ms_row TYPE zcl_fi_das_dashboard=>ts_odata_result.
+    METHODS setup.
+    METHODS read_row RAISING zcx_fi_das_error.
+    METHODS assert_rejected
+      IMPORTING i_msgno TYPE symsgno.
+
+    " Arithmetic and cached currency conversion
+    METHODS currency_factors FOR TESTING.
+    METHODS usd_truncates_source FOR TESTING RAISING zcx_fi_das_error.
+    METHODS usd_keeps_precision FOR TESTING RAISING zcx_fi_das_error.
+    METHODS zero_needs_no_rate FOR TESTING RAISING zcx_fi_das_error.
+    METHODS missing_rate_rejected FOR TESTING.
+    METHODS rate_target_key FOR TESTING RAISING zcx_fi_das_error.
+
+    " Context component mapping
+    METHODS detail_mapping FOR TESTING RAISING zcx_fi_das_error.
+    METHODS account_mapping FOR TESTING.
+    METHODS history_mapping FOR TESTING RAISING zcx_fi_das_error.
+    METHODS user_mapping_guard FOR TESTING.
+    METHODS exclusion_mapping FOR TESTING.
+
+    " Row assembly from an injected context
+    METHODS row_missing_detail FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_material_and_audit FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_service_wtd FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_optional_context FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_exclusion FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_uses_complete_key FOR TESTING RAISING zcx_fi_das_error.
+    METHODS row_closed_status FOR TESTING RAISING zcx_fi_das_error.
+    METHODS missing_notification_clears FOR TESTING RAISING cx_sy_conversion_error.
+
+    " Scope parsing: singleton wildcard, NULL and normalization
+    METHODS company_wildcard FOR TESTING.
+    METHODS company_mixed_values FOR TESTING.
+    METHODS cost_null_and_alpha FOR TESTING.
+    METHODS cost_mixed_wildcard FOR TESTING.
+    METHODS management_scope FOR TESTING.
+
+    " Validation and request adjustment without filter SQL generation
+    METHODS valid_request_modes FOR TESTING RAISING zcx_fi_das_error.
+    METHODS invalid_mode FOR TESTING.
+    METHODS missing_email FOR TESTING.
+    METHODS invalid_owner FOR TESTING.
+    METHODS invalid_pstype FOR TESTING.
+    METHODS negative_paging FOR TESTING.
+    METHODS missing_filter_text FOR TESTING.
+    METHODS adjust_default_request FOR TESTING.
+    METHODS adjust_generic_request FOR TESTING.
+
+    " Status and calculation early-return/boundary branches
+    METHODS closed_overrides_status FOR TESTING RAISING zcx_fi_das_error.
+    METHODS unknown_status_cleared FOR TESTING RAISING zcx_fi_das_error.
+    METHODS reviewed_without_date FOR TESTING RAISING zcx_fi_das_error.
+    METHODS material_resets_work FOR TESTING RAISING zcx_fi_das_error.
+    METHODS unsupported_method FOR TESTING RAISING zcx_fi_das_error.
+    METHODS straight_line_missing_dates FOR TESTING RAISING zcx_fi_das_error.
+    METHODS accrued_exact_boundary FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_dash_pure_branches IMPLEMENTATION.
+  METHOD setup.
+    mo_cut = NEW #( ).
+    mo_cut->mt_exchrt = VALUE #(
+      ( source_curr = 'USD' target_curr = 'USD' exchange_rate = '1' )
+      ( source_curr = 'EUR' target_curr = 'USD' exchange_rate = '1.5' )
+      ( source_curr = 'JPY' target_curr = 'USD' exchange_rate = '0.01' )
+      ( source_curr = 'VND' target_curr = 'USD' exchange_rate = '0.001' )
+      ( source_curr = 'EUR' target_curr = 'JPY' exchange_rate = '150' ) ).
+    ms_request = VALUE #(
+      mode = zif_fi_das_dashboard=>mc_over
+      parameter = VALUE #( email = 'owner@example.invalid' pstype = '0' )
+      paging = VALUE #( skip = 2 top = 3 top_requested = abap_true
+                        count_requested = abap_true ) ).
+    ms_key = VALUE #( ponumber = '4500000001' itemno = '00010'
+                      pstype = '0' ).
+    ms_detail = VALUE #(
+      ponumber = ms_key-ponumber itemno = ms_key-itemno
+      effective_pstype = '0' pocurrency = 'EUR' grossvalue = '100'
+      companycode = '1000' cocdecurr = 'EUR'
+      supplierid = '0000000123' orderquantity = '2.999'
+      popreparer = '  PREP@EXAMPLE.INVALID  '
+      poowner_email = 'owner@example.invalid' ).
+    ms_context = VALUE #(
+      review_day = 7
+      details = VALUE #( ( ms_detail ) )
+      accounts = VALUE #(
+        ( ponumber = ms_key-ponumber itemno = ms_key-itemno
+          glaccount = '4000' costcenter = '123' costcenterdesc = 'Operations'
+          manageunit = 'MU1' internalorder = '42' assetid = '7'
+          profitcenter = 'PC1' bbp_acc_no = '01' distpercentage = '100' ) )
+      history = VALUE #(
+        ( ponumber = ms_key-ponumber itemno = ms_key-itemno
+          gr_value = '80.129' grvalue_usd = '120.18'
+          invvalue = '20' invvalue_cocdecurr = '20' invvalue_usd = '30' ) )
+      users = VALUE #(
+        ( email = ms_detail-poowner_email username = 'OWNER'
+          full_name = 'Fixture Owner' decimal_format = 'X' datfm = '1' ) )
+      audit = VALUE #(
+        ( ponumber = ms_key-ponumber itemno = ms_key-itemno amount = '17.25' ) )
+      exclusions = VALUE #(
+        ( ponumber = ms_key-ponumber itemno = ms_key-itemno
+          ruletype = 'CC' ruletypetext = 'Cost Center' ) ) ).
+    CLEAR ms_row.
+  ENDMETHOD.
+
+  METHOD read_row.
+    ms_row = mo_cut->get_row(
+      is_key = ms_key is_context = ms_context
+      is_request = ms_request i_decimal_format = 'X' ).
+  ENDMETHOD.
+
+  METHOD assert_rejected.
+    TRY.
+        mo_cut->validate_request( ms_request ).
+        cl_abap_unit_assert=>fail( msg = 'Expected request rejection' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->if_t100_message~t100key-msgno exp = i_msgno ).
+    ENDTRY.
+  ENDMETHOD.
+
+  " Arithmetic and cached currency conversion
+  METHOD currency_factors.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_currency_factor( 'JPY' ) exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_currency_factor( 'VND' ) exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_currency_factor( 'EUR' ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_currency_factor( space ) exp = 1 ).
+  ENDMETHOD.
+
+  METHOD usd_truncates_source.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->convert_to_usd(
+        i_amount = '1.239' i_source_currency = 'EUR' )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '1.85' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->convert_to_usd(
+        i_amount = '-1.239' i_source_currency = 'EUR' )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '-1.85' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->convert_to_usd(
+        i_amount = '12.349' i_source_currency = 'JPY' )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '12.34' ) ).
+  ENDMETHOD.
+
+  METHOD usd_keeps_precision.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->convert_to_usd(
+        i_amount = '1.239' i_source_currency = 'EUR'
+        i_keep_precision = abap_true )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '1.86' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->convert_to_usd(
+        i_amount = '12.349' i_source_currency = 'VND'
+        i_keep_precision = abap_true )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '1.23' ) ).
+  ENDMETHOD.
+
+  METHOD zero_needs_no_rate.
+    CLEAR mo_cut->mt_exchrt.
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->convert_to_usd(
+        i_amount = 0 i_source_currency = 'ZZZ' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->convert_to_usd(
+        i_amount = '0.009' i_source_currency = 'ZZZ' ) ).
+  ENDMETHOD.
+
+  METHOD missing_rate_rejected.
+    TRY.
+        DATA(lv_amount) = mo_cut->convert_to_usd(
+          i_amount = 1 i_source_currency = 'ZZZ' ).
+        cl_abap_unit_assert=>fail( msg = 'Missing cached rate must fail' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->if_t100_message~t100key-msgno exp = '017' ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rate_target_key.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_exchange_rate( 'EUR' )
+      exp = CONV zcl_fi_das_dashboard=>t_amount_precision( '1.5' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_exchange_rate(
+        i_source_currency = 'EUR' i_target_currency = 'JPY' )
+      exp = 150 ).
+  ENDMETHOD.
+
+  " Context component mapping
+  METHOD detail_mapping.
+    ms_detail-pocurrency = 'JPY'.
+    ms_detail-poowner_email = '  OWNER@EXAMPLE.INVALID  '.
+    mo_cut->apply_detail(
+      EXPORTING is_detail = ms_detail CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ponumber exp = ms_key-ponumber ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-itemno exp = ms_key-itemno ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-supplierid exp = '123' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-povalue exp = 10000 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-pstype exp = '0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-orderquantity
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '2.99' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-po_preparer exp = 'prep@example.invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-poowner_email exp = 'owner@example.invalid' ).
+  ENDMETHOD.
+
+  METHOD account_mapping.
+    mo_cut->apply_account(
+      EXPORTING is_account = ms_context-accounts[
+        ponumber = ms_key-ponumber itemno = ms_key-itemno ]
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-glaccount exp = '4000' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenter exp = '123' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenterdesc exp = 'Operations' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-manageunit exp = 'MU1' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-internalorder exp = '42' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-assetid exp = '7' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-profitcenter exp = 'PC1' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-bbp_acc_no exp = '01' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-distpercentage exp = '100' ).
+  ENDMETHOD.
+
+  METHOD history_mapping.
+    mo_cut->apply_history(
+      EXPORTING is_history = ms_context-history[
+        ponumber = ms_key-ponumber itemno = ms_key-itemno ]
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-grvalue exp = CONV zcl_fi_das_dashboard=>t_amount( '80.12' ) ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-grvalue_cocdecurr exp = ms_row-grvalue ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-grvalue_usd exp = CONV zcl_fi_das_dashboard=>t_amount( '120.18' ) ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-invvalue exp = 20 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-invvalue_cocdecurr exp = 20 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-invvalue_usd exp = 30 ).
+  ENDMETHOD.
+
+  METHOD user_mapping_guard.
+    mo_cut->apply_user(
+      EXPORTING is_user = ms_context-users[ email = ms_detail-poowner_email ]
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-username exp = 'OWNER' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-full_name exp = 'Fixture Owner' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-decimal_format exp = 'X' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-datfm exp = '1' ).
+    mo_cut->apply_user(
+      EXPORTING is_user = VALUE #( username = 'IGNORE' )
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-username exp = 'OWNER' ).
+  ENDMETHOD.
+
+  METHOD exclusion_mapping.
+    ms_row-costcenterdesc = 'Must be cleared'.
+    ms_row-costcenter = '123'.
+    mo_cut->apply_exclusion(
+      EXPORTING is_exclusion = ms_context-exclusions[
+        ponumber = ms_key-ponumber itemno = ms_key-itemno ]
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ruletype exp = 'CC' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ruletypetext exp = 'Cost Center' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-costcenterdesc ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenter exp = '123' ).
+  ENDMETHOD.
+
+  " Row assembly: no get_context/get_results or database-backed loaders
+  METHOD row_missing_detail.
+    CLEAR: ms_context-details, mo_cut->mt_exchrt.
+    read_row( ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row ).
+  ENDMETHOD.
+
+  METHOD row_material_and_audit.
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-username exp = 'OWNER' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-glaccount exp = '4000' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-status exp = 'Pending' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-lastmonthwrkcomp exp = CONV zcl_fi_das_dashboard=>t_amount( '17.25' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued exp = CONV zcl_fi_das_dashboard=>t_amount( '60.12' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_usd exp = CONV zcl_fi_das_dashboard=>t_amount( '90.18' ) ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-povalue_usd exp = 150 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-pstype_text exp = 'Material' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-accrualmethod exp = 'Straight Line' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-po_closure exp = 'false' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-poclosure_flag ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-last_notif_on ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-notif_24_hr ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-ruletype ).
+  ENDMETHOD.
+
+  METHOD row_service_wtd.
+    ms_detail-effective_pstype = '9'.
+    ms_detail-serviceamount = '45.67'.
+    ms_detail-servicepercentage = '45.6'.
+    ms_context-details = VALUE #( ( ms_detail ) ).
+    ms_request-mode = zif_fi_das_dashboard=>mc_under.
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-pstype_text exp = 'Service' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-accrualmethod exp = 'Work To Date' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-straightlinemthd exp = 'false' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt exp = CONV zcl_fi_das_dashboard=>t_amount( '45.67' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt_usd exp = CONV zcl_fi_das_dashboard=>t_amount( '68.51' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompper exp = CONV zcl_fi_das_dashboard=>t_percentage( '45.6' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued exp = CONV zcl_fi_das_dashboard=>t_amount( '25.67' ) ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-lastmonthwrkcomp ).
+  ENDMETHOD.
+
+  METHOD row_optional_context.
+    ms_context = VALUE #( details = VALUE #( ( ms_detail ) ) review_day = 7 ).
+    ms_request-mode = zif_fi_das_dashboard=>mc_under.
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ponumber exp = ms_key-ponumber ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-status exp = 'Pending' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-povalue_usd exp = 150 ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-username ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-glaccount ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-invvalue ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-amountaccrued ).
+  ENDMETHOD.
+
+  METHOD row_exclusion.
+    ms_request-mode = zif_fi_das_dashboard=>mc_exclude.
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ruletype exp = 'CC' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-ruletypetext exp = 'Cost Center' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-costcenterdesc ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenter exp = '123' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompamt_char ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-last_notif_on ).
+  ENDMETHOD.
+
+  METHOD row_uses_complete_key.
+    INSERT VALUE #( BASE ms_detail itemno = '00020' grossvalue = 999 )
+      INTO TABLE ms_context-details.
+    INSERT VALUE #( ponumber = ms_key-ponumber itemno = '00020' invvalue = 999 )
+      INTO TABLE ms_context-history.
+    INSERT VALUE #( ponumber = '4500000002' itemno = ms_key-itemno glaccount = 'WRONG' )
+      INTO TABLE ms_context-accounts.
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-povalue exp = 100 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-invvalue exp = 20 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-glaccount exp = '4000' ).
+  ENDMETHOD.
+
+  METHOD row_closed_status.
+    ms_request-mode = zif_fi_das_dashboard=>mc_under.
+    ms_context-statuses = VALUE #(
+      ( ponumber = ms_key-ponumber itemno = ms_key-itemno
+        status = 'Other' po_closure = 'TrUe' reviewed_by = 'Reviewer'
+        wtd_amount = 12 last_month_amount = 34 ) ).
+    read_row( ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-status exp = 'Reviewed' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-po_closure exp = 'true' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-poclosure_flag exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-reviwed_by exp = 'Reviewer' ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-edgewtdamt exp = 12 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-lastmonthwrkcomp exp = 34 ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-markasreviewed exp = 'false' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-changed_on ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-changeddate ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-changedtime ).
+  ENDMETHOD.
+
+  METHOD missing_notification_clears.
+    ms_row-last_notif_on = '20260101120000'.
+    ms_row-notif_24_hr = abap_true.
+    mo_cut->apply_notification(
+      EXPORTING is_notification = VALUE #( )
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-last_notif_on ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-notif_24_hr ).
+  ENDMETHOD.
+
+  " Scope parsing
+  METHOD company_wildcard.
+    DATA(lt_scope) = mo_cut->get_company_codes( ' * ' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_company_scope(
+        ( wildcard = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->get_company_codes( ', , ' ) ).
+  ENDMETHOD.
+
+  METHOD company_mixed_values.
+    DATA(lt_scope) = mo_cut->get_company_codes( 'ab01, AB01,*,1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_company_scope(
+        ( value = 'AB01' ) ( value = '*' ) ( value = '1000' ) ) ).
+  ENDMETHOD.
+
+  METHOD cost_null_and_alpha.
+    DATA(lt_scope) = mo_cut->get_cost_centers( 'NULL,123,0000000123,ab1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( is_null = abap_true ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
+  ENDMETHOD.
+
+  METHOD cost_mixed_wildcard.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_cost_centers( '*' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( wildcard = abap_true ) ) ).
+    DATA(lt_scope) = mo_cut->get_cost_centers( '*,NULL' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( value = '*' ) ( is_null = abap_true ) ) ).
+  ENDMETHOD.
+
+  METHOD management_scope.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_management_units( '*' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_management_scope(
+        ( wildcard = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_management_units( 'NULL,0012,0012,*' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_management_scope(
+        ( is_null = abap_true ) ( value = '0012' ) ( value = '*' ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->get_management_units( '' ) ).
+  ENDMETHOD.
+
+  " Validation and request adjustment
+  METHOD valid_request_modes.
+    mo_cut->validate_request( ms_request ).
+    ms_request-mode = zif_fi_das_dashboard=>mc_under.
+    ms_request-parameter-pstype = '9'.
+    ms_request-parameter-poowner = abap_true.
+    mo_cut->validate_request( ms_request ).
+    ms_request-parameter-pstype = '*'.
+    mo_cut->validate_request( ms_request ).
+    ms_request-mode = zif_fi_das_dashboard=>mc_exclude.
+    ms_request-parameter-pstype = '?'.
+    mo_cut->validate_request( ms_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_pstype( ms_request ) exp = '*' ).
+  ENDMETHOD.
+
+  METHOD invalid_mode.
+    ms_request-mode = '?'.
+    assert_rejected( '005' ).
+  ENDMETHOD.
+
+  METHOD missing_email.
+    CLEAR ms_request-parameter-email.
+    assert_rejected( '006' ).
+  ENDMETHOD.
+
+  METHOD invalid_owner.
+    ms_request-parameter-poowner = '?'.
+    assert_rejected( '007' ).
+  ENDMETHOD.
+
+  METHOD invalid_pstype.
+    ms_request-parameter-pstype = '?'.
+    assert_rejected( '008' ).
+  ENDMETHOD.
+
+  METHOD negative_paging.
+    ms_request-paging-skip = -1.
+    assert_rejected( '009' ).
+    ms_request-paging-skip = 0.
+    ms_request-paging-top = -1.
+    ms_request-paging-top_requested = abap_false.
+    assert_rejected( '009' ).
+  ENDMETHOD.
+
+  METHOD missing_filter_text.
+    ms_request-filter-filter_select_options = VALUE #(
+      ( property = 'CompanyCode' sign = 'I' option = 'EQ' low = '1000' ) ).
+    assert_rejected( '010' ).
+  ENDMETHOD.
+
+  METHOD adjust_default_request.
+    ms_request-parameter-email = '  OWNER@EXAMPLE.INVALID  '.
+    ms_request-orderby = VALUE #( ( property = 'ponumber' ) ( property = 'itemno' ) ).
+    DATA(ls_original) = ms_request.
+    DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_adjusted-parameter-email exp = 'owner@example.invalid' ).
+    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-orderby ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_adjusted-paging exp = ls_original-paging ).
+    cl_abap_unit_assert=>assert_equals( act = ms_request exp = ls_original ).
+    ms_request-parameter-email = ' * '.
+    ls_adjusted = mo_cut->adjust_request( ms_request ).
+    cl_abap_unit_assert=>assert_equals( act = ls_adjusted-parameter-email exp = '%' ).
+  ENDMETHOD.
+
+  METHOD adjust_generic_request.
+    ms_request-orderby = VALUE #( ( property = 'AmountAccrued' descending = abap_true ) ).
+    ms_request-filter-filter_string = `COMPANYCODE = '1000'`.
+    DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_adjusted-orderby exp = ms_request-orderby ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_adjusted-filter exp = ms_request-filter ).
+    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-skip ).
+    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top ).
+    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top_requested ).
+    cl_abap_unit_assert=>assert_true( act = ls_adjusted-paging-count_requested ).
+  ENDMETHOD.
+
+  " Status and calculation boundaries: no implicit current-date branches
+  METHOD closed_overrides_status.
+    mo_cut->determine_status(
+      EXPORTING is_status = VALUE #( po_closure = 'TrUe' status = 'Pending' )
+                i_review_day = 7
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-status exp = 'Reviewed' ).
+    cl_abap_unit_assert=>assert_false( act = mo_cut->is_closed( 'false' ) ).
+    cl_abap_unit_assert=>assert_false( act = mo_cut->is_closed( 'X' ) ).
+  ENDMETHOD.
+
+  METHOD unknown_status_cleared.
+    ms_row-status = 'Reviewed'.
+    mo_cut->determine_status(
+      EXPORTING is_status = VALUE #( status = 'Other' ) i_review_day = 7
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-status ).
+  ENDMETHOD.
+
+  METHOD reviewed_without_date.
+    ms_row-status = 'Reviewed'.
+    mo_cut->determine_status(
+      EXPORTING is_status = VALUE #( status = 'Reviewed' ) i_review_day = 7
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-status ).
+    ms_row-changeddate = '20260101'.
+    ms_row-changedtime = '120000'.
+    mo_cut->determine_review(
+      EXPORTING is_status = VALUE #( status = 'Reviewed' )
+                i_mode = zif_fi_das_dashboard=>mc_over i_review_day = 7
+      CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-changeddate ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-changedtime ).
+  ENDMETHOD.
+
+  METHOD material_resets_work.
+    CLEAR mo_cut->mt_exchrt.
+    ms_row = VALUE #( totwrkcompamt = 99 totwrkcompamt_usd = 98
+                      totwrkcompper = 97 straightlinemthd = abap_true
+                      accrualmethod = 'WTD' ).
+    mo_cut->calculate_accrual(
+      EXPORTING is_detail = ms_detail CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompamt_usd ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompper ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-straightlinemthd ).
+    cl_abap_unit_assert=>assert_equals( act = ms_row-accrualmethod exp = 'STL' ).
+  ENDMETHOD.
+
+  METHOD unsupported_method.
+    CLEAR mo_cut->mt_exchrt.
+    ms_detail-effective_pstype = '9'.
+    ms_row = VALUE #( accrualmethod = 'Other' totwrkcompamt = 99
+                      totwrkcompamt_usd = 98 totwrkcompper = 97
+                      straightlinemthd = abap_true ).
+    mo_cut->calculate_accrual(
+      EXPORTING is_detail = ms_detail CHANGING cs_result = ms_row ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-accrualmethod ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompamt_usd ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-totwrkcompper ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-straightlinemthd ).
+  ENDMETHOD.
+
+  METHOD straight_line_missing_dates.
+    CLEAR mo_cut->mt_exchrt.
+    DATA(ls_calc) = mo_cut->calculate_straight_line(
+      i_po_value = 100 i_po_currency = 'ZZZ'
+      i_work_start_date = '00000000' i_work_end_date = '20260131' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_calc exp = VALUE zcl_fi_das_dashboard=>ts_calculation(
+        accrualmethod = 'STL' straightlinemthd = abap_true ) ).
+    ls_calc = mo_cut->calculate_straight_line(
+      i_po_value = 100 i_po_currency = 'ZZZ'
+      i_work_start_date = '20260101' i_work_end_date = '00000000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_calc exp = VALUE zcl_fi_das_dashboard=>ts_calculation(
+        accrualmethod = 'STL' straightlinemthd = abap_true ) ).
+  ENDMETHOD.
+
+  METHOD accrued_exact_boundary.
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->calculate_accrued_amount(
+        i_pstype = '9' i_total_work_amount = 10
+        i_gr_value = 999 i_invoice_value = 10 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->calculate_accrued_amount(
+        i_pstype = '0' i_total_work_amount = 999
+        i_gr_value = '10.01' i_invoice_value = 10 )
+      exp = CONV zcl_fi_das_dashboard=>t_amount( '0.01' ) ).
+  ENDMETHOD.
 ENDCLASS.

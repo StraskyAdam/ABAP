@@ -2107,418 +2107,412 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-METHOD get_keys
-  BY DATABASE PROCEDURE
-  FOR HDB
-  LANGUAGE SQLSCRIPT
-  OPTIONS READ-ONLY
-  USING
-    zifidaspobase
-    ekkn
-    csks
-    zfi_das_po_excl
-    zfi_das_exchrt.
+  METHOD get_keys
+    BY DATABASE PROCEDURE
+    FOR HDB
+    LANGUAGE SQLSCRIPT
+    OPTIONS READ-ONLY
+    USING
+      zifidaspobase
+      ekkn
+      csks
+      zfi_das_po_excl
+      zfi_das_exchrt.
 
-  DECLARE lc_empty_string     CONSTANT NVARCHAR(1) = '';
-  DECLARE lc_space            CONSTANT NVARCHAR(1) = ' ';
-  DECLARE lc_true             CONSTANT NVARCHAR(1) = 'X';
-  DECLARE lc_false            CONSTANT NVARCHAR(1) = '';
-  DECLARE lc_zero             CONSTANT NVARCHAR(1) = '0';
-  DECLARE lc_all              CONSTANT NVARCHAR(1) = '*';
+    DECLARE lc_empty_string     CONSTANT NVARCHAR(1) = '';
+    DECLARE lc_space            CONSTANT NVARCHAR(1) = ' ';
+    DECLARE lc_true             CONSTANT NVARCHAR(1) = 'X';
+    DECLARE lc_false            CONSTANT NVARCHAR(1) = '';
+    DECLARE lc_zero             CONSTANT NVARCHAR(1) = '0';
+    DECLARE lc_all              CONSTANT NVARCHAR(1) = '*';
 
-  DECLARE lc_pstype_material  CONSTANT NVARCHAR(1) = '0';
-  DECLARE lc_pstype_service   CONSTANT NVARCHAR(1) = '9';
+    DECLARE lc_pstype_material  CONSTANT NVARCHAR(1) = '0';
+    DECLARE lc_pstype_service   CONSTANT NVARCHAR(1) = '9';
 
-  DECLARE lc_currency_jpy     CONSTANT NVARCHAR(3) = 'JPY';
-  DECLARE lc_currency_vnd     CONSTANT NVARCHAR(3) = 'VND';
+    DECLARE lc_currency_jpy     CONSTANT NVARCHAR(3) = 'JPY';
+    DECLARE lc_currency_vnd     CONSTANT NVARCHAR(3) = 'VND';
 
-  DECLARE lc_mode_over        CONSTANT NVARCHAR(1) = '1';
-  DECLARE lc_mode_under       CONSTANT NVARCHAR(1) = '2';
-  DECLARE lc_mode_all         CONSTANT NVARCHAR(1) = '3';
+    DECLARE lc_mode_over        CONSTANT NVARCHAR(1) = '1';
+    DECLARE lc_mode_under       CONSTANT NVARCHAR(1) = '2';
+    DECLARE lc_mode_all         CONSTANT NVARCHAR(1) = '3';
 
-  DECLARE lc_initial_date     CONSTANT NVARCHAR(8) = '00000000';
+    DECLARE lc_initial_date     CONSTANT NVARCHAR(8) = '00000000';
 
-  DECLARE lv_excluded_only NVARCHAR(1) =
-    CASE
-      WHEN :i_mode = :lc_mode_all THEN :lc_true
-      ELSE :lc_false
-    END;
-
-* Base dataset enriched with reusable flags
-  lt_base_flags =
-    SELECT
-      base.ponumber,
-      base.itemno,
-      base.pstype,
-      base.wrkstrtdate,
-      base.wrkenddate,
-      base.porequestor,
-      base.popreparer,
-      base.companycode,
-      base.itemcompanycode,
-      base.pocurrency,
-      base.netvalue,
-      base.suppliername,
-
+    DECLARE lv_excluded_only NVARCHAR(1) =
       CASE
-        WHEN EXISTS
-        (
-          SELECT 1
-            FROM :it_japan_brazil AS japan_brazil
-           WHERE japan_brazil.value = base.itemcompanycode
-        )
-        THEN :lc_true
+        WHEN :i_mode = :lc_mode_all THEN :lc_true
         ELSE :lc_false
-      END AS is_japan_brazil
+      END;
 
-    FROM zifidaspobase AS base;
-
-* Apply owner and PSTYPE/business selection logic
-  lt_base_candidates =
-    SELECT
-      base.ponumber,
-      base.itemno,
-
-      CASE
-        WHEN base.pstype = :lc_pstype_material
-         AND base.wrkstrtdate <> :lc_initial_date
-         AND base.is_japan_brazil = :lc_true
-        THEN :lc_pstype_service
-        ELSE base.pstype
-      END AS pstype,
-
-      LOWER( base.porequestor ) AS poowner_email,
-      base.companycode,
-      base.pocurrency,
-      base.netvalue,
-      base.suppliername
-
-    FROM :lt_base_flags AS base
-
-    WHERE
-      (
-           :i_poowner <> :lc_true
-        OR LOWER( base.porequestor ) LIKE :i_email
-        OR LOWER( base.popreparer )  LIKE :i_email
-      )
-      AND
-      (
-        (
-          :i_pstype IN ( :lc_pstype_service, :lc_all )
-          AND
-          (
-            (
-              base.pstype = :lc_pstype_service
-              AND base.wrkstrtdate <> :lc_initial_date
-              AND base.wrkenddate  <> :lc_initial_date
-            )
-            OR
-            (
-              base.pstype = :lc_pstype_material
-              AND base.wrkstrtdate <> :lc_initial_date
-              AND base.is_japan_brazil = :lc_true
-            )
-          )
-        )
-        OR
-        (
-          :i_pstype IN ( :lc_pstype_material, :lc_all )
-          AND base.pstype = :lc_pstype_material
-          AND
-          (
-               base.is_japan_brazil = :lc_false
-            OR
-            (
-              base.wrkstrtdate = :lc_initial_date
-              AND base.is_japan_brazil = :lc_true
-            )
-          )
-        )
-      );
-
-  IF :i_ponumber_filter <> :lc_empty_string THEN
-    lt_base_candidates = APPLY_FILTER( :lt_base_candidates, :i_ponumber_filter );
-  END IF;
-
-  IF :i_supplier_filter <> :lc_empty_string THEN
-    lt_base_candidates = APPLY_FILTER( :lt_base_candidates, :i_supplier_filter );
-  END IF;
-
-* Owner mode skips account-assignment access scoping
-  IF :i_poowner = :lc_true THEN
-
-    lt_scoped_candidates =
+*   Base dataset enriched
+    lt_base_flags =
       SELECT
-        candidate.ponumber,
-        candidate.itemno,
-        candidate.pstype,
-        candidate.poowner_email,
-        candidate.companycode,
-        candidate.pocurrency,
-        candidate.netvalue
-      FROM :lt_base_candidates AS candidate;
+        base.ponumber,
+        base.itemno,
+        base.pstype,
+        base.wrkstrtdate,
+        base.wrkenddate,
+        base.porequestor,
+        base.popreparer,
+        base.companycode,
+        base.itemcompanycode,
+        base.pocurrency,
+        base.netvalue,
+        base.suppliername,
+        CASE
+          WHEN EXISTS
+          (
+            SELECT 1
+              FROM :it_japan_brazil AS japan_brazil
+             WHERE japan_brazil.value = base.itemcompanycode
+          )
+          THEN :lc_true
+          ELSE :lc_false
+        END AS is_japan_brazil
 
-  ELSE
+      FROM zifidaspobase AS base;
 
-* Non-owner mode applies company code, cost center and management unit scope
-    lt_scoped_candidates =
-      SELECT DISTINCT
-        candidate.ponumber,
-        candidate.itemno,
-        candidate.pstype,
-        candidate.poowner_email,
-        candidate.companycode,
-        candidate.pocurrency,
-        candidate.netvalue
-      FROM :lt_base_candidates AS candidate
+*   Apply owner and PSTYPE/business selection logic
+    lt_base_candidates =
+      SELECT
+        base.ponumber,
+        base.itemno,
+        CASE
+          WHEN base.pstype = :lc_pstype_material
+           AND base.wrkstrtdate <> :lc_initial_date
+           AND base.is_japan_brazil = :lc_true
+          THEN :lc_pstype_service
+          ELSE base.pstype
+        END AS pstype,
+        LOWER( base.porequestor ) AS poowner_email,
+        base.companycode,
+        base.pocurrency,
+        base.netvalue,
+        base.suppliername
 
-      LEFT OUTER JOIN ekkn AS account
-        ON  account.ebeln = candidate.ponumber
-        AND account.ebelp = candidate.itemno
-
-      LEFT OUTER JOIN csks AS cost_center
-        ON  cost_center.kostl = account.kostl
-        AND cost_center.kokrs = account.kokrs
-        AND cost_center.datbi >= CURRENT_DATE
+      FROM :lt_base_flags AS base
 
       WHERE
-        EXISTS
         (
-          SELECT 1
-            FROM :it_company_codes AS scope_company
-           WHERE scope_company.wildcard = :lc_true
-              OR scope_company.value = candidate.companycode
+             :i_poowner <> :lc_true
+          OR LOWER( base.porequestor ) LIKE :i_email
+          OR LOWER( base.popreparer )  LIKE :i_email
         )
-
         AND
         (
-             (
+          (
+            :i_pstype IN ( :lc_pstype_service, :lc_all )
+            AND
+            (
+              (
+                base.pstype = :lc_pstype_service
+                AND base.wrkstrtdate <> :lc_initial_date
+                AND base.wrkenddate  <> :lc_initial_date
+              )
+              OR
+              (
+                base.pstype = :lc_pstype_material
+                AND base.wrkstrtdate <> :lc_initial_date
+                AND base.is_japan_brazil = :lc_true
+              )
+            )
+          )
+          OR
+          (
+            :i_pstype IN ( :lc_pstype_material, :lc_all )
+            AND base.pstype = :lc_pstype_material
+            AND
+            (
+                 base.is_japan_brazil = :lc_false
+              OR
+              (
+                base.wrkstrtdate = :lc_initial_date
+                AND base.is_japan_brazil = :lc_true
+              )
+            )
+          )
+        );
+
+    IF :i_ponumber_filter <> :lc_empty_string THEN
+      lt_base_candidates = APPLY_FILTER( :lt_base_candidates, :i_ponumber_filter );
+    END IF;
+
+    IF :i_supplier_filter <> :lc_empty_string THEN
+      lt_base_candidates = APPLY_FILTER( :lt_base_candidates, :i_supplier_filter );
+    END IF;
+
+*   Owner mode skips access scoping
+    IF :i_poowner = :lc_true THEN
+
+      lt_scoped_candidates =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email,
+          candidate.companycode,
+          candidate.pocurrency,
+          candidate.netvalue
+        FROM :lt_base_candidates AS candidate;
+
+    ELSE
+
+*     Non-owner mode applies company code, cost center and management unit scope
+      lt_scoped_candidates =
+        SELECT DISTINCT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email,
+          candidate.companycode,
+          candidate.pocurrency,
+          candidate.netvalue
+        FROM :lt_base_candidates AS candidate
+
+        LEFT OUTER JOIN ekkn AS account
+          ON  account.ebeln = candidate.ponumber
+          AND account.ebelp = candidate.itemno
+
+        LEFT OUTER JOIN csks AS cost_center
+          ON  cost_center.kostl = account.kostl
+          AND cost_center.kokrs = account.kokrs
+          AND cost_center.datbi >= CURRENT_DATE
+
+        WHERE
+          EXISTS
+          (
+            SELECT 1
+              FROM :it_company_codes AS scope_company
+             WHERE scope_company.wildcard = :lc_true
+                OR scope_company.value = candidate.companycode
+          )
+
+          AND
+          (
+               (
+                 EXISTS
+                 (
+                   SELECT 1
+                     FROM :it_cost_centers AS scope_cost
+                    WHERE scope_cost.wildcard = :lc_true
+                      AND scope_cost.is_null = :lc_false
+                 )
+                 AND account.kostl IS NOT NULL
+               )
+            OR
                EXISTS
                (
                  SELECT 1
                    FROM :it_cost_centers AS scope_cost
-                  WHERE scope_cost.wildcard = :lc_true
+                  WHERE scope_cost.wildcard = :lc_false
                     AND scope_cost.is_null = :lc_false
+                    AND LTRIM( account.kostl, :lc_zero )
+                        = LTRIM( scope_cost.value, :lc_zero )
                )
-               AND account.kostl IS NOT NULL
-             )
-          OR
-             EXISTS
-             (
-               SELECT 1
-                 FROM :it_cost_centers AS scope_cost
-                WHERE scope_cost.wildcard = :lc_false
-                  AND scope_cost.is_null = :lc_false
-                  AND LTRIM( account.kostl, :lc_zero )
-                      = LTRIM( scope_cost.value, :lc_zero )
-             )
-          OR
-             (
-               account.kostl IS NULL
-               AND EXISTS
+            OR
                (
-                 SELECT 1
-                   FROM :it_cost_centers AS scope_cost
-                  WHERE scope_cost.is_null = :lc_true
+                 account.kostl IS NULL
+                 AND EXISTS
+                 (
+                   SELECT 1
+                     FROM :it_cost_centers AS scope_cost
+                    WHERE scope_cost.is_null = :lc_true
+                 )
                )
-             )
-        )
+          )
 
-        AND
-        (
-             cost_center.zzrptun = :lc_empty_string
-          OR cost_center.zzrptun = :lc_space
-          OR
-             (
+          AND
+          (
+               cost_center.zzrptun = :lc_empty_string
+            OR cost_center.zzrptun = :lc_space
+            OR
+               (
+                 EXISTS
+                 (
+                   SELECT 1
+                     FROM :it_management_units AS scope_management
+                    WHERE scope_management.wildcard = :lc_true
+                 )
+                 AND NOT EXISTS
+                 (
+                   SELECT 1
+                     FROM :it_management_units AS scope_management_null
+                    WHERE scope_management_null.is_null = :lc_true
+                 )
+               )
+            OR
+               (
+                 cost_center.zzrptun IS NULL
+                 AND EXISTS
+                 (
+                   SELECT 1
+                     FROM :it_management_units AS scope_management_null
+                    WHERE scope_management_null.is_null = :lc_true
+                 )
+               )
+            OR
                EXISTS
                (
                  SELECT 1
                    FROM :it_management_units AS scope_management
-                  WHERE scope_management.wildcard = :lc_true
+                  WHERE scope_management.wildcard = :lc_false
+                    AND scope_management.is_null  = :lc_false
+                    AND LTRIM( scope_management.value, :lc_zero )
+                        = cost_center.zzrptun
                )
-               AND NOT EXISTS
-               (
-                 SELECT 1
-                   FROM :it_management_units AS scope_management_null
-                  WHERE scope_management_null.is_null = :lc_true
-               )
-             )
-          OR
+          );
+
+    END IF;
+
+  lt_po_totals =
+      SELECT
+        candidate.ponumber,
+        candidate.pstype,
+        candidate.pocurrency,
+        SUM(
+          CASE
+            WHEN candidate.pocurrency IN ( :lc_currency_jpy, :lc_currency_vnd )
+            THEN candidate.netvalue * 100
+            ELSE candidate.netvalue
+          END
+        ) AS po_total
+      FROM :lt_scoped_candidates AS candidate
+      GROUP BY
+        candidate.ponumber,
+        candidate.pstype,
+        candidate.pocurrency;
+
+    lt_po_threshold =
+      SELECT
+        total.ponumber,
+        total.pstype,
+        total.po_total,
+        ROUND(
+          :i_threshold_usd * CAST( 1 / exchange_rate.exchange_rate AS DECIMAL(15,6) ),2 ) AS threshold_converted
+      FROM :lt_po_totals AS total
+      INNER JOIN zfi_das_exchrt AS exchange_rate
+        ON exchange_rate.source_curr = total.pocurrency;
+
+    lt_threshold_classified =
+      SELECT DISTINCT
+        candidate.ponumber,
+        candidate.itemno,
+        candidate.pstype,
+        candidate.poowner_email
+      FROM :lt_scoped_candidates AS candidate
+      INNER JOIN :lt_po_threshold AS threshold
+        ON  threshold.ponumber = candidate.ponumber
+        AND threshold.pstype   = candidate.pstype
+      WHERE
+           (
+             :i_mode = :lc_mode_over
+             AND threshold.po_total > threshold.threshold_converted
+           )
+        OR (
+             :i_mode = :lc_mode_under
+             AND threshold.po_total <= threshold.threshold_converted
+           )
+        OR (
+             :lv_excluded_only = :lc_true
+             AND
              (
-               cost_center.zzrptun IS NULL
-               AND EXISTS
-               (
-                 SELECT 1
-                   FROM :it_management_units AS scope_management_null
-                  WHERE scope_management_null.is_null = :lc_true
-               )
+                  threshold.po_total > threshold.threshold_converted
+               OR threshold.po_total <= threshold.threshold_converted
              )
-          OR
-             EXISTS
-             (
-               SELECT 1
-                 FROM :it_management_units AS scope_management
-                WHERE scope_management.wildcard = :lc_false
-                  AND scope_management.is_null  = :lc_false
-                  AND LTRIM( scope_management.value, :lc_zero )
-                      = cost_center.zzrptun
-             )
+           );
+*   Exclude mode returns only excluded items; other modes remove excluded items
+    IF :lv_excluded_only = :lc_true THEN
+
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_threshold_classified AS candidate
+        WHERE EXISTS
+        (
+          SELECT 1
+            FROM zfi_das_po_excl AS exclusion
+           WHERE exclusion.ponumber = candidate.ponumber
+             AND exclusion.itemno   = candidate.itemno
         );
 
-  END IF;
+    ELSE
 
-lt_po_totals =
-    SELECT
-      candidate.ponumber,
-      candidate.pstype,
-      candidate.pocurrency,
-      SUM(
-        CASE
-          WHEN candidate.pocurrency IN ( :lc_currency_jpy, :lc_currency_vnd )
-          THEN candidate.netvalue * 100
-          ELSE candidate.netvalue
-        END
-      ) AS po_total
-    FROM :lt_scoped_candidates AS candidate
-    GROUP BY
-      candidate.ponumber,
-      candidate.pstype,
-      candidate.pocurrency;
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_threshold_classified AS candidate
+        WHERE NOT EXISTS
+        (
+          SELECT 1
+            FROM zfi_das_po_excl AS exclusion
+           WHERE exclusion.ponumber = candidate.ponumber
+             AND exclusion.itemno   = candidate.itemno
+             AND exclusion.pstype   = candidate.pstype
+        );
 
-  lt_po_threshold =
-    SELECT
-      total.ponumber,
-      total.pstype,
-      total.po_total,
-      ROUND(
-        :i_threshold_usd
-        * CAST( 1 / exchange_rate.exchange_rate AS DECIMAL(15,6) ),
-        2
-      ) AS threshold_converted
-    FROM :lt_po_totals AS total
-    INNER JOIN zfi_das_exchrt AS exchange_rate
-      ON exchange_rate.source_curr = total.pocurrency;
+    END IF;
 
-  lt_threshold_classified =
-    SELECT DISTINCT
-      candidate.ponumber,
-      candidate.itemno,
-      candidate.pstype,
-      candidate.poowner_email
-    FROM :lt_scoped_candidates AS candidate
-    INNER JOIN :lt_po_threshold AS threshold
-      ON  threshold.ponumber = candidate.ponumber
-      AND threshold.pstype   = candidate.pstype
-    WHERE
-         (
-           :i_mode = :lc_mode_over
-           AND threshold.po_total > threshold.threshold_converted
-         )
-      OR (
-           :i_mode = :lc_mode_under
-           AND threshold.po_total <= threshold.threshold_converted
-         )
-      OR (
-           :lv_excluded_only = :lc_true
-           AND
-           (
-                threshold.po_total > threshold.threshold_converted
-             OR threshold.po_total <= threshold.threshold_converted
-           )
-         );
-* Exclude mode returns only excluded items; other modes remove excluded items
-  IF :lv_excluded_only = :lc_true THEN
-
-    lt_exclusion_applied =
-      SELECT
+    lt_filtered =
+      SELECT DISTINCT
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
         candidate.poowner_email
-      FROM :lt_threshold_classified AS candidate
-      WHERE EXISTS
-      (
-        SELECT 1
-          FROM zfi_das_po_excl AS exclusion
-         WHERE exclusion.ponumber = candidate.ponumber
-           AND exclusion.itemno   = candidate.itemno
-      );
+      FROM :lt_exclusion_applied AS candidate;
 
-  ELSE
+    IF :i_item_filter <> :lc_empty_string THEN
+      lt_filtered = APPLY_FILTER( :lt_filtered, :i_item_filter );
+    END IF;
 
-    lt_exclusion_applied =
+    IF :i_count_requested = :lc_true THEN
+      SELECT COUNT(*)
+        INTO e_total_count
+        FROM :lt_filtered;
+    ELSE
+      e_total_count = 0;
+    END IF;
+
+    lt_numbered =
       SELECT
         candidate.ponumber,
         candidate.itemno,
         candidate.pstype,
-        candidate.poowner_email
-      FROM :lt_threshold_classified AS candidate
-      WHERE NOT EXISTS
-      (
-        SELECT 1
-          FROM zfi_das_po_excl AS exclusion
-         WHERE exclusion.ponumber = candidate.ponumber
-           AND exclusion.itemno   = candidate.itemno
-           AND exclusion.pstype   = candidate.pstype
-      );
+        candidate.poowner_email,
+        ROW_NUMBER() OVER
+        (
+          ORDER BY
+            CASE
+              WHEN :i_pstype_desc_requested = :lc_true
+              THEN candidate.pstype
+              ELSE :lc_empty_string
+            END DESC,
+            candidate.ponumber ASC,
+            candidate.itemno ASC
+        ) AS row_number_value
+      FROM :lt_filtered AS candidate;
 
-  END IF;
+    et_keys =
+      SELECT
+        numbered.ponumber,
+        numbered.itemno,
+        numbered.pstype,
+        numbered.poowner_email
+      FROM :lt_numbered AS numbered
+      WHERE numbered.row_number_value > :i_skip
+        AND
+        (
+          :i_top_requested = :lc_empty_string
+          OR numbered.row_number_value <= :i_skip + :i_top
+        )
+      ORDER BY numbered.row_number_value;
 
-  lt_filtered =
-    SELECT DISTINCT
-      candidate.ponumber,
-      candidate.itemno,
-      candidate.pstype,
-      candidate.poowner_email
-    FROM :lt_exclusion_applied AS candidate;
-
-  IF :i_item_filter <> :lc_empty_string THEN
-    lt_filtered = APPLY_FILTER( :lt_filtered, :i_item_filter );
-  END IF;
-
-  IF :i_count_requested = :lc_true THEN
-    SELECT COUNT(*)
-      INTO e_total_count
-      FROM :lt_filtered;
-  ELSE
-    e_total_count = 0;
-  END IF;
-
-  lt_numbered =
-    SELECT
-      candidate.ponumber,
-      candidate.itemno,
-      candidate.pstype,
-      candidate.poowner_email,
-      ROW_NUMBER() OVER
-      (
-        ORDER BY
-          CASE
-            WHEN :i_pstype_desc_requested = :lc_true
-            THEN candidate.pstype
-            ELSE :lc_empty_string
-          END DESC,
-          candidate.ponumber ASC,
-          candidate.itemno ASC
-      ) AS row_number_value
-    FROM :lt_filtered AS candidate;
-
-  et_keys =
-    SELECT
-      numbered.ponumber,
-      numbered.itemno,
-      numbered.pstype,
-      numbered.poowner_email
-    FROM :lt_numbered AS numbered
-    WHERE numbered.row_number_value > :i_skip
-      AND
-      (
-        :i_top_requested = :lc_empty_string
-        OR numbered.row_number_value <= :i_skip + :i_top
-      )
-    ORDER BY numbered.row_number_value;
-
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD get_management_units.
 

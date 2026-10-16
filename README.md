@@ -138,3 +138,24 @@ or XSA SQL parity is claimed.
 
 These are source-review candidates, not SAP-executed defects or proven XSA
 parity failures; neither behavior was changed to make the new tests pass.
+
+### SAP feedback: utility whitespace and format Y
+
+The user reported four failing utility methods (`append_flags`, `alpha_values`,
+`amount_grouping`, `amount_rounding`) and that the remaining tests passed.
+The test expectations now distinguish ordinary flag/zero-stripping cases from
+explicit characterization tests for the existing whitespace behavior:
+
+- `SHIFT ... RIGHT DELETING TRAILING space` on a string replaces trailing
+  spaces with leading spaces. `append_delimited` can therefore retain a leading
+  space when skipping initial values; `alpha_output` can retain leading zeros
+  after padded input. The tests preserve exact spaces using string literals.
+- Format `Y` currently emits `1234567,89`, not `1 234 567,89`: the `char1` space
+  separator is omitted by the string template in `group_integer`. Rounding
+  `999.999` therefore emits `1000,00`.
+
+These characterization tests record current behavior, not approval of trimming
+or grouping semantics. Any production fix should be reviewed separately for
+its impact on existing output/parity contracts. Production remains unchanged.
+The revised assertions still require a SAP rerun; the reported execution does
+not verify this revision or establish XSA SQL parity.

@@ -816,8 +816,10 @@ CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
     METHODS split_custom FOR TESTING.
     METHODS append_default FOR TESTING.
     METHODS append_flags FOR TESTING.
+    METHODS append_spaces FOR TESTING.
     METHODS trim_edges FOR TESTING.
     METHODS alpha_values FOR TESTING.
+    METHODS alpha_spaces FOR TESTING.
     METHODS boolean_values FOR TESTING.
     METHODS truncate_values FOR TESTING RAISING cx_static_check.
     METHODS truncate_bounds FOR TESTING RAISING cx_static_check.
@@ -892,13 +894,26 @@ CLASS ltc_utility_unit IMPLEMENTATION.
       exp = 'old' ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>append_delimited(
-        i_current = '' i_value = ` new ` i_skip_initial = abap_true )
+        i_current = '' i_value = 'new' i_skip_initial = abap_true )
       exp = 'new' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = 'a' i_value = 'b' i_delimiter = ','
+        i_skip_initial = abap_true )
+      exp = 'a,b' ).
+  ENDMETHOD.
+
+  METHOD append_spaces.
+    " Characterize current RIGHT SHIFT behavior, not whitespace trimming.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>append_delimited(
+        i_current = '' i_value = ` new ` i_skip_initial = abap_true )
+      exp = ` new` ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>append_delimited(
         i_current = 'a' i_value = ` b ` i_delimiter = ','
         i_skip_initial = abap_true )
-      exp = 'a,b' ).
+      exp = `a, b` ).
   ENDMETHOD.
 
   METHOD trim_edges.
@@ -920,13 +935,22 @@ CLASS ltc_utility_unit IMPLEMENTATION.
 
   METHOD alpha_values.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>alpha_output( `  000123  ` ) exp = '123' ).
+      act = zcl_fi_das_utility=>alpha_output( '000123' ) exp = '123' ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>alpha_output( '000' ) exp = '0' ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>alpha_output( '00AB01' ) exp = 'AB01' ).
     cl_abap_unit_assert=>assert_initial(
       zcl_fi_das_utility=>alpha_output( '   ' ) ).
+  ENDMETHOD.
+
+  METHOD alpha_spaces.
+    " RIGHT SHIFT preserves length and blocks the subsequent zero stripping.
+    DATA(l_value) = zcl_fi_das_utility=>alpha_output( `  000123  ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = l_value exp = `  000123` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = strlen( l_value ) exp = 8 ).
   ENDMETHOD.
 
   METHOD boolean_values.
@@ -1077,7 +1101,8 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( format = 'X' expected = '1,234,567.89' )
-      ( format = 'Y' expected = '1 234 567,89' )
+      " Characterize current Y output: the char1 space separator is omitted.
+      ( format = 'Y' expected = '1234567,89' )
       ( format = space expected = '1.234.567,89' ) ).
     LOOP AT lt_cases INTO DATA(ls_case).
       cl_abap_unit_assert=>assert_equals(
@@ -1130,7 +1155,7 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>format_odata_amount(
         i_amount = CONV #( '999.999' ) i_decimal_format = 'Y' )
-      exp = '1 000,00' ).
+      exp = '1000,00' ).
   ENDMETHOD.
 
   METHOD amount_bounds.

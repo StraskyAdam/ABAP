@@ -31,7 +31,7 @@ SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-t03.
 SELECT-OPTIONS:
   s_po   FOR g_filter_po,
   s_item FOR g_filter_item,
-  s_supp FOR g_filter_supplier NO INTERVALS LOWER CASE.
+  s_supp FOR g_filter_supplier LOWER CASE.
 SELECTION-SCREEN END OF BLOCK b03.
 
 SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-t04.
@@ -54,12 +54,11 @@ SELECTION-SCREEN END OF BLOCK b04.
 * P_SKIP = Rows to skip; P_TOP = Page size (0 = no rows)
 * P_COUNT = Include total filtered count
 * S_PO = PO number; S_ITEM = Item
-* S_SUPP = Supplier name (contains, OR)
+* S_SUPP = Supplier name
 * P_XNONE = No export; P_XJSON = Export native JSON page
-* PO and item support full select-options (inclusions, exclusions and ranges).
+* All filters support full select-options (inclusions, exclusions and ranges).
 * Different filter fields are ANDed; standard range semantics apply within each.
-* Supplier accepts only included EQ entries.
-* Supplier entries are literal, case-sensitive substrings, not CP patterns.
+* Supplier EQ matches the name exactly; use CP with *text* for contains.
 
 TYPES:
   BEGIN OF ts_alv_result.
@@ -193,16 +192,6 @@ CLASS lcl_application IMPLEMENTATION.
     ELSEIF p_xjson = abap_true AND p_xfile IS INITIAL.
       r_error = 'Export file must be entered for a JSON export'.
     ENDIF.
-    IF r_error IS NOT INITIAL.
-      RETURN.
-    ENDIF.
-
-    LOOP AT s_supp ASSIGNING FIELD-SYMBOL(<ls_supplier>).
-      IF <ls_supplier>-sign <> 'I' OR <ls_supplier>-option <> 'EQ'.
-        r_error = 'Supplier contains supports only included single values'.
-        RETURN.
-      ENDIF.
-    ENDLOOP.
   ENDMETHOD.
 
   METHOD build_request.
@@ -225,14 +214,7 @@ CLASS lcl_application IMPLEMENTATION.
 
     lr_po = CORRESPONDING #( s_po[] ).
     lr_item = CORRESPONDING #( s_item[] ).
-    LOOP AT s_supp ASSIGNING FIELD-SYMBOL(<ls_supplier>) WHERE low IS NOT INITIAL.
-*     Escape CP metacharacters so selection entries remain literal substrings.
-      DATA(l_pattern) = CONV string( <ls_supplier>-low ).
-      REPLACE ALL OCCURRENCES OF '#' IN l_pattern WITH '##'.
-      REPLACE ALL OCCURRENCES OF '*' IN l_pattern WITH '#*'.
-      REPLACE ALL OCCURRENCES OF '+' IN l_pattern WITH '#+'.
-      APPEND VALUE #( sign = 'I' option = 'CP' low = |*{ l_pattern }*| ) TO lr_supplier.
-    ENDLOOP.
+    lr_supplier = CORRESPONDING #( s_supp[] ).
 
     rs_request-filter-filter_select_options = VALUE #(
       FOR ls_po IN lr_po
@@ -243,7 +225,8 @@ CLASS lcl_application IMPLEMENTATION.
       TO rs_request-filter-filter_select_options.
     APPEND LINES OF VALUE zif_fi_das_dashboard=>tt_filter_select_options(
       FOR ls_supplier IN lr_supplier
-      ( property = 'SUPPLIERNAME' sign = ls_supplier-sign option = ls_supplier-option low = ls_supplier-low ) )
+      ( property = 'SUPPLIERNAME' sign = ls_supplier-sign option = ls_supplier-option
+        low = ls_supplier-low high = ls_supplier-high ) )
       TO rs_request-filter-filter_select_options.
 
 *   Supply the real SQL fallback required by VALIDATE_REQUEST, using the same

@@ -87,4 +87,30 @@ foreach ($kind in @("DEFINITION", "IMPLEMENTATION")) {
     Assert-True ($gateway -notmatch '\b(test_scope_\d{2}|run_scope_case)\b') "Scope cases remain in Gateway parity $kind"
 }
 
+$dashboardPath = Join-Path $PSScriptRoot "../ABAP code/zcl_fi_das_dashboard.txt"
+$dashboard = Get-Content -LiteralPath $dashboardPath -Raw
+$costType = [regex]::Match($dashboard, '(?s)BEGIN OF ts_cost_center_scope,.*?END OF ts_cost_center_scope,').Value
+Assert-True ($costType -match '\bvalue\s+TYPE kostl') "Cost-center scope must retain text values"
+Assert-True ($costType -notmatch '\bis_null\b') "Cost-center scope must not model SQL NULL"
+Assert-True ($dashboard -match 'tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard,') "Incorrect cost-center scope key"
+$costParser = [regex]::Match($dashboard, '(?s)METHOD get_cost_centers\..*?ENDMETHOD\.').Value
+Assert-True ($costParser -match 'ELSEIF <f_value> = mc_null\.\s+INSERT VALUE #\( value = space \) INTO TABLE rt_scope\.') "NULL role text must become the space sentinel"
+
+$keyMethod = [regex]::Match($dashboard, '(?s)METHOD get_keys\b.*?ENDMETHOD\.').Value
+$costFilter = [regex]::Match($keyMethod, '(?s)AND\s+\(\s+\(\s+EXISTS\s+\(\s+SELECT 1\s+FROM :it_cost_centers.*?(?=\s+AND\s+\(\s+cost_center\.zzrptun)').Value
+Assert-True ($costFilter.Length -gt 0) "Missing cost-center scope filter"
+Assert-True ($costFilter -notmatch '\bis_null\b|account\.kostl IS NULL') "Cost-center scope must not grant access to SQL NULL"
+Assert-True ($costFilter.Contains('scope_cost.wildcard = :lc_true')) "Missing singleton wildcard branch"
+Assert-True ($costFilter -match 'account\.kostl IS NOT NULL') "Wildcard must still exclude missing EKKN accounts"
+Assert-True ($costFilter -match '(?s)scope_cost\.wildcard = :lc_false\s+AND LTRIM\( account\.kostl, :lc_zero \)\s+= LTRIM\( scope_cost\.value, :lc_zero \)') "Blank sentinel and concrete scopes must use normalized text equality"
+
+$accounts = [regex]::Match($dashboard, '(?s)METHOD get_accounts\..*?ENDMETHOD\.').Value
+$aggregate = [regex]::Match($dashboard, '(?s)BEGIN OF ts_account_aggregate,.*?END OF ts_account_aggregate,').Value
+Assert-True ($accounts -notmatch '\bcostcenterdesc\b') "Account loader must not compute cost-center descriptions"
+Assert-True ($aggregate -notmatch '\bcostcenterdesc\b') "Account aggregate must not carry descriptions"
+Assert-True ($accounts -match 'LEFT OUTER JOIN cskt' -and $accounts -match 'cskt~datbi\s+AS valid_to') "Retain CSKT join and validity date"
+Assert-True ($accounts -match 'LEFT OUTER JOIN csks' -and $accounts -match 'csks~zzrptun AS manageunit') "Retain CSKS join and management unit"
+Assert-True ($dashboard.Contains('CLEAR cs_result-costcenterdesc.')) "Exclusion must still clear the description"
+Write-Host "Cost-center space sentinel, normalized scope filter, and description-free account joins verified"
+
 Write-Host "PASS: 310 unique scope requests, five classes x 62 tests, no Gateway scope tests"

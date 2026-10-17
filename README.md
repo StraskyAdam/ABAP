@@ -115,6 +115,20 @@ Remaining SAP/XSA runtime steps (not performed by the offline check):
    preserved non-scope cases. Missing MIME fixtures must fail, not skip or
    become empty results. Gateway access and the SAP/HANA runtime are required.
 
+Cost-center role text `NULL` is a blank/space scope value, matching XSA;
+it does not grant access to SQL NULL cost centers (including a missing
+EKKN row). A singleton `*` retains wildcard behavior; in a list it is
+an ordinary value. Company-code and management-unit scoping are unchanged.
+The account loader retains its CSKT/CSKS joins and validity-date columns,
+but no longer selects or aggregates cost-center descriptions. The result
+field remains available and exclusion still clears it.
+
+Run `ltc_dash_pure_branches` for parser/mapping regressions and
+`ltc_account_aggregation` for the Open SQL test-double regression that
+checks join multiplicity, account values, quantity, and management units
+without a description aggregate. These ABAP Unit tests require SAP;
+the offline wiring check does not execute ABAP or HANA SQLScript.
+
 ## Objective
 
 The objective of this repository is to support:

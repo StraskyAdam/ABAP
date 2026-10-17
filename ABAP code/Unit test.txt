@@ -753,6 +753,7 @@ CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
     " Scope parsing: singleton wildcard, NULL and normalization
     METHODS company_wildcard FOR TESTING.
     METHODS company_mixed_values FOR TESTING.
+    METHODS cost_null_sentinel FOR TESTING.
     METHODS cost_null_and_alpha FOR TESTING.
     METHODS cost_mixed_wildcard FOR TESTING.
     METHODS management_scope FOR TESTING.
@@ -9117,7 +9118,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
       details = VALUE #( ( ms_detail ) )
       accounts = VALUE #(
         ( ponumber = ms_key-ponumber itemno = ms_key-itemno
-          glaccount = '4000' costcenter = '123' costcenterdesc = 'Operations'
+          glaccount = '4000' costcenter = '123'
           manageunit = 'MU1' internalorder = '42' assetid = '7'
           profitcenter = 'PC1' bbp_acc_no = '01' distpercentage = '100' ) )
       history = VALUE #(
@@ -9251,7 +9252,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
       CHANGING cs_result = ms_row ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-glaccount exp = '4000' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-costcenter exp = '123' ).
-    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenterdesc exp = 'Operations' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-costcenterdesc ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-manageunit exp = 'MU1' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-internalorder exp = '42' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-assetid exp = '7' ).
@@ -9434,11 +9435,20 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
         ( value = 'AB01' ) ( value = '*' ) ( value = '1000' ) ) ).
   ENDMETHOD.
 
+  METHOD cost_null_sentinel.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_cost_centers( ' NULL,NULL ' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( value = space ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->get_cost_centers( ', , ' ) ).
+  ENDMETHOD.
+
   METHOD cost_null_and_alpha.
     DATA(lt_scope) = mo_cut->get_cost_centers( 'NULL,123,0000000123,ab1' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( is_null = abap_true ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
+        ( value = space ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
   ENDMETHOD.
 
   METHOD cost_mixed_wildcard.
@@ -9449,7 +9459,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
     DATA(lt_scope) = mo_cut->get_cost_centers( '*,NULL' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( value = '*' ) ( is_null = abap_true ) ) ).
+        ( value = '*' ) ( value = space ) ) ).
   ENDMETHOD.
 
   METHOD management_scope.

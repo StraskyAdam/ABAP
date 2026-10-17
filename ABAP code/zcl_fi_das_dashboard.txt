@@ -157,10 +157,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       BEGIN OF ts_cost_center_scope,
         value    TYPE kostl,
         wildcard TYPE abap_bool,
-        is_null  TYPE abap_bool,
       END OF ts_cost_center_scope,
 
-      tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard is_null,
+      tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard,
 
       BEGIN OF ts_audit,
         ponumber TYPE ebeln,
@@ -214,7 +213,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         itemno                TYPE ebelp,
         glaccount             TYPE string,
         costcenter            TYPE string,
-        costcenterdesc        TYPE string,
         manageunit            TYPE string,
         management_unit_count TYPE i,
         internalorder         TYPE string,
@@ -976,7 +974,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     cs_result-glaccount      = is_account-glaccount.
     cs_result-costcenter     = is_account-costcenter.
-    cs_result-costcenterdesc = is_account-costcenterdesc.
     cs_result-manageunit     = is_account-manageunit.
     cs_result-internalorder  = is_account-internalorder.
     cs_result-assetid        = is_account-assetid.
@@ -1590,7 +1587,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ekkn~ebelp   AS itemno,
       ekkn~sakto   AS glaccount,
       ekkn~kostl   AS costcenter,
-      cskt~ltext   AS costcenterdesc,
       csks~zzrptun AS manageunit,
       csks~kostl   AS management_unit_found,
       cskt~datbi   AS valid_to,
@@ -1643,11 +1639,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                      i_current = <fs_aggregate>-costcenter
                                      i_value   = l_value
                                      i_first   = l_is_first_entry ).
-
-      <fs_aggregate>-costcenterdesc = zcl_fi_das_utility=>append_delimited(
-                                         i_current = <fs_aggregate>-costcenterdesc
-                                         i_value   = CONV string( <fs_account>-costcenterdesc )
-                                         i_first   = l_is_first_entry ).
 
 *     Management unit is aggregated only if the corresponding CSKS record exists.
       IF <fs_account>-management_unit_found IS NOT INITIAL.
@@ -1791,7 +1782,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       ELSEIF <f_value> = mc_null.
 
-        INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
+        INSERT VALUE #( value = space ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
 
@@ -2295,7 +2286,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                    SELECT 1
                      FROM :it_cost_centers AS scope_cost
                     WHERE scope_cost.wildcard = :lc_true
-                      AND scope_cost.is_null = :lc_false
                  )
                  AND account.kostl IS NOT NULL
                )
@@ -2305,19 +2295,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                  SELECT 1
                    FROM :it_cost_centers AS scope_cost
                   WHERE scope_cost.wildcard = :lc_false
-                    AND scope_cost.is_null = :lc_false
                     AND LTRIM( account.kostl, :lc_zero )
                         = LTRIM( scope_cost.value, :lc_zero )
-               )
-            OR
-               (
-                 account.kostl IS NULL
-                 AND EXISTS
-                 (
-                   SELECT 1
-                     FROM :it_cost_centers AS scope_cost
-                    WHERE scope_cost.is_null = :lc_true
-                 )
                )
           )
 

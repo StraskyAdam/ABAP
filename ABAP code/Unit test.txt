@@ -9,6 +9,7 @@
 " - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " - ltc_account_aggregation: account joins with Open SQL test doubles (SHORT)
+" - ltc_invoice_history: EKBE loading through row calculation (SHORT)
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
@@ -20,6 +21,7 @@ CLASS ltcl_review_grace_test DEFINITION DEFERRED.
 CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
 CLASS ltc_account_aggregation DEFINITION DEFERRED.
+CLASS ltc_invoice_history DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
@@ -27,7 +29,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltcl_review_grace_test
                 ltc_request_processing
                 ltc_amdp_filters
-                ltc_account_aggregation.
+                ltc_account_aggregation
+                ltc_invoice_history.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -770,6 +773,207 @@ CLASS ltc_account_aggregation IMPLEMENTATION.
     lo_cut->apply_account( EXPORTING is_account = ls_account CHANGING cs_result = ls_row ).
     cl_abap_unit_assert=>assert_equals( act = ls_row-costcenter exp = '123;123;456' ).
     cl_abap_unit_assert=>assert_initial( act = ls_row-costcenterdesc ).
+  ENDMETHOD.
+ENDCLASS.
+
+" Invoice history: real loader with Open SQL doubles, then production row flow.
+" XSA snapshots accrue the full base even when INVVALUE_CAL is null.
+CLASS ltc_invoice_history DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    TYPES tt_ekbe TYPE STANDARD TABLE OF ekbe WITH EMPTY KEY.
+    DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+    METHODS teardown.
+    METHODS no_ekbe FOR TESTING RAISING cx_static_check.
+    METHODS gr_only FOR TESTING RAISING cx_static_check.
+    METHODS invoice_after_cutoff FOR TESTING RAISING cx_static_check.
+    METHODS invoice_ineligible FOR TESTING RAISING cx_static_check.
+    METHODS invoice_zero FOR TESTING RAISING cx_static_check.
+    METHODS invoice_net_zero FOR TESTING RAISING cx_static_check.
+    METHODS invoice_positive FOR TESTING RAISING cx_static_check.
+    METHODS invoice_credit FOR TESTING RAISING cx_static_check.
+    METHODS invoice_exceeds_base FOR TESTING RAISING cx_static_check.
+    METHODS assert_rows
+      IMPORTING
+        it_history         TYPE tt_ekbe
+        i_with_gr          TYPE abap_bool DEFAULT abap_true
+        i_group_found      TYPE abap_bool DEFAULT abap_true
+        i_invoice          TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 0
+        i_invoice_cal      TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 0
+        i_invoice_usd      TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 0
+        i_service_accrued  TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 100
+        i_material_accrued TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 80
+        i_service_usd      TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 150
+        i_material_usd     TYPE zcl_fi_das_dashboard=>t_amount DEFAULT 120
+      RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_invoice_history IMPLEMENTATION.
+  METHOD setup.
+    mo_environment = cl_osql_test_environment=>create(
+      i_dependency_list = VALUE #( ( 'EKBE' ) ) ).
+    mo_cut = NEW #( ).
+    mo_cut->mt_exchrt = VALUE #(
+      ( source_curr = 'EUR' target_curr = 'USD' exchange_rate = '1.5' ) ).
+  ENDMETHOD.
+
+  METHOD teardown.
+    mo_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD no_ekbe.
+    assert_rows( it_history = VALUE #( ) i_with_gr = abap_false
+                 i_group_found = abap_false
+                 i_material_accrued = 0 i_material_usd = 0 ).
+  ENDMETHOD.
+
+  METHOD gr_only.
+    assert_rows( it_history = VALUE #( ) ).
+  ENDMETHOD.
+
+  METHOD invoice_after_cutoff.
+    DATA l_future TYPE d.
+    l_future = mo_cut->get_history_cutoff_date( ) + 1.
+    assert_rows(
+      it_history = VALUE #( ( belnr = '0000000002' bewtp = 'Q' vgabe = '2'
+                              shkzg = 'S' wrbtr = 40 budat = l_future ) )
+      i_with_gr = abap_false i_group_found = abap_false
+      i_material_accrued = 0 i_material_usd = 0 ).
+  ENDMETHOD.
+
+  METHOD invoice_ineligible.
+    assert_rows(
+      it_history = VALUE #(
+        ( belnr = '0000000002' bewtp = 'Q' vgabe = '1' shkzg = 'S' wrbtr = 40 )
+        ( belnr = '0000000003' bewtp = 'L' vgabe = '2' shkzg = 'S' wrbtr = 60 ) )
+      i_with_gr = abap_false i_group_found = abap_false
+      i_material_accrued = 0 i_material_usd = 0 ).
+  ENDMETHOD.
+
+  METHOD invoice_zero.
+    assert_rows(
+      it_history = VALUE #( ( belnr = '0000000002' bewtp = 'Q' vgabe = '2' shkzg = 'S' wrbtr = 0 ) )
+      i_with_gr = abap_false i_material_accrued = 0 i_material_usd = 0 ).
+    assert_rows( it_history = VALUE #(
+      ( belnr = '0000000002' bewtp = 'Q' vgabe = '2' shkzg = 'S' wrbtr = 0 ) ) ).
+  ENDMETHOD.
+
+  METHOD invoice_net_zero.
+    assert_rows( it_history = VALUE #(
+      ( belnr = '0000000002' bewtp = 'Q' vgabe = '2' shkzg = 'S' wrbtr = 40 dmbtr = 40 )
+      ( belnr = '0000000003' bewtp = 'N' vgabe = '3' shkzg = 'H' wrbtr = 40 dmbtr = 40 ) ) ).
+  ENDMETHOD.
+
+  METHOD invoice_positive.
+    assert_rows(
+      it_history = VALUE #( ( belnr = '0000000002' bewtp = 'Q' vgabe = '2'
+                              shkzg = 'S' wrbtr = '40.01' dmbtr = '40.01' ) )
+      i_invoice = '40.01' i_invoice_cal = '40.01' i_invoice_usd = '60.02'
+      i_service_accrued = '59.99' i_material_accrued = '39.99'
+      i_service_usd = '89.99' i_material_usd = '59.99' ).
+  ENDMETHOD.
+
+  METHOD invoice_credit.
+    assert_rows(
+      it_history = VALUE #( ( belnr = '0000000002' bewtp = 'N' vgabe = '3'
+                              shkzg = 'H' wrbtr = '40.01' dmbtr = '40.01' ) )
+      i_invoice = '-40.01' i_invoice_usd = '-60.02' ).
+  ENDMETHOD.
+
+  METHOD invoice_exceeds_base.
+    assert_rows(
+      it_history = VALUE #( ( belnr = '0000000002' bewtp = 'Q' vgabe = '2'
+                              shkzg = 'S' wrbtr = 120 dmbtr = 120 ) )
+      i_invoice = 120 i_invoice_cal = 120 i_invoice_usd = 180
+      i_service_accrued = 0 i_material_accrued = 0
+      i_service_usd = 0 i_material_usd = 0 ).
+  ENDMETHOD.
+
+  METHOD assert_rows.
+    mo_environment->clear_doubles( ).
+    DATA(lt_history) = it_history.
+    DATA(l_cutoff) = mo_cut->get_history_cutoff_date( ).
+    IF i_with_gr = abap_true.
+      APPEND VALUE #( belnr = '0000000001' bewtp = 'E' vgabe = '1'
+                      shkzg = 'S' menge = 8 ) TO lt_history.
+    ENDIF.
+    LOOP AT lt_history ASSIGNING FIELD-SYMBOL(<fs_history>).
+      <fs_history>-mandt = sy-mandt.
+      <fs_history>-ebeln = '8000000001'.
+      <fs_history>-ebelp = '00010'.
+      <fs_history>-gjahr = sy-datum(4).
+      <fs_history>-buzei = '0001'.
+      IF <fs_history>-budat IS INITIAL.
+        <fs_history>-budat = l_cutoff.
+      ENDIF.
+    ENDLOOP.
+    IF lt_history IS NOT INITIAL.
+      mo_environment->insert_test_data( i_data = lt_history ).
+    ENDIF.
+
+    DATA lt_pstypes TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_pstype WITH EMPTY KEY.
+    DATA lt_modes TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_mode WITH EMPTY KEY.
+    DATA lt_closed TYPE STANDARD TABLE OF abap_bool WITH EMPTY KEY.
+    lt_pstypes = VALUE #( ( '0' ) ( '9' ) ).
+    lt_modes = VALUE #( ( zif_fi_das_dashboard=>mc_over ) ( zif_fi_das_dashboard=>mc_under ) ).
+    lt_closed = VALUE #( ( abap_false ) ( abap_true ) ).
+
+    LOOP AT lt_pstypes INTO DATA(l_pstype).
+      DATA(ls_key) = VALUE zcl_fi_das_dashboard=>ts_key(
+        ponumber = '8000000001' itemno = '00010' pstype = l_pstype ).
+      DATA(ls_detail) = VALUE zcl_fi_das_dashboard=>ts_detail(
+        ponumber = ls_key-ponumber itemno = ls_key-itemno
+        effective_pstype = l_pstype pocurrency = 'EUR' grossvalue = 100
+        netprice = 10 priceunit = 1 serviceamount = '100' servicepercentage = '100' ).
+      DATA(ls_context) = VALUE zcl_fi_das_dashboard=>ts_context(
+        details = VALUE #( ( ls_detail ) ) review_day = 7 ).
+      ls_context-history = mo_cut->get_history(
+        it_keys = VALUE #( ( ponumber = ls_key-ponumber itemno = ls_key-itemno ) )
+        it_details = ls_context-details ).
+      cl_abap_unit_assert=>assert_equals(
+        act = lines( ls_context-history ) exp = COND i( WHEN i_group_found = abap_true THEN 1 ELSE 0 )
+        msg = 'Only eligible EKBE rows may create a history aggregate' ).
+      DATA(l_expected_amount) = COND zcl_fi_das_dashboard=>t_amount(
+        WHEN l_pstype = '9' THEN i_service_accrued ELSE i_material_accrued ).
+      DATA(l_expected_usd) = COND zcl_fi_das_dashboard=>t_amount(
+        WHEN l_pstype = '9' THEN i_service_usd ELSE i_material_usd ).
+
+      LOOP AT lt_modes INTO DATA(l_mode).
+        LOOP AT lt_closed INTO DATA(l_closed).
+          ls_context-statuses = VALUE #(
+            ( ponumber = ls_key-ponumber itemno = ls_key-itemno
+              po_closure = COND #( WHEN l_closed = abap_true THEN 'true' ELSE 'false' ) ) ).
+          DATA(ls_row) = mo_cut->get_row(
+            is_key = ls_key is_context = ls_context
+            is_request = VALUE #( mode = l_mode ) i_decimal_format = 'X' ).
+          DATA(l_case) = |PSTYPE={ l_pstype } mode={ l_mode } closed={ l_closed }|.
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-invvalue exp = i_invoice msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-invvalue_cocdecurr exp = i_invoice msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-invvalue_usd exp = i_invoice_usd msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-invvalue_cal exp = i_invoice_cal msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-amountaccrued exp = l_expected_amount msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-amountaccrued_usd exp = l_expected_usd msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-amountaccrued_char exp = |{ l_expected_amount NUMBER = RAW }| msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-amountaccrued_usd_char exp = |{ l_expected_usd NUMBER = RAW }| msg = l_case ).
+          cl_abap_unit_assert=>assert_equals(
+            act = ls_row-poclosure_flag exp = COND i( WHEN l_closed = abap_true THEN 1 ELSE 0 )
+            msg = l_case ).
+        ENDLOOP.
+      ENDLOOP.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 

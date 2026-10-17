@@ -129,6 +129,59 @@ checks join multiplicity, account values, quantity, and management units
 without a description aggregate. These ABAP Unit tests require SAP;
 the offline wiring check does not execute ABAP or HANA SQLScript.
 
+## Invoice history: calculation versus nullable output
+
+Reference checked: XSA `main` at
+`e5fd6d0a36957baa795608f85abdc9d4e810e834`.
+The active `TF_getPOInvValue` inner join groups only eligible EKBE invoices
+(`BEWTP Q/N`, `VGABE 2/3`, posting date through the cutoff).
+An absent invoice group is not an existing zero-sum group.
+`CV_getPO_INVvalue` cannot create missing groups with its projection `IFNULL`.
+After the left join, both
+[`CV_getOpenPO`](https://github.com/StraskyAdam/XSA/blob/e5fd6d0a36957baa795608f85abdc9d4e810e834/ARIBA_ACCRUALS_DB/src/Models/CV_getOpenPO.hdbcalculationview#L529-L543)
+and `CV_getThresholdPO` display `INVVALUE = IFNULL(raw INVVALUE, 0)`,
+but calculate `INVVALUE_CAL = IF(raw INVVALUE <= 0, 0, raw INVVALUE)`.
+Their COLUMN_ENGINE accrued formula is `IF(base - INVVALUE_CAL < 0, 0,
+base - INVVALUE_CAL)`, with service completed work or material GR as the
+base; USD is `ROUND(rate * AMOUNTACCRUED, 2)`.
+The final table functions/views pass these numeric results through.
+Closure is independent; company-currency accrued uses its separate formula.
+
+**A nullable helper does not establish a nullable accrued result.**
+Existing checked-in XSA responses contradict that proposed inference:
+
+| Fixture, PO/item | `INVVALUE_CAL` | Base | `AMOUNTACCRUED` | Accrued USD |
+|---|---|---:|---:|---:|
+| `Validation/xsa-under-service-owner.json`, 8002048875/00001 | null | 280.00 | 280.00 | 280.00 |
+| `Validation/xsa-under-material-owner.json`, 8002086613/00001 | null | 249.17 | 249.17 | 273.01 |
+| `Validation/xsa-over-material.json`, 8000964740/00001 | 0.00 | 60156.82 | 60156.82 | 60156.82 |
+
+Consequently, no production calculation or presence flag is changed.
+For a synthetic service base of 100, before and after these regressions:
+missing invoice → displayed invoice 0, accrued 100; existing zero invoice
+(including debit 40 / credit 40) → displayed invoice 0, accrued 100.
+Zeroing accrued solely because the invoice group is absent would break the
+observed XSA behavior.
+
+`ltc_invoice_history` exercises production `get_history` with EKBE Open SQL
+doubles, then `get_row`: no history, GR only, cutoff/excluded rows, eligible
+zero, net-zero debit/credit, positive/negative invoices and negative-difference
+clamping. It checks service/material, Over/Under, open/closed status, USD
+rounding and formatted accrued fields. Run it in SAP alongside
+`ltcl_invoice_null_propagation`, `ltc_dash_pure_branches` and
+`ltc_account_aggregation`; these tests have not been executed in the offline
+environment. Existing snapshots are evidence, not a new SAP/HANA execution
+or proof for every deployed engine revision.
+
+Output policy is unchanged: ABAP numeric INITIAL is zero, **not SQL/OData
+NULL**. The existing field-specific comparator accepts XSA `INVVALUE_CAL=null`
+versus ABAP `0.00`; it still rejects that substitution for `AMOUNTACCRUED`.
+No Gateway null indicators, schema changes or comparator exceptions are added.
+Before any nullable-output change, verify both deployed XSA endpoints and
+Gateway using matching snapshots, including raw invoice group presence,
+helper, accrued, USD and character fields. Do not use a SQLScript IF test as
+proof of COLUMN_ENGINE behavior.
+
 ## Objective
 
 The objective of this repository is to support:

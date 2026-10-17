@@ -1,3 +1,5 @@
+param([switch]$ListRequests)
+
 $ErrorActionPreference = "Stop"
 
 $root = "https://edge-accruals-non-prod-dev-accrual-approuter.cfapps.eu10.hana.ondemand.com/comtakedaAccrual_UI5/XSA_HTTP_ACCRUAL/xsodata"
@@ -96,19 +98,37 @@ $requests = @(
     }
 )
 
-# Scope NULL / wildcard matrix
-# Users xsa-null-01..30@takeda.com must exist in XSA and ABAP
+# Scope NULL / wildcard matrix: 5 scenarios x 62 scopes = 310 fixtures.
+# Users xsa-null-01..62@takeda.com must exist in XSA and ABAP
 # with identical COMPANY_CODE / MANAGEMENT_UNIT / COST_CENTER.
-# Flow: Over (openOwnerPO), Service, no owner - same as test_filter.
+# All scenarios use no owner; exclusion has no IP_PSTYPE parameter.
+$scopeScenarios = @(
+    @{ Name = "over-service"; Endpoint = "openOwnerPO.xsodata/openPOParameters"; Pstype = "9" },
+    @{ Name = "over-material"; Endpoint = "openOwnerPO.xsodata/openPOParameters"; Pstype = "0" },
+    @{ Name = "under-service"; Endpoint = "thresholdPO.xsodata/thresholdParameters"; Pstype = "9" },
+    @{ Name = "under-material"; Endpoint = "thresholdPO.xsodata/thresholdParameters"; Pstype = "0" },
+    @{ Name = "exclude"; Endpoint = "exclusionPO.xsodata/exclusionPOParameters" }
+)
 
-1..62| ForEach-Object {
-    $number = "{0:D2}" -f $_
+foreach ($scenario in $scopeScenarios) {
+    1..62 | ForEach-Object {
+        $number = "{0:D2}" -f $_
+        $parameters = "IP_EMAIL='xsa-null-$number@takeda.com',IP_POOWNER=''"
+        if ($scenario.ContainsKey("Pstype")) {
+            $parameters = "IP_PSTYPE='$($scenario.Pstype)',$parameters"
+        }
 
-    $requests += @{
-        Name = "xsa-scope-$number.json"
-        Path = "/openOwnerPO.xsodata/openPOParameters(IP_PSTYPE='9',IP_EMAIL='xsa-null-$number@takeda.com',IP_POOWNER='')/Results"
-        PageSize = 1000
+        $requests += @{
+            Name = "xsa-scope-$($scenario.Name)-$number.json"
+            Path = "/$($scenario.Endpoint)($parameters)/Results"
+            PageSize = 1000
+        }
     }
+}
+
+if ($ListRequests) {
+    $requests
+    return
 }
 
 function Get-XsaAllPages {

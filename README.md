@@ -67,6 +67,54 @@ When analysing or comparing SAP DAS functionality:
 - Distinguish between implementation differences and data-scope differences caused by source-system filtering.
 - Document assumptions and unresolved findings.
 
+## Scope parity fixtures and ABAP Unit
+
+The scope matrix contains **5 scenarios × 62 scopes = 310 fixtures/tests**.
+All scenarios use `xsa-null-01@takeda.com` through
+`xsa-null-62@takeda.com`, without owner mode. Configure these users in XSA
+and the ABAP role table with identical company code, management unit and
+cost center scopes before downloading.
+
+| Scenario | Fixture pattern (`NN` = `01`…`62`) | ABAP Unit class |
+|---|---|---|
+| Over Service | `xsa-scope-over-service-NN.json` | `ltc_scope_over_service` |
+| Over Material | `xsa-scope-over-material-NN.json` | `ltc_scope_over_material` |
+| Under Service | `xsa-scope-under-service-NN.json` | `ltc_scope_under_service` |
+| Under Material | `xsa-scope-under-material-NN.json` | `ltc_scope_under_material` |
+| Exclusion | `xsa-scope-exclude-NN.json` | `ltc_scope_exclude` |
+
+Over uses `openOwnerPO/openPOParameters`; Under uses
+`thresholdPO/thresholdParameters`. Service sends `IP_PSTYPE='9'`, Material
+sends `IP_PSTYPE='0'`. Exclusion uses
+`exclusionPO/exclusionPOParameters` and omits `IP_PSTYPE`.
+
+From an absolute checkout path, run the offline wiring regression check:
+
+```powershell
+$repo = '<absolute-checkout-path>'
+& "$repo/Validation/test-scope-matrix.ps1"
+# Optional: inspect all 325 requests without downloading or writing files.
+& "$repo/Validation/download-xsa-json.ps1" -ListRequests
+```
+
+Remaining SAP/XSA runtime steps (not performed by the offline check):
+
+1. In an authenticated XSA environment, change directory to
+   `"$repo/Validation"` and run `& "$repo/Validation/download-xsa-json.ps1"`.
+   This downloads all 310 scope fixtures plus the existing 15 non-scope
+   fixtures, retaining pagination. Use matching XSA/ABAP data snapshots.
+2. Import the JSON files as UTF-8 into the SAP MIME repository under
+   `/SAP/PUBLIC/DAS/`, preserving each filename exactly. The checked-in
+   legacy `xsa-scope-NN.json` samples cover only Over Service scopes 01–30;
+   they are not consumed by the new tests and are not substitutes for the
+   new downloads. Do not fabricate missing fixtures.
+3. Load the complete `"$repo/ABAP code/Unit test.txt"` into the existing
+   dashboard ABAP Unit test include, then syntax-check and activate it.
+4. Run the five `ltc_scope_*` classes with LONG/HARMLESS tests enabled
+   (62 methods each), then run `ltc_fi_das_gateway_parity` to check the
+   preserved non-scope cases. Missing MIME fixtures must fail, not skip or
+   become empty results. Gateway access and the SAP/HANA runtime are required.
+
 ## Objective
 
 The objective of this repository is to support:

@@ -826,6 +826,7 @@ CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
     METHODS cost_null_and_alpha FOR TESTING.
     METHODS cost_mixed_wildcard FOR TESTING.
     METHODS management_scope FOR TESTING.
+    METHODS amount_y_character_path FOR TESTING RAISING zcx_fi_das_error.
 
     " Validation and request adjustment without filter SQL generation
     METHODS valid_request_modes FOR TESTING RAISING zcx_fi_das_error.
@@ -1109,8 +1110,7 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( format = 'X' expected = '1,234,567.89' )
-      " Characterize current Y output: the char1 space separator is omitted.
-      ( format = 'Y' expected = '1234567,89' )
+      ( format = 'Y' expected = '1 234 567,89' )
       ( format = space expected = '1.234.567,89' ) ).
     LOOP AT lt_cases INTO DATA(ls_case).
       cl_abap_unit_assert=>assert_equals(
@@ -1118,6 +1118,14 @@ CLASS ltc_utility_unit IMPLEMENTATION.
           i_amount = CONV #( '1234567.89' ) i_decimal_format = ls_case-format )
         exp = ls_case-expected msg = CONV string( ls_case-format ) ).
     ENDLOOP.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '1491846.48' ) i_decimal_format = 'Y' )
+      exp = '1 491 846,48' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '901339.30' ) i_decimal_format = 'Y' )
+      exp = '901 339,30' ).
   ENDMETHOD.
 
   METHOD amount_no_grouping.
@@ -8095,7 +8103,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
     DATA(lt_scope) = mo_cut->get_cost_centers( 'NULL,123,0000000123,ab1' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( is_null = abap_true ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
+        ( value = space ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
   ENDMETHOD.
 
   METHOD cost_mixed_wildcard.
@@ -8106,7 +8114,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
     DATA(lt_scope) = mo_cut->get_cost_centers( '*,NULL' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( value = '*' ) ( is_null = abap_true ) ) ).
+        ( value = space ) ( value = '*' ) ) ).
   ENDMETHOD.
 
   METHOD management_scope.
@@ -8120,6 +8128,32 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
         ( is_null = abap_true ) ( value = '0012' ) ( value = '*' ) ) ).
     cl_abap_unit_assert=>assert_initial(
       act = mo_cut->get_management_units( '' ) ).
+  ENDMETHOD.
+
+  METHOD amount_y_character_path.
+    ms_row-totwrkcompamt = CONV #( '1234567.89' ).
+    ms_row-amountaccrued = CONV #( '1491846.48' ).
+    ms_row-amountaccrued_usd = CONV #( '901339.30' ).
+
+    mo_cut->apply_odata_format(
+      EXPORTING
+        i_mode           = zif_fi_das_dashboard=>mc_over
+        i_decimal_format = 'Y'
+      CHANGING
+        cs_result        = ms_row ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt_char exp = '1 234 567,89' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_char exp = '1 491 846,48' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_usd_char exp = '901 339,30' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt exp = CONV #( '1234567.89' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued exp = CONV #( '1491846.48' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_usd exp = CONV #( '901339.30' ) ).
   ENDMETHOD.
 
   " Validation and request adjustment

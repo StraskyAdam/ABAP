@@ -397,7 +397,8 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
                                  off = l_position
                                  len = mc_group_size ).
 
-      r_integer = |{ r_integer }{ i_grouping_separator }{ l_group }|.
+      CONCATENATE r_integer i_grouping_separator l_group
+        INTO r_integer RESPECTING BLANKS.
 
       l_position = l_position + mc_group_size.
 

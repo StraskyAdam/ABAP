@@ -8092,10 +8092,16 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD cost_null_and_alpha.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_cost_centers( ' NULL,NULL ' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( value = space ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->get_cost_centers( ', , ' ) ).
     DATA(lt_scope) = mo_cut->get_cost_centers( 'NULL,123,0000000123,ab1' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( is_null = abap_true ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
+        ( value = space ) ( value = '0000000123' ) ( value = 'AB1' ) ) ).
   ENDMETHOD.
 
   METHOD cost_mixed_wildcard.
@@ -8106,7 +8112,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
     DATA(lt_scope) = mo_cut->get_cost_centers( '*,NULL' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_scope exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
-        ( value = '*' ) ( is_null = abap_true ) ) ).
+        ( value = '*' ) ( value = space ) ) ).
   ENDMETHOD.
 
   METHOD management_scope.

@@ -3001,7 +3001,9 @@ ENDCLASS.
 * COST_CENTER. Fixtures: xsa-scope-<scenario>-NN.json, no owner.
 *----------------------------------------------------------------------
 
-CLASS lcl_scope_parity DEFINITION FINAL.
+CLASS lcl_scope_parity DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
   PUBLIC SECTION.
     CLASS-METHODS run_case
       IMPORTING

@@ -34,6 +34,8 @@ function Get-ClassBlock {
 
 $scopeClasses = [regex]::Matches($source, '(?m)^CLASS ltc_scope_\w+ DEFINITION FINAL FOR TESTING')
 Assert-True ($scopeClasses.Count -eq 5) "Expected exactly five scope test classes"
+$helperDefinition = Get-ClassBlock "lcl_scope_parity" "DEFINITION"
+Assert-True ($helperDefinition -match '^CLASS lcl_scope_parity DEFINITION FINAL FOR TESTING\b') "Scope helper must be a test class to reference the Gateway parity test class"
 $helper = Get-ClassBlock "lcl_scope_parity" "IMPLEMENTATION"
 Assert-True ($helper.Contains('|xsa-scope-{ i_scenario }-{ i_number }.json|')) "Incorrect shared fixture naming"
 Assert-True ($helper.Contains('|xsa-null-{ i_number }@takeda.com|')) "Incorrect shared scope user"

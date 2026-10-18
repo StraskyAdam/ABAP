@@ -24,6 +24,7 @@ $scenarios = @(
 )
 $unitPath = Join-Path $PSScriptRoot "../ABAP code/Unit test.txt"
 $source = Get-Content -LiteralPath $unitPath -Raw
+Assert-True ($source -notmatch '(?i)(?:->|=>)\s*(?:setup|teardown|class_setup|class_teardown)\s*\(') "ABAP Unit lifecycle methods must not be called directly"
 
 function Get-ClassBlock {
     param([string]$Name, [string]$Kind)

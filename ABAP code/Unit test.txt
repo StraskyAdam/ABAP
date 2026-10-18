@@ -3041,7 +3041,6 @@ CLASS lcl_scope_parity IMPLEMENTATION.
     ENDCASE.
 
     CREATE OBJECT lo_parity.
-    lo_parity->setup( ).
     lo_parity->run_paged_case( is_case = ls_case ).
     lo_parity->assert_no_differences( ).
   ENDMETHOD.

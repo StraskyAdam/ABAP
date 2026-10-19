@@ -6,10 +6,12 @@
 " - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
 " - ltc_request_processing: filters, sorting/paging, request/package flow
 " - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
+" - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
+CLASS lcl_scope_parity DEFINITION DEFERRED.
 CLASS ltc_parity_helpers DEFINITION DEFERRED.
 CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
 CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
@@ -267,7 +269,7 @@ ENDCLASS.
 CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
   RISK LEVEL HARMLESS
-  FRIENDS ltc_parity_helpers.
+  FRIENDS ltc_parity_helpers lcl_scope_parity.
 
   PRIVATE SECTION.
     TYPES:
@@ -322,78 +324,6 @@ CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
       mv_difference_count TYPE i.
 
     METHODS setup.
-
-    " Scope NULL / wildcard matrix
-    METHODS run_scope_case
-      IMPORTING
-        i_number TYPE numc2
-      RAISING
-        zcx_fi_das_error
-        cx_sy_conversion_error
-        cx_sy_open_sql_db.
-
-    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
-    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
 
     " Integration: primary flows
     METHODS test_over_material FOR TESTING RAISING cx_static_check.
@@ -823,9 +753,11 @@ CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
     " Scope parsing: singleton wildcard, NULL and normalization
     METHODS company_wildcard FOR TESTING.
     METHODS company_mixed_values FOR TESTING.
+    METHODS cost_null_sentinel FOR TESTING.
     METHODS cost_null_and_alpha FOR TESTING.
     METHODS cost_mixed_wildcard FOR TESTING.
     METHODS management_scope FOR TESTING.
+    METHODS amount_y_character_path FOR TESTING RAISING zcx_fi_das_error.
 
     " Validation and request adjustment without filter SQL generation
     METHODS valid_request_modes FOR TESTING RAISING zcx_fi_das_error.
@@ -1109,8 +1041,7 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     DATA lt_cases TYPE STANDARD TABLE OF ts_case WITH EMPTY KEY.
     lt_cases = VALUE #(
       ( format = 'X' expected = '1,234,567.89' )
-      " Characterize current Y output: the char1 space separator is omitted.
-      ( format = 'Y' expected = '1234567,89' )
+      ( format = 'Y' expected = '1 234 567,89' )
       ( format = space expected = '1.234.567,89' ) ).
     LOOP AT lt_cases INTO DATA(ls_case).
       cl_abap_unit_assert=>assert_equals(
@@ -1118,6 +1049,14 @@ CLASS ltc_utility_unit IMPLEMENTATION.
           i_amount = CONV #( '1234567.89' ) i_decimal_format = ls_case-format )
         exp = ls_case-expected msg = CONV string( ls_case-format ) ).
     ENDLOOP.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '1491846.48' ) i_decimal_format = 'Y' )
+      exp = '1 491 846,48' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_odata_amount(
+        i_amount = CONV #( '901339.30' ) i_decimal_format = 'Y' )
+      exp = '901 339,30' ).
   ENDMETHOD.
 
   METHOD amount_no_grouping.
@@ -1164,7 +1103,7 @@ CLASS ltc_utility_unit IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>format_odata_amount(
         i_amount = CONV #( '999.999' ) i_decimal_format = 'Y' )
-      exp = '1000,00' ).
+      exp = '1 000,00' ).
   ENDMETHOD.
 
   METHOD amount_bounds.
@@ -3063,31 +3002,133 @@ CLASS ltc_request_processing IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
-  METHOD setup.
-    CLEAR:
-      mt_differences,
-      mv_difference_count.
-  ENDMETHOD.
-
 *----------------------------------------------------------------------
-* Scope NULL / wildcard matrix
-* Users xsa-null-NN@takeda.com must exist in ZFI_DAS role table
+* Scope NULL / wildcard matrix: 5 scenarios x 62 scopes.
+* Users xsa-null-01..62@takeda.com must exist in ZFI_DAS role table
 * (ABAP) and in XSA with identical COMPANY_CODE / MANAGEMENT_UNIT /
-* COST_CENTER. Fixture: xsa-scope-NN.json (Over, Service, no owner).
+* COST_CENTER. Fixtures: xsa-scope-<scenario>-NN.json, no owner.
 *----------------------------------------------------------------------
 
-  METHOD run_scope_case.
-    DATA ls_case TYPE ts_case.
+CLASS lcl_scope_parity DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PUBLIC SECTION.
+    CLASS-METHODS run_case
+      IMPORTING
+        i_scenario TYPE string
+        i_number   TYPE numc2
+      RAISING
+        cx_static_check.
+ENDCLASS.
 
-    ls_case-fixture = |xsa-scope-{ i_number }.json|.
+CLASS lcl_scope_parity IMPLEMENTATION.
+  METHOD run_case.
+    DATA lo_parity TYPE REF TO ltc_fi_das_gateway_parity.
+    DATA ls_case TYPE ltc_fi_das_gateway_parity=>ts_case.
+
+    ls_case-fixture = |xsa-scope-{ i_scenario }-{ i_number }.json|.
     ls_case-email   = |xsa-null-{ i_number }@takeda.com|.
-    ls_case-flow    = zif_fi_das_dashboard=>mc_over.
-    ls_case-pstype  = zif_fi_das_dashboard=>mc_pstype_service.
 
-    run_paged_case( is_case = ls_case ).
+    CASE i_scenario.
+      WHEN 'over-service' OR 'over-material'.
+        ls_case-flow = zif_fi_das_dashboard=>mc_over.
+      WHEN 'under-service' OR 'under-material'.
+        ls_case-flow = zif_fi_das_dashboard=>mc_under.
+      WHEN 'exclude'.
+        ls_case-flow = zif_fi_das_dashboard=>mc_exclude.
+      WHEN OTHERS.
+        cl_abap_unit_assert=>fail( msg = |Unknown scope scenario: { i_scenario }| ).
+        RETURN.
+    ENDCASE.
 
-    assert_no_differences( ).
+    CASE i_scenario.
+      WHEN 'over-service' OR 'under-service'.
+        ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+      WHEN 'over-material' OR 'under-material'.
+        ls_case-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    ENDCASE.
+
+    CREATE OBJECT lo_parity.
+    lo_parity->run_paged_case( is_case = ls_case ).
+    lo_parity->assert_no_differences( ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_scope_over_service DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS run_scope_case
+      IMPORTING i_number TYPE numc2
+      RAISING cx_static_check.
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_scope_over_service IMPLEMENTATION.
+  METHOD run_scope_case.
+    lcl_scope_parity=>run_case(
+      i_scenario = 'over-service' i_number = i_number ).
   ENDMETHOD.
 
   " CC=NULL, MU=*
@@ -3353,6 +3394,1318 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
 
   METHOD test_scope_62.
     run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_scope_over_material DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS run_scope_case
+      IMPORTING i_number TYPE numc2
+      RAISING cx_static_check.
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_scope_over_material IMPLEMENTATION.
+  METHOD run_scope_case.
+    lcl_scope_parity=>run_case(
+      i_scenario = 'over-material' i_number = i_number ).
+  ENDMETHOD.
+
+  METHOD test_scope_01.
+    run_scope_case( '01' ).
+  ENDMETHOD.
+
+  METHOD test_scope_02.
+    run_scope_case( '02' ).
+  ENDMETHOD.
+
+  METHOD test_scope_03.
+    run_scope_case( '03' ).
+  ENDMETHOD.
+
+  METHOD test_scope_04.
+    run_scope_case( '04' ).
+  ENDMETHOD.
+
+  METHOD test_scope_05.
+    run_scope_case( '05' ).
+  ENDMETHOD.
+
+  METHOD test_scope_06.
+    run_scope_case( '06' ).
+  ENDMETHOD.
+
+  METHOD test_scope_07.
+    run_scope_case( '07' ).
+  ENDMETHOD.
+
+  METHOD test_scope_08.
+    run_scope_case( '08' ).
+  ENDMETHOD.
+
+  METHOD test_scope_09.
+    run_scope_case( '09' ).
+  ENDMETHOD.
+
+  METHOD test_scope_10.
+    run_scope_case( '10' ).
+  ENDMETHOD.
+
+  METHOD test_scope_11.
+    run_scope_case( '11' ).
+  ENDMETHOD.
+
+  METHOD test_scope_12.
+    run_scope_case( '12' ).
+  ENDMETHOD.
+
+  METHOD test_scope_13.
+    run_scope_case( '13' ).
+  ENDMETHOD.
+
+  METHOD test_scope_14.
+    run_scope_case( '14' ).
+  ENDMETHOD.
+
+  METHOD test_scope_15.
+    run_scope_case( '15' ).
+  ENDMETHOD.
+
+  METHOD test_scope_16.
+    run_scope_case( '16' ).
+  ENDMETHOD.
+
+  METHOD test_scope_17.
+    run_scope_case( '17' ).
+  ENDMETHOD.
+
+  METHOD test_scope_18.
+    run_scope_case( '18' ).
+  ENDMETHOD.
+
+  METHOD test_scope_19.
+    run_scope_case( '19' ).
+  ENDMETHOD.
+
+  METHOD test_scope_20.
+    run_scope_case( '20' ).
+  ENDMETHOD.
+
+  METHOD test_scope_21.
+    run_scope_case( '21' ).
+  ENDMETHOD.
+
+  METHOD test_scope_22.
+    run_scope_case( '22' ).
+  ENDMETHOD.
+
+  METHOD test_scope_23.
+    run_scope_case( '23' ).
+  ENDMETHOD.
+
+  METHOD test_scope_24.
+    run_scope_case( '24' ).
+  ENDMETHOD.
+
+  METHOD test_scope_25.
+    run_scope_case( '25' ).
+  ENDMETHOD.
+
+  METHOD test_scope_26.
+    run_scope_case( '26' ).
+  ENDMETHOD.
+
+  METHOD test_scope_27.
+    run_scope_case( '27' ).
+  ENDMETHOD.
+
+  METHOD test_scope_28.
+    run_scope_case( '28' ).
+  ENDMETHOD.
+
+  METHOD test_scope_29.
+    run_scope_case( '29' ).
+  ENDMETHOD.
+
+  METHOD test_scope_30.
+    run_scope_case( '30' ).
+  ENDMETHOD.
+
+  METHOD test_scope_31.
+    run_scope_case( '31' ).
+  ENDMETHOD.
+
+  METHOD test_scope_32.
+    run_scope_case( '32' ).
+  ENDMETHOD.
+
+  METHOD test_scope_33.
+    run_scope_case( '33' ).
+  ENDMETHOD.
+
+  METHOD test_scope_34.
+    run_scope_case( '34' ).
+  ENDMETHOD.
+
+  METHOD test_scope_35.
+    run_scope_case( '35' ).
+  ENDMETHOD.
+
+  METHOD test_scope_36.
+    run_scope_case( '36' ).
+  ENDMETHOD.
+
+  METHOD test_scope_37.
+    run_scope_case( '37' ).
+  ENDMETHOD.
+
+  METHOD test_scope_38.
+    run_scope_case( '38' ).
+  ENDMETHOD.
+
+  METHOD test_scope_39.
+    run_scope_case( '39' ).
+  ENDMETHOD.
+
+  METHOD test_scope_40.
+    run_scope_case( '40' ).
+  ENDMETHOD.
+
+  METHOD test_scope_41.
+    run_scope_case( '41' ).
+  ENDMETHOD.
+
+  METHOD test_scope_42.
+    run_scope_case( '42' ).
+  ENDMETHOD.
+
+  METHOD test_scope_43.
+    run_scope_case( '43' ).
+  ENDMETHOD.
+
+  METHOD test_scope_44.
+    run_scope_case( '44' ).
+  ENDMETHOD.
+
+  METHOD test_scope_45.
+    run_scope_case( '45' ).
+  ENDMETHOD.
+
+  METHOD test_scope_46.
+    run_scope_case( '46' ).
+  ENDMETHOD.
+
+  METHOD test_scope_47.
+    run_scope_case( '47' ).
+  ENDMETHOD.
+
+  METHOD test_scope_48.
+    run_scope_case( '48' ).
+  ENDMETHOD.
+
+  METHOD test_scope_49.
+    run_scope_case( '49' ).
+  ENDMETHOD.
+
+  METHOD test_scope_50.
+    run_scope_case( '50' ).
+  ENDMETHOD.
+
+  METHOD test_scope_51.
+    run_scope_case( '51' ).
+  ENDMETHOD.
+
+  METHOD test_scope_52.
+    run_scope_case( '52' ).
+  ENDMETHOD.
+
+  METHOD test_scope_53.
+    run_scope_case( '53' ).
+  ENDMETHOD.
+
+  METHOD test_scope_54.
+    run_scope_case( '54' ).
+  ENDMETHOD.
+
+  METHOD test_scope_55.
+    run_scope_case( '55' ).
+  ENDMETHOD.
+
+  METHOD test_scope_56.
+    run_scope_case( '56' ).
+  ENDMETHOD.
+
+  METHOD test_scope_57.
+    run_scope_case( '57' ).
+  ENDMETHOD.
+
+  METHOD test_scope_58.
+    run_scope_case( '58' ).
+  ENDMETHOD.
+
+  METHOD test_scope_59.
+    run_scope_case( '59' ).
+  ENDMETHOD.
+
+  METHOD test_scope_60.
+    run_scope_case( '60' ).
+  ENDMETHOD.
+
+  METHOD test_scope_61.
+    run_scope_case( '61' ).
+  ENDMETHOD.
+
+  METHOD test_scope_62.
+    run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_scope_under_service DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS run_scope_case
+      IMPORTING i_number TYPE numc2
+      RAISING cx_static_check.
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_scope_under_service IMPLEMENTATION.
+  METHOD run_scope_case.
+    lcl_scope_parity=>run_case(
+      i_scenario = 'under-service' i_number = i_number ).
+  ENDMETHOD.
+
+  METHOD test_scope_01.
+    run_scope_case( '01' ).
+  ENDMETHOD.
+
+  METHOD test_scope_02.
+    run_scope_case( '02' ).
+  ENDMETHOD.
+
+  METHOD test_scope_03.
+    run_scope_case( '03' ).
+  ENDMETHOD.
+
+  METHOD test_scope_04.
+    run_scope_case( '04' ).
+  ENDMETHOD.
+
+  METHOD test_scope_05.
+    run_scope_case( '05' ).
+  ENDMETHOD.
+
+  METHOD test_scope_06.
+    run_scope_case( '06' ).
+  ENDMETHOD.
+
+  METHOD test_scope_07.
+    run_scope_case( '07' ).
+  ENDMETHOD.
+
+  METHOD test_scope_08.
+    run_scope_case( '08' ).
+  ENDMETHOD.
+
+  METHOD test_scope_09.
+    run_scope_case( '09' ).
+  ENDMETHOD.
+
+  METHOD test_scope_10.
+    run_scope_case( '10' ).
+  ENDMETHOD.
+
+  METHOD test_scope_11.
+    run_scope_case( '11' ).
+  ENDMETHOD.
+
+  METHOD test_scope_12.
+    run_scope_case( '12' ).
+  ENDMETHOD.
+
+  METHOD test_scope_13.
+    run_scope_case( '13' ).
+  ENDMETHOD.
+
+  METHOD test_scope_14.
+    run_scope_case( '14' ).
+  ENDMETHOD.
+
+  METHOD test_scope_15.
+    run_scope_case( '15' ).
+  ENDMETHOD.
+
+  METHOD test_scope_16.
+    run_scope_case( '16' ).
+  ENDMETHOD.
+
+  METHOD test_scope_17.
+    run_scope_case( '17' ).
+  ENDMETHOD.
+
+  METHOD test_scope_18.
+    run_scope_case( '18' ).
+  ENDMETHOD.
+
+  METHOD test_scope_19.
+    run_scope_case( '19' ).
+  ENDMETHOD.
+
+  METHOD test_scope_20.
+    run_scope_case( '20' ).
+  ENDMETHOD.
+
+  METHOD test_scope_21.
+    run_scope_case( '21' ).
+  ENDMETHOD.
+
+  METHOD test_scope_22.
+    run_scope_case( '22' ).
+  ENDMETHOD.
+
+  METHOD test_scope_23.
+    run_scope_case( '23' ).
+  ENDMETHOD.
+
+  METHOD test_scope_24.
+    run_scope_case( '24' ).
+  ENDMETHOD.
+
+  METHOD test_scope_25.
+    run_scope_case( '25' ).
+  ENDMETHOD.
+
+  METHOD test_scope_26.
+    run_scope_case( '26' ).
+  ENDMETHOD.
+
+  METHOD test_scope_27.
+    run_scope_case( '27' ).
+  ENDMETHOD.
+
+  METHOD test_scope_28.
+    run_scope_case( '28' ).
+  ENDMETHOD.
+
+  METHOD test_scope_29.
+    run_scope_case( '29' ).
+  ENDMETHOD.
+
+  METHOD test_scope_30.
+    run_scope_case( '30' ).
+  ENDMETHOD.
+
+  METHOD test_scope_31.
+    run_scope_case( '31' ).
+  ENDMETHOD.
+
+  METHOD test_scope_32.
+    run_scope_case( '32' ).
+  ENDMETHOD.
+
+  METHOD test_scope_33.
+    run_scope_case( '33' ).
+  ENDMETHOD.
+
+  METHOD test_scope_34.
+    run_scope_case( '34' ).
+  ENDMETHOD.
+
+  METHOD test_scope_35.
+    run_scope_case( '35' ).
+  ENDMETHOD.
+
+  METHOD test_scope_36.
+    run_scope_case( '36' ).
+  ENDMETHOD.
+
+  METHOD test_scope_37.
+    run_scope_case( '37' ).
+  ENDMETHOD.
+
+  METHOD test_scope_38.
+    run_scope_case( '38' ).
+  ENDMETHOD.
+
+  METHOD test_scope_39.
+    run_scope_case( '39' ).
+  ENDMETHOD.
+
+  METHOD test_scope_40.
+    run_scope_case( '40' ).
+  ENDMETHOD.
+
+  METHOD test_scope_41.
+    run_scope_case( '41' ).
+  ENDMETHOD.
+
+  METHOD test_scope_42.
+    run_scope_case( '42' ).
+  ENDMETHOD.
+
+  METHOD test_scope_43.
+    run_scope_case( '43' ).
+  ENDMETHOD.
+
+  METHOD test_scope_44.
+    run_scope_case( '44' ).
+  ENDMETHOD.
+
+  METHOD test_scope_45.
+    run_scope_case( '45' ).
+  ENDMETHOD.
+
+  METHOD test_scope_46.
+    run_scope_case( '46' ).
+  ENDMETHOD.
+
+  METHOD test_scope_47.
+    run_scope_case( '47' ).
+  ENDMETHOD.
+
+  METHOD test_scope_48.
+    run_scope_case( '48' ).
+  ENDMETHOD.
+
+  METHOD test_scope_49.
+    run_scope_case( '49' ).
+  ENDMETHOD.
+
+  METHOD test_scope_50.
+    run_scope_case( '50' ).
+  ENDMETHOD.
+
+  METHOD test_scope_51.
+    run_scope_case( '51' ).
+  ENDMETHOD.
+
+  METHOD test_scope_52.
+    run_scope_case( '52' ).
+  ENDMETHOD.
+
+  METHOD test_scope_53.
+    run_scope_case( '53' ).
+  ENDMETHOD.
+
+  METHOD test_scope_54.
+    run_scope_case( '54' ).
+  ENDMETHOD.
+
+  METHOD test_scope_55.
+    run_scope_case( '55' ).
+  ENDMETHOD.
+
+  METHOD test_scope_56.
+    run_scope_case( '56' ).
+  ENDMETHOD.
+
+  METHOD test_scope_57.
+    run_scope_case( '57' ).
+  ENDMETHOD.
+
+  METHOD test_scope_58.
+    run_scope_case( '58' ).
+  ENDMETHOD.
+
+  METHOD test_scope_59.
+    run_scope_case( '59' ).
+  ENDMETHOD.
+
+  METHOD test_scope_60.
+    run_scope_case( '60' ).
+  ENDMETHOD.
+
+  METHOD test_scope_61.
+    run_scope_case( '61' ).
+  ENDMETHOD.
+
+  METHOD test_scope_62.
+    run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_scope_under_material DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS run_scope_case
+      IMPORTING i_number TYPE numc2
+      RAISING cx_static_check.
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_scope_under_material IMPLEMENTATION.
+  METHOD run_scope_case.
+    lcl_scope_parity=>run_case(
+      i_scenario = 'under-material' i_number = i_number ).
+  ENDMETHOD.
+
+  METHOD test_scope_01.
+    run_scope_case( '01' ).
+  ENDMETHOD.
+
+  METHOD test_scope_02.
+    run_scope_case( '02' ).
+  ENDMETHOD.
+
+  METHOD test_scope_03.
+    run_scope_case( '03' ).
+  ENDMETHOD.
+
+  METHOD test_scope_04.
+    run_scope_case( '04' ).
+  ENDMETHOD.
+
+  METHOD test_scope_05.
+    run_scope_case( '05' ).
+  ENDMETHOD.
+
+  METHOD test_scope_06.
+    run_scope_case( '06' ).
+  ENDMETHOD.
+
+  METHOD test_scope_07.
+    run_scope_case( '07' ).
+  ENDMETHOD.
+
+  METHOD test_scope_08.
+    run_scope_case( '08' ).
+  ENDMETHOD.
+
+  METHOD test_scope_09.
+    run_scope_case( '09' ).
+  ENDMETHOD.
+
+  METHOD test_scope_10.
+    run_scope_case( '10' ).
+  ENDMETHOD.
+
+  METHOD test_scope_11.
+    run_scope_case( '11' ).
+  ENDMETHOD.
+
+  METHOD test_scope_12.
+    run_scope_case( '12' ).
+  ENDMETHOD.
+
+  METHOD test_scope_13.
+    run_scope_case( '13' ).
+  ENDMETHOD.
+
+  METHOD test_scope_14.
+    run_scope_case( '14' ).
+  ENDMETHOD.
+
+  METHOD test_scope_15.
+    run_scope_case( '15' ).
+  ENDMETHOD.
+
+  METHOD test_scope_16.
+    run_scope_case( '16' ).
+  ENDMETHOD.
+
+  METHOD test_scope_17.
+    run_scope_case( '17' ).
+  ENDMETHOD.
+
+  METHOD test_scope_18.
+    run_scope_case( '18' ).
+  ENDMETHOD.
+
+  METHOD test_scope_19.
+    run_scope_case( '19' ).
+  ENDMETHOD.
+
+  METHOD test_scope_20.
+    run_scope_case( '20' ).
+  ENDMETHOD.
+
+  METHOD test_scope_21.
+    run_scope_case( '21' ).
+  ENDMETHOD.
+
+  METHOD test_scope_22.
+    run_scope_case( '22' ).
+  ENDMETHOD.
+
+  METHOD test_scope_23.
+    run_scope_case( '23' ).
+  ENDMETHOD.
+
+  METHOD test_scope_24.
+    run_scope_case( '24' ).
+  ENDMETHOD.
+
+  METHOD test_scope_25.
+    run_scope_case( '25' ).
+  ENDMETHOD.
+
+  METHOD test_scope_26.
+    run_scope_case( '26' ).
+  ENDMETHOD.
+
+  METHOD test_scope_27.
+    run_scope_case( '27' ).
+  ENDMETHOD.
+
+  METHOD test_scope_28.
+    run_scope_case( '28' ).
+  ENDMETHOD.
+
+  METHOD test_scope_29.
+    run_scope_case( '29' ).
+  ENDMETHOD.
+
+  METHOD test_scope_30.
+    run_scope_case( '30' ).
+  ENDMETHOD.
+
+  METHOD test_scope_31.
+    run_scope_case( '31' ).
+  ENDMETHOD.
+
+  METHOD test_scope_32.
+    run_scope_case( '32' ).
+  ENDMETHOD.
+
+  METHOD test_scope_33.
+    run_scope_case( '33' ).
+  ENDMETHOD.
+
+  METHOD test_scope_34.
+    run_scope_case( '34' ).
+  ENDMETHOD.
+
+  METHOD test_scope_35.
+    run_scope_case( '35' ).
+  ENDMETHOD.
+
+  METHOD test_scope_36.
+    run_scope_case( '36' ).
+  ENDMETHOD.
+
+  METHOD test_scope_37.
+    run_scope_case( '37' ).
+  ENDMETHOD.
+
+  METHOD test_scope_38.
+    run_scope_case( '38' ).
+  ENDMETHOD.
+
+  METHOD test_scope_39.
+    run_scope_case( '39' ).
+  ENDMETHOD.
+
+  METHOD test_scope_40.
+    run_scope_case( '40' ).
+  ENDMETHOD.
+
+  METHOD test_scope_41.
+    run_scope_case( '41' ).
+  ENDMETHOD.
+
+  METHOD test_scope_42.
+    run_scope_case( '42' ).
+  ENDMETHOD.
+
+  METHOD test_scope_43.
+    run_scope_case( '43' ).
+  ENDMETHOD.
+
+  METHOD test_scope_44.
+    run_scope_case( '44' ).
+  ENDMETHOD.
+
+  METHOD test_scope_45.
+    run_scope_case( '45' ).
+  ENDMETHOD.
+
+  METHOD test_scope_46.
+    run_scope_case( '46' ).
+  ENDMETHOD.
+
+  METHOD test_scope_47.
+    run_scope_case( '47' ).
+  ENDMETHOD.
+
+  METHOD test_scope_48.
+    run_scope_case( '48' ).
+  ENDMETHOD.
+
+  METHOD test_scope_49.
+    run_scope_case( '49' ).
+  ENDMETHOD.
+
+  METHOD test_scope_50.
+    run_scope_case( '50' ).
+  ENDMETHOD.
+
+  METHOD test_scope_51.
+    run_scope_case( '51' ).
+  ENDMETHOD.
+
+  METHOD test_scope_52.
+    run_scope_case( '52' ).
+  ENDMETHOD.
+
+  METHOD test_scope_53.
+    run_scope_case( '53' ).
+  ENDMETHOD.
+
+  METHOD test_scope_54.
+    run_scope_case( '54' ).
+  ENDMETHOD.
+
+  METHOD test_scope_55.
+    run_scope_case( '55' ).
+  ENDMETHOD.
+
+  METHOD test_scope_56.
+    run_scope_case( '56' ).
+  ENDMETHOD.
+
+  METHOD test_scope_57.
+    run_scope_case( '57' ).
+  ENDMETHOD.
+
+  METHOD test_scope_58.
+    run_scope_case( '58' ).
+  ENDMETHOD.
+
+  METHOD test_scope_59.
+    run_scope_case( '59' ).
+  ENDMETHOD.
+
+  METHOD test_scope_60.
+    run_scope_case( '60' ).
+  ENDMETHOD.
+
+  METHOD test_scope_61.
+    run_scope_case( '61' ).
+  ENDMETHOD.
+
+  METHOD test_scope_62.
+    run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_scope_exclude DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS run_scope_case
+      IMPORTING i_number TYPE numc2
+      RAISING cx_static_check.
+    METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_04 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_05 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_06 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_07 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_08 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_09 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_10 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_11 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_12 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_13 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_14 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_15 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_16 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_17 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_18 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_19 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_20 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_21 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_22 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_23 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_24 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_25 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_26 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_27 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_28 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_29 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_30 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_31 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_32 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_33 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_34 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_35 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_36 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_37 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_38 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_39 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_40 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_41 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_42 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_43 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_44 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_45 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_46 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_47 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_48 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_49 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_50 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_51 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_52 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_53 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_54 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_55 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_56 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_57 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_58 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_59 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_60 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_61 FOR TESTING RAISING cx_static_check.
+    METHODS test_scope_62 FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_scope_exclude IMPLEMENTATION.
+  METHOD run_scope_case.
+    lcl_scope_parity=>run_case(
+      i_scenario = 'exclude' i_number = i_number ).
+  ENDMETHOD.
+
+  METHOD test_scope_01.
+    run_scope_case( '01' ).
+  ENDMETHOD.
+
+  METHOD test_scope_02.
+    run_scope_case( '02' ).
+  ENDMETHOD.
+
+  METHOD test_scope_03.
+    run_scope_case( '03' ).
+  ENDMETHOD.
+
+  METHOD test_scope_04.
+    run_scope_case( '04' ).
+  ENDMETHOD.
+
+  METHOD test_scope_05.
+    run_scope_case( '05' ).
+  ENDMETHOD.
+
+  METHOD test_scope_06.
+    run_scope_case( '06' ).
+  ENDMETHOD.
+
+  METHOD test_scope_07.
+    run_scope_case( '07' ).
+  ENDMETHOD.
+
+  METHOD test_scope_08.
+    run_scope_case( '08' ).
+  ENDMETHOD.
+
+  METHOD test_scope_09.
+    run_scope_case( '09' ).
+  ENDMETHOD.
+
+  METHOD test_scope_10.
+    run_scope_case( '10' ).
+  ENDMETHOD.
+
+  METHOD test_scope_11.
+    run_scope_case( '11' ).
+  ENDMETHOD.
+
+  METHOD test_scope_12.
+    run_scope_case( '12' ).
+  ENDMETHOD.
+
+  METHOD test_scope_13.
+    run_scope_case( '13' ).
+  ENDMETHOD.
+
+  METHOD test_scope_14.
+    run_scope_case( '14' ).
+  ENDMETHOD.
+
+  METHOD test_scope_15.
+    run_scope_case( '15' ).
+  ENDMETHOD.
+
+  METHOD test_scope_16.
+    run_scope_case( '16' ).
+  ENDMETHOD.
+
+  METHOD test_scope_17.
+    run_scope_case( '17' ).
+  ENDMETHOD.
+
+  METHOD test_scope_18.
+    run_scope_case( '18' ).
+  ENDMETHOD.
+
+  METHOD test_scope_19.
+    run_scope_case( '19' ).
+  ENDMETHOD.
+
+  METHOD test_scope_20.
+    run_scope_case( '20' ).
+  ENDMETHOD.
+
+  METHOD test_scope_21.
+    run_scope_case( '21' ).
+  ENDMETHOD.
+
+  METHOD test_scope_22.
+    run_scope_case( '22' ).
+  ENDMETHOD.
+
+  METHOD test_scope_23.
+    run_scope_case( '23' ).
+  ENDMETHOD.
+
+  METHOD test_scope_24.
+    run_scope_case( '24' ).
+  ENDMETHOD.
+
+  METHOD test_scope_25.
+    run_scope_case( '25' ).
+  ENDMETHOD.
+
+  METHOD test_scope_26.
+    run_scope_case( '26' ).
+  ENDMETHOD.
+
+  METHOD test_scope_27.
+    run_scope_case( '27' ).
+  ENDMETHOD.
+
+  METHOD test_scope_28.
+    run_scope_case( '28' ).
+  ENDMETHOD.
+
+  METHOD test_scope_29.
+    run_scope_case( '29' ).
+  ENDMETHOD.
+
+  METHOD test_scope_30.
+    run_scope_case( '30' ).
+  ENDMETHOD.
+
+  METHOD test_scope_31.
+    run_scope_case( '31' ).
+  ENDMETHOD.
+
+  METHOD test_scope_32.
+    run_scope_case( '32' ).
+  ENDMETHOD.
+
+  METHOD test_scope_33.
+    run_scope_case( '33' ).
+  ENDMETHOD.
+
+  METHOD test_scope_34.
+    run_scope_case( '34' ).
+  ENDMETHOD.
+
+  METHOD test_scope_35.
+    run_scope_case( '35' ).
+  ENDMETHOD.
+
+  METHOD test_scope_36.
+    run_scope_case( '36' ).
+  ENDMETHOD.
+
+  METHOD test_scope_37.
+    run_scope_case( '37' ).
+  ENDMETHOD.
+
+  METHOD test_scope_38.
+    run_scope_case( '38' ).
+  ENDMETHOD.
+
+  METHOD test_scope_39.
+    run_scope_case( '39' ).
+  ENDMETHOD.
+
+  METHOD test_scope_40.
+    run_scope_case( '40' ).
+  ENDMETHOD.
+
+  METHOD test_scope_41.
+    run_scope_case( '41' ).
+  ENDMETHOD.
+
+  METHOD test_scope_42.
+    run_scope_case( '42' ).
+  ENDMETHOD.
+
+  METHOD test_scope_43.
+    run_scope_case( '43' ).
+  ENDMETHOD.
+
+  METHOD test_scope_44.
+    run_scope_case( '44' ).
+  ENDMETHOD.
+
+  METHOD test_scope_45.
+    run_scope_case( '45' ).
+  ENDMETHOD.
+
+  METHOD test_scope_46.
+    run_scope_case( '46' ).
+  ENDMETHOD.
+
+  METHOD test_scope_47.
+    run_scope_case( '47' ).
+  ENDMETHOD.
+
+  METHOD test_scope_48.
+    run_scope_case( '48' ).
+  ENDMETHOD.
+
+  METHOD test_scope_49.
+    run_scope_case( '49' ).
+  ENDMETHOD.
+
+  METHOD test_scope_50.
+    run_scope_case( '50' ).
+  ENDMETHOD.
+
+  METHOD test_scope_51.
+    run_scope_case( '51' ).
+  ENDMETHOD.
+
+  METHOD test_scope_52.
+    run_scope_case( '52' ).
+  ENDMETHOD.
+
+  METHOD test_scope_53.
+    run_scope_case( '53' ).
+  ENDMETHOD.
+
+  METHOD test_scope_54.
+    run_scope_case( '54' ).
+  ENDMETHOD.
+
+  METHOD test_scope_55.
+    run_scope_case( '55' ).
+  ENDMETHOD.
+
+  METHOD test_scope_56.
+    run_scope_case( '56' ).
+  ENDMETHOD.
+
+  METHOD test_scope_57.
+    run_scope_case( '57' ).
+  ENDMETHOD.
+
+  METHOD test_scope_58.
+    run_scope_case( '58' ).
+  ENDMETHOD.
+
+  METHOD test_scope_59.
+    run_scope_case( '59' ).
+  ENDMETHOD.
+
+  METHOD test_scope_60.
+    run_scope_case( '60' ).
+  ENDMETHOD.
+
+  METHOD test_scope_61.
+    run_scope_case( '61' ).
+  ENDMETHOD.
+
+  METHOD test_scope_62.
+    run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
+  METHOD setup.
+    CLEAR:
+      mt_differences,
+      mv_difference_count.
   ENDMETHOD.
 
   METHOD test_over_material.
@@ -7774,7 +9127,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
       details = VALUE #( ( ms_detail ) )
       accounts = VALUE #(
         ( ponumber = ms_key-ponumber itemno = ms_key-itemno
-          glaccount = '4000' costcenter = '123' costcenterdesc = 'Operations'
+          glaccount = '4000' costcenter = '123'
           manageunit = 'MU1' internalorder = '42' assetid = '7'
           profitcenter = 'PC1' bbp_acc_no = '01' distpercentage = '100' ) )
       history = VALUE #(
@@ -7908,7 +9261,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
       CHANGING cs_result = ms_row ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-glaccount exp = '4000' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-costcenter exp = '123' ).
-    cl_abap_unit_assert=>assert_equals( act = ms_row-costcenterdesc exp = 'Operations' ).
+    cl_abap_unit_assert=>assert_initial( act = ms_row-costcenterdesc ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-manageunit exp = 'MU1' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-internalorder exp = '42' ).
     cl_abap_unit_assert=>assert_equals( act = ms_row-assetid exp = '7' ).
@@ -8091,6 +9444,15 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
         ( value = 'AB01' ) ( value = '*' ) ( value = '1000' ) ) ).
   ENDMETHOD.
 
+  METHOD cost_null_sentinel.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_cost_centers( ' NULL,NULL ' )
+      exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope(
+        ( is_null = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->get_cost_centers( ', , ' ) ).
+  ENDMETHOD.
+
   METHOD cost_null_and_alpha.
     DATA(lt_scope) = mo_cut->get_cost_centers( 'NULL,123,0000000123,ab1' ).
     cl_abap_unit_assert=>assert_equals(
@@ -8120,6 +9482,32 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
         ( is_null = abap_true ) ( value = '0012' ) ( value = '*' ) ) ).
     cl_abap_unit_assert=>assert_initial(
       act = mo_cut->get_management_units( '' ) ).
+  ENDMETHOD.
+
+  METHOD amount_y_character_path.
+    ms_row-totwrkcompamt = CONV #( '1234567.89' ).
+    ms_row-amountaccrued = CONV #( '1491846.48' ).
+    ms_row-amountaccrued_usd = CONV #( '901339.30' ).
+
+    mo_cut->apply_odata_format(
+      EXPORTING
+        i_mode           = zif_fi_das_dashboard=>mc_over
+        i_decimal_format = 'Y'
+      CHANGING
+        cs_result        = ms_row ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt_char exp = '1 234 567,89' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_char exp = '1 491 846,48' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_usd_char exp = '901 339,30' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-totwrkcompamt exp = CONV #( '1234567.89' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued exp = CONV #( '1491846.48' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ms_row-amountaccrued_usd exp = CONV #( '901339.30' ) ).
   ENDMETHOD.
 
   " Validation and request adjustment

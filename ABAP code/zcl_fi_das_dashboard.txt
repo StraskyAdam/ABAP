@@ -1790,7 +1790,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       ELSEIF <f_value> = mc_null.
 
-        INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
+        INSERT VALUE #( value = space ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
 
@@ -2516,7 +2516,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       ELSEIF <f_value> = mc_null.
 
-        INSERT VALUE #( value = space ) INTO TABLE rt_scope.
+        INSERT VALUE #( is_null = abap_true ) INTO TABLE rt_scope.
 
       ELSEIF <f_value> IS NOT INITIAL.
 

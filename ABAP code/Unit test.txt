@@ -9503,11 +9503,11 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ms_row-amountaccrued_usd_char exp = '901 339,30' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ms_row-totwrkcompamt exp = CONV #( '1234567.89' ) ).
+      act = ms_row-totwrkcompamt exp = ( '1234567.89' ) ).
     cl_abap_unit_assert=>assert_equals(
-      act = ms_row-amountaccrued exp = CONV #( '1491846.48' ) ).
+      act = ms_row-amountaccrued exp = ( '1491846.48' ) ).
     cl_abap_unit_assert=>assert_equals(
-      act = ms_row-amountaccrued_usd exp = CONV #( '901339.30' ) ).
+      act = ms_row-amountaccrued_usd exp = ( '901339.30' ) ).
   ENDMETHOD.
 
   " Validation and request adjustment

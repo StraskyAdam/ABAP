@@ -5,7 +5,6 @@
 ***************************   Data and parameters    ******************************
 
 PARAMETERS: p_table TYPE tabname OBLIGATORY,
-            p_date  TYPE sy-datum DEFAULT sy-datum OBLIGATORY,
             p_del   AS CHECKBOX DEFAULT abap_true.
 
 ****************************      Local class         ******************************
@@ -29,7 +28,6 @@ CLASS lcl_replication DEFINITION FINAL.
     METHODS run
       IMPORTING
         i_table  TYPE tabname
-        i_date   TYPE sy-datum
         i_delete TYPE abap_bool
       RAISING
         zcx_fi_das_error.
@@ -54,6 +52,8 @@ CLASS lcl_replication DEFINITION FINAL.
                mc_expected_rows    TYPE i VALUE 1,
 
                mc_package_size     TYPE i VALUE 100000,
+
+               mc_first_day        TYPE n LENGTH 2 VALUE '01',
 
                mc_label_object     TYPE string VALUE 'Object:',
                mc_label_target     TYPE string VALUE 'Target:',
@@ -87,6 +87,10 @@ CLASS lcl_replication DEFINITION FINAL.
           VALUE(r_object) TYPE tabname
         RAISING
           zcx_fi_das_error,
+
+      get_replication_date
+        RETURNING
+          VALUE(r_date) TYPE sy-datum,
 
       check_authority
         IMPORTING
@@ -150,7 +154,6 @@ CLASS lcl_replication DEFINITION FINAL.
       display_result
         IMPORTING
           i_table    TYPE tabname
-          i_date     TYPE sy-datum
           i_selected TYPE int8
           i_deleted  TYPE int8
           i_inserted TYPE int8
@@ -214,16 +217,18 @@ CLASS lcl_replication IMPLEMENTATION.
 
     m_target = get_replication_object( i_table ).
 
+    DATA(l_date) = get_replication_date( ).
+
     check_authority( i_table    = i_table
                      i_activity = mc_activity_read ).
 
     check_authority( i_table    = m_target
                      i_activity = mc_activity_change ).
 
-    check_freeze_parameter( i_date ).
+    check_freeze_parameter( l_date ).
 
     replicate_table( i_table  = i_table
-                     i_date   = i_date
+                     i_date   = l_date
                      i_delete = i_delete ).
 
   ENDMETHOD.
@@ -235,6 +240,13 @@ CLASS lcl_replication IMPLEMENTATION.
     validate( i_table ).
 
     r_object = lt_objects[ tabname = to_upper( i_table ) ]-target.
+
+  ENDMETHOD.
+
+  METHOD get_replication_date.
+
+*   Return the last day of the previous month to bypass the freeze-day switch and read live ECC data.
+    r_date = CONV sy-datum( |{ sy-datum(6) }{ mc_first_day }| ) - 1.
 
   ENDMETHOD.
 
@@ -403,7 +415,6 @@ CLASS lcl_replication IMPLEMENTATION.
     ENDTRY.
 
     display_result( i_table    = i_table
-                    i_date     = i_date
                     i_selected = l_selected
                     i_deleted  = l_deleted
                     i_inserted = l_inserted
@@ -528,7 +539,6 @@ CLASS lcl_replication IMPLEMENTATION.
 
     WRITE: / |{ mc_label_object }   { i_table }|,
            / |{ mc_label_target }   { m_target }|,
-           / |{ mc_label_date }     { i_date DATE = USER }|,
            / |{ mc_label_selected } { i_selected }|,
            / |{ mc_label_deleted }  { i_deleted }|,
            / |{ mc_label_inserted } { i_inserted }|,

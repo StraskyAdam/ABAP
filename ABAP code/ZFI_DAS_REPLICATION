@@ -19,7 +19,6 @@ START-OF-SELECTION.
 
   TRY.
       NEW lcl_replication( )->run( i_table  = p_table
-                                   i_date   = p_date
                                    i_delete = p_del ).
 
     CATCH zcx_fi_das_error INTO DATA(lx_error).

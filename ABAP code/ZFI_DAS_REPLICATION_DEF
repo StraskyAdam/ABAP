@@ -1,0 +1,539 @@
+*&---------------------------------------------------------------------*
+*& Include ZFI_DAS_REPLICATION_DEF
+*&---------------------------------------------------------------------*
+
+***************************   Data and parameters    ******************************
+
+PARAMETERS: p_table TYPE tabname OBLIGATORY,
+            p_date  TYPE sy-datum DEFAULT sy-datum OBLIGATORY,
+            p_del   AS CHECKBOX DEFAULT abap_true.
+
+****************************      Local class         ******************************
+
+CLASS lcl_replication DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    CONSTANTS: mc_message_error   TYPE symsgty VALUE 'E',
+               mc_message_success TYPE symsgty VALUE 'S'.
+
+    CLASS-METHODS:
+      value_help,
+
+      validate
+        IMPORTING
+          i_table TYPE tabname
+        RAISING
+          zcx_fi_das_error.
+
+    METHODS run
+      IMPORTING
+        i_table  TYPE tabname
+        i_date   TYPE sy-datum
+        i_delete TYPE abap_bool
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CONSTANTS: mc_table_ekko       TYPE tabname  VALUE 'EKKO',
+               mc_table_ekpo       TYPE tabname  VALUE 'EKPO',
+               mc_target_ekko      TYPE tabname  VALUE 'ZFI_DAS_EKKO',
+               mc_target_ekpo      TYPE tabname  VALUE 'ZFI_DAS_EKPO',
+
+               mc_auth_object      TYPE c LENGTH 10 VALUE 'S_TABU_NAM',
+               mc_auth_field_table TYPE c LENGTH 5  VALUE 'TABLE',
+               mc_auth_field_actvt TYPE c LENGTH 5  VALUE 'ACTVT',
+               mc_activity_read    TYPE activ_auth VALUE '03',
+               mc_activity_change  TYPE activ_auth VALUE '02',
+
+               mc_lock_scope       TYPE c LENGTH 1 VALUE '1',
+
+               mc_freeze_min       TYPE i VALUE 1,
+               mc_freeze_max       TYPE i VALUE 31,
+               mc_expected_rows    TYPE i VALUE 1,
+
+               mc_package_size     TYPE i VALUE 100000,
+
+               mc_label_object     TYPE string VALUE 'Object:',
+               mc_label_target     TYPE string VALUE 'Target:',
+               mc_label_date       TYPE string VALUE 'Date:',
+               mc_label_selected   TYPE string VALUE 'Selected:',
+               mc_label_deleted    TYPE string VALUE 'Deleted:',
+               mc_label_inserted   TYPE string VALUE 'Inserted:',
+               mc_label_skipped    TYPE string VALUE 'Skipped:',
+
+               mc_f4_return_field  TYPE dfies-fieldname VALUE 'TABNAME',
+               mc_f4_screen_field  TYPE dynfnam VALUE 'P_TABLE',
+               mc_f4_value_org     TYPE c LENGTH 1 VALUE 'S'.
+
+    TYPES: BEGIN OF ts_object,
+             tabname TYPE tabname,
+             target  TYPE tabname,
+           END OF ts_object,
+
+           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY.
+
+    CLASS-METHODS:
+      get_objects
+        RETURNING
+          VALUE(rt_objects) TYPE tt_objects.
+
+    METHODS:
+      get_replication_object
+        IMPORTING
+          i_table         TYPE tabname
+        RETURNING
+          VALUE(r_object) TYPE tabname
+        RAISING
+          zcx_fi_das_error,
+
+      check_authority
+        IMPORTING
+          i_table    TYPE tabname
+          i_activity TYPE activ_auth
+        RAISING
+          zcx_fi_das_error,
+
+      lock_target
+        RAISING
+          zcx_fi_das_error,
+
+      unlock_target,
+
+      check_freeze_parameter
+        IMPORTING
+          i_date TYPE sy-datum
+        RAISING
+          zcx_fi_das_error,
+
+      replicate_table
+        IMPORTING
+          i_table  TYPE tabname
+          i_date   TYPE sy-datum
+          i_delete TYPE abap_bool
+        RAISING
+          zcx_fi_das_error,
+
+      open_cursor
+        IMPORTING
+          i_table TYPE tabname
+          i_date  TYPE sy-datum
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      close_cursor,
+
+      delete_target
+        IMPORTING
+          i_table          TYPE tabname
+        RETURNING
+          VALUE(r_deleted) TYPE int8
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      insert_package
+        IMPORTING
+          i_table    TYPE tabname
+          i_package  TYPE REF TO data
+        EXPORTING
+          e_inserted TYPE i
+          e_skipped  TYPE i
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      rollback,
+
+      display_result
+        IMPORTING
+          i_table    TYPE tabname
+          i_date     TYPE sy-datum
+          i_selected TYPE int8
+          i_deleted  TYPE int8
+          i_inserted TYPE int8
+          i_skipped  TYPE int8.
+
+    DATA: m_cursor      TYPE cursor,
+          m_target      TYPE tabname,
+          m_locked      TYPE abap_bool,
+          m_cursor_open TYPE abap_bool.
+
+ENDCLASS.
+
+CLASS lcl_replication IMPLEMENTATION.
+
+  METHOD get_objects.
+
+    rt_objects = VALUE #( ( tabname = mc_table_ekko
+                            target  = mc_target_ekko )
+                          ( tabname = mc_table_ekpo
+                            target  = mc_target_ekpo ) ).
+
+  ENDMETHOD.
+
+  METHOD value_help.
+
+    DATA(lt_objects) = get_objects( ).
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = mc_f4_return_field
+        dynpprog        = sy-repid
+        dynpnr          = sy-dynnr
+        dynprofield     = mc_f4_screen_field
+        value_org       = mc_f4_value_org
+      TABLES
+        value_tab       = lt_objects
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+
+    IF sy-subrc <> 0.
+      MESSAGE i028(zfi_das).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD validate.
+
+    DATA(lt_objects) = get_objects( ).
+
+    DATA(l_table) = to_upper( i_table ).
+
+    IF NOT line_exists( lt_objects[ tabname = l_table ] ).
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e019(zfi_das) WITH l_table.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    m_target = get_replication_object( i_table ).
+
+    check_authority( i_table    = i_table
+                     i_activity = mc_activity_read ).
+
+    check_authority( i_table    = m_target
+                     i_activity = mc_activity_change ).
+
+    check_freeze_parameter( i_date ).
+
+    replicate_table( i_table  = i_table
+                     i_date   = i_date
+                     i_delete = i_delete ).
+
+  ENDMETHOD.
+
+  METHOD get_replication_object.
+
+    DATA(lt_objects) = get_objects( ).
+
+    validate( i_table ).
+
+    r_object = lt_objects[ tabname = to_upper( i_table ) ]-target.
+
+  ENDMETHOD.
+
+  METHOD check_authority.
+
+    AUTHORITY-CHECK OBJECT mc_auth_object
+      ID mc_auth_field_table FIELD i_table
+      ID mc_auth_field_actvt FIELD i_activity.
+
+    IF sy-subrc <> 0.
+*      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH i_table i_activity.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD lock_target.
+
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING
+        tabname        = m_target
+        _scope         = mc_lock_scope
+        _wait          = abap_false
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e021(zfi_das) WITH m_target.
+    ENDIF.
+
+    m_locked = abap_true.
+
+  ENDMETHOD.
+
+  METHOD unlock_target.
+
+    IF m_locked = abap_false.
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'DEQUEUE_E_TABLE'
+      EXPORTING
+        tabname = m_target
+        _scope  = mc_lock_scope.
+
+    m_locked = abap_false.
+
+  ENDMETHOD.
+
+  METHOD check_freeze_parameter.
+
+    SELECT freeze_day, current_day
+      FROM zi_fi_das_freeze( p_date = @i_date )
+    INTO TABLE @DATA(lt_freeze).
+
+    IF lines( lt_freeze ) <> mc_expected_rows.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e022(zfi_das).
+    ENDIF.
+
+    DATA(ls_freeze) = lt_freeze[ 1 ].
+
+    IF ls_freeze-freeze_day < mc_freeze_min OR ls_freeze-freeze_day > mc_freeze_max.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e023(zfi_das).
+    ENDIF.
+
+    IF ls_freeze-current_day <= ls_freeze-freeze_day.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e024(zfi_das) WITH i_date.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD delete_target.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+        DELETE FROM zfi_das_ekko.
+
+      WHEN mc_table_ekpo.
+        DELETE FROM zfi_das_ekpo.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e029(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    r_deleted = sy-dbcnt.
+
+  ENDMETHOD.
+
+  METHOD replicate_table.
+
+    DATA: lr_package TYPE REF TO data,
+          l_selected TYPE int8,
+          l_inserted TYPE int8,
+          l_skipped  TYPE int8.
+
+    FIELD-SYMBOLS <ft_package> TYPE STANDARD TABLE.
+
+    TRY.
+
+*       Only a target from the internal whitelist is used
+        CREATE DATA lr_package TYPE STANDARD TABLE OF (m_target).
+        ASSIGN lr_package->* TO <ft_package>.
+
+        IF <ft_package> IS NOT ASSIGNED OR sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+        ENDIF.
+
+        lock_target( ).
+
+        IF i_delete = abap_true.
+          DATA(l_deleted) = delete_target( i_table ).
+        ENDIF.
+
+        open_cursor( i_table = i_table
+                     i_date  = i_date ).
+
+        DO.
+
+          FETCH NEXT CURSOR @m_cursor INTO CORRESPONDING FIELDS OF TABLE @<ft_package> PACKAGE SIZE @mc_package_size.
+
+          IF <ft_package> IS INITIAL.
+            EXIT.
+          ENDIF.
+
+          l_selected = l_selected + lines( <ft_package> ).
+
+          insert_package(
+            EXPORTING
+              i_table    = i_table
+              i_package  = lr_package
+            IMPORTING
+              e_inserted = DATA(l_added)
+              e_skipped  = DATA(l_ignored) ).
+
+          l_inserted = l_inserted + l_added.
+          l_skipped  = l_skipped + l_ignored.
+
+          CLEAR <ft_package>.
+
+        ENDDO.
+
+        close_cursor( ).
+
+        COMMIT WORK AND WAIT.
+
+        unlock_target( ).
+
+      CATCH zcx_fi_das_error INTO DATA(lx_replication_error).
+
+        rollback( ).
+
+        RAISE EXCEPTION lx_replication_error.
+
+      CATCH cx_root INTO DATA(lx_unexpected_error).
+
+        rollback( ).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_unexpected_error
+            i_text   = lx_unexpected_error->get_text( ).
+
+    ENDTRY.
+
+    display_result( i_table    = i_table
+                    i_date     = i_date
+                    i_selected = l_selected
+                    i_deleted  = l_deleted
+                    i_inserted = l_inserted
+                    i_skipped  = l_skipped ).
+
+  ENDMETHOD.
+
+  METHOD open_cursor.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 bukrs,
+                 aedat,
+                 lifnr,
+                 ekorg,
+                 waers,
+                 unsez,
+                 bedat
+          FROM zi_fi_das_ekko( p_date = @i_date )
+            WHERE source = @mc_table_ekko.
+
+      WHEN mc_table_ekpo.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 txz01,
+                 bukrs,
+                 menge,
+                 meins,
+                 netpr,
+                 peinh,
+                 netwr,
+                 brtwr,
+                 pstyp,
+                 xersy,
+                 zstart_date,
+                 zend_date,
+                 zserv_amt,
+                 zserv_perc,
+                 po_requestor,
+                 po_preparer,
+                 zactivitynbr
+          FROM zi_fi_das_ekpo( p_date = @i_date )
+            WHERE source = @mc_table_ekpo.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e026(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    m_cursor_open = abap_true.
+
+  ENDMETHOD.
+
+  METHOD close_cursor.
+
+    IF m_cursor_open = abap_false.
+      RETURN.
+    ENDIF.
+
+    CLOSE CURSOR @m_cursor.
+
+    m_cursor_open = abap_false.
+
+  ENDMETHOD.
+
+  METHOD insert_package.
+
+    FIELD-SYMBOLS <ft_package> TYPE ANY TABLE.
+
+    IF i_package IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+    ENDIF.
+
+    ASSIGN i_package->* TO <ft_package>.
+
+    IF <ft_package> IS NOT ASSIGNED OR sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+    ENDIF.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+        INSERT zfi_das_ekko FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekpo.
+        INSERT zfi_das_ekpo FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e027(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    e_inserted = sy-dbcnt.
+    e_skipped = lines( <ft_package> ) - e_inserted.
+
+  ENDMETHOD.
+
+  METHOD rollback.
+
+    TRY.
+        close_cursor( ).
+
+      CATCH cx_root.
+*        Continue with rollback even if closing the cursor failed
+    ENDTRY.
+
+    ROLLBACK WORK.
+
+    m_cursor_open = abap_false.
+
+    unlock_target( ).
+
+  ENDMETHOD.
+
+  METHOD display_result.
+
+    WRITE: / |{ mc_label_object }   { i_table }|,
+           / |{ mc_label_target }   { m_target }|,
+           / |{ mc_label_date }     { i_date DATE = USER }|,
+           / |{ mc_label_selected } { i_selected }|,
+           / |{ mc_label_deleted }  { i_deleted }|,
+           / |{ mc_label_inserted } { i_inserted }|,
+           / |{ mc_label_skipped }  { i_skipped }|.
+
+  ENDMETHOD.
+
+ENDCLASS.

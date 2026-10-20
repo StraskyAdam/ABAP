@@ -1,0 +1,55 @@
+@AbapCatalog.sqlViewName: 'ZDASEKKO'
+@EndUserText.label: 'EKKO active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKKO
+  with parameters
+    @Environment.systemField: #SYSTEM_DATE
+    p_date : abap.dats
+
+  as select from ekko as ekko
+    inner join zfi_das_cc_scope as scope
+      on  scope.tabname = 'EKKO'
+      and scope.bukrs   = ekko.bukrs
+    inner join ZI_FI_DAS_FREEZE(
+      p_date: $parameters.p_date
+    ) as freeze
+      on freeze.config_name = 'FREEZE'
+{
+  ekko.ebeln,
+  ekko.bukrs,
+  ekko.aedat,
+  ekko.lifnr,
+  ekko.ekorg,
+  ekko.waers,
+  ekko.unsez,
+  ekko.bedat,
+  'EKKO       ' as source,
+  freeze.current_day,
+  freeze.freeze_day
+}
+where freeze.current_day > freeze.freeze_day
+  and ekko.bsart = 'ZARP'
+  and ekko.reason_code = ''
+  and ekko.ebeln between '8000000000' and '8999999999'
+
+union all
+
+select from zfi_das_ekko as replication
+  inner join ZI_FI_DAS_FREEZE(
+    p_date: $parameters.p_date
+  ) as freeze
+    on freeze.config_name = 'FREEZE'
+{
+  replication.ebeln,
+  replication.bukrs,
+  replication.aedat,
+  replication.lifnr,
+  replication.ekorg,
+  replication.waers,
+  replication.unsez,
+  replication.bedat,
+  'REPLICATION' as source,
+  freeze.current_day,
+  freeze.freeze_day
+}
+where freeze.current_day <= freeze.freeze_day

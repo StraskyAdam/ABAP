@@ -1,0 +1,84 @@
+@AbapCatalog.sqlViewName: 'ZDASEKPO'
+@EndUserText.label: 'EKPO active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKPO
+  with parameters
+    @Environment.systemField: #SYSTEM_DATE
+    p_date : abap.dats
+
+  as select from ekpo as ekpo
+    left outer join zfi_das_cc_scope as scope
+      on  scope.tabname = 'EKPO'
+      and scope.bukrs   = ekpo.bukrs
+    inner join ZI_FI_DAS_FREEZE(
+      p_date: $parameters.p_date
+    ) as freeze
+      on freeze.config_name = 'FREEZE'
+{
+  ekpo.ebeln,
+  ekpo.ebelp,
+  ekpo.txz01,
+  ekpo.bukrs,
+  ekpo.menge,
+  ekpo.meins,
+  ekpo.netpr,
+  ekpo.peinh,
+  ekpo.netwr,
+  ekpo.brtwr,
+  ekpo.pstyp,
+  ekpo.xersy,
+  ekpo.zstart_date,
+  ekpo.zend_date,
+  ekpo.zserv_amt,
+  ekpo.zserv_perc,
+  ekpo.po_requestor,
+  ekpo.po_preparer,
+  ekpo.zactivitynbr,
+  'EKPO       ' as source,
+  freeze.current_day,
+  freeze.freeze_day
+}
+where freeze.current_day > freeze.freeze_day
+  and ekpo.ebeln between '8000000000' and '8999999999'
+  and ( ekpo.pstyp = '0' or ekpo.pstyp = '9' )
+  and ekpo.erekz = ''
+  and ekpo.loekz = ''
+  and ( ( scope.bukrs is not null and ekpo.bukrs <> '2780' )
+       or
+       ( ekpo.bukrs = '2780' 
+         and (  ekpo.xersy = '' or ( ekpo.xersy = 'X'and ekpo.zstart_date <> '00000000' ) )
+       )
+      )
+
+union all
+
+select from zfi_das_ekpo as replication
+  inner join ZI_FI_DAS_FREEZE(
+    p_date: $parameters.p_date
+  ) as freeze
+    on freeze.config_name = 'FREEZE'
+{
+  replication.ebeln,
+  replication.ebelp,
+  replication.txz01,
+  replication.bukrs,
+  replication.menge,
+  replication.meins,
+  replication.netpr,
+  replication.peinh,
+  replication.netwr,
+  replication.brtwr,
+  replication.pstyp,
+  replication.xersy,
+  replication.zstart_date,
+  replication.zend_date,
+  replication.zserv_amt,
+  replication.zserv_perc,
+  replication.po_requestor,
+  replication.po_preparer,
+  replication.zactivitynbr,
+  'REPLICATION' as source,
+  freeze.current_day,
+  freeze.freeze_day
+}
+where freeze.current_day <= freeze.freeze_day

@@ -1,0 +1,29 @@
+REPORT zfi_das_replication.
+
+INCLUDE zfi_das_replication_def.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_table.
+  lcl_replication=>value_help( ).
+
+AT SELECTION-SCREEN.
+  TRY.
+      lcl_replication=>validate( p_table ).
+
+    CATCH zcx_fi_das_error INTO DATA(lx_validation).
+
+      MESSAGE lx_validation TYPE lcl_replication=>mc_message_success DISPLAY LIKE lcl_replication=>mc_message_error.
+
+  ENDTRY.
+
+START-OF-SELECTION.
+
+  TRY.
+      NEW lcl_replication( )->run( i_table  = p_table
+                                   i_date   = p_date
+                                   i_delete = p_del ).
+
+    CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+      MESSAGE lx_error->get_text( ) TYPE lcl_replication=>mc_message_success DISPLAY LIKE lcl_replication=>mc_message_error.
+
+  ENDTRY.

@@ -1,0 +1,46 @@
+@AbapCatalog.sqlViewName: 'ZDASEKBESRC'
+@EndUserText.label: 'EKBE source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKBE_SRC
+  as select from ekbe as ekbe
+{
+  ekbe.ebeln,
+  ekbe.ebelp,
+  ekbe.zekkn,
+  ekbe.vgabe,
+  ekbe.gjahr,
+  ekbe.belnr,
+  ekbe.buzei,
+  ekbe.bewtp,
+  ekbe.menge,
+  ekbe.dmbtr,
+  ekbe.wrbtr,
+  ekbe.waers,
+  ekbe.shkzg,
+  ekbe.budat,
+  ekbe.refwr,
+  ' ' as use_replication
+}
+where ekbe.ebeln between '8000000000' and '8999999999'
+
+union all
+
+select from zfi_das_ekbe as replication
+{
+  replication.ebeln,
+  replication.ebelp,
+  replication.zekkn,
+  replication.vgabe,
+  replication.gjahr,
+  replication.belnr,
+  replication.buzei,
+  replication.bewtp,
+  replication.menge,
+  replication.dmbtr,
+  replication.wrbtr,
+  replication.waers,
+  replication.shkzg,
+  replication.budat,
+  replication.refwr,
+  'X' as use_replication
+}

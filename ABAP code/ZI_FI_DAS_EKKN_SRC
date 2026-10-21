@@ -1,0 +1,38 @@
+@AbapCatalog.sqlViewName: 'ZDASEKKNSRC'
+@EndUserText.label: 'EKKN source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKKN_SRC
+  as select from ekkn as ekkn
+{
+  ekkn.ebeln,
+  ekkn.ebelp,
+  ekkn.zekkn,
+  ekkn.menge,
+  ekkn.vproz,
+  ekkn.sakto,
+  ekkn.kostl,
+  ekkn.anln1,
+  ekkn.aufnr,
+  ekkn.kokrs,
+  ekkn.prctr,
+  ' ' as use_replication
+}
+where ekkn.ebeln between '8000000000' and '8999999999'
+
+union all
+
+select from zfi_das_ekkn as replication
+{
+  replication.ebeln,
+  replication.ebelp,
+  replication.zekkn,
+  replication.menge,
+  replication.vproz,
+  replication.sakto,
+  replication.kostl,
+  replication.anln1,
+  replication.aufnr,
+  replication.kokrs,
+  replication.prctr,
+  'X' as use_replication
+}

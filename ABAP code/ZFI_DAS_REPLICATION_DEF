@@ -36,8 +36,13 @@ CLASS lcl_replication DEFINITION FINAL.
 
     CONSTANTS: mc_table_ekko       TYPE tabname  VALUE 'EKKO',
                mc_table_ekpo       TYPE tabname  VALUE 'EKPO',
+               mc_table_ekkn       TYPE tabname  VALUE 'EKKN',
+               mc_table_ekbe       TYPE tabname  VALUE 'EKBE',
+
                mc_target_ekko      TYPE tabname  VALUE 'ZFI_DAS_EKKO',
                mc_target_ekpo      TYPE tabname  VALUE 'ZFI_DAS_EKPO',
+               mc_target_ekkn      TYPE tabname  VALUE 'ZFI_DAS_EKKN',
+               mc_target_ekbe      TYPE tabname  VALUE 'ZFI_DAS_EKBE',
 
                mc_auth_object      TYPE c LENGTH 10 VALUE 'S_TABU_NAM',
                mc_auth_field_table TYPE c LENGTH 5  VALUE 'TABLE',
@@ -47,17 +52,10 @@ CLASS lcl_replication DEFINITION FINAL.
 
                mc_lock_scope       TYPE c LENGTH 1 VALUE '1',
 
-               mc_freeze_min       TYPE i VALUE 1,
-               mc_freeze_max       TYPE i VALUE 31,
-               mc_expected_rows    TYPE i VALUE 1,
-
                mc_package_size     TYPE i VALUE 100000,
-
-               mc_first_day        TYPE n LENGTH 2 VALUE '01',
 
                mc_label_object     TYPE string VALUE 'Object:',
                mc_label_target     TYPE string VALUE 'Target:',
-               mc_label_date       TYPE string VALUE 'Date:',
                mc_label_selected   TYPE string VALUE 'Selected:',
                mc_label_deleted    TYPE string VALUE 'Deleted:',
                mc_label_inserted   TYPE string VALUE 'Inserted:',
@@ -88,10 +86,6 @@ CLASS lcl_replication DEFINITION FINAL.
         RAISING
           zcx_fi_das_error,
 
-      get_replication_date
-        RETURNING
-          VALUE(r_date) TYPE sy-datum,
-
       check_authority
         IMPORTING
           i_table    TYPE tabname
@@ -105,16 +99,9 @@ CLASS lcl_replication DEFINITION FINAL.
 
       unlock_target,
 
-      check_freeze_parameter
-        IMPORTING
-          i_date TYPE sy-datum
-        RAISING
-          zcx_fi_das_error,
-
       replicate_table
         IMPORTING
           i_table  TYPE tabname
-          i_date   TYPE sy-datum
           i_delete TYPE abap_bool
         RAISING
           zcx_fi_das_error,
@@ -122,7 +109,6 @@ CLASS lcl_replication DEFINITION FINAL.
       open_cursor
         IMPORTING
           i_table TYPE tabname
-          i_date  TYPE sy-datum
         RAISING
           zcx_fi_das_error
           cx_sy_open_sql_db,
@@ -173,7 +159,11 @@ CLASS lcl_replication IMPLEMENTATION.
     rt_objects = VALUE #( ( tabname = mc_table_ekko
                             target  = mc_target_ekko )
                           ( tabname = mc_table_ekpo
-                            target  = mc_target_ekpo ) ).
+                            target  = mc_target_ekpo )
+                          ( tabname = mc_table_ekkn
+                            target  = mc_target_ekkn )
+                          ( tabname = mc_table_ekbe
+                            target  = mc_target_ekbe ) ).
 
   ENDMETHOD.
 
@@ -217,18 +207,13 @@ CLASS lcl_replication IMPLEMENTATION.
 
     m_target = get_replication_object( i_table ).
 
-    DATA(l_date) = get_replication_date( ).
-
     check_authority( i_table    = i_table
                      i_activity = mc_activity_read ).
 
     check_authority( i_table    = m_target
                      i_activity = mc_activity_change ).
 
-    check_freeze_parameter( l_date ).
-
     replicate_table( i_table  = i_table
-                     i_date   = l_date
                      i_delete = i_delete ).
 
   ENDMETHOD.
@@ -240,13 +225,6 @@ CLASS lcl_replication IMPLEMENTATION.
     validate( i_table ).
 
     r_object = lt_objects[ tabname = to_upper( i_table ) ]-target.
-
-  ENDMETHOD.
-
-  METHOD get_replication_date.
-
-*   Return the last day of the previous month to bypass the freeze-day switch and read live ECC data.
-    r_date = CONV sy-datum( |{ sy-datum(6) }{ mc_first_day }| ) - 1.
 
   ENDMETHOD.
 
@@ -297,28 +275,6 @@ CLASS lcl_replication IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD check_freeze_parameter.
-
-    SELECT freeze_day, current_day
-      FROM zi_fi_das_freeze( p_date = @i_date )
-    INTO TABLE @DATA(lt_freeze).
-
-    IF lines( lt_freeze ) <> mc_expected_rows.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e022(zfi_das).
-    ENDIF.
-
-    DATA(ls_freeze) = lt_freeze[ 1 ].
-
-    IF ls_freeze-freeze_day < mc_freeze_min OR ls_freeze-freeze_day > mc_freeze_max.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e023(zfi_das).
-    ENDIF.
-
-    IF ls_freeze-current_day <= ls_freeze-freeze_day.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e024(zfi_das) WITH i_date.
-    ENDIF.
-
-  ENDMETHOD.
-
   METHOD delete_target.
 
     CASE i_table.
@@ -328,6 +284,12 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_ekpo.
         DELETE FROM zfi_das_ekpo.
+
+      WHEN mc_table_ekkn.
+        DELETE FROM zfi_das_ekkn.
+
+      WHEN mc_table_ekbe.
+        DELETE FROM zfi_das_ekbe.
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e029(zfi_das) WITH i_table.
@@ -342,6 +304,7 @@ CLASS lcl_replication IMPLEMENTATION.
 
     DATA: lr_package TYPE REF TO data,
           l_selected TYPE int8,
+          l_deleted  TYPE int8,
           l_inserted TYPE int8,
           l_skipped  TYPE int8.
 
@@ -360,11 +323,10 @@ CLASS lcl_replication IMPLEMENTATION.
         lock_target( ).
 
         IF i_delete = abap_true.
-          DATA(l_deleted) = delete_target( i_table ).
+          l_deleted = delete_target( i_table ).
         ENDIF.
 
-        open_cursor( i_table = i_table
-                     i_date  = i_date ).
+        open_cursor( i_table = i_table ).
 
         DO.
 
@@ -437,8 +399,7 @@ CLASS lcl_replication IMPLEMENTATION.
                  waers,
                  unsez,
                  bedat
-          FROM zi_fi_das_ekko( p_date = @i_date )
-            WHERE source = @mc_table_ekko.
+          FROM zi_fi_das_ekko( p_use_replication = @abap_false ).
 
       WHEN mc_table_ekpo.
 
@@ -462,8 +423,43 @@ CLASS lcl_replication IMPLEMENTATION.
                  po_requestor,
                  po_preparer,
                  zactivitynbr
-          FROM zi_fi_das_ekpo( p_date = @i_date )
-            WHERE source = @mc_table_ekpo.
+          FROM zi_fi_das_ekpo( p_use_replication = @abap_false ).
+
+      WHEN mc_table_ekkn.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 zekkn,
+                 menge,
+                 vproz,
+                 sakto,
+                 kostl,
+                 anln1,
+                 aufnr,
+                 kokrs,
+                 prctr
+          FROM zi_fi_das_ekkn( p_use_replication = @abap_false ).
+
+      WHEN mc_table_ekbe.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 zekkn,
+                 vgabe,
+                 gjahr,
+                 belnr,
+                 buzei,
+                 bewtp,
+                 menge,
+                 dmbtr,
+                 wrbtr,
+                 waers,
+                 shkzg,
+                 budat,
+                 refwr
+          FROM zi_fi_das_ekbe( p_use_replication = @abap_false ).
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e026(zfi_das) WITH i_table.
@@ -507,6 +503,12 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_ekpo.
         INSERT zfi_das_ekpo FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekkn.
+        INSERT zfi_das_ekkn FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekbe.
+        INSERT zfi_das_ekbe FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e027(zfi_das) WITH i_table.

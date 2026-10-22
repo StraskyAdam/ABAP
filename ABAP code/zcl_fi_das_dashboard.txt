@@ -10,6 +10,25 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES: t_percentage TYPE p LENGTH 7 DECIMALS 1.
 
+    TYPES:
+      BEGIN OF ts_key,
+        ponumber      TYPE ebeln,
+        itemno        TYPE ebelp,
+        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
+        poowner_email TYPE zif_fi_das_dashboard=>t_email,
+      END OF ts_key,
+      tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY.
+
+    METHODS get_exclusion_candidates
+      IMPORTING
+        i_mode         TYPE zif_fi_das_dashboard=>t_mode
+        i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING
+        VALUE(rt_keys) TYPE tt_key
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
   PRIVATE SECTION.
 
     TYPES:
@@ -129,15 +148,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_odata_result,
 
       tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
-
-      BEGIN OF ts_key,
-        ponumber      TYPE ebeln,
-        itemno        TYPE ebelp,
-        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
-        poowner_email TYPE zif_fi_das_dashboard=>t_email,
-      END OF ts_key,
-
-      tt_key        TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
 
       tt_unique_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
 
@@ -369,10 +379,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_required_keys
       IMPORTING
-        is_request    TYPE ts_internal_request
+        is_request         TYPE ts_internal_request
+        i_apply_exclusions TYPE abap_bool DEFAULT abap_true
       EXPORTING
-        et_keys       TYPE tt_key
-        e_total_count TYPE int8
+        et_keys            TYPE tt_key
+        e_total_count      TYPE int8
       RAISING
         cx_sy_open_sql_db
         zcx_fi_das_error.
@@ -430,6 +441,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     CLASS-METHODS get_keys
       IMPORTING
+        VALUE(i_client)                TYPE mandt
+        VALUE(i_apply_exclusions)      TYPE abap_bool
         VALUE(i_mode)                  TYPE zif_fi_das_dashboard=>t_mode
         VALUE(i_pstype)                TYPE zif_fi_das_dashboard=>t_pstype
         VALUE(i_email)                 TYPE zif_fi_das_dashboard=>t_email
@@ -906,6 +919,60 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         e_total_count = e_total_count
       CHANGING
         ct_result = et_result ).
+
+  ENDMETHOD.
+
+  METHOD get_exclusion_candidates.
+
+    IF i_mode <> zif_fi_das_dashboard=>mc_over AND
+       i_mode <> zif_fi_das_dashboard=>mc_under.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e005(zfi_das).
+    ENDIF.
+
+    IF i_pstype <> zif_fi_das_dashboard=>mc_pstype_material AND
+       i_pstype <> zif_fi_das_dashboard=>mc_pstype_service.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e008(zfi_das).
+    ENDIF.
+
+    TYPES:
+      BEGIN OF ts_candidate_rate,
+        currency      TYPE waers,
+        exchange_rate TYPE zfi_das_exchrt-exchange_rate,
+      END OF ts_candidate_rate.
+    DATA lt_candidate_rates TYPE STANDARD TABLE OF ts_candidate_rate WITH EMPTY KEY.
+
+    TEST-SEAM candidate_currency_rates.
+      SELECT DISTINCT base~pocurrency AS currency, rate~exchange_rate
+        FROM zifidaspobase AS base
+        LEFT OUTER JOIN zfi_das_exchrt AS rate
+          ON rate~source_curr = base~pocurrency
+        INTO TABLE @lt_candidate_rates.
+    END-TEST-SEAM.
+
+    LOOP AT lt_candidate_rates INTO DATA(ls_rate) WHERE exchange_rate <= 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e017(zfi_das) WITH ls_rate-currency mc_currency_usd.
+    ENDLOOP.
+
+    DATA(ls_request) = VALUE ts_internal_request(
+      mode = i_mode
+      parameter = VALUE #( email = mc_asterisk
+                           poowner = abap_false
+                           pstype = i_pstype ) ).
+    ls_request = adjust_request( ls_request ).
+
+    get_required_keys(
+      EXPORTING
+        is_request         = ls_request
+        i_apply_exclusions = abap_false
+      IMPORTING
+        et_keys            = rt_keys ).
+
+    LOOP AT rt_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+      <fs_key>-pstype = i_pstype.
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -2162,7 +2229,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           ELSE :lc_false
         END AS is_japan_brazil
 
-      FROM zifidaspobase AS base;
+      FROM zifidaspobase AS base
+      WHERE base.mandt = :i_client;
 
 *   Apply owner and PSTYPE/business selection logic
     lt_base_candidates =
@@ -2264,11 +2332,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         LEFT OUTER JOIN ekkn AS account
           ON  account.ebeln = candidate.ponumber
           AND account.ebelp = candidate.itemno
+          AND account.mandt = :i_client
 
         LEFT OUTER JOIN csks AS cost_center
           ON  cost_center.kostl = account.kostl
           AND cost_center.kokrs = account.kokrs
           AND cost_center.datbi >= CURRENT_DATE
+          AND cost_center.mandt = :i_client
 
         WHERE
           EXISTS
@@ -2383,7 +2453,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           :i_threshold_usd * CAST( 1 / exchange_rate.exchange_rate AS DECIMAL(15,6) ),2 ) AS threshold_converted
       FROM :lt_po_totals AS total
       INNER JOIN zfi_das_exchrt AS exchange_rate
-        ON exchange_rate.source_curr = total.pocurrency;
+        ON exchange_rate.source_curr = total.pocurrency
+       AND exchange_rate.mandt = :i_client;
 
     lt_threshold_classified =
       SELECT DISTINCT
@@ -2412,8 +2483,19 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                OR threshold.po_total <= threshold.threshold_converted
              )
            );
+*   Candidate lookup bypasses only exclusion membership, not business selection
+    IF :i_apply_exclusions = :lc_false THEN
+
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_threshold_classified AS candidate;
+
 *   Exclude mode returns only excluded items; other modes remove excluded items
-    IF :lv_excluded_only = :lc_true THEN
+    ELSEIF :lv_excluded_only = :lc_true THEN
 
       lt_exclusion_applied =
         SELECT
@@ -2428,6 +2510,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             FROM zfi_das_po_excl AS exclusion
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
+             AND exclusion.mandt    = :i_client
         );
 
     ELSE
@@ -2446,6 +2529,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
              AND exclusion.pstype   = candidate.pstype
+             AND exclusion.mandt    = :i_client
         );
 
     END IF;
@@ -2702,34 +2786,38 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_required_keys.
 
-    get_access_scope( EXPORTING i_email   = is_request-parameter-email
-                                i_poowner = is_request-parameter-poowner
-                      IMPORTING et_cost_centers = DATA(lt_cost_centers)
-                                et_company_codes = DATA(lt_company_codes)
-                                et_management_units = DATA(lt_management_units) ).
+    TEST-SEAM required_keys_query.
+      get_access_scope( EXPORTING i_email   = is_request-parameter-email
+                                  i_poowner = is_request-parameter-poowner
+                        IMPORTING et_cost_centers = DATA(lt_cost_centers)
+                                  et_company_codes = DATA(lt_company_codes)
+                                  et_management_units = DATA(lt_management_units) ).
 
-    get_keys(
-      EXPORTING
-        i_mode                  = is_request-mode
-        i_pstype                = get_pstype( is_request )
-        i_email                 = is_request-parameter-email
-        i_poowner               = is_request-parameter-poowner
-        i_count_requested       = is_request-paging-count_requested
-        i_top_requested         = is_request-paging-top_requested
-        i_skip                  = is_request-paging-skip
-        i_top                   = is_request-paging-top
-        i_ponumber_filter       = is_request-filter_for_amdp-ponumber
-        i_item_filter           = is_request-filter_for_amdp-item
-        i_supplier_filter       = is_request-filter_for_amdp-suppliername
-        i_threshold_usd         = get_threshold( )
-        it_japan_brazil         = get_japan_brazil( )
-        it_company_codes        = lt_company_codes
-        it_cost_centers         = lt_cost_centers
-        it_management_units     = lt_management_units
-        i_pstype_desc_requested = is_request-pstype_desc_requested
-      IMPORTING
-        et_keys             = et_keys
-        e_total_count       = e_total_count ).
+      get_keys(
+        EXPORTING
+          i_client                = sy-mandt
+          i_apply_exclusions      = i_apply_exclusions
+          i_mode                  = is_request-mode
+          i_pstype                = get_pstype( is_request )
+          i_email                 = is_request-parameter-email
+          i_poowner               = is_request-parameter-poowner
+          i_count_requested       = is_request-paging-count_requested
+          i_top_requested         = is_request-paging-top_requested
+          i_skip                  = is_request-paging-skip
+          i_top                   = is_request-paging-top
+          i_ponumber_filter       = is_request-filter_for_amdp-ponumber
+          i_item_filter           = is_request-filter_for_amdp-item
+          i_supplier_filter       = is_request-filter_for_amdp-suppliername
+          i_threshold_usd         = get_threshold( )
+          it_japan_brazil         = get_japan_brazil( )
+          it_company_codes        = lt_company_codes
+          it_cost_centers         = lt_cost_centers
+          it_management_units     = lt_management_units
+          i_pstype_desc_requested = is_request-pstype_desc_requested
+        IMPORTING
+          et_keys             = et_keys
+          e_total_count       = e_total_count ).
+    END-TEST-SEAM.
 
   ENDMETHOD.
 

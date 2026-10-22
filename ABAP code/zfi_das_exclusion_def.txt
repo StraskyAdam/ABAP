@@ -1,0 +1,705 @@
+CLASS ltc_exclusion DEFINITION DEFERRED.
+
+CLASS lcl_exclusion DEFINITION FINAL FRIENDS ltc_exclusion.
+  PUBLIC SECTION.
+    METHODS run
+      IMPORTING i_dry TYPE abap_bool DEFAULT abap_true
+                i_allow_empty TYPE abap_bool DEFAULT abap_false
+      RAISING zcx_fi_das_error.
+  PRIVATE SECTION.
+    CONSTANTS:
+      mc_target TYPE tabname VALUE 'ZFI_DAS_PO_EXCL',
+      mc_ekko TYPE tabname VALUE 'EKKO',
+      mc_ekpo TYPE tabname VALUE 'EKPO',
+      mc_ekkn TYPE tabname VALUE 'EKKN',
+      mc_t001 TYPE tabname VALUE 'T001',
+      mc_lfa1 TYPE tabname VALUE 'LFA1',
+      mc_csks TYPE tabname VALUE 'CSKS',
+      mc_bukrs TYPE tabname VALUE 'ZFI_DAS_BUKRS',
+      mc_roles TYPE tabname VALUE 'ZFI_DAS_ROLES',
+      mc_config TYPE tabname VALUE 'ZFI_DAS_CONF_VAL',
+      mc_threshold TYPE tabname VALUE 'ZFI_DAS_THRESH',
+      mc_rates TYPE tabname VALUE 'ZFI_DAS_EXCHRT',
+      mc_rules TYPE tabname VALUE 'ZFI_ACCRUAL_EXCL',
+      mc_auth TYPE xuobject VALUE 'S_TABU_NAM',
+      mc_table_field TYPE fieldname VALUE 'TABLE',
+      mc_activity_field TYPE fieldname VALUE 'ACTVT',
+      mc_read TYPE activ_auth VALUE '03',
+      mc_write TYPE activ_auth VALUE '02',
+      mc_scope TYPE c LENGTH 1 VALUE '1',
+      mc_header_scope TYPE zfi_das_bukrs-scope VALUE 'H',
+      mc_item_scope TYPE zfi_das_bukrs-scope VALUE 'I',
+      mc_role_pattern TYPE zif_fi_das_dashboard=>t_email VALUE '%',
+      mc_usd TYPE waers VALUE 'USD',
+      mc_japan TYPE zfi_das_conf_val-config_name VALUE 'Japan_Brazil',
+      mc_gl TYPE zfi_accrual_excl-ruletype VALUE 'GL',
+      mc_cc TYPE zfi_accrual_excl-ruletype VALUE 'CC',
+      mc_iv TYPE zfi_accrual_excl-ruletype VALUE 'IV',
+      mc_pc TYPE zfi_accrual_excl-ruletype VALUE 'PC',
+      mc_po TYPE zfi_accrual_excl-ruletype VALUE 'PO',
+      mc_vd TYPE zfi_accrual_excl-ruletype VALUE 'VD',
+      mc_company_low TYPE string VALUE '0000',
+      mc_company_high TYPE string VALUE '9999',
+      mc_account_low TYPE string VALUE '0000000000',
+      mc_account_high TYPE string VALUE '9999999999',
+      mc_order_low TYPE string VALUE '000000000000',
+      mc_order_high TYPE string VALUE '999999999999',
+      mc_profit_low TYPE string VALUE '00000000',
+      mc_profit_high TYPE string VALUE '9999',
+      mc_zero TYPE c LENGTH 1 VALUE '0',
+      mc_company_length TYPE i VALUE 4,
+      mc_package_size TYPE i VALUE 10000,
+      mc_label_preview TYPE string VALUE 'Dry-run',
+      mc_label_applied TYPE string VALUE 'Applied',
+      mc_label_candidates TYPE string VALUE 'Candidate items (over/under UNION ALL):',
+      mc_label_enriched TYPE string VALUE 'Enriched assignment rows:',
+      mc_label_vectors TYPE string VALUE 'Distinct matching vectors:',
+      mc_label_results TYPE string VALUE 'Result tuples:',
+      mc_label_deleted TYPE string VALUE 'Deleted:',
+      mc_label_inserted TYPE string VALUE 'Inserted:'.
+
+    TYPES:
+      BEGIN OF ts_nullable,
+        value TYPE string,
+        is_null TYPE abap_bool,
+      END OF ts_nullable,
+      BEGIN OF ts_range,
+        low TYPE ts_nullable,
+        high TYPE ts_nullable,
+      END OF ts_range,
+      BEGIN OF ts_rule,
+        ruleid TYPE zfi_accrual_excl-ruleid,
+        kind TYPE zfi_accrual_excl-ruletype,
+        company TYPE ts_range,
+        account TYPE ts_range,
+        cost TYPE ts_range,
+        internal_order TYPE ts_range,
+        profit TYPE ts_range,
+        po TYPE ts_nullable,
+        vendor TYPE ts_nullable,
+      END OF ts_rule,
+      tt_rule TYPE STANDARD TABLE OF ts_rule WITH EMPTY KEY,
+      BEGIN OF ts_rule_db.
+        INCLUDE TYPE zfi_accrual_excl.
+    TYPES:
+        v_bukrsfr TYPE string,
+        v_bukrsto TYPE string,
+        v_saktofr TYPE string,
+        v_saktoto TYPE string,
+        v_kostlfr TYPE string,
+        v_kostlto TYPE string,
+        v_aufnrfr TYPE string,
+        v_aufnrto TYPE string,
+        v_prctrfr TYPE string,
+        v_prctrto TYPE string,
+        v_ponum TYPE string,
+        v_lifnr TYPE string,
+        n_bukrsfr TYPE abap_bool,
+        n_bukrsto TYPE abap_bool,
+        n_saktofr TYPE abap_bool,
+        n_saktoto TYPE abap_bool,
+        n_kostlfr TYPE abap_bool,
+        n_kostlto TYPE abap_bool,
+        n_aufnrfr TYPE abap_bool,
+        n_aufnrto TYPE abap_bool,
+        n_prctrfr TYPE abap_bool,
+        n_prctrto TYPE abap_bool,
+        n_ponum TYPE abap_bool,
+        n_lifnr TYPE abap_bool,
+      END OF ts_rule_db,
+      BEGIN OF ts_item,
+        ponumber TYPE ekpo-ebeln,
+        itemno TYPE ekpo-ebelp,
+        missing_po TYPE abap_bool,
+        company TYPE ts_nullable,
+        account TYPE ts_nullable,
+        cost TYPE ts_nullable,
+        internal_order TYPE ts_nullable,
+        profit TYPE ts_nullable,
+        vendor TYPE ts_nullable,
+      END OF ts_item,
+      tt_item TYPE STANDARD TABLE OF ts_item WITH EMPTY KEY,
+      BEGIN OF ts_joined,
+        ponumber TYPE ekpo-ebeln,
+        itemno TYPE ekpo-ebelp,
+        assignment TYPE ekkn-zekkn,
+        company TYPE t001-bukrs,
+        account TYPE ekkn-sakto,
+        cost TYPE ekkn-kostl,
+        internal_order TYPE ekkn-aufnr,
+        profit TYPE ekkn-prctr,
+        vendor TYPE ekko-lifnr,
+        v_company TYPE string,
+        v_account TYPE string,
+        v_cost TYPE string,
+        v_order TYPE string,
+        v_profit TYPE string,
+        v_vendor TYPE string,
+        n_po TYPE abap_bool,
+        n_company TYPE abap_bool,
+        n_account TYPE abap_bool,
+        n_cost TYPE abap_bool,
+        n_order TYPE abap_bool,
+        n_profit TYPE abap_bool,
+        n_vendor TYPE abap_bool,
+      END OF ts_joined,
+      BEGIN OF ts_key,
+        ponumber TYPE ekpo-ebeln,
+        itemno TYPE ekpo-ebelp,
+      END OF ts_key,
+      tt_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
+      BEGIN OF ts_vector,
+        ponumber TYPE ekpo-ebeln,
+        itemno TYPE ekpo-ebelp,
+        gl TYPE abap_bool,
+        cc TYPE abap_bool,
+        iv TYPE abap_bool,
+        pc TYPE abap_bool,
+        po TYPE abap_bool,
+        vd TYPE abap_bool,
+      END OF ts_vector,
+      tt_vector TYPE HASHED TABLE OF ts_vector
+        WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd,
+      tt_result TYPE STANDARD TABLE OF zfi_das_po_excl WITH EMPTY KEY,
+      tt_target_key TYPE HASHED TABLE OF zfi_das_po_excl
+        WITH UNIQUE KEY mandt ponumber itemno ruletype.
+
+    DATA m_locked TYPE abap_bool.
+    DATA m_candidates TYPE i.
+    DATA m_enriched TYPE i.
+    DATA m_vectors TYPE i.
+    DATA m_deleted TYPE i.
+    DATA m_inserted TYPE i.
+    METHODS authorize RAISING zcx_fi_das_error.
+    METHODS lock RAISING zcx_fi_das_error.
+    METHODS unlock.
+    METHODS prerequisites RAISING zcx_fi_das_error.
+    METHODS read_rules RETURNING VALUE(rt_rules) TYPE tt_rule
+      RAISING zcx_fi_das_error.
+    METHODS candidates
+      IMPORTING i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING VALUE(rt_keys) TYPE tt_key
+      RAISING zcx_fi_das_error.
+    METHODS enrich
+      IMPORTING it_keys TYPE tt_key
+      RETURNING VALUE(rt_items) TYPE tt_item.
+    METHODS evaluate
+      IMPORTING it_items TYPE tt_item it_rules TYPE tt_rule
+      RETURNING VALUE(rt_vectors) TYPE tt_vector.
+    METHODS match
+      IMPORTING is_item TYPE ts_item is_rule TYPE ts_rule
+      RETURNING VALUE(rs_vector) TYPE ts_vector.
+    METHODS results
+      IMPORTING it_vectors TYPE tt_vector
+                i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING VALUE(rt_result) TYPE tt_result.
+    METHODS validate_result
+      IMPORTING it_result TYPE tt_result i_dry TYPE abap_bool
+                i_allow_empty TYPE abap_bool
+      RAISING zcx_fi_das_error.
+    METHODS replace_snapshot
+      IMPORTING it_result TYPE tt_result
+      RAISING zcx_fi_das_error.
+    METHODS insert_package
+      IMPORTING it_package TYPE tt_result
+      RAISING zcx_fi_das_error.
+    METHODS summary IMPORTING i_dry TYPE abap_bool i_results TYPE i.
+    CLASS-METHODS normalize
+      IMPORTING is_range TYPE ts_range i_low TYPE string i_high TYPE string
+      RETURNING VALUE(rs_range) TYPE ts_range.
+    CLASS-METHODS normalize_rule
+      IMPORTING is_db TYPE ts_rule_db
+      RETURNING VALUE(rs_rule) TYPE ts_rule.
+    CLASS-METHODS strip_zero
+      IMPORTING is_value TYPE ts_nullable
+      RETURNING VALUE(rs_value) TYPE ts_nullable.
+    CLASS-METHODS equal
+      IMPORTING is_left TYPE ts_nullable is_right TYPE ts_nullable
+      RETURNING VALUE(r_match) TYPE abap_bool.
+    CLASS-METHODS between
+      IMPORTING is_value TYPE ts_nullable is_range TYPE ts_range
+      RETURNING VALUE(r_match) TYPE abap_bool.
+    CLASS-METHODS in_range
+      IMPORTING is_value TYPE ts_nullable is_range TYPE ts_range
+      RETURNING VALUE(r_match) TYPE abap_bool.
+ENDCLASS.
+
+CLASS lcl_exclusion IMPLEMENTATION.
+  METHOD run.
+    CLEAR: m_candidates, m_enriched, m_vectors, m_deleted, m_inserted.
+    DATA lt_result TYPE tt_result.
+    TRY.
+        TEST-SEAM authorization.
+          authorize( ).
+        END-TEST-SEAM.
+        TEST-SEAM enqueue.
+          lock( ).
+        END-TEST-SEAM.
+        TEST-SEAM selection.
+        prerequisites( ).
+        DATA(lt_rules) = read_rules( ).
+        " UNION ALL over/under BEFORE one evaluator call per requested category.
+        DATA(lt_material) = enrich( candidates( zif_fi_das_dashboard=>mc_pstype_material ) ).
+        DATA(lt_material_vectors) = evaluate( it_items = lt_material it_rules = lt_rules ).
+        APPEND LINES OF results(
+          it_vectors = lt_material_vectors
+          i_pstype = zif_fi_das_dashboard=>mc_pstype_material ) TO lt_result.
+        DATA(lt_service) = enrich( candidates( zif_fi_das_dashboard=>mc_pstype_service ) ).
+        DATA(lt_service_vectors) = evaluate( it_items = lt_service it_rules = lt_rules ).
+        APPEND LINES OF results(
+          it_vectors = lt_service_vectors
+          i_pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_result.
+        m_vectors = lines( lt_material_vectors ) + lines( lt_service_vectors ).
+        END-TEST-SEAM.
+        validate_result( it_result = lt_result i_dry = i_dry i_allow_empty = i_allow_empty ).
+        IF i_dry = abap_false.
+          TEST-SEAM persistence.
+            replace_snapshot( lt_result ).
+          END-TEST-SEAM.
+          TEST-SEAM commit.
+            COMMIT WORK AND WAIT.
+            IF sy-subrc <> 0.
+              RAISE EXCEPTION NEW zcx_fi_das_error(
+                i_text = |{ mc_target } synchronous commit failed| ).
+            ENDIF.
+          END-TEST-SEAM.
+        ENDIF.
+        unlock( ).
+        summary( i_dry = i_dry i_results = lines( lt_result ) ).
+      CATCH cx_root INTO DATA(l_error).
+        TEST-SEAM rollback.
+          ROLLBACK WORK.
+        END-TEST-SEAM.
+        unlock( ).
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |Exclusion refresh failed: { l_error->get_text( ) } (candidates={ m_candidates }, enriched={ m_enriched }, vectors={ m_vectors }, results={ lines( lt_result ) })|
+          previous = l_error ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD authorize.
+    TYPES tt_tables TYPE STANDARD TABLE OF tabname WITH EMPTY KEY.
+    DATA(lt_tables) = VALUE tt_tables(
+      ( mc_ekko ) ( mc_ekpo ) ( mc_ekkn ) ( mc_t001 ) ( mc_lfa1 ) ( mc_csks )
+      ( mc_bukrs ) ( mc_roles ) ( mc_config )
+      ( mc_threshold ) ( mc_rates ) ( mc_rules )
+      ( mc_target ) ).
+    LOOP AT lt_tables INTO DATA(l_table).
+      AUTHORITY-CHECK OBJECT mc_auth
+        ID mc_table_field FIELD l_table ID mc_activity_field FIELD mc_read.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |Missing { mc_auth } { mc_activity_field }={ mc_read } { mc_table_field }={ l_table }| ).
+      ENDIF.
+    ENDLOOP.
+    AUTHORITY-CHECK OBJECT mc_auth
+      ID mc_table_field FIELD mc_target ID mc_activity_field FIELD mc_write.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |Missing { mc_auth } { mc_activity_field }={ mc_write } { mc_table_field }={ mc_target }| ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD lock.
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING tabname = mc_target _scope = mc_scope _wait = abap_false
+      EXCEPTIONS foreign_lock = 1 system_failure = 2 OTHERS = 3.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |Cannot lock { mc_target }; another refresh or a lock service error prevents this run (RC { sy-subrc })| ).
+    ENDIF.
+    m_locked = abap_true.
+  ENDMETHOD.
+
+  METHOD unlock.
+    IF m_locked = abap_true.
+      TEST-SEAM dequeue.
+      CALL FUNCTION 'DEQUEUE_E_TABLE'
+        EXPORTING tabname = mc_target _scope = mc_scope.
+      END-TEST-SEAM.
+      m_locked = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD prerequisites.
+    SELECT SINGLE bukrs FROM zfi_das_bukrs
+      WHERE scope = @mc_header_scope AND bukrs <> @space INTO @DATA(l_header_company).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_bukrs } has no header scope { mc_header_scope } in client { sy-mandt }; candidate selection would silently exclude all POs| ).
+    ENDIF.
+    SELECT SINGLE bukrs FROM zfi_das_bukrs
+      WHERE scope = @mc_item_scope AND bukrs <> @space INTO @DATA(l_item_company).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_bukrs } has no item scope { mc_item_scope } in client { sy-mandt }; candidate selection would silently exclude all items| ).
+    ENDIF.
+    " XSA requires an existing role before unrestricted wildcard expansion;
+    " it does not require a synthetic role whose user_emailid is the wildcard.
+    " Open SQL applies the current client automatically.
+    SELECT SINGLE user_emailid FROM zfi_das_roles
+      WHERE user_emailid LIKE @mc_role_pattern AND user_emailid <> @space
+      INTO @DATA(l_role_email).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_roles } has no nonempty user_emailid matching { mc_role_pattern } in client { sy-mandt }; maintain role setup before unrestricted candidate selection| ).
+    ENDIF.
+    " Dashboard SELECT SINGLE filters only currency, not company_code.
+    " Require exactly one USD row so no arbitrary company row can be selected.
+    SELECT currency, company_code, po_threshold FROM zfi_das_thresh
+      WHERE currency = @mc_usd INTO TABLE @DATA(lt_thresholds).
+    IF lines( lt_thresholds ) <> 1.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_threshold } requires exactly one currency={ mc_usd } row in client { sy-mandt }; found { lines( lt_thresholds ) }. Dashboard selection does not distinguish company_code| ).
+    ENDIF.
+    IF lt_thresholds[ 1 ]-po_threshold <= 0.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_threshold } requires a positive po_threshold for currency={ mc_usd }| ).
+    ENDIF.
+    SELECT SINGLE config_value FROM zfi_das_conf_val
+      WHERE config_name = @mc_japan INTO @DATA(l_config).
+    IF sy-subrc <> 0 OR l_config IS INITIAL.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_config } requires nonempty config_name={ mc_japan }| ).
+    ENDIF.
+    DATA(lt_companies) = zcl_fi_das_utility=>split_list( CONV string( l_config ) ).
+    IF lt_companies IS INITIAL.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |Configuration { mc_japan } has no company codes| ).
+    ENDIF.
+    LOOP AT lt_companies INTO DATA(l_company).
+      IF strlen( l_company ) > mc_company_length.
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |Configuration { mc_japan } contains invalid company code "{ l_company }"| ).
+      ENDIF.
+      SELECT SINGLE bukrs FROM t001 WHERE bukrs = @l_company INTO @DATA(l_bukrs).
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |Configuration { mc_japan }: { mc_t001 } company "{ l_company }" does not exist| ).
+      ENDIF.
+    ENDLOOP.
+    " get_exclusion_candidates validates every live base PO currency against
+    " rates before its threshold INNER JOIN; reuse that guard on all four calls.
+  ENDMETHOD.
+
+  METHOD candidates.
+    DATA(l_dashboard) = NEW zcl_fi_das_dashboard( ).
+    DATA(lt_candidates) = l_dashboard->get_exclusion_candidates(
+      i_mode = zif_fi_das_dashboard=>mc_over i_pstype = i_pstype ).
+    APPEND LINES OF l_dashboard->get_exclusion_candidates(
+      i_mode = zif_fi_das_dashboard=>mc_under i_pstype = i_pstype ) TO lt_candidates.
+    m_candidates = m_candidates + lines( lt_candidates ).
+    " Input multiplicity disappears in evaluator DISTINCT; source joins need each key once.
+    LOOP AT lt_candidates INTO DATA(ls_candidate).
+      INSERT VALUE #( ponumber = ls_candidate-ponumber itemno = ls_candidate-itemno ) INTO TABLE rt_keys.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD enrich.
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA lt_joined TYPE STANDARD TABLE OF ts_joined WITH EMPTY KEY.
+    " ABAP 7.54+: internal-table SQL join, no FAE DISTINCT. Keep every EKKN row.
+    " CASE flags distinguish SQL NULL (missing join) from actual blank values.
+    SELECT p~ebeln AS ponumber, p~ebelp AS itemno, a~zekkn AS assignment,
+           c~bukrs AS company, a~sakto AS account, a~kostl AS cost,
+           a~aufnr AS internal_order, a~prctr AS profit, h~lifnr AS vendor,
+           CAST( c~bukrs AS SSTRING( 1333 ) ) AS v_company,
+           CAST( a~sakto AS SSTRING( 1333 ) ) AS v_account,
+           CAST( a~kostl AS SSTRING( 1333 ) ) AS v_cost,
+           CAST( a~aufnr AS SSTRING( 1333 ) ) AS v_order,
+           CAST( a~prctr AS SSTRING( 1333 ) ) AS v_profit,
+           CAST( h~lifnr AS SSTRING( 1333 ) ) AS v_vendor,
+           CASE WHEN p~ebeln IS NULL THEN @abap_true ELSE @abap_false END AS n_po,
+           CASE WHEN c~bukrs IS NULL THEN @abap_true ELSE @abap_false END AS n_company,
+           CASE WHEN a~sakto IS NULL THEN @abap_true ELSE @abap_false END AS n_account,
+           CASE WHEN a~kostl IS NULL THEN @abap_true ELSE @abap_false END AS n_cost,
+           CASE WHEN a~aufnr IS NULL THEN @abap_true ELSE @abap_false END AS n_order,
+           CASE WHEN a~prctr IS NULL THEN @abap_true ELSE @abap_false END AS n_profit,
+           CASE WHEN h~lifnr IS NULL THEN @abap_true ELSE @abap_false END AS n_vendor
+      FROM @it_keys AS k
+      LEFT OUTER JOIN ekpo AS p ON p~ebeln = k~ponumber AND p~ebelp = k~itemno
+      LEFT OUTER JOIN ekko AS h ON h~ebeln = p~ebeln
+      LEFT OUTER JOIN lfa1 AS v ON v~lifnr = h~lifnr
+      LEFT OUTER JOIN t001 AS c ON c~bukrs = h~bukrs
+      LEFT OUTER JOIN ekkn AS a ON a~ebeln = p~ebeln AND a~ebelp = p~ebelp
+      INTO TABLE @lt_joined ##itab_db_select.
+    m_enriched = m_enriched + lines( lt_joined ).
+    LOOP AT lt_joined INTO DATA(ls_joined).
+      APPEND VALUE #(
+        ponumber = ls_joined-ponumber itemno = ls_joined-itemno
+        missing_po = ls_joined-n_po
+        company = VALUE #( value = ls_joined-v_company is_null = ls_joined-n_company )
+        account = strip_zero( VALUE #( value = ls_joined-v_account is_null = ls_joined-n_account ) )
+        cost = strip_zero( VALUE #( value = ls_joined-v_cost is_null = ls_joined-n_cost ) )
+        internal_order = strip_zero( VALUE #( value = ls_joined-v_order is_null = ls_joined-n_order ) )
+        profit = VALUE #( value = ls_joined-v_profit is_null = ls_joined-n_profit )
+        vendor = strip_zero( VALUE #( value = ls_joined-v_vendor is_null = ls_joined-n_vendor ) )
+      ) TO rt_items.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD read_rules.
+    DATA lt_db TYPE STANDARD TABLE OF ts_rule_db WITH EMPTY KEY.
+    " SSTRING projections avoid CHAR->STRING conversion trimming real spaces.
+    " Null flags remain separate: CAST(NULL) is still SQL NULL, never a blank.
+    SELECT r~*,
+      CAST( bukrsfr AS SSTRING( 1333 ) ) AS v_bukrsfr,
+      CAST( bukrsto AS SSTRING( 1333 ) ) AS v_bukrsto,
+      CAST( saktofr AS SSTRING( 1333 ) ) AS v_saktofr,
+      CAST( saktoto AS SSTRING( 1333 ) ) AS v_saktoto,
+      CAST( kostlfr AS SSTRING( 1333 ) ) AS v_kostlfr,
+      CAST( kostlto AS SSTRING( 1333 ) ) AS v_kostlto,
+      CAST( aufnrfr AS SSTRING( 1333 ) ) AS v_aufnrfr,
+      CAST( aufnrto AS SSTRING( 1333 ) ) AS v_aufnrto,
+      CAST( prctrfr AS SSTRING( 1333 ) ) AS v_prctrfr,
+      CAST( prctrto AS SSTRING( 1333 ) ) AS v_prctrto,
+      CAST( ponum AS SSTRING( 1333 ) ) AS v_ponum,
+      CAST( lifnr AS SSTRING( 1333 ) ) AS v_lifnr,
+      CASE WHEN bukrsfr IS NULL THEN @abap_true ELSE @abap_false END AS n_bukrsfr,
+      CASE WHEN bukrsto IS NULL THEN @abap_true ELSE @abap_false END AS n_bukrsto,
+      CASE WHEN saktofr IS NULL THEN @abap_true ELSE @abap_false END AS n_saktofr,
+      CASE WHEN saktoto IS NULL THEN @abap_true ELSE @abap_false END AS n_saktoto,
+      CASE WHEN kostlfr IS NULL THEN @abap_true ELSE @abap_false END AS n_kostlfr,
+      CASE WHEN kostlto IS NULL THEN @abap_true ELSE @abap_false END AS n_kostlto,
+      CASE WHEN aufnrfr IS NULL THEN @abap_true ELSE @abap_false END AS n_aufnrfr,
+      CASE WHEN aufnrto IS NULL THEN @abap_true ELSE @abap_false END AS n_aufnrto,
+      CASE WHEN prctrfr IS NULL THEN @abap_true ELSE @abap_false END AS n_prctrfr,
+      CASE WHEN prctrto IS NULL THEN @abap_true ELSE @abap_false END AS n_prctrto,
+      CASE WHEN ponum IS NULL THEN @abap_true ELSE @abap_false END AS n_ponum,
+      CASE WHEN lifnr IS NULL THEN @abap_true ELSE @abap_false END AS n_lifnr
+      FROM zfi_accrual_excl AS r INTO CORRESPONDING FIELDS OF TABLE @lt_db.
+    IF lt_db IS INITIAL.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_rules } has no rules in client { sy-mandt }; maintain exclusion rules before refresh (snapshot unchanged)| ).
+    ENDIF.
+    LOOP AT lt_db INTO DATA(ls_db).
+      APPEND normalize_rule( ls_db ) TO rt_rules.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD normalize_rule.
+    DATA(ls_db) = is_db.
+    rs_rule = VALUE ts_rule(
+        ruleid = ls_db-ruleid kind = ls_db-ruletype
+        company = VALUE #(
+          low = VALUE #( value = ls_db-v_bukrsfr is_null = ls_db-n_bukrsfr )
+          high = VALUE #( value = ls_db-v_bukrsto is_null = ls_db-n_bukrsto ) )
+        account = VALUE #(
+          low = VALUE #( value = ls_db-v_saktofr is_null = ls_db-n_saktofr )
+          high = VALUE #( value = ls_db-v_saktoto is_null = ls_db-n_saktoto ) )
+        cost = VALUE #(
+          low = VALUE #( value = ls_db-v_kostlfr is_null = ls_db-n_kostlfr )
+          high = VALUE #( value = ls_db-v_kostlto is_null = ls_db-n_kostlto ) )
+        internal_order = VALUE #(
+          low = VALUE #( value = ls_db-v_aufnrfr is_null = ls_db-n_aufnrfr )
+          high = VALUE #( value = ls_db-v_aufnrto is_null = ls_db-n_aufnrto ) )
+        profit = VALUE #(
+          low = VALUE #( value = ls_db-v_prctrfr is_null = ls_db-n_prctrfr )
+          high = VALUE #( value = ls_db-v_prctrto is_null = ls_db-n_prctrto ) )
+        po = strip_zero( VALUE #( value = ls_db-v_ponum is_null = ls_db-n_ponum ) )
+        vendor = strip_zero( VALUE #( value = ls_db-v_lifnr is_null = ls_db-n_lifnr ) ) ).
+      rs_rule-company = normalize( is_range = rs_rule-company
+        i_low = mc_company_low i_high = mc_company_high ).
+      CASE rs_rule-kind.
+        WHEN mc_gl.
+          rs_rule-account = normalize( is_range = rs_rule-account
+            i_low = mc_account_low i_high = mc_account_high ).
+          rs_rule-account-low = strip_zero( rs_rule-account-low ).
+          rs_rule-account-high = strip_zero( rs_rule-account-high ).
+        WHEN mc_cc.
+          rs_rule-cost = normalize( is_range = rs_rule-cost
+            i_low = mc_account_low i_high = mc_account_high ).
+          rs_rule-cost-low = strip_zero( rs_rule-cost-low ).
+          rs_rule-cost-high = strip_zero( rs_rule-cost-high ).
+        WHEN mc_iv.
+          rs_rule-internal_order = normalize( is_range = rs_rule-internal_order
+            i_low = mc_order_low i_high = mc_order_high ).
+          rs_rule-internal_order-low = strip_zero( rs_rule-internal_order-low ).
+          rs_rule-internal_order-high = strip_zero( rs_rule-internal_order-high ).
+        WHEN mc_pc.
+          rs_rule-profit = normalize( is_range = rs_rule-profit
+            i_low = mc_profit_low i_high = mc_profit_high ).
+          rs_rule-profit-low = strip_zero( rs_rule-profit-low ).
+          rs_rule-profit-high = strip_zero( rs_rule-profit-high ).
+      ENDCASE.
+  ENDMETHOD.
+
+  METHOD normalize.
+    rs_range = is_range.
+    " BOTH endpoints must be exactly empty or one space; NULL is not blank.
+    IF is_range-low-is_null = abap_false AND is_range-high-is_null = abap_false
+       AND ( is_range-low-value = `` OR is_range-low-value = ` ` )
+       AND ( is_range-high-value = `` OR is_range-high-value = ` ` ).
+      rs_range-low-value = i_low.
+      rs_range-high-value = i_high.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD strip_zero.
+    rs_value = is_value.
+    IF rs_value-is_null = abap_false.
+      SHIFT rs_value-value LEFT DELETING LEADING mc_zero.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD equal.
+    r_match = xsdbool( is_left-is_null = abap_false AND is_right-is_null = abap_false
+                      AND is_left-value = is_right-value ).
+  ENDMETHOD.
+
+  METHOD between.
+    " All operands are strings: deliberately lexical, never ALPHA/numeric.
+    r_match = xsdbool( is_value-is_null = abap_false
+      AND is_range-low-is_null = abap_false AND is_range-high-is_null = abap_false
+      AND is_value-value >= is_range-low-value AND is_value-value <= is_range-high-value ).
+  ENDMETHOD.
+
+  METHOD in_range.
+    r_match = xsdbool( equal( is_left = is_value is_right = is_range-low ) = abap_true
+                   OR between( is_value = is_value is_range = is_range ) = abap_true ).
+  ENDMETHOD.
+
+  METHOD match.
+    rs_vector-ponumber = is_item-ponumber.
+    rs_vector-itemno = is_item-itemno.
+    IF is_item-missing_po = abap_true.
+      RETURN.
+    ENDIF.
+    DATA(l_company_equal) = equal( is_left = is_item-company is_right = is_rule-company-low ).
+    DATA(l_company_between) = between( is_value = is_item-company is_range = is_rule-company ).
+    DATA(l_company) = xsdbool( l_company_equal = abap_true OR l_company_between = abap_true ).
+    CASE is_rule-kind.
+      WHEN mc_gl.
+        rs_vector-gl = xsdbool( l_company = abap_true AND
+          in_range( is_value = is_item-account is_range = is_rule-account ) = abap_true ).
+      WHEN mc_cc.
+        rs_vector-cc = xsdbool( l_company = abap_true AND
+          in_range( is_value = is_item-cost is_range = is_rule-cost ) = abap_true ).
+      WHEN mc_iv.
+        rs_vector-iv = xsdbool( l_company = abap_true AND
+          in_range( is_value = is_item-internal_order is_range = is_rule-internal_order ) = abap_true ).
+      WHEN mc_pc.
+        " XSA's company-BETWEEN branch compares equality with an unassigned
+        " SQL NULL lv_profitCenter: only profit BETWEEN can succeed there.
+        rs_vector-pc = xsdbool(
+          ( l_company_equal = abap_true AND
+            in_range( is_value = is_item-profit is_range = is_rule-profit ) = abap_true )
+          OR ( l_company_between = abap_true AND
+            between( is_value = is_item-profit is_range = is_rule-profit ) = abap_true ) ).
+    ENDCASE.
+    " These two comparisons are intentionally NOT gated by RULETYPE.
+    rs_vector-po = xsdbool( l_company = abap_true AND equal(
+      is_left = VALUE #( value = CONV string( is_item-ponumber ) ) is_right = is_rule-po ) = abap_true ).
+    rs_vector-vd = xsdbool( l_company = abap_true AND
+      equal( is_left = is_item-vendor is_right = is_rule-vendor ) = abap_true ).
+  ENDMETHOD.
+
+  METHOD evaluate.
+    LOOP AT it_items INTO DATA(ls_item).
+      LOOP AT it_rules INTO DATA(ls_rule).
+        DATA(ls_vector) = match( is_item = ls_item is_rule = ls_rule ).
+        IF ls_vector-gl = abap_true OR ls_vector-cc = abap_true
+           OR ls_vector-iv = abap_true OR ls_vector-pc = abap_true
+           OR ls_vector-po = abap_true OR ls_vector-vd = abap_true.
+          " DISTINCT only at the exact six-match projection, not at final keys.
+          INSERT ls_vector INTO TABLE rt_vectors.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD results.
+    LOOP AT it_vectors INTO DATA(ls_vector).
+      DATA(l_kind) = COND zfi_das_po_excl-ruletype(
+        WHEN ls_vector-gl = abap_true THEN mc_gl
+        WHEN ls_vector-cc = abap_true THEN mc_cc
+        WHEN ls_vector-iv = abap_true THEN mc_iv
+        WHEN ls_vector-pc = abap_true THEN mc_pc
+        WHEN ls_vector-po = abap_true THEN mc_po
+        WHEN ls_vector-vd = abap_true THEN mc_vd ).
+      APPEND VALUE #( mandt = sy-mandt ponumber = ls_vector-ponumber
+        itemno = ls_vector-itemno ruletype = l_kind pstype = i_pstype ) TO rt_result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_result.
+    DATA lt_seen TYPE tt_target_key.
+    LOOP AT it_result INTO DATA(ls_result).
+      IF ls_result-mandt <> sy-mandt OR ls_result-ponumber IS INITIAL
+         OR ls_result-itemno IS INITIAL OR ls_result-ruletype IS INITIAL.
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |Invalid { mc_target } key MANDT/PONUMBER/ITEMNO/RULETYPE; snapshot unchanged| ).
+      ENDIF.
+      INSERT ls_result INTO TABLE lt_seen.
+      IF sy-subrc <> 0.
+        " XSA UNION ALL can produce this within a category or across categories.
+        " PSTYPE is not in the verified DDIC primary key. Never discard a tuple.
+        RAISE EXCEPTION NEW zcx_fi_das_error(
+          i_text = |{ mc_target } cannot represent XSA multiplicity: duplicate key { ls_result-mandt }/{ ls_result-ponumber }/{ ls_result-itemno }/{ ls_result-ruletype } (PSTYPE is not a key); snapshot unchanged| ).
+      ENDIF.
+    ENDLOOP.
+    IF it_result IS INITIAL AND i_dry = abap_false AND i_allow_empty = abap_false.
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |Empty exclusion result; live selection may legitimately return zero. Preview with dry-run or explicitly select allow-empty to clear { mc_target }| ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD replace_snapshot.
+    DATA l_timestamp TYPE zfi_das_po_excl-last_replicated_at.
+    DATA lt_package TYPE tt_result.
+    GET TIME STAMP FIELD l_timestamp.
+    " Packages share one client-local LUW; run owns the only commit.
+    TEST-SEAM delete_snapshot.
+      DELETE FROM zfi_das_po_excl.
+      m_deleted = sy-dbcnt.
+    END-TEST-SEAM.
+    TEST-SEAM after_delete.
+      CLEAR m_inserted.
+    END-TEST-SEAM.
+    LOOP AT it_result INTO DATA(ls_insert).
+      ls_insert-last_replicated_at = l_timestamp.
+      APPEND ls_insert TO lt_package.
+      IF lines( lt_package ) >= mc_package_size.
+        insert_package( lt_package ).
+        CLEAR lt_package.
+      ENDIF.
+    ENDLOOP.
+    IF lt_package IS NOT INITIAL.
+      insert_package( lt_package ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD insert_package.
+    DATA l_subrc TYPE sysubrc.
+    DATA l_inserted TYPE i.
+    TEST-SEAM before_insert.
+      IF it_package IS INITIAL.
+        RETURN.
+      ENDIF.
+    END-TEST-SEAM.
+    TEST-SEAM insert_package_sql.
+      INSERT zfi_das_po_excl FROM TABLE @it_package.
+      l_subrc = sy-subrc.
+      l_inserted = sy-dbcnt.
+    END-TEST-SEAM.
+    IF l_subrc <> 0 OR l_inserted <> lines( it_package ).
+      RAISE EXCEPTION NEW zcx_fi_das_error(
+        i_text = |{ mc_target } package insert count mismatch; rolling back replacement| ).
+    ENDIF.
+    m_inserted = m_inserted + l_inserted.
+  ENDMETHOD.
+
+  METHOD summary.
+    TEST-SEAM output.
+    DATA(l_mode) = COND string( WHEN i_dry = abap_true THEN mc_label_preview ELSE mc_label_applied ).
+    WRITE: / l_mode,
+           / mc_label_candidates, m_candidates,
+           / mc_label_enriched, m_enriched,
+           / mc_label_vectors, m_vectors,
+           / mc_label_results, i_results,
+           / mc_label_deleted, m_deleted, mc_label_inserted, m_inserted.
+    END-TEST-SEAM.
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,26 @@
+REPORT zfi_das_exclusion.
+
+" Create both includes with these names; ABAP 7.54+ / HANA is required.
+INCLUDE zfi_das_exclusion_def.
+
+CONSTANTS:
+  mc_message_abort TYPE symsgty VALUE 'A',
+  mc_message_status TYPE symsgty VALUE 'S',
+  mc_message_error TYPE symsgty VALUE 'E'.
+
+PARAMETERS p_dry AS CHECKBOX DEFAULT abap_true.
+PARAMETERS p_empty AS CHECKBOX DEFAULT abap_false.
+
+START-OF-SELECTION.
+  TRY.
+      NEW lcl_exclusion( )->run( i_dry = p_dry i_allow_empty = p_empty ).
+    CATCH zcx_fi_das_error INTO DATA(l_error).
+      DATA(l_text) = l_error->get_text( ).
+      IF sy-batch = abap_true.
+        MESSAGE l_text TYPE mc_message_abort.
+      ELSE.
+        MESSAGE l_text TYPE mc_message_status DISPLAY LIKE mc_message_error.
+      ENDIF.
+  ENDTRY.
+
+INCLUDE zfi_das_exclusion_test.

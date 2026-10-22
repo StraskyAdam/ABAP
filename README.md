@@ -283,3 +283,9 @@ each be aligned with their corresponding H/I configuration.
 
 No SAP activation, ABAP Unit execution, transactional fault injection or live
 XSA/SAP parity success is claimed by these repository artifacts.
+Repository checks performed for this change: structural and CRLF-aware
+whitespace checks by the implementing agents, secret scans, and a read-only
+code review (no significant issues reported). Automated PR review was requested
+but unavailable because its configured model could not be loaded. CodeQL found
+no supported language to analyze and performed no security analysis. None of
+these checks substitutes for the SAP acceptance checks above.

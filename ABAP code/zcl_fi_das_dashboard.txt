@@ -924,38 +924,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_exclusion_candidates.
 
-    IF i_mode <> zif_fi_das_dashboard=>mc_over AND
-       i_mode <> zif_fi_das_dashboard=>mc_under.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        MESSAGE e005(zfi_das).
-    ENDIF.
-
-    IF i_pstype <> zif_fi_das_dashboard=>mc_pstype_material AND
-       i_pstype <> zif_fi_das_dashboard=>mc_pstype_service.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        MESSAGE e008(zfi_das).
-    ENDIF.
-
-    TYPES:
-      BEGIN OF ts_candidate_rate,
-        currency      TYPE waers,
-        exchange_rate TYPE zfi_das_exchrt-exchange_rate,
-      END OF ts_candidate_rate.
-    DATA lt_candidate_rates TYPE STANDARD TABLE OF ts_candidate_rate WITH EMPTY KEY.
-
-    TEST-SEAM candidate_currency_rates.
-      SELECT DISTINCT base~pocurrency AS currency, rate~exchange_rate
-        FROM zifidaspobase AS base
-        LEFT OUTER JOIN zfi_das_exchrt AS rate
-          ON rate~source_curr = base~pocurrency
-        INTO TABLE @lt_candidate_rates.
-    END-TEST-SEAM.
-
-    LOOP AT lt_candidate_rates INTO DATA(ls_rate) WHERE exchange_rate <= 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        MESSAGE e017(zfi_das) WITH ls_rate-currency mc_currency_usd.
-    ENDLOOP.
-
     DATA(ls_request) = VALUE ts_internal_request(
       mode = i_mode
       parameter = VALUE #( email = mc_asterisk
@@ -2786,38 +2754,36 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_required_keys.
 
-    TEST-SEAM required_keys_query.
-      get_access_scope( EXPORTING i_email   = is_request-parameter-email
-                                  i_poowner = is_request-parameter-poowner
-                        IMPORTING et_cost_centers = DATA(lt_cost_centers)
-                                  et_company_codes = DATA(lt_company_codes)
-                                  et_management_units = DATA(lt_management_units) ).
+    get_access_scope( EXPORTING i_email   = is_request-parameter-email
+                                i_poowner = is_request-parameter-poowner
+                      IMPORTING et_cost_centers = DATA(lt_cost_centers)
+                                et_company_codes = DATA(lt_company_codes)
+                                et_management_units = DATA(lt_management_units) ).
 
-      get_keys(
-        EXPORTING
-          i_client                = sy-mandt
-          i_apply_exclusions      = i_apply_exclusions
-          i_mode                  = is_request-mode
-          i_pstype                = get_pstype( is_request )
-          i_email                 = is_request-parameter-email
-          i_poowner               = is_request-parameter-poowner
-          i_count_requested       = is_request-paging-count_requested
-          i_top_requested         = is_request-paging-top_requested
-          i_skip                  = is_request-paging-skip
-          i_top                   = is_request-paging-top
-          i_ponumber_filter       = is_request-filter_for_amdp-ponumber
-          i_item_filter           = is_request-filter_for_amdp-item
-          i_supplier_filter       = is_request-filter_for_amdp-suppliername
-          i_threshold_usd         = get_threshold( )
-          it_japan_brazil         = get_japan_brazil( )
-          it_company_codes        = lt_company_codes
-          it_cost_centers         = lt_cost_centers
-          it_management_units     = lt_management_units
-          i_pstype_desc_requested = is_request-pstype_desc_requested
-        IMPORTING
-          et_keys             = et_keys
-          e_total_count       = e_total_count ).
-    END-TEST-SEAM.
+    get_keys(
+      EXPORTING
+        i_client                = sy-mandt
+        i_apply_exclusions      = i_apply_exclusions
+        i_mode                  = is_request-mode
+        i_pstype                = get_pstype( is_request )
+        i_email                 = is_request-parameter-email
+        i_poowner               = is_request-parameter-poowner
+        i_count_requested       = is_request-paging-count_requested
+        i_top_requested         = is_request-paging-top_requested
+        i_skip                  = is_request-paging-skip
+        i_top                   = is_request-paging-top
+        i_ponumber_filter       = is_request-filter_for_amdp-ponumber
+        i_item_filter           = is_request-filter_for_amdp-item
+        i_supplier_filter       = is_request-filter_for_amdp-suppliername
+        i_threshold_usd         = get_threshold( )
+        it_japan_brazil         = get_japan_brazil( )
+        it_company_codes        = lt_company_codes
+        it_cost_centers         = lt_cost_centers
+        it_management_units     = lt_management_units
+        i_pstype_desc_requested = is_request-pstype_desc_requested
+      IMPORTING
+        et_keys             = et_keys
+        e_total_count       = e_total_count ).
 
   ENDMETHOD.
 

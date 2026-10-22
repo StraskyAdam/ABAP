@@ -9,13 +9,7 @@ CLASS zcx_fi_das_error DEFINITION
 
     METHODS constructor
       IMPORTING
-        previous TYPE REF TO cx_root OPTIONAL
-        i_text   TYPE string OPTIONAL.
-
-    METHODS if_message~get_text REDEFINITION.
-
-  PRIVATE SECTION.
-    DATA m_text TYPE string.
+        previous TYPE REF TO cx_root OPTIONAL.
 
 ENDCLASS.
 
@@ -24,17 +18,6 @@ CLASS zcx_fi_das_error IMPLEMENTATION.
   METHOD constructor ##ADT_SUPPRESS_GENERATION.
 
     super->constructor( previous = previous ).
-    m_text = i_text.
-
-  ENDMETHOD.
-
-  METHOD if_message~get_text.
-
-    IF m_text IS NOT INITIAL.
-      result = m_text.
-    ELSE.
-      result = super->if_message~get_text( ).
-    ENDIF.
 
   ENDMETHOD.
 

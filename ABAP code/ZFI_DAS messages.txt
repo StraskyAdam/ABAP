@@ -1,0 +1,11 @@
+SE91 message class: ZFI_DAS
+
+020  No authorization for table &1, activity &2
+021  Cannot lock table &1 (return code &2)
+022  Exclusion refresh failed: &1 &2 &3 &4
+
+020 is the authorization message specified by the user.
+Maintain 021 and 022 in the existing message class before activating the
+report. Check these numbers in the SAP system first; if already assigned,
+choose free numbers and update the two corresponding report references.
+Do not replace existing messages with unrelated meanings.

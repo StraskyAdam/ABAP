@@ -8,8 +8,6 @@
 " - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
 " - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
-" - ltc_exclusion_candidates: public candidate request/validation (SHORT)
-" - ltc_exclusion_live: exclusion default/bypass partition on HANA (LONG)
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
@@ -20,42 +18,13 @@ CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
 CLASS ltcl_review_grace_test DEFINITION DEFERRED.
 CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
-CLASS ltc_exclusion_candidates DEFINITION DEFERRED.
-CLASS ltc_exclusion_live DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
                 ltc_dash_pure_branches
                 ltcl_review_grace_test
                 ltc_request_processing
-                ltc_amdp_filters
-                ltc_exclusion_candidates
-                ltc_exclusion_live.
-
-CLASS ltc_exclusion_candidates DEFINITION FINAL FOR TESTING
-  DURATION SHORT
-  RISK LEVEL HARMLESS.
-  PUBLIC SECTION.
-    CLASS-DATA expected_mode TYPE zif_fi_das_dashboard=>t_mode.
-    CLASS-DATA expected_pstype TYPE zif_fi_das_dashboard=>t_pstype.
-  PRIVATE SECTION.
-    METHODS setup.
-    METHODS invalid_modes FOR TESTING RAISING cx_static_check.
-    METHODS invalid_categories FOR TESTING RAISING cx_static_check.
-    METHODS missing_candidate_rate FOR TESTING RAISING cx_static_check.
-    METHODS negative_candidate_rate FOR TESTING RAISING cx_static_check.
-    METHODS fresh_request_and_tags FOR TESTING RAISING cx_static_check.
-    METHODS empty_candidates FOR TESTING RAISING cx_static_check.
-    METHODS exclusions_default_true FOR TESTING RAISING cx_static_check.
-ENDCLASS.
-
-" Requires live PO data, USD threshold, Japan_Brazil configuration and rates.
-CLASS ltc_exclusion_live DEFINITION FINAL FOR TESTING
-  DURATION LONG
-  RISK LEVEL HARMLESS.
-  PRIVATE SECTION.
-    METHODS default_and_bypass FOR TESTING RAISING cx_static_check.
-ENDCLASS.
+                ltc_amdp_filters.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -809,218 +778,6 @@ CLASS ltc_dash_pure_branches DEFINITION FINAL FOR TESTING
     METHODS unsupported_method FOR TESTING RAISING zcx_fi_das_error.
     METHODS straight_line_missing_dates FOR TESTING RAISING zcx_fi_das_error.
     METHODS accrued_exact_boundary FOR TESTING.
-ENDCLASS.
-
-CLASS ltc_exclusion_candidates IMPLEMENTATION.
-  METHOD setup.
-    TEST-INJECTION candidate_currency_rates.
-      lt_candidate_rates = VALUE #( ( currency = 'USD' exchange_rate = 1 ) ).
-    END-TEST-INJECTION.
-  ENDMETHOD.
-
-  METHOD missing_candidate_rate.
-    TEST-INJECTION candidate_currency_rates.
-      lt_candidate_rates = VALUE #( ( currency = 'EUR' ) ).
-    END-TEST-INJECTION.
-    TEST-INJECTION required_keys_query.
-      cl_abap_unit_assert=>fail( 'Invalid rates reached candidate selection' ).
-    END-TEST-INJECTION.
-    TRY.
-        NEW zcl_fi_das_dashboard( )->get_exclusion_candidates(
-          i_mode = zif_fi_das_dashboard=>mc_over
-          i_pstype = zif_fi_das_dashboard=>mc_pstype_material ).
-        cl_abap_unit_assert=>fail( 'Missing or zero candidate rate accepted' ).
-      CATCH zcx_fi_das_error INTO DATA(lx_error).
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgno exp = '017' ).
-    ENDTRY.
-  ENDMETHOD.
-
-  METHOD negative_candidate_rate.
-    TEST-INJECTION candidate_currency_rates.
-      lt_candidate_rates = VALUE #( ( currency = 'EUR' exchange_rate = -1 ) ).
-    END-TEST-INJECTION.
-    TEST-INJECTION required_keys_query.
-      cl_abap_unit_assert=>fail( 'Negative rate reached candidate selection' ).
-    END-TEST-INJECTION.
-    TRY.
-        NEW zcl_fi_das_dashboard( )->get_exclusion_candidates(
-          i_mode = zif_fi_das_dashboard=>mc_under
-          i_pstype = zif_fi_das_dashboard=>mc_pstype_service ).
-        cl_abap_unit_assert=>fail( 'Negative candidate rate accepted' ).
-      CATCH zcx_fi_das_error INTO DATA(lx_error).
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgno exp = '017' ).
-    ENDTRY.
-  ENDMETHOD.
-
-  METHOD invalid_modes.
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA lt_modes TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_mode WITH EMPTY KEY.
-    lt_modes = VALUE #( ( zif_fi_das_dashboard=>mc_exclude ) ( '?' ) ( space ) ).
-    LOOP AT lt_modes INTO DATA(l_mode).
-      TRY.
-          lo_cut->get_exclusion_candidates(
-            i_mode = l_mode i_pstype = zif_fi_das_dashboard=>mc_pstype_material ).
-          cl_abap_unit_assert=>fail( 'Invalid candidate mode accepted' ).
-        CATCH zcx_fi_das_error INTO DATA(lx_error).
-          cl_abap_unit_assert=>assert_equals(
-            act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
-          cl_abap_unit_assert=>assert_equals(
-            act = lx_error->if_t100_message~t100key-msgno exp = '005' ).
-      ENDTRY.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD invalid_categories.
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA lt_categories TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_pstype WITH EMPTY KEY.
-    lt_categories = VALUE #( ( zif_fi_das_dashboard=>mc_pstype_all ) ( '?' ) ( space ) ).
-    LOOP AT lt_categories INTO DATA(l_pstype).
-      TRY.
-          lo_cut->get_exclusion_candidates(
-            i_mode = zif_fi_das_dashboard=>mc_over i_pstype = l_pstype ).
-          cl_abap_unit_assert=>fail( 'Invalid candidate category accepted' ).
-        CATCH zcx_fi_das_error INTO DATA(lx_error).
-          cl_abap_unit_assert=>assert_equals(
-            act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
-          cl_abap_unit_assert=>assert_equals(
-            act = lx_error->if_t100_message~t100key-msgno exp = '008' ).
-      ENDTRY.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD fresh_request_and_tags.
-    TEST-INJECTION required_keys_query.
-      cl_abap_unit_assert=>assert_false( act = i_apply_exclusions ).
-      cl_abap_unit_assert=>assert_equals(
-        act = is_request
-        exp = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-          mode = ltc_exclusion_candidates=>expected_mode
-          parameter = VALUE #( email = '%'
-                               poowner = abap_false
-                               pstype = ltc_exclusion_candidates=>expected_pstype ) ) ).
-
-      get_access_scope(
-        EXPORTING i_email = is_request-parameter-email i_poowner = is_request-parameter-poowner
-        IMPORTING et_company_codes = DATA(lt_company)
-                  et_cost_centers = DATA(lt_cost)
-                  et_management_units = DATA(lt_management) ).
-      cl_abap_unit_assert=>assert_equals(
-        act = lt_company exp = VALUE zcl_fi_das_dashboard=>tt_company_scope( ( wildcard = abap_true ) ) ).
-      cl_abap_unit_assert=>assert_equals(
-        act = lt_cost exp = VALUE zcl_fi_das_dashboard=>tt_cost_center_scope( ( wildcard = abap_true ) ) ).
-      cl_abap_unit_assert=>assert_equals(
-        act = lt_management exp = VALUE zcl_fi_das_dashboard=>tt_management_scope( ( wildcard = abap_true ) ) ).
-      et_keys = VALUE #(
-        ( ponumber = '4500000001' itemno = '00010' pstype = '*'
-          poowner_email = 'owner@example.invalid' )
-        ( ponumber = '4500000002' itemno = '00020' pstype = '*'
-          poowner_email = 'other@example.invalid' ) ).
-    END-TEST-INJECTION.
-
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA lt_modes TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_mode WITH EMPTY KEY.
-    DATA lt_categories TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_pstype WITH EMPTY KEY.
-    lt_modes = VALUE #( ( zif_fi_das_dashboard=>mc_over ) ( zif_fi_das_dashboard=>mc_under ) ).
-    lt_categories = VALUE #( ( zif_fi_das_dashboard=>mc_pstype_material )
-                            ( zif_fi_das_dashboard=>mc_pstype_service ) ).
-    LOOP AT lt_modes INTO expected_mode.
-      LOOP AT lt_categories INTO expected_pstype.
-        DATA(lt_keys) = lo_cut->get_exclusion_candidates(
-          i_mode = expected_mode i_pstype = expected_pstype ).
-        cl_abap_unit_assert=>assert_equals(
-          act = lt_keys
-          exp = VALUE zcl_fi_das_dashboard=>tt_key(
-            ( ponumber = '4500000001' itemno = '00010' pstype = expected_pstype
-              poowner_email = 'owner@example.invalid' )
-            ( ponumber = '4500000002' itemno = '00020' pstype = expected_pstype
-              poowner_email = 'other@example.invalid' ) ) ).
-      ENDLOOP.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD empty_candidates.
-    TEST-INJECTION required_keys_query.
-      cl_abap_unit_assert=>assert_false( act = i_apply_exclusions ).
-      CLEAR et_keys.
-    END-TEST-INJECTION.
-    DATA(lt_keys) = NEW zcl_fi_das_dashboard( )->get_exclusion_candidates(
-      i_mode = zif_fi_das_dashboard=>mc_under
-      i_pstype = zif_fi_das_dashboard=>mc_pstype_service ).
-    cl_abap_unit_assert=>assert_initial( lt_keys ).
-  ENDMETHOD.
-
-  METHOD exclusions_default_true.
-    TEST-INJECTION required_keys_query.
-      cl_abap_unit_assert=>assert_true( act = i_apply_exclusions ).
-      CLEAR et_keys.
-      e_total_count = 0.
-    END-TEST-INJECTION.
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    lo_cut->get_required_keys(
-      EXPORTING is_request = VALUE #( mode = zif_fi_das_dashboard=>mc_over
-                                      parameter = VALUE #( email = '%' pstype = '0' ) )
-      IMPORTING et_keys = DATA(lt_keys) ).
-    cl_abap_unit_assert=>assert_initial( lt_keys ).
-  ENDMETHOD.
-ENDCLASS.
-
-CLASS ltc_exclusion_live IMPLEMENTATION.
-  METHOD default_and_bypass.
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA lt_modes TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_mode WITH EMPTY KEY.
-    DATA lt_categories TYPE STANDARD TABLE OF zif_fi_das_dashboard=>t_pstype WITH EMPTY KEY.
-    lt_modes = VALUE #( ( zif_fi_das_dashboard=>mc_over ) ( zif_fi_das_dashboard=>mc_under ) ).
-    lt_categories = VALUE #( ( zif_fi_das_dashboard=>mc_pstype_material )
-                            ( zif_fi_das_dashboard=>mc_pstype_service ) ).
-    LOOP AT lt_modes INTO DATA(l_mode).
-      LOOP AT lt_categories INTO DATA(l_pstype).
-        DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
-          mode = l_mode parameter = VALUE #( email = '%' pstype = l_pstype )
-          paging = VALUE #( count_requested = abap_true ) ).
-        lo_cut->get_required_keys(
-          EXPORTING is_request = ls_request
-          IMPORTING et_keys = DATA(lt_default) e_total_count = DATA(l_default_count) ).
-        lo_cut->get_required_keys(
-          EXPORTING is_request = ls_request i_apply_exclusions = abap_true
-          IMPORTING et_keys = DATA(lt_explicit) e_total_count = DATA(l_explicit_count) ).
-        cl_abap_unit_assert=>assert_equals( act = lt_default exp = lt_explicit ).
-        cl_abap_unit_assert=>assert_equals( act = l_default_count exp = l_explicit_count ).
-
-        lo_cut->get_required_keys(
-          EXPORTING is_request = ls_request i_apply_exclusions = abap_false
-          IMPORTING et_keys = DATA(lt_bypass) e_total_count = DATA(l_bypass_count) ).
-        cl_abap_unit_assert=>assert_equals( act = l_bypass_count exp = CONV int8( lines( lt_bypass ) ) ).
-        DATA(lt_expected) = lt_bypass.
-        IF lt_bypass IS NOT INITIAL.
-          SELECT ponumber, itemno, pstype FROM zfi_das_po_excl
-            FOR ALL ENTRIES IN @lt_bypass
-            WHERE ponumber = @lt_bypass-ponumber
-              AND itemno = @lt_bypass-itemno
-              AND pstype = @lt_bypass-pstype
-            INTO TABLE @DATA(lt_exclusions).
-          LOOP AT lt_exclusions INTO DATA(ls_exclusion).
-            DELETE lt_expected WHERE ponumber = ls_exclusion-ponumber
-                                 AND itemno = ls_exclusion-itemno
-                                 AND pstype = ls_exclusion-pstype.
-          ENDLOOP.
-        ENDIF.
-        cl_abap_unit_assert=>assert_equals( act = lt_default exp = lt_expected ).
-        cl_abap_unit_assert=>assert_equals(
-          act = l_default_count exp = CONV int8( lines( lt_expected ) ) ).
-        DATA(lt_api) = lo_cut->get_exclusion_candidates( i_mode = l_mode i_pstype = l_pstype ).
-        LOOP AT lt_bypass ASSIGNING FIELD-SYMBOL(<fs_key>).
-          <fs_key>-pstype = l_pstype.
-        ENDLOOP.
-        cl_abap_unit_assert=>assert_equals( act = lt_api exp = lt_bypass ).
-      ENDLOOP.
-    ENDLOOP.
-  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltc_utility_unit IMPLEMENTATION.

@@ -11,7 +11,7 @@ AT SELECTION-SCREEN.
 
     CATCH zcx_fi_das_error INTO DATA(lx_validation).
 
-      MESSAGE lx_validation TYPE lcl_replication=>mc_message_success DISPLAY LIKE lcl_replication=>mc_message_error.
+      MESSAGE lx_validation TYPE zcl_fi_das_utility=>mc_message_success DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
 
   ENDTRY.
 
@@ -23,6 +23,6 @@ START-OF-SELECTION.
 
     CATCH zcx_fi_das_error INTO DATA(lx_error).
 
-      MESSAGE lx_error->get_text( ) TYPE lcl_replication=>mc_message_success DISPLAY LIKE lcl_replication=>mc_message_error.
+      MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_success DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
 
   ENDTRY.

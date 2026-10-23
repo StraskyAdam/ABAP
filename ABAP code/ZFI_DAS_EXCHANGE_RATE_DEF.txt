@@ -1,0 +1,238 @@
+CLASS lcl_exchange_rate DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    CONSTANTS:
+      mc_fiscal_year      TYPE c LENGTH 4 VALUE '0401',
+      mc_default_currency TYPE waers VALUE 'USD'.
+
+    CLASS-METHODS get_default_date
+      RETURNING
+        VALUE(r_date) TYPE d.
+
+    METHODS run
+      IMPORTING
+        i_reference_date TYPE d
+        i_currency       TYPE waers
+        i_test_mode      TYPE abap_bool DEFAULT abap_true
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CONSTANTS:
+      mc_target      TYPE tabname VALUE 'ZFI_DAS_EXCHRT',
+      mc_unit_amount TYPE p LENGTH 12 DECIMALS 12 VALUE '1'.
+
+    TYPES: tt_result TYPE STANDARD TABLE OF zfi_das_exchrt WITH EMPTY KEY.
+
+    DATA:
+      m_locked         TYPE abap_bool,
+      m_deleted        TYPE int8,
+      m_inserted       TYPE int8,
+      m_reference_date TYPE d,
+      m_currency       TYPE waers.
+
+    METHODS:
+      get_results
+        RETURNING
+          VALUE(rt_result) TYPE tt_result,
+
+      get_count
+        RETURNING
+          VALUE(r_count) TYPE int8,
+
+      replace_snapshot
+        IMPORTING
+          it_result TYPE tt_result
+        RAISING
+          zcx_fi_das_error,
+
+      lock
+        RAISING
+          zcx_fi_das_error,
+
+      unlock,
+
+      summary
+        IMPORTING
+          i_test_mode TYPE abap_bool.
+
+ENDCLASS.
+
+CLASS lcl_exchange_rate IMPLEMENTATION.
+
+  METHOD get_default_date.
+
+    r_date = sy-datum(4) && mc_fiscal_year.
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    m_reference_date = i_reference_date.
+    m_currency       = i_currency.
+
+    TRY.
+
+        zcl_fi_das_utility=>check_table_authority( mc_target ).
+
+        DATA(lt_result) = get_results( ).
+
+        IF i_test_mode = abap_true.
+
+          m_deleted  = get_count( ).
+          m_inserted = lines( lt_result ).
+
+        ELSE.
+
+          lock( ).
+
+          replace_snapshot( lt_result ).
+
+          COMMIT WORK AND WAIT.
+
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
+          ENDIF.
+
+          unlock( ).
+
+        ENDIF.
+
+      CATCH zcx_fi_das_error INTO DATA(lx_das_error).
+
+        IF m_locked = abap_true.
+          ROLLBACK WORK.
+          unlock( ).
+        ENDIF.
+
+        RAISE EXCEPTION lx_das_error.
+
+      CATCH cx_root INTO DATA(lx_unexpected_error).
+
+        IF m_locked = abap_true.
+          ROLLBACK WORK.
+          unlock( ).
+        ENDIF.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_unexpected_error
+            i_text   = lx_unexpected_error->get_text( ).
+
+    ENDTRY.
+
+    summary( i_test_mode ).
+
+  ENDMETHOD.
+
+  METHOD get_results.
+
+    DATA l_timestamp TYPE zfi_das_exchrt-last_replicated_at.
+
+*   Currencies without an exchange rate are skipped
+    SELECT source_curr,
+           target_curr,
+           exchange_rate,
+           reference_date,
+           rev_exchange_rate
+      FROM zi_fi_das_exchange_rate(
+        p_date     = @m_reference_date,
+        p_amount   = @mc_unit_amount,
+        p_currency = @m_currency )
+      WHERE exchange_rate     IS NOT NULL AND
+            rev_exchange_rate IS NOT NULL
+      INTO TABLE @DATA(lt_rates).
+
+    GET TIME STAMP FIELD l_timestamp.
+
+    rt_result = VALUE #(
+      FOR ls_rate IN lt_rates
+      ( mandt              = sy-mandt
+        source_curr        = ls_rate-source_curr
+        target_curr        = ls_rate-target_curr
+        exchange_rate      = ls_rate-exchange_rate
+        reference_date     = ls_rate-reference_date
+        last_replicated_at = l_timestamp
+        rev_exchange_rate  = ls_rate-rev_exchange_rate ) ).
+
+  ENDMETHOD.
+
+  METHOD get_count.
+
+    SELECT COUNT( * )
+      FROM zfi_das_exchrt
+    INTO @r_count.
+
+    IF sy-subrc <> 0.
+      CLEAR r_count.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD replace_snapshot.
+
+    DELETE FROM zfi_das_exchrt.
+
+    IF sy-subrc = 0.
+      m_deleted = sy-dbcnt.
+    ENDIF.
+
+    IF it_result IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    INSERT zfi_das_exchrt FROM TABLE @it_result.
+
+    IF sy-subrc <> 0.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH mc_target.
+
+    ENDIF.
+
+    m_inserted = sy-dbcnt.
+
+  ENDMETHOD.
+
+  METHOD lock.
+
+    zcl_fi_das_utility=>lock_table( mc_target ).
+
+    m_locked = abap_true.
+
+  ENDMETHOD.
+
+  METHOD unlock.
+
+    IF m_locked = abap_false.
+      RETURN.
+    ENDIF.
+
+    zcl_fi_das_utility=>unlock_table( mc_target ).
+
+    m_locked = abap_false.
+
+  ENDMETHOD.
+
+  METHOD summary.
+
+    IF i_test_mode = abap_true.
+
+      WRITE:
+        / TEXT-tst,
+        / |{ TEXT-dep } { m_deleted }|,
+        / |{ TEXT-inp } { m_inserted }|.
+
+    ELSE.
+
+      WRITE:
+        / TEXT-rel,
+        / |{ TEXT-del } { m_deleted }|,
+        / |{ TEXT-ins } { m_inserted }|.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.

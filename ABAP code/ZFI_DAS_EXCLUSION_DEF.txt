@@ -2,11 +2,6 @@ CLASS lcl_exclusion DEFINITION FINAL.
 
   PUBLIC SECTION.
 
-    CONSTANTS:
-      mc_message_abort   TYPE symsgty VALUE 'A',
-      mc_message_error   TYPE symsgty VALUE 'E',
-      mc_message_success TYPE symsgty VALUE 'S'.
-
     METHODS run
       IMPORTING
         i_test_mode TYPE abap_bool DEFAULT abap_true
@@ -17,12 +12,6 @@ CLASS lcl_exclusion DEFINITION FINAL.
 
     CONSTANTS:
       mc_target         TYPE tabname VALUE 'ZFI_DAS_PO_EXCL',
-
-      mc_auth           TYPE xuobject VALUE 'S_TABU_NAM',
-      mc_table_field    TYPE fieldname VALUE 'TABLE',
-      mc_activity_field TYPE fieldname VALUE 'ACTVT',
-      mc_write          TYPE activ_auth VALUE '02',
-      mc_scope          TYPE c LENGTH 1 VALUE '1',
 
       mc_gl             TYPE zfi_accrual_excl-ruletype VALUE 'GL',
       mc_cc             TYPE zfi_accrual_excl-ruletype VALUE 'CC',
@@ -135,15 +124,11 @@ CLASS lcl_exclusion DEFINITION FINAL.
 
       tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd.
 
-    DATA: mv_locked   TYPE abap_bool,
-          mv_deleted  TYPE i,
-          mv_inserted TYPE i.
+    DATA: m_locked   TYPE abap_bool,
+          m_deleted  TYPE i,
+          m_inserted TYPE i.
 
     METHODS:
-      check_authority
-        RAISING
-          zcx_fi_das_error,
-
       read_rules
         RETURNING
           VALUE(rt_rules) TYPE tt_rule,
@@ -275,7 +260,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
     TRY.
 
-        check_authority( ).
+        zcl_fi_das_utility=>check_table_authority( mc_target ).
 
         DATA(lt_rules) = read_rules( ).
 
@@ -287,8 +272,8 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
         IF i_test_mode = abap_true.
 
-          mv_deleted  = get_count( ).
-          mv_inserted = lines( lt_result ).
+          m_deleted  = get_count( ).
+          m_inserted = lines( lt_result ).
 
         ELSE.
 
@@ -298,13 +283,17 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
           COMMIT WORK AND WAIT.
 
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
+          ENDIF.
+
           unlock( ).
 
         ENDIF.
 
       CATCH zcx_fi_das_error INTO DATA(lx_das_error).
 
-        IF mv_locked = abap_true.
+        IF m_locked = abap_true.
           ROLLBACK WORK.
           unlock( ).
         ENDIF.
@@ -313,7 +302,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
       CATCH cx_root INTO DATA(lx_unexpected_error).
 
-        IF mv_locked = abap_true.
+        IF m_locked = abap_true.
           ROLLBACK WORK.
           unlock( ).
         ENDIF.
@@ -326,18 +315,6 @@ CLASS lcl_exclusion IMPLEMENTATION.
     ENDTRY.
 
     summary( i_test_mode ).
-
-  ENDMETHOD.
-
-  METHOD check_authority.
-
-    AUTHORITY-CHECK OBJECT mc_auth
-      ID mc_table_field FIELD mc_target
-      ID mc_activity_field FIELD mc_write.
-
-    IF sy-subrc <> 0.
-*      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH mc_target mc_write.
-    ENDIF.
 
   ENDMETHOD.
 
@@ -564,6 +541,10 @@ CLASS lcl_exclusion IMPLEMENTATION.
               ekpo~ebelp = @it_keys-itemno
       INTO TABLE @DATA(lt_content).
 
+    IF sy-subrc <> 0.
+      CLEAR lt_content.
+    ENDIF.
+
     rt_items = VALUE #(
       FOR ls_content IN lt_content
       ( ponumber = ls_content-ponumber
@@ -762,36 +743,21 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
   METHOD lock.
 
-    CALL FUNCTION 'ENQUEUE_E_TABLE'
-      EXPORTING
-        tabname        = mc_target
-        _scope         = mc_scope
-        _wait          = abap_false
-      EXCEPTIONS
-        foreign_lock   = 1
-        system_failure = 2
-        OTHERS         = 3.
+    zcl_fi_das_utility=>lock_table( mc_target ).
 
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e021(zfi_das) WITH mc_target.
-    ENDIF.
-
-    mv_locked = abap_true.
+    m_locked = abap_true.
 
   ENDMETHOD.
 
   METHOD unlock.
 
-    IF mv_locked = abap_false.
+    IF m_locked = abap_false.
       RETURN.
     ENDIF.
 
-    CALL FUNCTION 'DEQUEUE_E_TABLE'
-      EXPORTING
-        tabname = mc_target
-        _scope  = mc_scope.
+    zcl_fi_das_utility=>unlock_table( mc_target ).
 
-    mv_locked = abap_false.
+    m_locked = abap_false.
 
   ENDMETHOD.
 
@@ -813,10 +779,10 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
     DELETE FROM zfi_das_po_excl.
     IF sy-subrc = 0.
-      mv_deleted = sy-dbcnt.
+      m_deleted = sy-dbcnt.
     ENDIF.
 
-    CLEAR mv_inserted.
+    CLEAR m_inserted.
 
     LOOP AT it_result ASSIGNING FIELD-SYMBOL(<fs_insert>).
 
@@ -846,10 +812,10 @@ CLASS lcl_exclusion IMPLEMENTATION.
     INSERT zfi_das_po_excl FROM TABLE @it_package.
 
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH mc_target.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH mc_target.
     ENDIF.
 
-    mv_inserted = mv_inserted + sy-dbcnt.
+    m_inserted = m_inserted + sy-dbcnt.
 
   ENDMETHOD.
 
@@ -858,16 +824,16 @@ CLASS lcl_exclusion IMPLEMENTATION.
     IF i_test_mode = abap_true.
 
       WRITE:
-        / TEXT-tst ,
-        / |{ TEXT-del } { mv_deleted }|,
-        / |{ TEXT-ins } { mv_inserted }|.
+        / TEXT-tst,
+        / |{ TEXT-dep } { m_deleted }|,
+        / |{ TEXT-inp } { m_inserted }|.
 
     ELSE.
 
       WRITE:
-        / TEXT-rel ,
-        / |{ TEXT-del } { mv_deleted }|,
-        / |{ TEXT-ins } { mv_inserted }|.
+        / TEXT-rel,
+        / |{ TEXT-del } { m_deleted }|,
+        / |{ TEXT-ins } { m_inserted }|.
 
     ENDIF.
 

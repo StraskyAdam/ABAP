@@ -9,6 +9,16 @@ CLASS zcl_fi_das_utility DEFINITION
            t_amount_precision TYPE p LENGTH 16 DECIMALS 8.
 
     CONSTANTS:
+      mc_message_abort      TYPE symsgty VALUE 'A',
+      mc_message_error      TYPE symsgty VALUE 'E',
+      mc_message_success    TYPE symsgty VALUE 'S',
+
+      mc_table_auth         TYPE xuobject VALUE 'S_TABU_NAM',
+      mc_table_field        TYPE fieldname VALUE 'TABLE',
+      mc_activity_field     TYPE fieldname VALUE 'ACTVT',
+      mc_lock_scope         TYPE c LENGTH 1 VALUE '1',
+
+
       mc_dot                TYPE c LENGTH 1 VALUE '.',
       mc_comma              TYPE c LENGTH 1 VALUE ',',
       mc_semicolon          TYPE c LENGTH 1 VALUE ';',
@@ -137,6 +147,23 @@ CLASS zcl_fi_das_utility DEFINITION
         VALUE(r_value)          TYPE string
       RAISING
         zcx_fi_das_error.
+
+    CLASS-METHODS check_table_authority
+      IMPORTING
+        i_table    TYPE tabname
+        i_activity TYPE activ_auth DEFAULT '02'
+      RAISING
+        zcx_fi_das_error.
+
+    CLASS-METHODS lock_table
+      IMPORTING
+        i_table TYPE tabname
+      RAISING
+        zcx_fi_das_error.
+
+    CLASS-METHODS unlock_table
+      IMPORTING
+        i_table TYPE tabname.
 
   PRIVATE SECTION.
 
@@ -397,7 +424,7 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
                                  off = l_position
                                  len = mc_group_size ).
 
-       CONCATENATE r_integer i_grouping_separator l_group INTO r_integer RESPECTING BLANKS.
+      CONCATENATE r_integer i_grouping_separator l_group INTO r_integer RESPECTING BLANKS.
 
       l_position = l_position + mc_group_size.
 
@@ -575,6 +602,45 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
     r_value = COND #( WHEN i_value = abap_true
                         THEN mc_boolean_true
                         ELSE mc_boolean_false ).
+
+  ENDMETHOD.
+
+  METHOD check_table_authority.
+
+    AUTHORITY-CHECK OBJECT mc_table_auth
+      ID mc_table_field    FIELD i_table
+      ID mc_activity_field FIELD i_activity.
+
+    IF sy-subrc <> 0.
+*      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH i_table i_activity.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD lock_table.
+
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING
+        tabname        = i_table
+        _scope         = mc_lock_scope
+        _wait          = abap_false
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e021(zfi_das) WITH i_table.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD unlock_table.
+
+    CALL FUNCTION 'DEQUEUE_E_TABLE'
+      EXPORTING
+        tabname = i_table
+        _scope  = mc_lock_scope.
 
   ENDMETHOD.
 

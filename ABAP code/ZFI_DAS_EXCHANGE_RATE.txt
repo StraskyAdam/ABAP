@@ -1,0 +1,29 @@
+REPORT zfi_das_exchange_rate.
+
+INCLUDE zfi_das_exchange_rate_def.
+
+PARAMETERS: p_date TYPE sy-datum OBLIGATORY,
+            p_curr TYPE waers DEFAULT lcl_exchange_rate=>mc_default_currency OBLIGATORY,
+            p_test AS CHECKBOX DEFAULT abap_true.
+
+INITIALIZATION.
+
+  p_date = lcl_exchange_rate=>get_default_date( ).
+
+START-OF-SELECTION.
+
+  TRY.
+
+      NEW lcl_exchange_rate( )->run( i_reference_date = p_date
+                                     i_currency       = p_curr
+                                     i_test_mode      = p_test ).
+
+    CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+      IF sy-batch = abap_true.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_abort.
+      ELSE.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_success DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
+      ENDIF.
+
+  ENDTRY.

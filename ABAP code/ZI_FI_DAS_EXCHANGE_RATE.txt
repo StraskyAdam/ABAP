@@ -1,0 +1,53 @@
+@AbapCatalog.sqlViewName: 'ZIFIDASEXRATE'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'DAS Currency conversion'
+define view ZI_FI_DAS_EXCHANGE_RATE
+  with parameters
+    p_date     : abap.dats,
+    p_amount   : abap.curr(23,12),
+    p_currency : abap.cuky,
+
+    @Environment.systemField: #CLIENT
+    p_client   : abap.clnt
+
+  as select distinct from ekko as ekko
+{
+  key ekko.waers as source_curr,
+      $parameters.p_currency as target_curr,
+
+      cast(
+        currency_conversion(
+          amount             => $parameters.p_amount,
+          source_currency    => ekko.waers,
+          target_currency    => $parameters.p_currency,
+          exchange_rate_date => $parameters.p_date,
+          exchange_rate_type => 'NYB2',
+          client             => $parameters.p_client,
+          round              => 'false',
+          decimal_shift      => 'false',
+          decimal_shift_back => 'true',
+          error_handling     => 'SET_TO_NULL'
+        )
+        as abap.dec(13,6)
+      ) as exchange_rate,
+
+      $parameters.p_date as reference_date,
+
+      cast(
+        currency_conversion(
+          amount             => $parameters.p_amount,
+          source_currency    => $parameters.p_currency,
+          target_currency    => ekko.waers,
+          exchange_rate_date => $parameters.p_date,
+          exchange_rate_type => 'NYB2',
+          client             => $parameters.p_client,
+          round              => 'false',
+          decimal_shift      => 'false',
+          decimal_shift_back => 'true',
+          error_handling     => 'SET_TO_NULL'
+        )
+        as abap.dec(13,6)
+      ) as rev_exchange_rate
+}
+where ekko.waers is not null
+  and ekko.waers <> '';

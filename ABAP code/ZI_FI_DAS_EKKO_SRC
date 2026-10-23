@@ -1,0 +1,37 @@
+@AbapCatalog.sqlViewName: 'ZDASEKKOSRC'
+@EndUserText.label: 'EKKO source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKKO_SRC
+  as select from ekko as ekko
+    inner join zfi_das_cc_scope as scope
+      on  scope.tabname = 'EKKO'
+      and scope.bukrs   = ekko.bukrs
+{
+  ekko.ebeln,
+  ekko.bukrs,
+  ekko.aedat,
+  ekko.lifnr,
+  ekko.ekorg,
+  ekko.waers,
+  ekko.unsez,
+  ekko.bedat,
+  ' ' as use_replication
+}
+where ekko.bsart = 'ZARP'
+  and ekko.reason_code = ''
+  and ekko.ebeln between '8000000000' and '8999999999'
+
+union all
+
+select from zfi_das_ekko as replication
+{
+  replication.ebeln,
+  replication.bukrs,
+  replication.aedat,
+  replication.lifnr,
+  replication.ekorg,
+  replication.waers,
+  replication.unsez,
+  replication.bedat,
+  'X' as use_replication
+}

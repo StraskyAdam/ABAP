@@ -1,0 +1,21 @@
+@AbapCatalog.sqlViewName: 'ZDASFREEZE'
+@EndUserText.label: 'Freeze control'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_FREEZE
+  with parameters
+    @Environment.systemField: #SYSTEM_DATE
+    p_date : abap.dats
+
+  as select from zfi_das_conf_val
+{
+  config_name,
+  cast(
+    cast( substring( config_value, 1, 2 ) as abap.numc(2) )
+    as abap.int4
+  ) as freeze_day,
+  cast(
+    cast( substring( $parameters.p_date, 7, 2 ) as abap.numc(2) )
+    as abap.int4
+  ) as current_day
+}
+where config_name = 'FREEZE'

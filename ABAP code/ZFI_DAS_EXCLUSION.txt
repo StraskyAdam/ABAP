@@ -1,0 +1,20 @@
+REPORT zfi_das_exclusion.
+
+INCLUDE zfi_das_exclusion_def.
+
+PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
+
+START-OF-SELECTION.
+
+  TRY.
+      NEW lcl_exclusion( )->run( p_test ).
+
+    CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+      IF sy-batch = abap_true.
+        MESSAGE lx_error->get_text( ) TYPE lcl_exclusion=>mc_message_abort.
+      ELSE.
+        MESSAGE lx_error->get_text( ) TYPE lcl_exclusion=>mc_message_success DISPLAY LIKE lcl_exclusion=>mc_message_error.
+      ENDIF.
+
+  ENDTRY.

@@ -177,6 +177,8 @@ CLASS lcl_exchange_rate IMPLEMENTATION.
 
     IF sy-subrc = 0.
       m_deleted = sy-dbcnt.
+    ELSE.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH mc_target.
     ENDIF.
 
     IF it_result IS INITIAL.

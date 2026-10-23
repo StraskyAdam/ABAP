@@ -13,9 +13,6 @@ CLASS lcl_replication DEFINITION FINAL.
 
   PUBLIC SECTION.
 
-    CONSTANTS: mc_message_error   TYPE symsgty VALUE 'E',
-               mc_message_success TYPE symsgty VALUE 'S'.
-
     CLASS-METHODS:
       value_help,
 
@@ -34,32 +31,17 @@ CLASS lcl_replication DEFINITION FINAL.
 
   PRIVATE SECTION.
 
-    CONSTANTS: mc_table_ekko       TYPE tabname  VALUE 'EKKO',
-               mc_table_ekpo       TYPE tabname  VALUE 'EKPO',
-               mc_table_ekkn       TYPE tabname  VALUE 'EKKN',
-               mc_table_ekbe       TYPE tabname  VALUE 'EKBE',
+    CONSTANTS: mc_table_ekko      TYPE tabname  VALUE 'EKKO',
+               mc_table_ekpo      TYPE tabname  VALUE 'EKPO',
+               mc_table_ekkn      TYPE tabname  VALUE 'EKKN',
+               mc_table_ekbe      TYPE tabname  VALUE 'EKBE',
 
-               mc_target_ekko      TYPE tabname  VALUE 'ZFI_DAS_EKKO',
-               mc_target_ekpo      TYPE tabname  VALUE 'ZFI_DAS_EKPO',
-               mc_target_ekkn      TYPE tabname  VALUE 'ZFI_DAS_EKKN',
-               mc_target_ekbe      TYPE tabname  VALUE 'ZFI_DAS_EKBE',
+               mc_target_ekko     TYPE tabname  VALUE 'ZFI_DAS_EKKO',
+               mc_target_ekpo     TYPE tabname  VALUE 'ZFI_DAS_EKPO',
+               mc_target_ekkn     TYPE tabname  VALUE 'ZFI_DAS_EKKN',
+               mc_target_ekbe     TYPE tabname  VALUE 'ZFI_DAS_EKBE',
 
-               mc_auth_object      TYPE c LENGTH 10 VALUE 'S_TABU_NAM',
-               mc_auth_field_table TYPE c LENGTH 5  VALUE 'TABLE',
-               mc_auth_field_actvt TYPE c LENGTH 5  VALUE 'ACTVT',
-               mc_activity_read    TYPE activ_auth VALUE '03',
-               mc_activity_change  TYPE activ_auth VALUE '02',
-
-               mc_lock_scope       TYPE c LENGTH 1 VALUE '1',
-
-               mc_package_size     TYPE i VALUE 100000,
-
-               mc_label_object     TYPE string VALUE 'Object:',
-               mc_label_target     TYPE string VALUE 'Target:',
-               mc_label_selected   TYPE string VALUE 'Selected:',
-               mc_label_deleted    TYPE string VALUE 'Deleted:',
-               mc_label_inserted   TYPE string VALUE 'Inserted:',
-               mc_label_skipped    TYPE string VALUE 'Skipped:',
+               mc_package_size    TYPE i VALUE 100000,
 
                mc_f4_return_field  TYPE dfies-fieldname VALUE 'TABNAME',
                mc_f4_screen_field  TYPE dynfnam VALUE 'P_TABLE',
@@ -70,7 +52,14 @@ CLASS lcl_replication DEFINITION FINAL.
              target  TYPE tabname,
            END OF ts_object,
 
-           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY.
+           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY,
+
+           BEGIN OF ts_f4_object,
+             replicate_from TYPE tabname,
+             replicate_to   TYPE tabname,
+           END OF ts_f4_object,
+
+           tt_f4_objects TYPE STANDARD TABLE OF ts_f4_object WITH EMPTY KEY.
 
     CLASS-METHODS:
       get_objects
@@ -83,13 +72,6 @@ CLASS lcl_replication DEFINITION FINAL.
           i_table         TYPE tabname
         RETURNING
           VALUE(r_object) TYPE tabname
-        RAISING
-          zcx_fi_das_error,
-
-      check_authority
-        IMPORTING
-          i_table    TYPE tabname
-          i_activity TYPE activ_auth
         RAISING
           zcx_fi_das_error,
 
@@ -207,11 +189,7 @@ CLASS lcl_replication IMPLEMENTATION.
 
     m_target = get_replication_object( i_table ).
 
-    check_authority( i_table    = i_table
-                     i_activity = mc_activity_read ).
-
-    check_authority( i_table    = m_target
-                     i_activity = mc_activity_change ).
+    zcl_fi_das_utility=>check_table_authority( m_target ).
 
     replicate_table( i_table  = i_table
                      i_delete = i_delete ).
@@ -228,33 +206,9 @@ CLASS lcl_replication IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD check_authority.
-
-    AUTHORITY-CHECK OBJECT mc_auth_object
-      ID mc_auth_field_table FIELD i_table
-      ID mc_auth_field_actvt FIELD i_activity.
-
-    IF sy-subrc <> 0.
-*      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH i_table i_activity.
-    ENDIF.
-
-  ENDMETHOD.
-
   METHOD lock_target.
 
-    CALL FUNCTION 'ENQUEUE_E_TABLE'
-      EXPORTING
-        tabname        = m_target
-        _scope         = mc_lock_scope
-        _wait          = abap_false
-      EXCEPTIONS
-        foreign_lock   = 1
-        system_failure = 2
-        OTHERS         = 3.
-
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e021(zfi_das) WITH m_target.
-    ENDIF.
+    zcl_fi_das_utility=>lock_table( m_target ).
 
     m_locked = abap_true.
 
@@ -266,10 +220,7 @@ CLASS lcl_replication IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    CALL FUNCTION 'DEQUEUE_E_TABLE'
-      EXPORTING
-        tabname = m_target
-        _scope  = mc_lock_scope.
+    zcl_fi_das_utility=>unlock_table( m_target ).
 
     m_locked = abap_false.
 
@@ -295,6 +246,10 @@ CLASS lcl_replication IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e029(zfi_das) WITH i_table.
 
     ENDCASE.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH m_target.
+    ENDIF.
 
     r_deleted = sy-dbcnt.
 
@@ -356,6 +311,10 @@ CLASS lcl_replication IMPLEMENTATION.
         close_cursor( ).
 
         COMMIT WORK AND WAIT.
+
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH m_target.
+        ENDIF.
 
         unlock_target( ).
 
@@ -515,6 +474,10 @@ CLASS lcl_replication IMPLEMENTATION.
 
     ENDCASE.
 
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH m_target.
+    ENDIF.
+
     e_inserted = sy-dbcnt.
     e_skipped = lines( <ft_package> ) - e_inserted.
 
@@ -539,12 +502,13 @@ CLASS lcl_replication IMPLEMENTATION.
 
   METHOD display_result.
 
-    WRITE: / |{ mc_label_object }   { i_table }|,
-           / |{ mc_label_target }   { m_target }|,
-           / |{ mc_label_selected } { i_selected }|,
-           / |{ mc_label_deleted }  { i_deleted }|,
-           / |{ mc_label_inserted } { i_inserted }|,
-           / |{ mc_label_skipped }  { i_skipped }|.
+    WRITE:
+       / |{ TEXT-obj } { i_table }|,
+       / |{ TEXT-tgt } { m_target }|,
+       / |{ TEXT-sel } { i_selected }|,
+       / |{ TEXT-del } { i_deleted }|,
+       / |{ TEXT-ins } { i_inserted }|,
+       / |{ TEXT-skp } { i_skipped }|.
 
   ENDMETHOD.
 

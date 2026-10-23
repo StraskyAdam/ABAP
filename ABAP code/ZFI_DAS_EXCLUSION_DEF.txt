@@ -125,8 +125,8 @@ CLASS lcl_exclusion DEFINITION FINAL.
       tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd.
 
     DATA: m_locked   TYPE abap_bool,
-          m_deleted  TYPE i,
-          m_inserted TYPE i.
+          m_deleted  TYPE int8,
+          m_inserted TYPE int8.
 
     METHODS:
       read_rules
@@ -780,6 +780,8 @@ CLASS lcl_exclusion IMPLEMENTATION.
     DELETE FROM zfi_das_po_excl.
     IF sy-subrc = 0.
       m_deleted = sy-dbcnt.
+    ELSE.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH mc_target.
     ENDIF.
 
     CLEAR m_inserted.

@@ -1,0 +1,876 @@
+CLASS lcl_exclusion DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    CONSTANTS:
+      mc_message_abort   TYPE symsgty VALUE 'A',
+      mc_message_error   TYPE symsgty VALUE 'E',
+      mc_message_success TYPE symsgty VALUE 'S'.
+
+    METHODS run
+      IMPORTING
+        i_test_mode TYPE abap_bool DEFAULT abap_true
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CONSTANTS:
+      mc_target         TYPE tabname VALUE 'ZFI_DAS_PO_EXCL',
+
+      mc_auth           TYPE xuobject VALUE 'S_TABU_NAM',
+      mc_table_field    TYPE fieldname VALUE 'TABLE',
+      mc_activity_field TYPE fieldname VALUE 'ACTVT',
+      mc_write          TYPE activ_auth VALUE '02',
+      mc_scope          TYPE c LENGTH 1 VALUE '1',
+
+      mc_gl             TYPE zfi_accrual_excl-ruletype VALUE 'GL',
+      mc_cc             TYPE zfi_accrual_excl-ruletype VALUE 'CC',
+      mc_iv             TYPE zfi_accrual_excl-ruletype VALUE 'IV',
+      mc_pc             TYPE zfi_accrual_excl-ruletype VALUE 'PC',
+      mc_po             TYPE zfi_accrual_excl-ruletype VALUE 'PO',
+      mc_vd             TYPE zfi_accrual_excl-ruletype VALUE 'VD',
+
+      mc_company_low    TYPE string VALUE `0000`,
+      mc_company_high   TYPE string VALUE `9999`,
+      mc_account_low    TYPE string VALUE `0000000000`,
+      mc_account_high   TYPE string VALUE `9999999999`,
+      mc_cost_low       TYPE string VALUE `0000000000`,
+      mc_cost_high      TYPE string VALUE `9999999999`,
+      mc_order_low      TYPE string VALUE `000000000000`,
+      mc_order_high     TYPE string VALUE `999999999999`,
+      mc_profit_low     TYPE string VALUE `00000000`,
+      mc_profit_high    TYPE string VALUE `9999`,
+
+      mc_empty          TYPE string VALUE ``,
+      mc_blank          TYPE string VALUE ` `,
+      mc_zero           TYPE c LENGTH 1 VALUE '0',
+
+      mc_package_size   TYPE i VALUE 100000.
+
+    TYPES:
+      tt_result TYPE STANDARD TABLE OF zfi_das_po_excl WITH EMPTY KEY,
+
+      BEGIN OF ts_nullable,
+        value   TYPE string,
+        is_null TYPE abap_bool,
+      END OF ts_nullable,
+
+      BEGIN OF ts_range,
+        low  TYPE ts_nullable,
+        high TYPE ts_nullable,
+      END OF ts_range,
+
+      BEGIN OF ts_rule,
+        kind           TYPE zfi_accrual_excl-ruletype,
+        company        TYPE ts_range,
+        account        TYPE ts_range,
+        cost           TYPE ts_range,
+        internal_order TYPE ts_range,
+        profit         TYPE ts_range,
+        po             TYPE ts_nullable,
+        vendor         TYPE ts_nullable,
+      END OF ts_rule,
+
+      tt_rule TYPE STANDARD TABLE OF ts_rule WITH EMPTY KEY,
+
+      BEGIN OF ts_rule_internal,
+        ruletype  TYPE zfi_accrual_excl-ruletype,
+        v_bukrsfr TYPE string,
+        v_bukrsto TYPE string,
+        v_saktofr TYPE string,
+        v_saktoto TYPE string,
+        v_kostlfr TYPE string,
+        v_kostlto TYPE string,
+        v_aufnrfr TYPE string,
+        v_aufnrto TYPE string,
+        v_prctrfr TYPE string,
+        v_prctrto TYPE string,
+        v_ponum   TYPE string,
+        v_lifnr   TYPE string,
+        n_bukrsfr TYPE abap_bool,
+        n_bukrsto TYPE abap_bool,
+        n_saktofr TYPE abap_bool,
+        n_saktoto TYPE abap_bool,
+        n_kostlfr TYPE abap_bool,
+        n_kostlto TYPE abap_bool,
+        n_aufnrfr TYPE abap_bool,
+        n_aufnrto TYPE abap_bool,
+        n_prctrfr TYPE abap_bool,
+        n_prctrto TYPE abap_bool,
+        n_ponum   TYPE abap_bool,
+        n_lifnr   TYPE abap_bool,
+      END OF ts_rule_internal,
+
+      BEGIN OF ts_item,
+        ponumber       TYPE ekpo-ebeln,
+        itemno         TYPE ekpo-ebelp,
+        company        TYPE ts_nullable,
+        account        TYPE ts_nullable,
+        cost           TYPE ts_nullable,
+        internal_order TYPE ts_nullable,
+        profit         TYPE ts_nullable,
+        vendor         TYPE ts_nullable,
+      END OF ts_item,
+
+      tt_item TYPE STANDARD TABLE OF ts_item WITH EMPTY KEY,
+
+      BEGIN OF ts_key,
+        ponumber TYPE ekpo-ebeln,
+        itemno   TYPE ekpo-ebelp,
+      END OF ts_key,
+
+      tt_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
+
+      BEGIN OF ts_vector,
+        ponumber TYPE ekpo-ebeln,
+        itemno   TYPE ekpo-ebelp,
+        gl       TYPE abap_bool,
+        cc       TYPE abap_bool,
+        iv       TYPE abap_bool,
+        pc       TYPE abap_bool,
+        po       TYPE abap_bool,
+        vd       TYPE abap_bool,
+      END OF ts_vector,
+
+      tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd.
+
+    DATA: mv_locked   TYPE abap_bool,
+          mv_deleted  TYPE i,
+          mv_inserted TYPE i.
+
+    METHODS:
+      check_authority
+        RAISING
+          zcx_fi_das_error,
+
+      read_rules
+        RETURNING
+          VALUE(rt_rules) TYPE tt_rule,
+
+      normalize_rule
+        IMPORTING
+          is_rule        TYPE ts_rule_internal
+        RETURNING
+          VALUE(rs_rule) TYPE ts_rule,
+
+      normalize
+        IMPORTING
+          is_range        TYPE ts_range
+          i_low           TYPE string
+          i_high          TYPE string
+        RETURNING
+          VALUE(rs_range) TYPE ts_range,
+
+      strip_zero
+        IMPORTING
+          is_value        TYPE ts_nullable
+        RETURNING
+          VALUE(rs_value) TYPE ts_nullable,
+
+      equal
+        IMPORTING
+          is_left         TYPE ts_nullable
+          is_right        TYPE ts_nullable
+        RETURNING
+          VALUE(rv_match) TYPE abap_bool,
+
+      between
+        IMPORTING
+          is_value        TYPE ts_nullable
+          is_range        TYPE ts_range
+        RETURNING
+          VALUE(rv_match) TYPE abap_bool,
+
+      in_range
+        IMPORTING
+          is_value        TYPE ts_nullable
+          is_range        TYPE ts_range
+        RETURNING
+          VALUE(rv_match) TYPE abap_bool,
+
+      has_match
+        IMPORTING
+          is_vector       TYPE ts_vector
+        RETURNING
+          VALUE(rv_match) TYPE abap_bool,
+
+      lock
+        RAISING
+          zcx_fi_das_error,
+
+      unlock,
+
+      get_results
+        IMPORTING
+          i_pstype         TYPE zif_fi_das_dashboard=>t_pstype
+          it_rules         TYPE tt_rule
+        RETURNING
+          VALUE(rt_result) TYPE tt_result
+        RAISING
+          zcx_fi_das_error,
+
+      get_keys
+        IMPORTING
+          i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+        RETURNING
+          VALUE(rt_keys) TYPE tt_key
+        RAISING
+          zcx_fi_das_error,
+
+      enrich_keys
+        IMPORTING
+          it_keys         TYPE tt_key
+        RETURNING
+          VALUE(rt_items) TYPE tt_item,
+
+      evaluate
+        IMPORTING
+          it_items          TYPE tt_item
+          it_rules          TYPE tt_rule
+        RETURNING
+          VALUE(rt_vectors) TYPE tt_vector,
+
+      match
+        IMPORTING
+          is_item          TYPE ts_item
+          is_rule          TYPE ts_rule
+        RETURNING
+          VALUE(rs_vector) TYPE ts_vector,
+
+      get_rules
+        IMPORTING
+          it_vectors       TYPE tt_vector
+          i_pstype         TYPE zif_fi_das_dashboard=>t_pstype
+        RETURNING
+          VALUE(rt_result) TYPE tt_result,
+
+      get_count
+        RETURNING
+          VALUE(r_count) TYPE int8,
+
+      replace_snapshot
+        IMPORTING
+          it_result TYPE tt_result
+        RAISING
+          zcx_fi_das_error,
+
+      insert_package
+        IMPORTING
+          it_package TYPE tt_result
+        RAISING
+          zcx_fi_das_error,
+
+      summary
+        IMPORTING
+          i_test_mode TYPE abap_bool.
+
+ENDCLASS.
+
+CLASS lcl_exclusion IMPLEMENTATION.
+
+  METHOD run.
+
+    DATA lt_result TYPE tt_result.
+
+    TRY.
+
+        check_authority( ).
+
+        DATA(lt_rules) = read_rules( ).
+
+        APPEND LINES OF get_results( i_pstype = zif_fi_das_dashboard=>mc_pstype_material
+                                     it_rules = lt_rules ) TO lt_result.
+
+        APPEND LINES OF get_results( i_pstype = zif_fi_das_dashboard=>mc_pstype_service
+                                     it_rules = lt_rules ) TO lt_result.
+
+        IF i_test_mode = abap_true.
+
+          mv_deleted  = get_count( ).
+          mv_inserted = lines( lt_result ).
+
+        ELSE.
+
+          lock( ).
+
+          replace_snapshot( lt_result ).
+
+          COMMIT WORK AND WAIT.
+
+          unlock( ).
+
+        ENDIF.
+
+      CATCH zcx_fi_das_error INTO DATA(lx_das_error).
+
+        IF mv_locked = abap_true.
+          ROLLBACK WORK.
+          unlock( ).
+        ENDIF.
+
+        RAISE EXCEPTION lx_das_error.
+
+      CATCH cx_root INTO DATA(lx_unexpected_error).
+
+        IF mv_locked = abap_true.
+          ROLLBACK WORK.
+          unlock( ).
+        ENDIF.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_unexpected_error
+            i_text   = lx_unexpected_error->get_text( ).
+
+    ENDTRY.
+
+    summary( i_test_mode ).
+
+  ENDMETHOD.
+
+  METHOD check_authority.
+
+    AUTHORITY-CHECK OBJECT mc_auth
+      ID mc_table_field FIELD mc_target
+      ID mc_activity_field FIELD mc_write.
+
+    IF sy-subrc <> 0.
+*      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH mc_target mc_write.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_rules.
+
+    DATA lt_rules TYPE STANDARD TABLE OF ts_rule_internal WITH EMPTY KEY.
+
+    SELECT
+      ruletype,
+      bukrsfr AS v_bukrsfr,
+      bukrsto AS v_bukrsto,
+      saktofr AS v_saktofr,
+      saktoto AS v_saktoto,
+      kostlfr AS v_kostlfr,
+      kostlto AS v_kostlto,
+      aufnrfr AS v_aufnrfr,
+      aufnrto AS v_aufnrto,
+      prctrfr AS v_prctrfr,
+      prctrto AS v_prctrto,
+      ponum   AS v_ponum,
+      lifnr   AS v_lifnr,
+      CASE WHEN bukrsfr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_bukrsfr,
+      CASE WHEN bukrsto IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_bukrsto,
+      CASE WHEN saktofr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_saktofr,
+      CASE WHEN saktoto IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_saktoto,
+      CASE WHEN kostlfr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_kostlfr,
+      CASE WHEN kostlto IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_kostlto,
+      CASE WHEN aufnrfr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_aufnrfr,
+      CASE WHEN aufnrto IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_aufnrto,
+      CASE WHEN prctrfr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_prctrfr,
+      CASE WHEN prctrto IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_prctrto,
+      CASE WHEN ponum IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_ponum,
+      CASE WHEN lifnr IS NULL
+        THEN @abap_true ELSE @abap_false END AS n_lifnr
+      FROM zfi_accrual_excl
+         INTO TABLE @lt_rules.
+
+    IF sy-subrc <> 0.
+      CLEAR lt_rules.
+    ENDIF.
+
+    LOOP AT lt_rules ASSIGNING FIELD-SYMBOL(<fs_rule>).
+      APPEND normalize_rule( is_rule = <fs_rule> ) TO rt_rules.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD normalize_rule.
+
+    rs_rule = VALUE #(
+      kind = is_rule-ruletype
+
+      company = VALUE #( low =  VALUE #( value = is_rule-v_bukrsfr is_null = is_rule-n_bukrsfr )
+                         high = VALUE #( value = is_rule-v_bukrsto is_null = is_rule-n_bukrsto ) )
+
+      account = VALUE #( low =  VALUE #( value = is_rule-v_saktofr is_null = is_rule-n_saktofr )
+                         high = VALUE #( value = is_rule-v_saktoto is_null = is_rule-n_saktoto ) )
+
+      cost = VALUE #( low =  VALUE #( value = is_rule-v_kostlfr is_null = is_rule-n_kostlfr )
+                      high = VALUE #( value = is_rule-v_kostlto is_null = is_rule-n_kostlto ) )
+
+      internal_order = VALUE #( low =  VALUE #( value = is_rule-v_aufnrfr is_null = is_rule-n_aufnrfr )
+                                high = VALUE #( value = is_rule-v_aufnrto is_null = is_rule-n_aufnrto ) )
+
+      profit = VALUE #( low =  VALUE #( value = is_rule-v_prctrfr is_null = is_rule-n_prctrfr )
+                        high = VALUE #( value = is_rule-v_prctrto is_null = is_rule-n_prctrto ) )
+
+      po = strip_zero( is_value = VALUE #( value = is_rule-v_ponum is_null = is_rule-n_ponum ) )
+
+      vendor = strip_zero( is_value = VALUE #( value = is_rule-v_lifnr is_null = is_rule-n_lifnr ) ) ).
+
+    rs_rule-company = normalize( is_range = rs_rule-company
+                                 i_low    = mc_company_low
+                                 i_high   = mc_company_high ).
+
+    CASE rs_rule-kind.
+
+      WHEN mc_gl.
+
+        rs_rule-account = normalize(
+          is_range = rs_rule-account
+          i_low    = mc_account_low
+          i_high   = mc_account_high ).
+
+        rs_rule-account-low = strip_zero( is_value = rs_rule-account-low ).
+
+        rs_rule-account-high = strip_zero( is_value = rs_rule-account-high ).
+
+      WHEN mc_cc.
+
+        rs_rule-cost = normalize(
+          is_range = rs_rule-cost
+          i_low    = mc_cost_low
+          i_high   = mc_cost_high ).
+
+        rs_rule-cost-low = strip_zero( is_value = rs_rule-cost-low ).
+
+        rs_rule-cost-high = strip_zero( is_value = rs_rule-cost-high ).
+
+      WHEN mc_iv.
+
+        rs_rule-internal_order = normalize(
+          is_range = rs_rule-internal_order
+          i_low    = mc_order_low
+          i_high   = mc_order_high ).
+
+        rs_rule-internal_order-low = strip_zero( is_value = rs_rule-internal_order-low ).
+
+        rs_rule-internal_order-high = strip_zero( is_value = rs_rule-internal_order-high ).
+
+      WHEN mc_pc.
+
+        rs_rule-profit = normalize(
+          is_range = rs_rule-profit
+          i_low    = mc_profit_low
+          i_high   = mc_profit_high ).
+
+        rs_rule-profit-low = strip_zero( is_value = rs_rule-profit-low ).
+
+        rs_rule-profit-high = strip_zero( is_value = rs_rule-profit-high ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD normalize.
+
+    rs_range = is_range.
+
+    IF is_range-low-is_null = abap_false
+       AND is_range-high-is_null = abap_false
+       AND ( is_range-low-value = mc_empty
+          OR is_range-low-value = mc_blank )
+       AND ( is_range-high-value = mc_empty
+          OR is_range-high-value = mc_blank ).
+
+      rs_range-low-value  = i_low.
+      rs_range-high-value = i_high.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD strip_zero.
+
+    rs_value = is_value.
+
+    IF rs_value-is_null = abap_false.
+      SHIFT rs_value-value LEFT DELETING LEADING mc_zero.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_results.
+
+    DATA(lt_keys) = get_keys( i_pstype ).
+    DATA(lt_items) = enrich_keys( lt_keys ).
+    FREE lt_keys.
+
+    DATA(lt_vectors) = evaluate( it_items = lt_items
+                                 it_rules = it_rules ).
+    FREE lt_items.
+
+    rt_result = get_rules( it_vectors = lt_vectors
+                           i_pstype   = i_pstype ).
+
+  ENDMETHOD.
+
+  METHOD get_keys.
+
+    DATA lr_dashboard TYPE REF TO zcl_fi_das_dashboard.
+    CREATE OBJECT lr_dashboard.
+
+    DATA(lt_candidates) = lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_over
+                                                                  i_pstype = i_pstype ).
+
+    APPEND LINES OF lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_under
+                                                            i_pstype = i_pstype ) TO lt_candidates.
+
+    LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<fs_candidate>).
+
+      INSERT VALUE ts_key( ponumber = <fs_candidate>-ponumber
+                           itemno   = <fs_candidate>-itemno ) INTO TABLE rt_keys.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD enrich_keys.
+
+    IF it_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT ekpo~ebeln AS ponumber,
+           ekpo~ebelp AS itemno,
+           t001~bukrs AS company,
+           ekko~lifnr AS vendor,
+           ekkn~sakto AS account,
+           ekkn~kostl AS cost,
+           ekkn~aufnr AS internal_order,
+           ekkn~prctr AS profit,
+           ekko~ebeln AS ekko_exists,
+           t001~bukrs AS bukrs_exists,
+           ekkn~ebeln AS ekkn_exists
+      FROM ekpo AS ekpo
+        LEFT OUTER JOIN ekko AS ekko ON ekko~ebeln = ekpo~ebeln
+        LEFT OUTER JOIN t001 AS t001 ON t001~bukrs = ekko~bukrs
+        LEFT OUTER JOIN ekkn AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
+                                        ekkn~ebelp = ekpo~ebelp
+      FOR ALL ENTRIES IN @it_keys
+        WHERE ekpo~ebeln = @it_keys-ponumber AND
+              ekpo~ebelp = @it_keys-itemno
+      INTO TABLE @DATA(lt_content).
+
+    rt_items = VALUE #(
+      FOR ls_content IN lt_content
+      ( ponumber = ls_content-ponumber
+        itemno   = ls_content-itemno
+
+        company = VALUE #(
+          value   = ls_content-company
+          is_null = xsdbool( ls_content-bukrs_exists IS INITIAL ) )
+
+        account = strip_zero(
+          is_value = VALUE #(
+            value   = ls_content-account
+            is_null = xsdbool( ls_content-ekkn_exists IS INITIAL ) ) )
+
+        cost = strip_zero(
+          is_value = VALUE #(
+            value   = ls_content-cost
+            is_null = xsdbool( ls_content-ekkn_exists IS INITIAL ) ) )
+
+        internal_order = strip_zero(
+          is_value = VALUE #(
+            value   = ls_content-internal_order
+            is_null = xsdbool( ls_content-ekkn_exists IS INITIAL ) ) )
+
+        profit = VALUE #(
+          value   = ls_content-profit
+          is_null = xsdbool( ls_content-ekkn_exists IS INITIAL ) )
+
+        vendor = strip_zero(
+          is_value = VALUE #(
+            value   = ls_content-vendor
+            is_null = xsdbool( ls_content-ekko_exists IS INITIAL ) ) ) ) ).
+
+  ENDMETHOD.
+
+  METHOD evaluate.
+
+    LOOP AT it_items ASSIGNING FIELD-SYMBOL(<fs_item>).
+
+      LOOP AT it_rules ASSIGNING FIELD-SYMBOL(<fs_rule>).
+
+        DATA(ls_vector) = match( is_item = <fs_item>
+                                 is_rule = <fs_rule> ).
+
+        IF has_match( ls_vector ).
+          INSERT ls_vector INTO TABLE rt_vectors.
+        ENDIF.
+
+      ENDLOOP.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_rules.
+
+    DATA l_timestamp TYPE zfi_das_po_excl-last_replicated_at.
+
+    GET TIME STAMP FIELD l_timestamp.
+
+    LOOP AT it_vectors ASSIGNING FIELD-SYMBOL(<fs_vector>).
+
+      DATA(l_rule) = COND zfi_das_po_excl-ruletype(
+        WHEN <fs_vector>-gl = abap_true THEN mc_gl
+        WHEN <fs_vector>-cc = abap_true THEN mc_cc
+        WHEN <fs_vector>-iv = abap_true THEN mc_iv
+        WHEN <fs_vector>-pc = abap_true THEN mc_pc
+        WHEN <fs_vector>-po = abap_true THEN mc_po
+        WHEN <fs_vector>-vd = abap_true THEN mc_vd ).
+
+      APPEND VALUE #( mandt    = sy-mandt
+                      ponumber = <fs_vector>-ponumber
+                      itemno   = <fs_vector>-itemno
+                      ruletype = l_rule
+                      pstype   = i_pstype
+                      last_replicated_at = l_timestamp ) TO rt_result.
+    ENDLOOP.
+
+    SORT rt_result BY mandt ponumber itemno ruletype pstype.
+
+    DELETE ADJACENT DUPLICATES FROM rt_result COMPARING mandt ponumber itemno ruletype pstype.
+
+  ENDMETHOD.
+
+  METHOD equal.
+
+    rv_match = xsdbool(
+      is_left-is_null = abap_false
+      AND is_right-is_null = abap_false
+      AND is_left-value = is_right-value ).
+
+  ENDMETHOD.
+
+  METHOD between.
+
+    rv_match = xsdbool(
+      is_value-is_null = abap_false
+      AND is_range-low-is_null = abap_false
+      AND is_range-high-is_null = abap_false
+      AND is_value-value >= is_range-low-value
+      AND is_value-value <= is_range-high-value ).
+
+  ENDMETHOD.
+
+  METHOD in_range.
+
+    rv_match = xsdbool(
+      equal(
+        is_left  = is_value
+        is_right = is_range-low ) = abap_true
+      OR between(
+        is_value = is_value
+        is_range = is_range ) = abap_true ).
+
+  ENDMETHOD.
+
+  METHOD match.
+
+    rs_vector-ponumber = is_item-ponumber.
+    rs_vector-itemno   = is_item-itemno.
+
+    DATA(lv_company_equal) = equal( is_left  = is_item-company
+                                    is_right = is_rule-company-low ).
+
+    DATA(lv_company_between) = between( is_value = is_item-company
+                                        is_range = is_rule-company ).
+
+    DATA(lv_company) = xsdbool( lv_company_equal = abap_true OR lv_company_between = abap_true ).
+
+    CASE is_rule-kind.
+
+      WHEN mc_gl.
+        rs_vector-gl = xsdbool(
+          lv_company = abap_true
+          AND in_range(
+            is_value = is_item-account
+            is_range = is_rule-account ) = abap_true ).
+
+      WHEN mc_cc.
+        rs_vector-cc = xsdbool(
+          lv_company = abap_true
+          AND in_range(
+            is_value = is_item-cost
+            is_range = is_rule-cost ) = abap_true ).
+
+      WHEN mc_iv.
+        rs_vector-iv = xsdbool(
+          lv_company = abap_true
+          AND in_range(
+            is_value = is_item-internal_order
+            is_range = is_rule-internal_order ) = abap_true ).
+
+      WHEN mc_pc.
+        IF lv_company_equal = abap_true.
+
+          rs_vector-pc = in_range(
+            is_value = is_item-profit
+            is_range = is_rule-profit ).
+
+        ELSEIF lv_company_between = abap_true.
+
+          rs_vector-pc = between(
+            is_value = is_item-profit
+            is_range = is_rule-profit ).
+
+        ENDIF.
+
+    ENDCASE.
+
+    rs_vector-po = xsdbool(
+      lv_company = abap_true
+      AND equal(
+        is_left  = VALUE ts_nullable(
+          value = is_item-ponumber )
+        is_right = is_rule-po ) = abap_true ).
+
+    rs_vector-vd = xsdbool(
+      lv_company = abap_true
+      AND equal(
+        is_left  = is_item-vendor
+        is_right = is_rule-vendor ) = abap_true ).
+
+  ENDMETHOD.
+
+  METHOD has_match.
+
+    rv_match = xsdbool(
+      is_vector-gl = abap_true
+      OR is_vector-cc = abap_true
+      OR is_vector-iv = abap_true
+      OR is_vector-pc = abap_true
+      OR is_vector-po = abap_true
+      OR is_vector-vd = abap_true ).
+
+  ENDMETHOD.
+
+  METHOD lock.
+
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING
+        tabname        = mc_target
+        _scope         = mc_scope
+        _wait          = abap_false
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e021(zfi_das) WITH mc_target.
+    ENDIF.
+
+    mv_locked = abap_true.
+
+  ENDMETHOD.
+
+  METHOD unlock.
+
+    IF mv_locked = abap_false.
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'DEQUEUE_E_TABLE'
+      EXPORTING
+        tabname = mc_target
+        _scope  = mc_scope.
+
+    mv_locked = abap_false.
+
+  ENDMETHOD.
+
+  METHOD get_count.
+
+    SELECT COUNT( * )
+      FROM zfi_das_po_excl
+    INTO @r_count.
+
+    IF sy-subrc <> 0.
+      CLEAR r_count.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD replace_snapshot.
+
+    DATA lt_package  TYPE tt_result.
+
+    DELETE FROM zfi_das_po_excl.
+    IF sy-subrc = 0.
+      mv_deleted = sy-dbcnt.
+    ENDIF.
+
+    CLEAR mv_inserted.
+
+    LOOP AT it_result ASSIGNING FIELD-SYMBOL(<fs_insert>).
+
+      APPEND <fs_insert> TO lt_package.
+
+      IF lines( lt_package ) >= mc_package_size.
+
+        insert_package( lt_package ).
+        CLEAR lt_package.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    IF lt_package IS NOT INITIAL.
+      insert_package( it_package = lt_package ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD insert_package.
+
+    IF it_package IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    INSERT zfi_das_po_excl FROM TABLE @it_package.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH mc_target.
+    ENDIF.
+
+    mv_inserted = mv_inserted + sy-dbcnt.
+
+  ENDMETHOD.
+
+  METHOD summary.
+
+    IF i_test_mode = abap_true.
+
+      WRITE:
+        / TEXT-tst ,
+        / |{ TEXT-del } { mv_deleted }|,
+        / |{ TEXT-ins } { mv_inserted }|.
+
+    ELSE.
+
+      WRITE:
+        / TEXT-rel ,
+        / |{ TEXT-del } { mv_deleted }|,
+        / |{ TEXT-ins } { mv_inserted }|.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.

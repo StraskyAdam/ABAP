@@ -8,7 +8,27 @@ CLASS zcl_fi_das_dashboard DEFINITION
     INTERFACES zif_fi_das_dashboard.
     INTERFACES if_amdp_marker_hdb.
 
-    TYPES: t_percentage TYPE p LENGTH 7 DECIMALS 1.
+    TYPES:
+       BEGIN OF ts_key,
+        ponumber      TYPE ebeln,
+        itemno        TYPE ebelp,
+        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
+        poowner_email TYPE zif_fi_das_dashboard=>t_email,
+      END OF ts_key,
+
+      tt_key        TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+
+      t_percentage TYPE p LENGTH 7 DECIMALS 1.
+
+    METHODS get_exclusion_candidates
+      IMPORTING
+        i_mode         TYPE zif_fi_das_dashboard=>t_mode
+        i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+      RETURNING
+        VALUE(rt_keys) TYPE tt_key
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
 
   PRIVATE SECTION.
 
@@ -129,15 +149,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_odata_result,
 
       tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
-
-      BEGIN OF ts_key,
-        ponumber      TYPE ebeln,
-        itemno        TYPE ebelp,
-        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
-        poowner_email TYPE zif_fi_das_dashboard=>t_email,
-      END OF ts_key,
-
-      tt_key        TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
 
       tt_unique_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
 
@@ -369,10 +380,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_required_keys
       IMPORTING
-        is_request    TYPE ts_internal_request
+        is_request         TYPE ts_internal_request
+        i_apply_exclusions TYPE abap_bool DEFAULT abap_true
       EXPORTING
-        et_keys       TYPE tt_key
-        e_total_count TYPE int8
+        et_keys            TYPE tt_key
+        e_total_count      TYPE int8
       RAISING
         cx_sy_open_sql_db
         zcx_fi_das_error.
@@ -439,6 +451,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(i_skip)                  TYPE zif_fi_das_dashboard=>ts_paging-skip
         VALUE(i_top)                   TYPE zif_fi_das_dashboard=>ts_paging-top
         VALUE(i_threshold_usd)         TYPE zfi_das_thresh-po_threshold
+        VALUE(i_apply_exclusions)      TYPE abap_bool
         VALUE(i_ponumber_filter)       TYPE ts_internal_request-filter_for_amdp-ponumber
         VALUE(i_item_filter)           TYPE ts_internal_request-filter_for_amdp-item
         VALUE(i_supplier_filter)       TYPE ts_internal_request-filter_for_amdp-suppliername
@@ -2412,8 +2425,20 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                OR threshold.po_total <= threshold.threshold_converted
              )
            );
+
+*   Candidate lookup bypasses only exclusion membership, not business selection
+    IF :i_apply_exclusions = :lc_false THEN
+
+      lt_exclusion_applied =
+        SELECT
+          candidate.ponumber,
+          candidate.itemno,
+          candidate.pstype,
+          candidate.poowner_email
+        FROM :lt_threshold_classified AS candidate;
+
 *   Exclude mode returns only excluded items; other modes remove excluded items
-    IF :lv_excluded_only = :lc_true THEN
+    ELSEIF :lv_excluded_only = :lc_true THEN
 
       lt_exclusion_applied =
         SELECT
@@ -2726,6 +2751,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         it_company_codes        = lt_company_codes
         it_cost_centers         = lt_cost_centers
         it_management_units     = lt_management_units
+        i_apply_exclusions      = i_apply_exclusions
         i_pstype_desc_requested = is_request-pstype_desc_requested
       IMPORTING
         et_keys             = et_keys
@@ -3213,6 +3239,23 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     LOOP AT it_key ASSIGNING FIELD-SYMBOL(<fs_key>).
       INSERT <fs_key> INTO TABLE rt_key.
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_exclusion_candidates.
+
+    DATA(ls_request) = VALUE ts_internal_request( mode = i_mode
+                                                  parameter = VALUE #( email = mc_asterisk
+                                                                       poowner = abap_false
+                                                                       pstype = i_pstype ) ).
+    ls_request = adjust_request( ls_request ).
+
+    get_required_keys(
+      EXPORTING
+        is_request         = ls_request
+        i_apply_exclusions = abap_false
+      IMPORTING
+        et_keys            = rt_keys ).
 
   ENDMETHOD.
 

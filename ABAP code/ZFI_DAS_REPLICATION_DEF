@@ -43,23 +43,17 @@ CLASS lcl_replication DEFINITION FINAL.
 
                mc_package_size    TYPE i VALUE 100000,
 
-               mc_f4_return_field  TYPE dfies-fieldname VALUE 'TABNAME',
-               mc_f4_screen_field  TYPE dynfnam VALUE 'P_TABLE',
-               mc_f4_value_org     TYPE c LENGTH 1 VALUE 'S'.
+               mc_f4_return_field TYPE dfies-fieldname VALUE 'TABNAME',
+               mc_f4_screen_field TYPE dynfnam VALUE 'P_TABLE',
+               mc_f4_value_org    TYPE c LENGTH 1 VALUE 'S'.
 
     TYPES: BEGIN OF ts_object,
-             tabname TYPE tabname,
-             target  TYPE tabname,
+             tabname TYPE zfi_das_replicate_from,
+             target  TYPE zfi_das_replicate_to,
            END OF ts_object,
 
-           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY,
+           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY.
 
-           BEGIN OF ts_f4_object,
-             replicate_from TYPE tabname,
-             replicate_to   TYPE tabname,
-           END OF ts_f4_object,
-
-           tt_f4_objects TYPE STANDARD TABLE OF ts_f4_object WITH EMPTY KEY.
 
     CLASS-METHODS:
       get_objects

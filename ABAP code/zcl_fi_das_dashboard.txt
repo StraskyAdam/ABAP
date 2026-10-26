@@ -36,6 +36,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         i_mode         TYPE zif_fi_das_dashboard=>t_mode
         i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
+        i_use_replication TYPE abap_bool OPTIONAL
       RETURNING
         VALUE(rt_keys) TYPE tt_key
       RAISING
@@ -144,6 +145,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         INCLUDE TYPE zif_fi_das_dashboard=>ts_request.
       TYPES:
         mode                  TYPE zif_fi_das_dashboard=>t_mode,
+        use_replication       TYPE abap_bool,
         filter_for_amdp       TYPE ts_filter_for_amdp,
         pstype_desc_requested TYPE abap_bool,
       END OF ts_internal_request,
@@ -454,6 +456,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     CLASS-METHODS get_keys
       IMPORTING
+        VALUE(i_use_replication)       TYPE abap_bool
+        VALUE(i_client)                TYPE mandt
         VALUE(i_mode)                  TYPE zif_fi_das_dashboard=>t_mode
         VALUE(i_pstype)                TYPE zif_fi_das_dashboard=>t_pstype
         VALUE(i_email)                 TYPE zif_fi_das_dashboard=>t_email
@@ -497,6 +501,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS get_details
       IMPORTING
         it_keys           TYPE tt_unique_key
+        i_use_replication TYPE abap_bool
       RETURNING
         VALUE(rt_details) TYPE tt_detail
       RAISING
@@ -505,6 +510,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS get_accounts
       IMPORTING
         it_keys            TYPE tt_unique_key
+        i_use_replication  TYPE abap_bool
       RETURNING
         VALUE(rt_accounts) TYPE tt_account_aggregate
       RAISING
@@ -514,6 +520,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         it_keys           TYPE tt_unique_key
         it_details        TYPE tt_detail
+        i_use_replication TYPE abap_bool
       RETURNING
         VALUE(rt_history) TYPE tt_history_aggregate
       RAISING
@@ -941,6 +948,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     validate_request( is_request ).
 
     DATA(ls_request) = adjust_request( is_request ).
+    ls_request-use_replication = get_use_replication( ).
 
     get_required_keys(
       EXPORTING
@@ -1623,7 +1631,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ekkn~zekkn   AS bbp_acc_no,
       ekkn~vproz   AS distpercentage,
       ekkn~menge   AS quantity
-    FROM ekkn
+    FROM zi_fi_das_ekkn( p_use_replication = @i_use_replication ) AS ekkn
 
      LEFT OUTER JOIN cskt ON cskt~kokrs = ekkn~kokrs AND
                              cskt~kostl = ekkn~kostl AND
@@ -1764,12 +1772,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     get_exchrt( ).
 
-    rs_context-details = get_details( lt_keys ).
+    rs_context-details = get_details( it_keys = lt_keys
+                                      i_use_replication = is_request-use_replication ).
 
-    rs_context-accounts = get_accounts( lt_keys ).
+    rs_context-accounts = get_accounts( it_keys = lt_keys
+                                        i_use_replication = is_request-use_replication ).
 
     rs_context-history = get_history( it_keys    = lt_keys
-                                      it_details = rs_context-details ).
+                                      it_details = rs_context-details
+                                      i_use_replication = is_request-use_replication ).
 
     rs_context-statuses = get_status( lt_keys ).
 
@@ -1880,7 +1891,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
              porequestor,popreparer,serviceamount,servicepercentage,polinedesc,zactivitynbr,companycode,
              pocurrency,supplierid,pocreatedat,documentdate,purchasingorganization,epnumber,suppliername,
              purchasingunit,region,cocdecurr
-      FROM zi_fi_das_po_base
+      FROM zi_fi_das_po_base( p_use_replication = @i_use_replication )
         FOR ALL ENTRIES IN @it_keys
       WHERE ponumber = @it_keys-ponumber AND
             itemno   = @it_keys-itemno
@@ -2013,7 +2024,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       dmbtr AS local_amount,
       shkzg AS debit_credit,
       budat AS posting_date
-    FROM ekbe
+    FROM zi_fi_das_ekbe( p_use_replication = @i_use_replication )
       FOR ALL ENTRIES IN @it_keys
     WHERE ebeln = @it_keys-ponumber AND
           ebelp = @it_keys-itemno AND
@@ -2130,8 +2141,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     LANGUAGE SQLSCRIPT
     OPTIONS READ-ONLY
     USING
-      zifidaspobase
-      ekkn
+      zi_fi_das_po_base
+      zi_fi_das_ekkn
       csks
       zfi_das_po_excl
       zfi_das_exchrt.
@@ -2187,7 +2198,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           ELSE :lc_false
         END AS is_japan_brazil
 
-      FROM zifidaspobase AS base;
+      FROM zifidaspobase( p_use_replication => :i_use_replication ) AS base
+      WHERE base.mandt = :i_client;
 
 *   Apply owner and PSTYPE/business selection logic
     lt_base_candidates =
@@ -2286,13 +2298,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           candidate.netvalue
         FROM :lt_base_candidates AS candidate
 
-        LEFT OUTER JOIN ekkn AS account
+        LEFT OUTER JOIN zdasekkn( p_use_replication => :i_use_replication ) AS account
           ON  account.ebeln = candidate.ponumber
           AND account.ebelp = candidate.itemno
+          AND account.mandt = :i_client
 
         LEFT OUTER JOIN csks AS cost_center
           ON  cost_center.kostl = account.kostl
           AND cost_center.kokrs = account.kokrs
+          AND cost_center.mandt = :i_client
           AND cost_center.datbi >= CURRENT_DATE
 
         WHERE
@@ -2408,7 +2422,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           :i_threshold_usd * CAST( 1 / exchange_rate.exchange_rate AS DECIMAL(15,6) ),2 ) AS threshold_converted
       FROM :lt_po_totals AS total
       INNER JOIN zfi_das_exchrt AS exchange_rate
-        ON exchange_rate.source_curr = total.pocurrency;
+        ON exchange_rate.source_curr = total.pocurrency
+       AND exchange_rate.mandt = :i_client;
 
     lt_threshold_classified =
       SELECT DISTINCT
@@ -2465,6 +2480,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             FROM zfi_das_po_excl AS exclusion
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
+             AND exclusion.mandt    = :i_client
         );
 
     ELSE
@@ -2483,6 +2499,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
              AND exclusion.pstype   = candidate.pstype
+             AND exclusion.mandt    = :i_client
         );
 
     END IF;
@@ -2739,6 +2756,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_required_keys.
 
+    TEST-SEAM replication_keys.
     get_access_scope( EXPORTING i_email   = is_request-parameter-email
                                 i_poowner = is_request-parameter-poowner
                       IMPORTING et_cost_centers = DATA(lt_cost_centers)
@@ -2747,6 +2765,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     get_keys(
       EXPORTING
+        i_use_replication       = is_request-use_replication
+        i_client                = sy-mandt
         i_mode                  = is_request-mode
         i_pstype                = get_pstype( is_request )
         i_email                 = is_request-parameter-email
@@ -2768,6 +2788,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       IMPORTING
         et_keys             = et_keys
         e_total_count       = e_total_count ).
+    END-TEST-SEAM.
 
   ENDMETHOD.
 
@@ -3261,6 +3282,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                        poowner = abap_false
                                                                        pstype = i_pstype ) ).
     ls_request = adjust_request( ls_request ).
+    ls_request-use_replication = COND #( WHEN i_use_replication IS SUPPLIED
+                                        THEN i_use_replication
+                                        ELSE get_use_replication( ) ).
 
     get_required_keys(
       EXPORTING
@@ -3280,13 +3304,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                             ELSE CONV i( sy-datum+6(2) ) ).
 
     IF l_day NOT BETWEEN mc_day_min AND mc_day_max.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e022(zfi_das) WITH l_day.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e006(zfi_das) WITH l_day.
     ENDIF.
 
-    SELECT SINGLE config_value
-      FROM zfi_das_conf_val
-    WHERE config_name = @mc_config_replication_to
-      INTO @DATA(l_config_value).
+    DATA l_config_value TYPE zfi_das_conf_val-config_value.
+    TEST-SEAM replication_config.
+      SELECT SINGLE config_value
+        FROM zfi_das_conf_val
+      WHERE config_name = @mc_config_replication_to
+        INTO @l_config_value.
+    END-TEST-SEAM.
 
 *   Missing/empty configuration -> live mode
     IF sy-subrc <> 0 OR l_config_value IS INITIAL.
@@ -3297,13 +3324,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         DATA(l_to_day) = CONV i( l_config_value ).
 
       CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e023(zfi_das) WITH mc_config_replication_to l_config_value
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_config_replication_to l_config_value
           EXPORTING
             previous = lx_conversion.
     ENDTRY.
 
     IF l_to_day NOT BETWEEN mc_day_min AND mc_day_max.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e024(zfi_das) WITH mc_config_replication_to l_config_value.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH mc_config_replication_to l_config_value.
     ENDIF.
 
     r_use_replication = xsdbool( l_day <= l_to_day ).

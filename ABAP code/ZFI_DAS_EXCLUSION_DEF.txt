@@ -500,10 +500,12 @@ CLASS lcl_exclusion IMPLEMENTATION.
     CREATE OBJECT lr_dashboard.
 
     DATA(lt_candidates) = lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_over
-                                                                  i_pstype = i_pstype ).
+                                                                  i_pstype = i_pstype
+                                                                  i_use_replication = abap_false ).
 
     APPEND LINES OF lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_under
-                                                            i_pstype = i_pstype ) TO lt_candidates.
+                                                            i_pstype = i_pstype
+                                                            i_use_replication = abap_false ) TO lt_candidates.
 
     LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<fs_candidate>).
 
@@ -531,10 +533,10 @@ CLASS lcl_exclusion IMPLEMENTATION.
            ekko~ebeln AS ekko_exists,
            t001~bukrs AS bukrs_exists,
            ekkn~ebeln AS ekkn_exists
-      FROM ekpo AS ekpo
-        LEFT OUTER JOIN ekko AS ekko ON ekko~ebeln = ekpo~ebeln
+      FROM zi_fi_das_ekpo( p_use_replication = @abap_false ) AS ekpo
+        LEFT OUTER JOIN zi_fi_das_ekko( p_use_replication = @abap_false ) AS ekko ON ekko~ebeln = ekpo~ebeln
         LEFT OUTER JOIN t001 AS t001 ON t001~bukrs = ekko~bukrs
-        LEFT OUTER JOIN ekkn AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
+        LEFT OUTER JOIN zi_fi_das_ekkn( p_use_replication = @abap_false ) AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
                                         ekkn~ebelp = ekpo~ebelp
       FOR ALL ENTRIES IN @it_keys
         WHERE ekpo~ebeln = @it_keys-ponumber AND

@@ -3,6 +3,7 @@
 @EndUserText.label: 'DAS Currency conversion'
 define view ZI_FI_DAS_EXCHANGE_RATE
   with parameters
+    p_use_replication : abap.char(1),
     p_date     : abap.dats,
     p_amount   : abap.curr(23,12),
     p_currency : abap.cuky,
@@ -10,7 +11,8 @@ define view ZI_FI_DAS_EXCHANGE_RATE
     @Environment.systemField: #CLIENT
     p_client   : abap.clnt
 
-  as select distinct from ekko as ekko
+  as select distinct from ZI_FI_DAS_EKKO(
+    p_use_replication: $parameters.p_use_replication ) as ekko
 {
   key ekko.waers as source_curr,
       $parameters.p_currency as target_curr,

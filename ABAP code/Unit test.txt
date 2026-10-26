@@ -18,13 +18,194 @@ CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
 CLASS ltcl_review_grace_test DEFINITION DEFERRED.
 CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
+CLASS ltc_replication DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
                 ltc_dash_pure_branches
                 ltcl_review_grace_test
                 ltc_request_processing
-                ltc_amdp_filters.
+                ltc_amdp_filters
+                ltc_replication.
+
+CLASS ltc_replication DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+  PUBLIC SECTION.
+    CLASS-DATA config_value TYPE zfi_das_conf_val-config_value.
+    CLASS-DATA config_subrc TYPE sysubrc.
+    CLASS-DATA config_reads TYPE i.
+    CLASS-DATA expected_flag TYPE abap_bool.
+    CLASS-DATA key_calls TYPE i.
+  PRIVATE SECTION.
+    METHODS setup.
+    METHODS window_days FOR TESTING RAISING cx_static_check.
+    METHODS default_day FOR TESTING RAISING cx_static_check.
+    METHODS missing_empty FOR TESTING RAISING cx_static_check.
+    METHODS invalid_day FOR TESTING.
+    METHODS invalid_config FOR TESTING.
+    METHODS config_bounds FOR TESTING.
+    METHODS request_flag FOR TESTING RAISING cx_static_check.
+    METHODS candidate_flag FOR TESTING RAISING cx_static_check.
+    METHODS empty_keys FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_replication IMPLEMENTATION.
+  METHOD setup.
+    CLEAR: config_value, config_subrc, config_reads, expected_flag, key_calls.
+    TEST-INJECTION replication_config.
+      l_config_value = ltc_replication=>config_value.
+      ltc_replication=>config_reads = ltc_replication=>config_reads + 1.
+      sy-subrc = ltc_replication=>config_subrc.
+    END-TEST-INJECTION.
+    TEST-INJECTION replication_keys.
+      cl_abap_unit_assert=>assert_equals(
+        act = is_request-use_replication exp = ltc_replication=>expected_flag ).
+      ltc_replication=>key_calls = ltc_replication=>key_calls + 1.
+      CLEAR: et_keys, e_total_count.
+    END-TEST-INJECTION.
+  ENDMETHOD.
+
+  METHOD window_days.
+    DATA lt_values TYPE STANDARD TABLE OF zfi_das_conf_val-config_value WITH EMPTY KEY.
+    DATA lt_days TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_values = VALUE #( ( '6' ) ( '06' ) ( '0006' ) ).
+    lt_days = VALUE #( ( 1 ) ( 6 ) ( 7 ) ( 31 ) ).
+    LOOP AT lt_values INTO config_value.
+      LOOP AT lt_days INTO DATA(l_day).
+        cl_abap_unit_assert=>assert_equals(
+          act = zcl_fi_das_dashboard=>get_use_replication( i_day = l_day )
+          exp = xsdbool( l_day <= 6 ) ).
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD default_day.
+    config_value = '06'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_use_replication( )
+      exp = xsdbool( CONV i( sy-datum+6(2) ) <= 6 ) ).
+  ENDMETHOD.
+
+  METHOD missing_empty.
+    config_subrc = 4.
+    cl_abap_unit_assert=>assert_false(
+      act = zcl_fi_das_dashboard=>get_use_replication( i_day = 1 ) ).
+    config_subrc = 0.
+    cl_abap_unit_assert=>assert_false(
+      act = zcl_fi_das_dashboard=>get_use_replication( i_day = 1 ) ).
+  ENDMETHOD.
+
+  METHOD invalid_day.
+    DATA lt_days TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    lt_days = VALUE #( ( -1 ) ( 0 ) ( 32 ) ).
+    LOOP AT lt_days INTO DATA(l_day).
+      TRY.
+          zcl_fi_das_dashboard=>get_use_replication( i_day = l_day ).
+          cl_abap_unit_assert=>fail( 'Invalid day accepted' ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '006' ).
+          cl_abap_unit_assert=>assert_equals(
+            act = CONV i( lx_error->if_t100_dyn_msg~msgv1 ) exp = l_day ).
+      ENDTRY.
+    ENDLOOP.
+    cl_abap_unit_assert=>assert_initial( config_reads ).
+  ENDMETHOD.
+
+  METHOD invalid_config.
+    DATA lt_values TYPE STANDARD TABLE OF zfi_das_conf_val-config_value WITH EMPTY KEY.
+    lt_values = VALUE #( ( 'abc' ) ( '99999999999999999999' ) ).
+    LOOP AT lt_values INTO config_value.
+      TRY.
+          zcl_fi_das_dashboard=>get_use_replication( i_day = 6 ).
+          cl_abap_unit_assert=>fail( 'Invalid/overflow configuration accepted' ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '031' ).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_dyn_msg~msgv1 exp = 'REPLICATION_TO' ).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_dyn_msg~msgv2 exp = CONV symsgv( config_value ) ).
+          cl_abap_unit_assert=>assert_bound( lx_error->previous ).
+          cl_abap_unit_assert=>assert_true(
+            act = xsdbool( lx_error->previous IS INSTANCE OF cx_sy_conversion_error ) ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD config_bounds.
+    DATA lt_values TYPE STANDARD TABLE OF zfi_das_conf_val-config_value WITH EMPTY KEY.
+    lt_values = VALUE #( ( '0' ) ( '00' ) ( '32' ) ( '-1' ) ).
+    LOOP AT lt_values INTO config_value.
+      TRY.
+          zcl_fi_das_dashboard=>get_use_replication( i_day = 6 ).
+          cl_abap_unit_assert=>fail( 'Out-of-range configuration accepted' ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_message~t100key-msgno exp = '032' ).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_dyn_msg~msgv1 exp = 'REPLICATION_TO' ).
+          cl_abap_unit_assert=>assert_equals(
+            act = lx_error->if_t100_dyn_msg~msgv2 exp = CONV symsgv( config_value ) ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD request_flag.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
+      mode = zif_fi_das_dashboard=>mc_over
+      parameter = VALUE #( email = '*' poowner = abap_false
+                           pstype = zif_fi_das_dashboard=>mc_pstype_material ) ).
+    config_value = '31'.
+    expected_flag = abap_true.
+    lo_cut->execute_request( EXPORTING is_request = ls_request
+                             CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = config_reads exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = key_calls exp = 1 ).
+
+    CLEAR config_value.
+    expected_flag = abap_false.
+    lo_cut->execute_request( EXPORTING is_request = ls_request
+                             CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals( act = config_reads exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = key_calls exp = 2 ).
+  ENDMETHOD.
+
+  METHOD candidate_flag.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    config_value = '31'.
+    expected_flag = abap_true.
+    lo_cut->get_exclusion_candidates(
+      i_mode = zif_fi_das_dashboard=>mc_over
+      i_pstype = zif_fi_das_dashboard=>mc_pstype_material ).
+    cl_abap_unit_assert=>assert_equals( act = config_reads exp = 1 ).
+
+    expected_flag = abap_false.
+    lo_cut->get_exclusion_candidates(
+      i_mode = zif_fi_das_dashboard=>mc_under
+      i_pstype = zif_fi_das_dashboard=>mc_pstype_material
+      i_use_replication = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = config_reads exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = key_calls exp = 2 ).
+  ENDMETHOD.
+
+  METHOD empty_keys.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    DATA lt_keys TYPE zcl_fi_das_dashboard=>tt_unique_key.
+    DATA lt_details TYPE zcl_fi_das_dashboard=>tt_detail.
+    cl_abap_unit_assert=>assert_initial(
+      lo_cut->get_details( it_keys = lt_keys i_use_replication = abap_true ) ).
+    cl_abap_unit_assert=>assert_initial(
+      lo_cut->get_accounts( it_keys = lt_keys i_use_replication = abap_true ) ).
+    cl_abap_unit_assert=>assert_initial(
+      lo_cut->get_history( it_keys = lt_keys it_details = lt_details
+                           i_use_replication = abap_true ) ).
+    cl_abap_unit_assert=>assert_initial( config_reads ).
+  ENDMETHOD.
+ENDCLASS.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT

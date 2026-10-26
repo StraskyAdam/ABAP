@@ -138,6 +138,7 @@ CLASS lcl_exchange_rate IMPLEMENTATION.
            reference_date,
            rev_exchange_rate
       FROM zi_fi_das_exchange_rate(
+        p_use_replication = @abap_false,
         p_date     = @m_reference_date,
         p_amount   = @mc_unit_amount,
         p_currency = @m_currency )

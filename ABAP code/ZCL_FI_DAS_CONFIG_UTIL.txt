@@ -1,0 +1,530 @@
+CLASS zcl_fi_das_config_util DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    TYPES:
+      tt_country  TYPE TABLE OF zfi_das_country WITH DEFAULT KEY .
+    TYPES:
+      tt_conf_val TYPE TABLE OF zfi_das_conf_val WITH DEFAULT KEY .
+    TYPES:
+      tt_roles TYPE TABLE OF zfi_das_roles WITH DEFAULT KEY .
+    TYPES:
+      tt_thresh TYPE TABLE OF  zfi_das_thresh WITH DEFAULT KEY .
+    TYPES:
+        tt_lang       TYPE TABLE OF zfi_das_lang       WITH DEFAULT KEY.
+    TYPES:
+      tt_email_tmpl TYPE TABLE OF zfi_das_email      WITH DEFAULT KEY,
+      tt_helplink   TYPE TABLE OF ZFI_DAS_HELPLINK   WITH DEFAULT KEY,
+      tt_videolink  TYPE TABLE OF ZFI_DAS_VIDEOLNK  WITH DEFAULT KEY.
+
+    CONSTANTS mc_message_class TYPE symsgid VALUE 'ZFI_DAS' ##NO_TEXT.
+
+    CLASS-METHODS create_country
+      IMPORTING
+        !is_country TYPE zfi_das_country OPTIONAL
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS delete_country
+      IMPORTING
+        !is_country TYPE zfi_das_country
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS get_countries
+      RETURNING
+        VALUE(rt_country) TYPE tt_country .
+    CLASS-METHODS country_exists
+      IMPORTING
+        !is_country     TYPE zfi_das_country
+      RETURNING
+        VALUE(r_exists) TYPE abap_bool .
+    CLASS-METHODS create_config_value
+      IMPORTING
+        !is_conf_val TYPE zfi_das_conf_val
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS delete_config_value
+      IMPORTING
+        !is_conf_val TYPE zfi_das_conf_val
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS get_config_values
+      RETURNING
+        VALUE(rt_conf_val) TYPE tt_conf_val .
+    CLASS-METHODS create_userrole
+      IMPORTING
+        !is_role TYPE zfi_das_roles
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS update_userrole
+      IMPORTING
+        !is_role TYPE zfi_das_roles
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS delete_userrole
+      IMPORTING
+        !is_role TYPE zfi_das_roles
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS get_userroles
+      RETURNING
+        VALUE(rt_roles) TYPE tt_roles .
+    CLASS-METHODS create_threshold
+      IMPORTING
+        !is_threshold TYPE zfi_das_thresh
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS update_threshold
+      IMPORTING
+        !is_threshold TYPE zfi_das_thresh
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS delete_threshold
+      IMPORTING
+        !is_threshold TYPE zfi_das_thresh
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+    CLASS-METHODS get_thresholds
+      RETURNING
+        VALUE(rt_threshold) TYPE tt_thresh .
+   CLASS-METHODS create_language
+      IMPORTING
+        is_lang TYPE zfi_das_lang
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+    CLASS-METHODS delete_language
+      IMPORTING
+        is_lang TYPE zfi_das_lang
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+        CLASS-METHODS get_languages
+      RETURNING
+        VALUE(rt_lang) TYPE tt_lang.
+
+        CLASS-METHODS create_email_template
+      IMPORTING
+        is_email_tmpl TYPE zfi_das_email
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+    CLASS-METHODS delete_email_template
+      IMPORTING
+        is_email_tmpl TYPE zfi_das_email
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+   CLASS-METHODS get_email_templates
+      RETURNING
+        VALUE(rt_email_tmpl) TYPE tt_email_tmpl.
+
+
+   CLASS-METHODS create_help_link
+      IMPORTING
+        is_helplink TYPE zfi_das_helplink
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+    CLASS-METHODS delete_help_link
+      IMPORTING
+        is_helplink TYPE zfi_das_helplink
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+   CLASS-METHODS get_help_links
+      RETURNING
+        VALUE(rt_helplink) TYPE tt_helplink.
+
+
+   CLASS-METHODS create_video_link
+      IMPORTING
+        is_video_link TYPE ZFI_DAS_VIDEOLNK
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+    CLASS-METHODS delete_video_link
+      IMPORTING
+        is_video_link TYPE ZFI_DAS_VIDEOLNK
+      RAISING
+        /iwbep/cx_mgw_busi_exception.
+
+    CLASS-METHODS get_video_links
+      RETURNING
+        VALUE(rt_video_link) TYPE tt_videolink.
+
+    CLASS-METHODS raise_exception
+      IMPORTING
+        !i_msg_type   TYPE symsgty DEFAULT 'E'
+        !i_msg_id     TYPE symsgid DEFAULT mc_message_class
+        !i_msg_number TYPE symsgno
+      RAISING
+        /iwbep/cx_mgw_busi_exception .
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+
+    CONSTANTS mc_record_already_exists TYPE symsgno VALUE '001' ##NO_TEXT.
+    CONSTANTS mc_configuration_not_created TYPE symsgno VALUE '002' ##NO_TEXT.
+    CONSTANTS mc_configuration_not_deleted TYPE symsgno VALUE '003' ##NO_TEXT.
+    CONSTANTS mc_configuration_not_updated TYPE symsgno VALUE '004' ##NO_TEXT.
+ENDCLASS.
+
+
+
+CLASS ZCL_FI_DAS_CONFIG_UTIL IMPLEMENTATION.
+
+
+  METHOD country_exists.
+
+    SELECT SINGLE @abap_true
+      FROM zfi_das_country
+    WHERE country_code = @is_country-country_code AND
+          country_name = @is_country-country_name AND
+          bukrs = @is_country-bukrs
+      INTO @r_exists.
+
+    IF sy-subrc <> 0.
+      CLEAR r_exists.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_config_value.
+
+    MODIFY zfi_das_conf_val FROM @is_conf_val.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_country.
+
+    IF country_exists( is_country ) = abap_true.
+      raise_exception( mc_record_already_exists ).
+    ENDIF.
+
+    INSERT zfi_das_country FROM @is_country.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_created ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_email_template.
+
+    MODIFY zfi_das_email FROM @is_email_tmpl.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_help_link.
+
+    MODIFY zfi_das_helplink FROM @is_helplink.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_language.
+
+    MODIFY zfi_das_lang FROM @is_lang.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_threshold.
+
+    MODIFY zfi_das_thresh FROM @is_threshold.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_userrole.
+
+    MODIFY zfi_das_roles FROM @is_role.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD create_video_link.
+
+    MODIFY zfi_das_videolnk FROM @is_video_link.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_config_value.
+
+    DELETE FROM zfi_das_conf_val
+      WHERE config_name = @is_conf_val-config_name.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_country.
+
+    DELETE FROM zfi_das_country
+      WHERE country_code = @is_country-country_code AND
+            country_name = @is_country-country_name AND
+            bukrs = @is_country-bukrs.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_email_template.
+
+    DELETE FROM zfi_das_email
+      WHERE template_name = @is_email_tmpl-template_name AND
+            language      = @is_email_tmpl-language.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_help_link.
+
+    DELETE FROM zfi_das_helplink
+      WHERE role = @is_helplink-role AND
+            help_id = @is_helplink-help_id AND
+            language = @is_helplink-language.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_language.
+
+    DELETE FROM zfi_das_lang
+      WHERE lang_code = @is_lang-lang_code.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_threshold.
+
+    DELETE FROM zfi_das_thresh
+      WHERE currency = @is_threshold-currency AND
+            company_code = @is_threshold-company_code.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_userrole.
+
+    DELETE FROM zfi_das_roles
+      WHERE user_emailid = @is_role-user_emailid AND
+            company_code = @is_role-company_code.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD delete_video_link.
+
+    DELETE FROM zfi_das_videolnk
+      WHERE role     = @is_video_link-role AND
+            video_id = @is_video_link-video_id AND
+            language = @is_video_link-language.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_deleted ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_config_values.
+
+    SELECT config_name, config_value
+      FROM zfi_das_conf_val
+    INTO CORRESPONDING FIELDS OF TABLE @rt_conf_val.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_conf_val.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_countries.
+
+    SELECT country_code, country_name, bukrs
+      FROM zfi_das_country
+    INTO CORRESPONDING FIELDS OF TABLE @rt_country.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_country.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_email_templates.
+
+    SELECT template_name, language, subject, body, status
+      FROM zfi_das_email
+    INTO CORRESPONDING FIELDS OF TABLE @rt_email_tmpl.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_email_tmpl.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+    METHOD get_help_links.
+
+      SELECT role, help_id, language, help_desc, help_link
+        FROM zfi_das_helplink
+      INTO CORRESPONDING FIELDS OF TABLE @rt_helplink.
+
+      IF sy-subrc <> 0.
+        CLEAR rt_helplink.
+      ENDIF.
+
+    ENDMETHOD.
+
+
+  METHOD get_languages.
+
+    SELECT lang_code, language
+      FROM zfi_das_lang
+    INTO CORRESPONDING FIELDS OF TABLE @rt_lang.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_lang.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_thresholds.
+
+    SELECT currency, company_code, po_threshold
+      FROM zfi_das_thresh
+    INTO CORRESPONDING FIELDS OF TABLE @rt_threshold.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_threshold.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_userroles.
+
+    SELECT user_emailid, company_code, user_role, user_access, management_unit,cost_center
+      FROM zfi_das_roles
+    INTO CORRESPONDING FIELDS OF TABLE @rt_roles.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_roles.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_video_links.
+
+    SELECT role, video_id, language, video_desc, video_link
+      FROM zfi_das_videolnk
+    INTO CORRESPONDING FIELDS OF TABLE @rt_video_link.
+
+    IF sy-subrc <> 0.
+      CLEAR rt_video_link.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD raise_exception.
+
+    DATA(lo_msg_container) = /iwbep/cl_mgw_msg_container=>get_mgw_msg_container( ).
+
+    lo_msg_container->add_message( iv_msg_type = i_msg_type
+                                   iv_msg_id = i_msg_id
+                                   iv_msg_number = i_msg_number ).
+
+    RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
+      EXPORTING
+        message_container = lo_msg_container.
+
+  ENDMETHOD.
+
+
+  METHOD update_threshold.
+
+    MODIFY zfi_das_thresh FROM @is_threshold.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD update_userrole.
+
+    MODIFY zfi_das_roles FROM @is_role.
+
+    IF sy-subrc <> 0.
+      raise_exception( mc_configuration_not_updated ).
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.

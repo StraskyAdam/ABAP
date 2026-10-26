@@ -36,7 +36,9 @@ CLASS lcl_exchange_rate DEFINITION FINAL.
     METHODS:
       get_results
         RETURNING
-          VALUE(rt_result) TYPE tt_result,
+          VALUE(rt_result) TYPE tt_result
+        RAISING
+          zcx_fi_das_error,
 
       get_count
         RETURNING
@@ -131,6 +133,8 @@ CLASS lcl_exchange_rate IMPLEMENTATION.
 
     DATA l_timestamp TYPE zfi_das_exchrt-last_replicated_at.
 
+    DATA(l_use_replication) = zcl_fi_das_dashboard=>get_use_replication( ).
+
 *   Currencies without an exchange rate are skipped
     SELECT source_curr,
            target_curr,
@@ -138,12 +142,13 @@ CLASS lcl_exchange_rate IMPLEMENTATION.
            reference_date,
            rev_exchange_rate
       FROM zi_fi_das_exchange_rate(
+        p_use_replication = @l_use_replication,
         p_date     = @m_reference_date,
         p_amount   = @mc_unit_amount,
         p_currency = @m_currency )
-      WHERE exchange_rate     IS NOT NULL AND
-            rev_exchange_rate IS NOT NULL
-      INTO TABLE @DATA(lt_rates).
+  WHERE exchange_rate     IS NOT NULL AND
+        rev_exchange_rate IS NOT NULL
+  INTO TABLE @DATA(lt_rates).
 
     GET TIME STAMP FIELD l_timestamp.
 

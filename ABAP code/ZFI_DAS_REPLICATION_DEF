@@ -1,0 +1,509 @@
+*&---------------------------------------------------------------------*
+*& Include ZFI_DAS_REPLICATION_DEF
+*&---------------------------------------------------------------------*
+
+***************************   Data and parameters    ******************************
+
+PARAMETERS: p_table TYPE tabname OBLIGATORY,
+            p_del   AS CHECKBOX DEFAULT abap_true.
+
+****************************      Local class         ******************************
+
+CLASS lcl_replication DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    CLASS-METHODS:
+      value_help,
+
+      validate
+        IMPORTING
+          i_table TYPE tabname
+        RAISING
+          zcx_fi_das_error.
+
+    METHODS run
+      IMPORTING
+        i_table  TYPE tabname
+        i_delete TYPE abap_bool
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CONSTANTS: mc_table_ekko      TYPE tabname  VALUE 'EKKO',
+               mc_table_ekpo      TYPE tabname  VALUE 'EKPO',
+               mc_table_ekkn      TYPE tabname  VALUE 'EKKN',
+               mc_table_ekbe      TYPE tabname  VALUE 'EKBE',
+
+               mc_target_ekko     TYPE tabname  VALUE 'ZFI_DAS_EKKO',
+               mc_target_ekpo     TYPE tabname  VALUE 'ZFI_DAS_EKPO',
+               mc_target_ekkn     TYPE tabname  VALUE 'ZFI_DAS_EKKN',
+               mc_target_ekbe     TYPE tabname  VALUE 'ZFI_DAS_EKBE',
+
+               mc_package_size    TYPE i VALUE 100000,
+
+               mc_f4_return_field TYPE dfies-fieldname VALUE 'TABNAME',
+               mc_f4_screen_field TYPE dynfnam VALUE 'P_TABLE',
+               mc_f4_value_org    TYPE c LENGTH 1 VALUE 'S'.
+
+    TYPES: BEGIN OF ts_object,
+             tabname TYPE zfi_das_replicate_from,
+             target  TYPE zfi_das_replicate_to,
+           END OF ts_object,
+
+           tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY.
+
+
+    CLASS-METHODS:
+      get_objects
+        RETURNING
+          VALUE(rt_objects) TYPE tt_objects.
+
+    METHODS:
+      get_replication_object
+        IMPORTING
+          i_table         TYPE tabname
+        RETURNING
+          VALUE(r_object) TYPE tabname
+        RAISING
+          zcx_fi_das_error,
+
+      lock_target
+        RAISING
+          zcx_fi_das_error,
+
+      unlock_target,
+
+      replicate_table
+        IMPORTING
+          i_table  TYPE tabname
+          i_delete TYPE abap_bool
+        RAISING
+          zcx_fi_das_error,
+
+      open_cursor
+        IMPORTING
+          i_table TYPE tabname
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      close_cursor,
+
+      delete_target
+        IMPORTING
+          i_table          TYPE tabname
+        RETURNING
+          VALUE(r_deleted) TYPE int8
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      insert_package
+        IMPORTING
+          i_table    TYPE tabname
+          i_package  TYPE REF TO data
+        EXPORTING
+          e_inserted TYPE i
+          e_skipped  TYPE i
+        RAISING
+          zcx_fi_das_error
+          cx_sy_open_sql_db,
+
+      rollback,
+
+      display_result
+        IMPORTING
+          i_table    TYPE tabname
+          i_selected TYPE int8
+          i_deleted  TYPE int8
+          i_inserted TYPE int8
+          i_skipped  TYPE int8.
+
+    DATA: m_cursor      TYPE cursor,
+          m_target      TYPE tabname,
+          m_locked      TYPE abap_bool,
+          m_cursor_open TYPE abap_bool.
+
+ENDCLASS.
+
+CLASS lcl_replication IMPLEMENTATION.
+
+  METHOD get_objects.
+
+    rt_objects = VALUE #( ( tabname = mc_table_ekko
+                            target  = mc_target_ekko )
+                          ( tabname = mc_table_ekpo
+                            target  = mc_target_ekpo )
+                          ( tabname = mc_table_ekkn
+                            target  = mc_target_ekkn )
+                          ( tabname = mc_table_ekbe
+                            target  = mc_target_ekbe ) ).
+
+  ENDMETHOD.
+
+  METHOD value_help.
+
+    DATA(lt_objects) = get_objects( ).
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = mc_f4_return_field
+        dynpprog        = sy-repid
+        dynpnr          = sy-dynnr
+        dynprofield     = mc_f4_screen_field
+        value_org       = mc_f4_value_org
+      TABLES
+        value_tab       = lt_objects
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+
+    IF sy-subrc <> 0.
+      MESSAGE i028(zfi_das).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD validate.
+
+    DATA(lt_objects) = get_objects( ).
+
+    DATA(l_table) = to_upper( i_table ).
+
+    IF NOT line_exists( lt_objects[ tabname = l_table ] ).
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e019(zfi_das) WITH l_table.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    m_target = get_replication_object( i_table ).
+
+    zcl_fi_das_utility=>check_table_authority( m_target ).
+
+    replicate_table( i_table  = i_table
+                     i_delete = i_delete ).
+
+  ENDMETHOD.
+
+  METHOD get_replication_object.
+
+    DATA(lt_objects) = get_objects( ).
+
+    validate( i_table ).
+
+    r_object = lt_objects[ tabname = to_upper( i_table ) ]-target.
+
+  ENDMETHOD.
+
+  METHOD lock_target.
+
+    zcl_fi_das_utility=>lock_table( m_target ).
+
+    m_locked = abap_true.
+
+  ENDMETHOD.
+
+  METHOD unlock_target.
+
+    IF m_locked = abap_false.
+      RETURN.
+    ENDIF.
+
+    zcl_fi_das_utility=>unlock_table( m_target ).
+
+    m_locked = abap_false.
+
+  ENDMETHOD.
+
+  METHOD delete_target.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+        DELETE FROM zfi_das_ekko.
+
+      WHEN mc_table_ekpo.
+        DELETE FROM zfi_das_ekpo.
+
+      WHEN mc_table_ekkn.
+        DELETE FROM zfi_das_ekkn.
+
+      WHEN mc_table_ekbe.
+        DELETE FROM zfi_das_ekbe.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e029(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH m_target.
+    ENDIF.
+
+    r_deleted = sy-dbcnt.
+
+  ENDMETHOD.
+
+  METHOD replicate_table.
+
+    DATA: lr_package TYPE REF TO data,
+          l_selected TYPE int8,
+          l_deleted  TYPE int8,
+          l_inserted TYPE int8,
+          l_skipped  TYPE int8.
+
+    FIELD-SYMBOLS <ft_package> TYPE STANDARD TABLE.
+
+    TRY.
+
+*       Only a target from the internal whitelist is used
+        CREATE DATA lr_package TYPE STANDARD TABLE OF (m_target).
+        ASSIGN lr_package->* TO <ft_package>.
+
+        IF <ft_package> IS NOT ASSIGNED OR sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+        ENDIF.
+
+        lock_target( ).
+
+        IF i_delete = abap_true.
+          l_deleted = delete_target( i_table ).
+        ENDIF.
+
+        open_cursor( i_table = i_table ).
+
+        DO.
+
+          FETCH NEXT CURSOR @m_cursor INTO CORRESPONDING FIELDS OF TABLE @<ft_package> PACKAGE SIZE @mc_package_size.
+
+          IF <ft_package> IS INITIAL.
+            EXIT.
+          ENDIF.
+
+          l_selected = l_selected + lines( <ft_package> ).
+
+          insert_package(
+            EXPORTING
+              i_table    = i_table
+              i_package  = lr_package
+            IMPORTING
+              e_inserted = DATA(l_added)
+              e_skipped  = DATA(l_ignored) ).
+
+          l_inserted = l_inserted + l_added.
+          l_skipped  = l_skipped + l_ignored.
+
+          CLEAR <ft_package>.
+
+        ENDDO.
+
+        close_cursor( ).
+
+        COMMIT WORK AND WAIT.
+
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH m_target.
+        ENDIF.
+
+        unlock_target( ).
+
+      CATCH zcx_fi_das_error INTO DATA(lx_replication_error).
+
+        rollback( ).
+
+        RAISE EXCEPTION lx_replication_error.
+
+      CATCH cx_root INTO DATA(lx_unexpected_error).
+
+        rollback( ).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_unexpected_error
+            i_text   = lx_unexpected_error->get_text( ).
+
+    ENDTRY.
+
+    display_result( i_table    = i_table
+                    i_selected = l_selected
+                    i_deleted  = l_deleted
+                    i_inserted = l_inserted
+                    i_skipped  = l_skipped ).
+
+  ENDMETHOD.
+
+  METHOD open_cursor.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 bukrs,
+                 aedat,
+                 lifnr,
+                 ekorg,
+                 waers,
+                 unsez,
+                 bedat
+          FROM zi_fi_das_ekko( p_use_replication = @abap_false ).
+
+      WHEN mc_table_ekpo.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 txz01,
+                 bukrs,
+                 menge,
+                 meins,
+                 netpr,
+                 peinh,
+                 netwr,
+                 brtwr,
+                 pstyp,
+                 xersy,
+                 zstart_date,
+                 zend_date,
+                 zserv_amt,
+                 zserv_perc,
+                 po_requestor,
+                 po_preparer,
+                 zactivitynbr
+          FROM zi_fi_das_ekpo( p_use_replication = @abap_false ).
+
+      WHEN mc_table_ekkn.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 zekkn,
+                 menge,
+                 vproz,
+                 sakto,
+                 kostl,
+                 anln1,
+                 aufnr,
+                 kokrs,
+                 prctr
+          FROM zi_fi_das_ekkn( p_use_replication = @abap_false ).
+
+      WHEN mc_table_ekbe.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ebeln,
+                 ebelp,
+                 zekkn,
+                 vgabe,
+                 gjahr,
+                 belnr,
+                 buzei,
+                 bewtp,
+                 menge,
+                 dmbtr,
+                 wrbtr,
+                 waers,
+                 shkzg,
+                 budat,
+                 refwr
+          FROM zi_fi_das_ekbe( p_use_replication = @abap_false ).
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e026(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    m_cursor_open = abap_true.
+
+  ENDMETHOD.
+
+  METHOD close_cursor.
+
+    IF m_cursor_open = abap_false.
+      RETURN.
+    ENDIF.
+
+    CLOSE CURSOR @m_cursor.
+
+    m_cursor_open = abap_false.
+
+  ENDMETHOD.
+
+  METHOD insert_package.
+
+    FIELD-SYMBOLS <ft_package> TYPE ANY TABLE.
+
+    IF i_package IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+    ENDIF.
+
+    ASSIGN i_package->* TO <ft_package>.
+
+    IF <ft_package> IS NOT ASSIGNED OR sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e025(zfi_das) WITH i_table.
+    ENDIF.
+
+    CASE i_table.
+
+      WHEN mc_table_ekko.
+        INSERT zfi_das_ekko FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekpo.
+        INSERT zfi_das_ekpo FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekkn.
+        INSERT zfi_das_ekkn FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_ekbe.
+        INSERT zfi_das_ekbe FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e027(zfi_das) WITH i_table.
+
+    ENDCASE.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH m_target.
+    ENDIF.
+
+    e_inserted = sy-dbcnt.
+    e_skipped = lines( <ft_package> ) - e_inserted.
+
+  ENDMETHOD.
+
+  METHOD rollback.
+
+    TRY.
+        close_cursor( ).
+
+      CATCH cx_root.
+*        Continue with rollback even if closing the cursor failed
+    ENDTRY.
+
+    ROLLBACK WORK.
+
+    m_cursor_open = abap_false.
+
+    unlock_target( ).
+
+  ENDMETHOD.
+
+  METHOD display_result.
+
+    WRITE:
+       / |{ TEXT-obj } { i_table }|,
+       / |{ TEXT-tgt } { m_target }|,
+       / |{ TEXT-sel } { i_selected }|,
+       / |{ TEXT-del } { i_deleted }|,
+       / |{ TEXT-ins } { i_inserted }|,
+       / |{ TEXT-skp } { i_skipped }|.
+
+  ENDMETHOD.
+
+ENDCLASS.

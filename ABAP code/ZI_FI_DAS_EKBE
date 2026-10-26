@@ -1,0 +1,26 @@
+@AbapCatalog.sqlViewName: 'ZDASEKBE'
+@EndUserText.label: 'EKBE active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKBE
+  with parameters
+    p_use_replication : abap.char(1)
+
+  as select from ZI_FI_DAS_EKBE_SRC
+{
+  ebeln,
+  ebelp,
+  zekkn,
+  vgabe,
+  gjahr,
+  belnr,
+  buzei,
+  bewtp,
+  menge,
+  dmbtr,
+  wrbtr,
+  waers,
+  shkzg,
+  budat,
+  refwr
+}
+where use_replication = $parameters.p_use_replication

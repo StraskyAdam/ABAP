@@ -1,0 +1,31 @@
+@AbapCatalog.sqlViewName: 'ZDASEKPO'
+@EndUserText.label: 'EKPO active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_EKPO
+  with parameters
+    p_use_replication : abap.char(1)
+
+  as select from ZI_FI_DAS_EKPO_SRC
+{
+  ebeln,
+  ebelp,
+  txz01,
+  bukrs,
+  menge,
+  meins,
+  netpr,
+  peinh,
+  netwr,
+  brtwr,
+  pstyp,
+  xersy,
+  zstart_date,
+  zend_date,
+  zserv_amt,
+  zserv_perc,
+  po_requestor,
+  po_preparer,
+  zactivitynbr,
+  use_replication
+}
+where use_replication = $parameters.p_use_replication

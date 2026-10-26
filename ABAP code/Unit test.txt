@@ -300,7 +300,7 @@ CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
       tt_expected_index TYPE HASHED TABLE OF ts_expected_index
         WITH UNIQUE KEY ponumber itemno,
 
-      tt_string TYPE STANDARD TABLE OF string
+      tt_string         TYPE STANDARD TABLE OF string
         WITH EMPTY KEY,
 
       BEGIN OF ts_json_property,
@@ -897,10 +897,10 @@ CLASS ltc_utility_unit IMPLEMENTATION.
       exp = CONV char5( 'true' ) ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>bool_to_text( CONV #( abap_false ) )
-      exp = CONV CHAR5( `false` ) ).
+      exp = CONV char5( `false` ) ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>bool_to_text( 'true' )
-      exp = CONV CHAR5( `false` ) ).
+      exp = CONV char5( `false` ) ).
   ENDMETHOD.
 
   METHOD truncate_values.
@@ -2050,7 +2050,7 @@ CLASS ltc_request_processing IMPLEMENTATION.
       msg = 'An orderby requires full processing' ).
   ENDMETHOD.
 
-    " Contains filters
+  " Contains filters
 
   METHOD po_contains_builds_like.
     DATA(ls_request) = VALUE zcl_fi_das_dashboard=>ts_internal_request(
@@ -3060,7 +3060,7 @@ CLASS ltc_scope_over_service DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
-      RAISING cx_static_check.
+      RAISING   cx_static_check.
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -3403,7 +3403,7 @@ CLASS ltc_scope_over_material DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
-      RAISING cx_static_check.
+      RAISING   cx_static_check.
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -3729,7 +3729,7 @@ CLASS ltc_scope_under_service DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
-      RAISING cx_static_check.
+      RAISING   cx_static_check.
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -4055,7 +4055,7 @@ CLASS ltc_scope_under_material DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
-      RAISING cx_static_check.
+      RAISING   cx_static_check.
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -4381,7 +4381,7 @@ CLASS ltc_scope_exclude DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
-      RAISING cx_static_check.
+      RAISING   cx_static_check.
     METHODS test_scope_01 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_02 FOR TESTING RAISING cx_static_check.
     METHODS test_scope_03 FOR TESTING RAISING cx_static_check.
@@ -9562,33 +9562,51 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD adjust_default_request.
-    ms_request-parameter-email = '  OWNER@EXAMPLE.INVALID  '.
-    ms_request-orderby = VALUE #( ( property = 'ponumber' ) ( property = 'itemno' ) ).
-    DATA(ls_original) = ms_request.
-    DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
-    cl_abap_unit_assert=>assert_equals(
-      act = ls_adjusted-parameter-email exp = 'owner@example.invalid' ).
-    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-orderby ).
-    cl_abap_unit_assert=>assert_equals(
-      act = ls_adjusted-paging exp = ls_original-paging ).
-    cl_abap_unit_assert=>assert_equals( act = ms_request exp = ls_original ).
-    ms_request-parameter-email = ' * '.
-    ls_adjusted = mo_cut->adjust_request( ms_request ).
-    cl_abap_unit_assert=>assert_equals( act = ls_adjusted-parameter-email exp = '%' ).
+
+    TRY.
+        ms_request-parameter-email = '  OWNER@EXAMPLE.INVALID  '.
+        ms_request-orderby = VALUE #( ( property = 'ponumber' ) ( property = 'itemno' ) ).
+        DATA(ls_original) = ms_request.
+        DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_adjusted-parameter-email exp = 'owner@example.invalid' ).
+        cl_abap_unit_assert=>assert_initial( act = ls_adjusted-orderby ).
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_adjusted-paging exp = ls_original-paging ).
+        cl_abap_unit_assert=>assert_equals( act = ms_request exp = ls_original ).
+        ms_request-parameter-email = ' * '.
+        ls_adjusted = mo_cut->adjust_request( ms_request ).
+        cl_abap_unit_assert=>assert_equals( act = ls_adjusted-parameter-email exp = '%' ).
+
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+        cl_abap_unit_assert=>fail(
+          msg = lx_error->get_text( ) ).
+
+    ENDTRY.
   ENDMETHOD.
 
   METHOD adjust_generic_request.
-    ms_request-orderby = VALUE #( ( property = 'AmountAccrued' descending = abap_true ) ).
-    ms_request-filter-filter_string = `COMPANYCODE = '1000'`.
-    DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
-    cl_abap_unit_assert=>assert_equals(
-      act = ls_adjusted-orderby exp = ms_request-orderby ).
-    cl_abap_unit_assert=>assert_equals(
-      act = ls_adjusted-filter exp = ms_request-filter ).
-    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-skip ).
-    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top ).
-    cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top_requested ).
-    cl_abap_unit_assert=>assert_true( act = ls_adjusted-paging-count_requested ).
+
+    TRY.
+        ms_request-orderby = VALUE #( ( property = 'AmountAccrued' descending = abap_true ) ).
+        ms_request-filter-filter_string = `COMPANYCODE = '1000'`.
+        DATA(ls_adjusted) = mo_cut->adjust_request( ms_request ).
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_adjusted-orderby exp = ms_request-orderby ).
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_adjusted-filter exp = ms_request-filter ).
+        cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-skip ).
+        cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top ).
+        cl_abap_unit_assert=>assert_initial( act = ls_adjusted-paging-top_requested ).
+        cl_abap_unit_assert=>assert_true( act = ls_adjusted-paging-count_requested ).
+
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+        cl_abap_unit_assert=>fail(
+          msg = lx_error->get_text( ) ).
+
+    ENDTRY.
   ENDMETHOD.
 
   " Status and calculation boundaries: no implicit current-date branches

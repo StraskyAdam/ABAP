@@ -11,31 +11,31 @@ CLASS lcl_exclusion DEFINITION FINAL.
   PRIVATE SECTION.
 
     CONSTANTS:
-      mc_target         TYPE tabname VALUE 'ZFI_DAS_PO_EXCL',
+      mc_target       TYPE tabname VALUE 'ZFI_DAS_PO_EXCL',
 
-      mc_gl             TYPE zfi_accrual_excl-ruletype VALUE 'GL',
-      mc_cc             TYPE zfi_accrual_excl-ruletype VALUE 'CC',
-      mc_iv             TYPE zfi_accrual_excl-ruletype VALUE 'IV',
-      mc_pc             TYPE zfi_accrual_excl-ruletype VALUE 'PC',
-      mc_po             TYPE zfi_accrual_excl-ruletype VALUE 'PO',
-      mc_vd             TYPE zfi_accrual_excl-ruletype VALUE 'VD',
+      mc_gl           TYPE zfi_accrual_excl-ruletype VALUE 'GL',
+      mc_cc           TYPE zfi_accrual_excl-ruletype VALUE 'CC',
+      mc_iv           TYPE zfi_accrual_excl-ruletype VALUE 'IV',
+      mc_pc           TYPE zfi_accrual_excl-ruletype VALUE 'PC',
+      mc_po           TYPE zfi_accrual_excl-ruletype VALUE 'PO',
+      mc_vd           TYPE zfi_accrual_excl-ruletype VALUE 'VD',
 
-      mc_company_low    TYPE string VALUE `0000`,
-      mc_company_high   TYPE string VALUE `9999`,
-      mc_account_low    TYPE string VALUE `0000000000`,
-      mc_account_high   TYPE string VALUE `9999999999`,
-      mc_cost_low       TYPE string VALUE `0000000000`,
-      mc_cost_high      TYPE string VALUE `9999999999`,
-      mc_order_low      TYPE string VALUE `000000000000`,
-      mc_order_high     TYPE string VALUE `999999999999`,
-      mc_profit_low     TYPE string VALUE `00000000`,
-      mc_profit_high    TYPE string VALUE `9999`,
+      mc_company_low  TYPE string VALUE `0000`,
+      mc_company_high TYPE string VALUE `9999`,
+      mc_account_low  TYPE string VALUE `0000000000`,
+      mc_account_high TYPE string VALUE `9999999999`,
+      mc_cost_low     TYPE string VALUE `0000000000`,
+      mc_cost_high    TYPE string VALUE `9999999999`,
+      mc_order_low    TYPE string VALUE `000000000000`,
+      mc_order_high   TYPE string VALUE `999999999999`,
+      mc_profit_low   TYPE string VALUE `00000000`,
+      mc_profit_high  TYPE string VALUE `9999`,
 
-      mc_empty          TYPE string VALUE ``,
-      mc_blank          TYPE string VALUE ` `,
-      mc_zero           TYPE c LENGTH 1 VALUE '0',
+      mc_empty        TYPE string VALUE ``,
+      mc_blank        TYPE string VALUE ` `,
+      mc_zero         TYPE c LENGTH 1 VALUE '0',
 
-      mc_package_size   TYPE i VALUE 100000.
+      mc_package_size TYPE i VALUE 100000.
 
     TYPES:
       tt_result TYPE STANDARD TABLE OF zfi_das_po_excl WITH EMPTY KEY,
@@ -124,9 +124,10 @@ CLASS lcl_exclusion DEFINITION FINAL.
 
       tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd.
 
-    DATA: m_locked   TYPE abap_bool,
-          m_deleted  TYPE int8,
-          m_inserted TYPE int8.
+    DATA: m_used_replication TYPE abap_bool,
+          m_locked           TYPE abap_bool,
+          m_deleted          TYPE int8,
+          m_inserted         TYPE int8.
 
     METHODS:
       read_rules
@@ -261,6 +262,8 @@ CLASS lcl_exclusion IMPLEMENTATION.
     TRY.
 
         zcl_fi_das_utility=>check_table_authority( mc_target ).
+
+        m_used_replication = zcl_fi_das_dashboard=>get_use_replication( ).
 
         DATA(lt_rules) = read_rules( ).
 
@@ -531,11 +534,11 @@ CLASS lcl_exclusion IMPLEMENTATION.
            ekko~ebeln AS ekko_exists,
            t001~bukrs AS bukrs_exists,
            ekkn~ebeln AS ekkn_exists
-      FROM ekpo AS ekpo
-        LEFT OUTER JOIN ekko AS ekko ON ekko~ebeln = ekpo~ebeln
+      FROM zi_fi_das_ekpo( p_use_replication = @m_used_replication ) AS ekpo
+        LEFT OUTER JOIN zi_fi_das_ekko( p_use_replication = @m_used_replication ) AS ekko ON ekko~ebeln = ekpo~ebeln
         LEFT OUTER JOIN t001 AS t001 ON t001~bukrs = ekko~bukrs
-        LEFT OUTER JOIN ekkn AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
-                                        ekkn~ebelp = ekpo~ebelp
+        LEFT OUTER JOIN zi_fi_das_ekkn( p_use_replication = @m_used_replication ) AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
+                                                                                             ekkn~ebelp = ekpo~ebelp
       FOR ALL ENTRIES IN @it_keys
         WHERE ekpo~ebeln = @it_keys-ponumber AND
               ekpo~ebelp = @it_keys-itemno

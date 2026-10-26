@@ -3,7 +3,7 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 define view ZI_FI_DAS_EKPO_SRC
   as select from ekpo as ekpo
-    left outer join zfi_das_cc_scope as scope
+    left outer join zfi_das_bukrs as scope
       on  scope.tabname = 'EKPO'
       and scope.bukrs   = ekpo.bukrs
 {

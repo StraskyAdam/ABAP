@@ -1,0 +1,393 @@
+CLASS zcl_zfi_das_configurat_dpc_ext DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_zfi_das_configurat_dpc
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+  PROTECTED SECTION.
+
+    METHODS configlang_create_entity
+        REDEFINITION .
+    METHODS configlang_delete_entity
+        REDEFINITION .
+    METHODS configlang_get_entityset
+        REDEFINITION .
+    METHODS configvalues_create_entity
+        REDEFINITION .
+    METHODS configvalues_delete_entity
+        REDEFINITION .
+    METHODS configvalues_get_entityset
+        REDEFINITION .
+    METHODS ctryconfigpo_create_entity
+        REDEFINITION .
+    METHODS ctryconfigpo_delete_entity
+        REDEFINITION .
+    METHODS ctryconfigpo_get_entityset
+        REDEFINITION .
+    METHODS emailtemplate_create_entity
+        REDEFINITION .
+    METHODS emailtemplate_delete_entity
+        REDEFINITION .
+    METHODS emailtemplate_get_entityset
+        REDEFINITION .
+    METHODS helplinks_create_entity
+        REDEFINITION .
+    METHODS helplinks_delete_entity
+        REDEFINITION .
+    METHODS helplinks_get_entityset
+        REDEFINITION .
+    METHODS lang_get_entityset
+        REDEFINITION .
+    METHODS link_create_entity
+        REDEFINITION .
+    METHODS link_delete_entity
+        REDEFINITION .
+    METHODS link_get_entityset
+        REDEFINITION .
+    METHODS threshold_create_entity
+        REDEFINITION .
+    METHODS threshold_delete_entity
+        REDEFINITION .
+    METHODS threshold_get_entityset
+        REDEFINITION .
+    METHODS threshold_update_entity
+        REDEFINITION .
+    METHODS userrole_create_entity
+        REDEFINITION .
+    METHODS userrole_delete_entity
+        REDEFINITION .
+    METHODS userrole_get_entityset
+        REDEFINITION .
+    METHODS userrole_update_entity
+        REDEFINITION .
+    METHODS videolinks_create_entity
+        REDEFINITION .
+    METHODS videolinks_delete_entity
+        REDEFINITION .
+    METHODS videolinks_get_entityset
+        REDEFINITION .
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZFI_DAS_CONFIGURAT_DPC_EXT IMPLEMENTATION.
+
+
+  METHOD configlang_create_entity.
+
+    DATA ls_entity TYPE zfi_das_lang.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_language( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD configlang_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_configlangtype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_language( CORRESPONDING zfi_das_lang( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD configlang_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_languages( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD configvalues_create_entity.
+
+    DATA ls_entity TYPE zfi_das_conf_val.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_config_value( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD configvalues_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_configvaluestype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_config_value( CORRESPONDING zfi_das_conf_val( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD configvalues_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_config_values( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD ctryconfigpo_create_entity.
+
+    DATA ls_entity TYPE zfi_das_country.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_country( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD ctryconfigpo_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_ctryconfigpotype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_country( CORRESPONDING zfi_das_country( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD ctryconfigpo_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_countries( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD emailtemplate_create_entity.
+
+    DATA ls_entity TYPE zfi_das_email.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_email_template( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD emailtemplate_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_emailtemplatetype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_email_template( CORRESPONDING zfi_das_email( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD emailtemplate_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_email_templates( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD helplinks_create_entity.
+
+    DATA ls_entity TYPE zfi_das_helplink.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_help_link( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD helplinks_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_helplinkstype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_help_link( CORRESPONDING zfi_das_helplink( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD helplinks_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_help_links( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD lang_get_entityset.
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_languages( ) ).
+  ENDMETHOD.
+
+
+  METHOD link_create_entity.
+    DATA ls_entity TYPE zfi_das_helplink.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_help_link( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+  ENDMETHOD.
+
+
+  METHOD link_delete_entity.
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_linktype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_help_link(
+      CORRESPONDING zfi_das_helplink( ls_keys )
+    ).
+  ENDMETHOD.
+
+
+  METHOD link_get_entityset.
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_help_links( ) ).
+  ENDMETHOD.
+
+
+  METHOD threshold_create_entity.
+
+    DATA ls_entity TYPE zfi_das_thresh.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_threshold( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD threshold_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_thresholdtype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_threshold( CORRESPONDING zfi_das_thresh( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD threshold_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_thresholds( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD threshold_update_entity.
+
+    DATA: ls_entity TYPE zfi_das_thresh,
+          ls_keys   TYPE zcl_zfi_das_configurat_mpc=>ts_thresholdtype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    ls_entity-currency = ls_keys-currency.
+    ls_entity-company_code = ls_keys-company_code.
+
+    zcl_fi_das_config_util=>update_threshold( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD userrole_create_entity.
+
+    DATA ls_entity TYPE zfi_das_roles.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_userrole( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD userrole_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_userroletype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_userrole( CORRESPONDING zfi_das_roles( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD userrole_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_userroles( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD userrole_update_entity.
+
+    DATA: ls_entity TYPE zfi_das_roles,
+          ls_keys   TYPE zcl_zfi_das_configurat_mpc=>ts_userroletype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    ls_entity-user_emailid = ls_keys-user_emailid.
+    ls_entity-company_code = ls_keys-company_code.
+
+    zcl_fi_das_config_util=>update_userrole( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD videolinks_create_entity.
+
+    DATA ls_entity TYPE zfi_das_videolnk.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_entity ).
+
+    zcl_fi_das_config_util=>create_video_link( ls_entity ).
+
+    er_entity = CORRESPONDING #( ls_entity ).
+
+  ENDMETHOD.
+
+
+  METHOD videolinks_delete_entity.
+
+    DATA ls_keys TYPE zcl_zfi_das_configurat_mpc=>ts_videolinkstype.
+
+    io_tech_request_context->get_converted_keys( IMPORTING es_key_values = ls_keys ).
+
+    zcl_fi_das_config_util=>delete_video_link( CORRESPONDING zfi_das_videolnk( ls_keys ) ).
+
+  ENDMETHOD.
+
+
+  METHOD videolinks_get_entityset.
+
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_video_links( ) ).
+
+  ENDMETHOD.
+ENDCLASS.

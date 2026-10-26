@@ -9,16 +9,28 @@ CLASS zcl_fi_das_dashboard DEFINITION
     INTERFACES if_amdp_marker_hdb.
 
     TYPES:
-       BEGIN OF ts_key,
+      BEGIN OF ts_key,
         ponumber      TYPE ebeln,
         itemno        TYPE ebelp,
         pstype        TYPE zif_fi_das_dashboard=>t_pstype,
         poowner_email TYPE zif_fi_das_dashboard=>t_email,
       END OF ts_key,
 
-      tt_key        TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+      tt_key       TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
 
       t_percentage TYPE p LENGTH 7 DECIMALS 1.
+
+    CONSTANTS: mc_config_replication_to TYPE zfi_das_conf_val-config_name VALUE 'REPLICATION_TO',
+               mc_day_min               TYPE i VALUE 1,
+               mc_day_max               TYPE i VALUE 31.
+
+    CLASS-METHODS get_use_replication
+      IMPORTING
+        i_day                    TYPE i OPTIONAL
+      RETURNING
+        VALUE(r_use_replication) TYPE abap_bool
+      RAISING
+        zcx_fi_das_error.
 
     METHODS get_exclusion_candidates
       IMPORTING
@@ -150,7 +162,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
       tt_odata_result TYPE TABLE OF ts_odata_result WITH EMPTY KEY,
 
-      tt_unique_key TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
+      tt_unique_key   TYPE SORTED TABLE OF ts_key WITH UNIQUE KEY ponumber itemno,
 
       BEGIN OF ts_role,
         company_code    TYPE string,
@@ -3256,6 +3268,45 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_apply_exclusions = abap_false
       IMPORTING
         et_keys            = rt_keys ).
+
+  ENDMETHOD.
+
+  METHOD get_use_replication.
+
+    r_use_replication = abap_false.
+
+    DATA(l_day) = COND i( WHEN i_day IS SUPPLIED
+                            THEN i_day
+                            ELSE CONV i( sy-datum+6(2) ) ).
+
+    IF l_day NOT BETWEEN mc_day_min AND mc_day_max.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e022(zfi_das) WITH l_day.
+    ENDIF.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = @mc_config_replication_to
+      INTO @DATA(l_config_value).
+
+*   Missing/empty configuration -> live mode
+    IF sy-subrc <> 0 OR l_config_value IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        DATA(l_to_day) = CONV i( l_config_value ).
+
+      CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e023(zfi_das) WITH mc_config_replication_to l_config_value
+          EXPORTING
+            previous = lx_conversion.
+    ENDTRY.
+
+    IF l_to_day NOT BETWEEN mc_day_min AND mc_day_max.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e024(zfi_das) WITH mc_config_replication_to l_config_value.
+    ENDIF.
+
+    r_use_replication = xsdbool( l_day <= l_to_day ).
 
   ENDMETHOD.
 

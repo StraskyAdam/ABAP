@@ -849,7 +849,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_inline_count) TYPE string.
 
-    DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
+    DATA mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
 ENDCLASS.
 

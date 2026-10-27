@@ -1,0 +1,23 @@
+@AbapCatalog.sqlViewName: 'ZDAST001SRC'
+@EndUserText.label: 'T001 source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_T001_SRC
+  as select from t001 as company
+{
+  company.bukrs,
+  company.butxt,
+  company.land1,
+  company.waers,
+  ' ' as use_replication
+}
+
+union all
+
+select from zfi_das_t001 as replication
+{
+  replication.bukrs,
+  replication.butxt,
+  replication.land1,
+  replication.waers,
+  'X' as use_replication
+}

@@ -1,0 +1,26 @@
+@AbapCatalog.sqlViewName: 'ZDASACCREXCL'
+@EndUserText.label: 'Accrual exclusion rules active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ACCRUAL_EXCL
+  with parameters
+    p_use_replication : abap.char(1)
+
+  as select from ZI_FI_DAS_ACCRUAL_EXCL_SRC
+{
+  ruleid,
+  ruletype,
+  bukrsfr,
+  bukrsto,
+  ponum,
+  lifnr,
+  saktofr,
+  saktoto,
+  kostlfr,
+  kostlto,
+  aufnrfr,
+  aufnrto,
+  prctrfr,
+  prctrto,
+  threshold
+}
+where use_replication = $parameters.p_use_replication

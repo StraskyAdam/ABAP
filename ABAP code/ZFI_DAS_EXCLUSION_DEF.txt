@@ -122,7 +122,26 @@ CLASS lcl_exclusion DEFINITION FINAL.
         vd       TYPE abap_bool,
       END OF ts_vector,
 
-      tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd.
+      tt_vector TYPE HASHED TABLE OF ts_vector WITH UNIQUE KEY ponumber itemno gl cc iv pc po vd,
+
+*     Rule numbers (row in it_rules)
+      tt_rule_no  TYPE SORTED TABLE OF i WITH UNIQUE KEY table_line,
+
+      tt_slot     TYPE STANDARD TABLE OF zfi_accrual_excl-ruletype WITH EMPTY KEY,
+
+*     Rules carrying a given value in a given slot
+      BEGIN OF ts_bucket,
+        slot  TYPE zfi_accrual_excl-ruletype,
+        value TYPE string,
+        rules TYPE tt_rule_no,
+      END OF ts_bucket,
+
+      tt_bucket   TYPE HASHED TABLE OF ts_bucket WITH UNIQUE KEY slot value,
+
+      BEGIN OF ts_rule_index,
+        buckets TYPE tt_bucket,
+        spans   TYPE tt_rule_no,
+      END OF ts_rule_index.
 
     DATA: m_used_replication TYPE abap_bool,
           m_locked           TYPE abap_bool,
@@ -216,6 +235,40 @@ CLASS lcl_exclusion DEFINITION FINAL.
           it_rules          TYPE tt_rule
         RETURNING
           VALUE(rt_vectors) TYPE tt_vector,
+
+      build_index
+        IMPORTING
+          it_rules        TYPE tt_rule
+        RETURNING
+          VALUE(rs_index) TYPE ts_rule_index,
+
+      add_to_bucket
+        IMPORTING
+          i_slot     TYPE zfi_accrual_excl-ruletype
+          i_value    TYPE string
+          i_rule_no  TYPE i
+        CHANGING
+          ct_buckets TYPE tt_bucket,
+
+      get_rule_range
+        IMPORTING
+          is_rule         TYPE ts_rule
+        RETURNING
+          VALUE(rs_range) TYPE ts_range,
+
+      get_item_value
+        IMPORTING
+          is_item         TYPE ts_item
+          i_slot          TYPE zfi_accrual_excl-ruletype
+        RETURNING
+          VALUE(rs_value) TYPE ts_nullable,
+
+      find_candidates
+        IMPORTING
+          is_item         TYPE ts_item
+          is_index        TYPE ts_rule_index
+        RETURNING
+          VALUE(rt_rules) TYPE tt_rule_no,
 
       match
         IMPORTING
@@ -585,17 +638,162 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
   METHOD evaluate.
 
+    DATA(ls_index) = build_index( it_rules ).
+
     LOOP AT it_items ASSIGNING FIELD-SYMBOL(<fs_item>).
 
-      LOOP AT it_rules ASSIGNING FIELD-SYMBOL(<fs_rule>).
+*     Only rules that can produce a match are evaluated
+      DATA(lt_candidates) = find_candidates( is_item  = <fs_item>
+                                             is_index = ls_index ).
+
+      LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<f_rule_no>).
 
         DATA(ls_vector) = match( is_item = <fs_item>
-                                 is_rule = <fs_rule> ).
+                                 is_rule = it_rules[ <f_rule_no> ] ).
 
         IF has_match( ls_vector ).
           INSERT ls_vector INTO TABLE rt_vectors.
         ENDIF.
 
+      ENDLOOP.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD build_index.
+
+    LOOP AT it_rules ASSIGNING FIELD-SYMBOL(<fs_rule>).
+
+      DATA(l_rule_no) = sy-tabix.
+      DATA(ls_range)  = get_rule_range( <fs_rule> ).
+
+*     Value of the field the rule type is about (account, cost centre, order, profit centre)
+      IF ls_range-low-is_null = abap_false.
+        add_to_bucket( EXPORTING i_slot     = <fs_rule>-kind
+                                 i_value    = ls_range-low-value
+                                 i_rule_no  = l_rule_no
+                       CHANGING  ct_buckets = rs_index-buckets ).
+      ENDIF.
+
+*     Real intervals can match values other than LOW, so they are always checked
+      IF ls_range-low-is_null  = abap_false AND ls_range-high-is_null = abap_false AND ls_range-low-value < ls_range-high-value.
+        INSERT l_rule_no INTO TABLE rs_index-spans.
+      ENDIF.
+
+*     Purchase order and vendor are evaluated for every rule, regardless of its type
+      IF <fs_rule>-po-is_null = abap_false.
+        add_to_bucket( EXPORTING i_slot     = mc_po
+                                 i_value    = <fs_rule>-po-value
+                                 i_rule_no  = l_rule_no
+                       CHANGING  ct_buckets = rs_index-buckets ).
+      ENDIF.
+
+      IF <fs_rule>-vendor-is_null = abap_false.
+        add_to_bucket( EXPORTING i_slot     = mc_vd
+                                 i_value    = <fs_rule>-vendor-value
+                                 i_rule_no  = l_rule_no
+                       CHANGING  ct_buckets = rs_index-buckets ).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD add_to_bucket.
+
+    READ TABLE ct_buckets ASSIGNING FIELD-SYMBOL(<fs_bucket>) WITH TABLE KEY slot  = i_slot
+                                                                             value = i_value.
+
+    IF sy-subrc <> 0.
+      INSERT VALUE #( slot  = i_slot
+                      value = i_value ) INTO TABLE ct_buckets ASSIGNING <fs_bucket>.
+    ENDIF.
+
+    INSERT i_rule_no INTO TABLE <fs_bucket>-rules.
+
+  ENDMETHOD.
+
+  METHOD get_rule_range.
+
+    CASE is_rule-kind.
+
+      WHEN mc_gl.
+        rs_range = is_rule-account.
+
+      WHEN mc_cc.
+        rs_range = is_rule-cost.
+
+      WHEN mc_iv.
+        rs_range = is_rule-internal_order.
+
+      WHEN mc_pc.
+        rs_range = is_rule-profit.
+
+      WHEN OTHERS.
+        rs_range = VALUE #( low  = VALUE #( is_null = abap_true )
+                            high = VALUE #( is_null = abap_true ) ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD get_item_value.
+
+    CASE i_slot.
+
+      WHEN mc_gl.
+        rs_value = is_item-account.
+
+      WHEN mc_cc.
+        rs_value = is_item-cost.
+
+      WHEN mc_iv.
+        rs_value = is_item-internal_order.
+
+      WHEN mc_pc.
+        rs_value = is_item-profit.
+
+      WHEN mc_po.
+        rs_value = VALUE #( value = is_item-ponumber ).
+
+      WHEN mc_vd.
+        rs_value = is_item-vendor.
+
+      WHEN OTHERS.
+        rs_value = VALUE #( is_null = abap_true ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD find_candidates.
+
+    DATA(lt_slots) = VALUE tt_slot( ( mc_gl ) ( mc_cc ) ( mc_iv )
+                                    ( mc_pc ) ( mc_po ) ( mc_vd ) ).
+
+*   Start with interval rules
+    rt_rules = is_index-spans.
+
+    LOOP AT lt_slots ASSIGNING FIELD-SYMBOL(<fs_slot>).
+
+      DATA(ls_value) = get_item_value( is_item = is_item
+                                       i_slot  = <fs_slot> ).
+
+      IF ls_value-is_null = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE is_index-buckets ASSIGNING FIELD-SYMBOL(<fs_bucket>) WITH TABLE KEY slot  = <fs_slot>
+                                                                                     value = ls_value-value.
+
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+*     A rule found through several slots is evaluated only once
+      LOOP AT <fs_bucket>-rules ASSIGNING FIELD-SYMBOL(<f_rule_no>).
+        INSERT <f_rule_no> INTO TABLE rt_rules.
       ENDLOOP.
 
     ENDLOOP.

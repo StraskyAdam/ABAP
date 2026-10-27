@@ -543,7 +543,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
            ekkn~ebeln AS ekkn_exists
       FROM zi_fi_das_ekpo( p_use_replication = @m_used_replication ) AS ekpo
         LEFT OUTER JOIN zi_fi_das_ekko( p_use_replication = @m_used_replication ) AS ekko ON ekko~ebeln = ekpo~ebeln
-        LEFT OUTER JOIN t001 AS t001 ON t001~bukrs = ekko~bukrs
+        LEFT OUTER JOIN zi_fi_das_t001( p_use_replication = @m_used_replication ) AS t001 ON t001~bukrs = ekko~bukrs
         LEFT OUTER JOIN zi_fi_das_ekkn( p_use_replication = @m_used_replication ) AS ekkn ON ekkn~ebeln = ekpo~ebeln AND
                                                                                              ekkn~ebelp = ekpo~ebelp
       FOR ALL ENTRIES IN @it_keys

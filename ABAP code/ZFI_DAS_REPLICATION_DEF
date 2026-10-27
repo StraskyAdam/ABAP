@@ -35,11 +35,13 @@ CLASS lcl_replication DEFINITION FINAL.
                mc_table_ekpo      TYPE tabname  VALUE 'EKPO',
                mc_table_ekkn      TYPE tabname  VALUE 'EKKN',
                mc_table_ekbe      TYPE tabname  VALUE 'EKBE',
+               mc_table_excl      TYPE tabname  VALUE 'ZFI_ACCRUAL_EXCL',
 
                mc_target_ekko     TYPE tabname  VALUE 'ZFI_DAS_EKKO',
                mc_target_ekpo     TYPE tabname  VALUE 'ZFI_DAS_EKPO',
                mc_target_ekkn     TYPE tabname  VALUE 'ZFI_DAS_EKKN',
                mc_target_ekbe     TYPE tabname  VALUE 'ZFI_DAS_EKBE',
+               mc_target_excl     TYPE tabname  VALUE 'ZFI_DAS_ACC_EXCL',
 
                mc_package_size    TYPE i VALUE 100000,
 
@@ -139,7 +141,9 @@ CLASS lcl_replication IMPLEMENTATION.
                           ( tabname = mc_table_ekkn
                             target  = mc_target_ekkn )
                           ( tabname = mc_table_ekbe
-                            target  = mc_target_ekbe ) ).
+                            target  = mc_target_ekbe )
+                          ( tabname = mc_table_excl
+                            target  = mc_target_excl ) ).
 
   ENDMETHOD.
 
@@ -235,6 +239,9 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_ekbe.
         DELETE FROM zfi_das_ekbe.
+
+      WHEN mc_table_excl.
+        DELETE FROM zfi_das_acc_excl.
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e029(zfi_das) WITH i_table.
@@ -344,75 +351,37 @@ CLASS lcl_replication IMPLEMENTATION.
       WHEN mc_table_ekko.
 
         OPEN CURSOR @m_cursor FOR
-          SELECT ebeln,
-                 bukrs,
-                 aedat,
-                 lifnr,
-                 ekorg,
-                 waers,
-                 unsez,
-                 bedat
-          FROM zi_fi_das_ekko( p_use_replication = @abap_false ).
+          SELECT ebeln, bukrs, aedat, lifnr, ekorg, waers, unsez, bedat
+            FROM zi_fi_das_ekko( p_use_replication = @abap_false ).
 
       WHEN mc_table_ekpo.
 
         OPEN CURSOR @m_cursor FOR
-          SELECT ebeln,
-                 ebelp,
-                 txz01,
-                 bukrs,
-                 menge,
-                 meins,
-                 netpr,
-                 peinh,
-                 netwr,
-                 brtwr,
-                 pstyp,
-                 xersy,
-                 zstart_date,
-                 zend_date,
-                 zserv_amt,
-                 zserv_perc,
-                 po_requestor,
-                 po_preparer,
-                 zactivitynbr
-          FROM zi_fi_das_ekpo( p_use_replication = @abap_false ).
+          SELECT ebeln, ebelp, txz01, bukrs, menge, meins, netpr, peinh,
+                 netwr, brtwr, pstyp, xersy, zstart_date, zend_date, zserv_amt,
+                 zserv_perc, po_requestor, po_preparer, zactivitynbr
+             FROM zi_fi_das_ekpo( p_use_replication = @abap_false ).
 
       WHEN mc_table_ekkn.
 
         OPEN CURSOR @m_cursor FOR
-          SELECT ebeln,
-                 ebelp,
-                 zekkn,
-                 menge,
-                 vproz,
-                 sakto,
-                 kostl,
-                 anln1,
-                 aufnr,
-                 kokrs,
-                 prctr
-          FROM zi_fi_das_ekkn( p_use_replication = @abap_false ).
+          SELECT ebeln, ebelp, zekkn, menge, vproz, sakto, kostl, anln1, aufnr, kokrs, prctr
+             FROM zi_fi_das_ekkn( p_use_replication = @abap_false ).
 
       WHEN mc_table_ekbe.
 
         OPEN CURSOR @m_cursor FOR
-          SELECT ebeln,
-                 ebelp,
-                 zekkn,
-                 vgabe,
-                 gjahr,
-                 belnr,
-                 buzei,
-                 bewtp,
-                 menge,
-                 dmbtr,
-                 wrbtr,
-                 waers,
-                 shkzg,
-                 budat,
-                 refwr
-          FROM zi_fi_das_ekbe( p_use_replication = @abap_false ).
+          SELECT ebeln, ebelp, zekkn, vgabe, gjahr, belnr, buzei, bewtp, menge,dmbtr,  wrbtr,
+                 waers, shkzg, budat, refwr
+             FROM zi_fi_das_ekbe( p_use_replication = @abap_false ).
+
+      WHEN mc_table_excl.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT ruleid, ruletype, bukrsfr, bukrsto, ponum, lifnr,
+                 saktofr, saktoto, kostlfr, kostlto, aufnrfr, aufnrto,
+                 prctrfr, prctrto, threshold
+          FROM zi_fi_das_accrual_excl( p_use_replication = @abap_false ).
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e026(zfi_das) WITH i_table.
@@ -462,6 +431,9 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_ekbe.
         INSERT zfi_das_ekbe FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_excl.
+        INSERT zfi_das_acc_excl FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e027(zfi_das) WITH i_table.

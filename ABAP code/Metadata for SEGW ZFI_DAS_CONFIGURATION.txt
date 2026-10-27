@@ -1,0 +1,158 @@
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:sap="http://www.sap.com/Protocols/SAPData" Version="1.0">
+<edmx:DataServices m:DataServiceVersion="2.0">
+<Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="ZFI_DAS_CONFIGURATION_SRV" xml:lang="en" sap:schema-version="1">
+<EntityType Name="configValuesType" sap:content-version="1">
+<Key>
+<PropertyRef Name="CONFIG_NAME"/>
+</Key>
+<Property Name="CONFIG_NAME" Type="Edm.String" Nullable="false" MaxLength="50" sap:unicode="false"/>
+<Property Name="CONFIG_VALUE" Type="Edm.String" MaxLength="255" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="emailTemplateType" sap:content-version="1">
+<Key>
+<PropertyRef Name="TEMPLATE_NAME"/>
+<PropertyRef Name="LANGUAGE"/>
+</Key>
+<Property Name="TEMPLATE_NAME" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+<Property Name="SUBJECT" Type="Edm.String" MaxLength="1024" sap:unicode="false"/>
+<Property Name="BODY" Type="Edm.String" MaxLength="5000" sap:unicode="false"/>
+<Property Name="STATUS" Type="Edm.String" MaxLength="10" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="configLangType" sap:content-version="1">
+<Key>
+<PropertyRef Name="LANG_CODE"/>
+</Key>
+<Property Name="LANG_CODE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" MaxLength="20" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="ctryConfigPOType" sap:content-version="1">
+<Key>
+<PropertyRef Name="COUNTRY_CODE"/>
+<PropertyRef Name="COUNTRY_NAME"/>
+<PropertyRef Name="BUKRS"/>
+</Key>
+<Property Name="COUNTRY_CODE" Type="Edm.String" Nullable="false" MaxLength="3" sap:unicode="false"/>
+<Property Name="COUNTRY_NAME" Type="Edm.String" Nullable="false" MaxLength="50" sap:unicode="false"/>
+<Property Name="BUKRS" Type="Edm.String" Nullable="false" MaxLength="4" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="userRoleType" sap:content-version="1">
+<Key>
+<PropertyRef Name="USER_EMAILID"/>
+<PropertyRef Name="COMPANY_CODE"/>
+</Key>
+<Property Name="USER_ROLE" Type="Edm.String" MaxLength="10" sap:unicode="false"/>
+<Property Name="USER_EMAILID" Type="Edm.String" Nullable="false" MaxLength="241" sap:unicode="false"/>
+<Property Name="USER_ACCESS" Type="Edm.String" MaxLength="10" sap:unicode="false"/>
+<Property Name="COMPANY_CODE" Type="Edm.String" Nullable="false" MaxLength="193" sap:unicode="false"/>
+<Property Name="MANAGEMENT_UNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false"/>
+<Property Name="COST_CENTER" Type="Edm.String" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="thresholdType" sap:content-version="1">
+<Key>
+<PropertyRef Name="CURRENCY"/>
+<PropertyRef Name="COMPANY_CODE"/>
+</Key>
+<Property Name="CURRENCY" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+<Property Name="PO_THRESHOLD" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false"/>
+<Property Name="COMPANY_CODE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="helpLinksType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ROLE"/>
+<PropertyRef Name="HELP_ID"/>
+<PropertyRef Name="LANGUAGE"/>
+</Key>
+<Property Name="ROLE" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false"/>
+<Property Name="HELP_ID" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false"/>
+<Property Name="HELP_DESC" Type="Edm.String" MaxLength="255" sap:unicode="false"/>
+<Property Name="HELP_LINK" Type="Edm.String" MaxLength="5000" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="linkType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ROLE"/>
+<PropertyRef Name="HELP_ID"/>
+<PropertyRef Name="LANGUAGE"/>
+</Key>
+<Property Name="ROLE" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false"/>
+<Property Name="HELP_ID" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false"/>
+<Property Name="HELP_DESC" Type="Edm.String" MaxLength="255" sap:unicode="false"/>
+<Property Name="HELP_LINK" Type="Edm.String" MaxLength="5000" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="helpLinksParametersType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ROLE"/>
+<PropertyRef Name="HELP_ID"/>
+<PropertyRef Name="LANGUAGE"/>
+</Key>
+<Property Name="ROLE" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="HELP_ID" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="HELP_DESC" Type="Edm.String" Nullable="false" MaxLength="255" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="HELP_LINK" Type="Edm.String" Nullable="false" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<NavigationProperty Name="Results" Relationship="ZFI_DAS_CONFIGURATION_SRV.helpLinksParameters_to_helpLinksType" FromRole="FromRole_helpLinksParameters_to_helpLinksType" ToRole="ToRole_helpLinksParameters_to_helpLinksType"/>
+</EntityType>
+<EntityType Name="langType" sap:content-version="1">
+<Key>
+<PropertyRef Name="LANG_CODE"/>
+</Key>
+<Property Name="LANG_CODE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" MaxLength="20" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="videoLinksType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ROLE"/>
+<PropertyRef Name="VIDEO_ID"/>
+<PropertyRef Name="LANGUAGE"/>
+</Key>
+<Property Name="ROLE" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false"/>
+<Property Name="VIDEO_ID" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false"/>
+<Property Name="VIDEO_DESC" Type="Edm.String" MaxLength="255" sap:unicode="false"/>
+<Property Name="VIDEO_LINK" Type="Edm.String" MaxLength="5000" sap:unicode="false"/>
+<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
+</EntityType>
+<EntityType Name="videoLinksParametersType" sap:content-version="1">
+<Key>
+<PropertyRef Name="IP_LANG"/>
+</Key>
+<Property Name="IP_LANG" Type="Edm.String" Nullable="false" MaxLength="13" sap:unicode="false"/>
+<NavigationProperty Name="Results" Relationship="ZFI_DAS_CONFIGURATION_SRV.videoLinksParameters_to_videoLinksType" FromRole="FromRole_videoLinksParameters_to_videoLinksType" ToRole="ToRole_videoLinksParameters_to_videoLinksType"/>
+</EntityType>
+<Association Name="helpLinksParameters_to_helpLinksType" sap:content-version="1">
+<End Type="ZFI_DAS_CONFIGURATION_SRV.helpLinksParametersType" Multiplicity="1" Role="FromRole_helpLinksParameters_to_helpLinksType"/>
+<End Type="ZFI_DAS_CONFIGURATION_SRV.helpLinksType" Multiplicity="*" Role="ToRole_helpLinksParameters_to_helpLinksType"/>
+</Association>
+<Association Name="videoLinksParameters_to_videoLinksType" sap:content-version="1">
+<End Type="ZFI_DAS_CONFIGURATION_SRV.videoLinksParametersType" Multiplicity="1" Role="FromRole_videoLinksParameters_to_videoLinksType"/>
+<End Type="ZFI_DAS_CONFIGURATION_SRV.videoLinksType" Multiplicity="*" Role="ToRole_videoLinksParameters_to_videoLinksType"/>
+</Association>
+<EntityContainer Name="ZFI_DAS_CONFIGURATION_SRV_Entities" m:IsDefaultEntityContainer="true" sap:supported-formats="atom json xlsx">
+<EntitySet Name="configValues" EntityType="ZFI_DAS_CONFIGURATION_SRV.configValuesType" sap:content-version="1"/>
+<EntitySet Name="emailTemplate" EntityType="ZFI_DAS_CONFIGURATION_SRV.emailTemplateType" sap:content-version="1"/>
+<EntitySet Name="configLang" EntityType="ZFI_DAS_CONFIGURATION_SRV.configLangType" sap:content-version="1"/>
+<EntitySet Name="ctryConfigPO" EntityType="ZFI_DAS_CONFIGURATION_SRV.ctryConfigPOType" sap:content-version="1"/>
+<EntitySet Name="userRole" EntityType="ZFI_DAS_CONFIGURATION_SRV.userRoleType" sap:content-version="1"/>
+<EntitySet Name="threshold" EntityType="ZFI_DAS_CONFIGURATION_SRV.thresholdType" sap:content-version="1"/>
+<EntitySet Name="helpLinks" EntityType="ZFI_DAS_CONFIGURATION_SRV.helpLinksType" sap:content-version="1"/>
+<EntitySet Name="link" EntityType="ZFI_DAS_CONFIGURATION_SRV.linkType" sap:content-version="1"/>
+<EntitySet Name="helpLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.helpLinksParametersType" sap:content-version="1"/>
+<EntitySet Name="lang" EntityType="ZFI_DAS_CONFIGURATION_SRV.langType" sap:content-version="1"/>
+<EntitySet Name="videoLinks" EntityType="ZFI_DAS_CONFIGURATION_SRV.videoLinksType" sap:content-version="1"/>
+<EntitySet Name="videoLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.videoLinksParametersType" sap:content-version="1"/>
+<AssociationSet Name="videoLinksParameters_to_videoLinks" Association="ZFI_DAS_CONFIGURATION_SRV.videoLinksParameters_to_videoLinksType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
+<End EntitySet="videoLinksParameters" Role="FromRole_videoLinksParameters_to_videoLinksType"/>
+<End EntitySet="videoLinks" Role="ToRole_videoLinksParameters_to_videoLinksType"/>
+</AssociationSet>
+<AssociationSet Name="helpLinksParameters_to_helpLinks" Association="ZFI_DAS_CONFIGURATION_SRV.helpLinksParameters_to_helpLinksType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
+<End EntitySet="helpLinksParameters" Role="FromRole_helpLinksParameters_to_helpLinksType"/>
+<End EntitySet="helpLinks" Role="ToRole_helpLinksParameters_to_helpLinksType"/>
+</AssociationSet>
+</EntityContainer>
+<atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="self" href="https://vhtakcusci.sap.onetakeda.com:44300/sap/opu/odata/sap/ZFI_DAS_CONFIGURATION_SRV/$metadata"/>
+<atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="latest-version" href="https://vhtakcusci.sap.onetakeda.com:44300/sap/opu/odata/sap/ZFI_DAS_CONFIGURATION_SRV/$metadata"/>
+</Schema>
+</edmx:DataServices>
+</edmx:Edmx>

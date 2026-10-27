@@ -135,6 +135,10 @@ CLASS ltc_method_parameters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
     cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '1902122.50' ).
 
+    ms_parameter-totwrkcompamt = ` `.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+
     ms_parameter-totwrkcompamt = '0'.
     ls_result = read_result( ).
     cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).

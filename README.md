@@ -148,7 +148,7 @@ The existing Over/Under calculation and WTD branch are preserved.
 - **Supplied WTD:** XSA passes the amount string through, while ABAP truncates
   the amount to two decimals. For example `123.4567` yields ABAP `123.45`;
   final XSA DEC(13,2) assignment may round it instead. The raw input remains
-  a string, so blank triggers STL and `'0'` remains WTD, with no EKPO field
+  a string, so empty or single-space amounts trigger STL and `'0'` remains WTD, with no EKPO field
   truncation. Percentage inputs also bypass the unknown custom EKPO field
   widths. Normal dashboard loading explicitly retains the original EKPO
   conversions and initial-value test; actual custom DDIC definitions must
@@ -173,7 +173,10 @@ The existing Over/Under calculation and WTD branch are preserved.
   XSA has no explicit equivalent intermediate truncation. Extremely sensitive
   rounding cases may differ by a cent. The amount is not recomputed from the
   rounded percentage. Both supplied reference cases are covered with a fixed
-  date of 27 October 2026.
+  date of 27 October 2026. Gateway preserves the TF's third PO decimal;
+  XSA's STL helper accepts DEC(13,2), while shared ABAP accepts the higher
+  precision PO value. HANA's handoff rounding for three-decimal PO inputs
+  must therefore also be checked in live parity testing.
 - **Configuration/keys:** Japan/Brazil configuration is assumed to contain
   company codes that fit BUKRS. Metadata retains the XSA 13-character
   company/item-category limits, but the ABAP mapping uses BUKRS and the existing

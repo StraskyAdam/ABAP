@@ -910,7 +910,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       wrkenddate = is_parameter-wrkenddate
       pocurrency = is_parameter-pocurrency
       companycode = is_parameter-company
-      serviceamount = is_parameter-totwrkcompamt
+      serviceamount = COND #( WHEN is_parameter-totwrkcompamt = mc_space
+                               THEN ``
+                               ELSE is_parameter-totwrkcompamt )
       servicepercentage = |{ is_parameter-totwrkcompper NUMBER = RAW }| ).
 
     IF ls_detail-effective_pstype = zif_fi_das_dashboard=>mc_pstype_material AND

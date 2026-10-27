@@ -1,0 +1,378 @@
+" Append to the dashboard local test include after Unit test.txt.
+CLASS ltc_method_parameters DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PUBLIC SECTION.
+    CLASS-DATA m_current_date TYPE d.
+    CLASS-DATA mt_rates TYPE STANDARD TABLE OF zfi_das_exchrt WITH EMPTY KEY.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+    DATA ms_parameter TYPE zif_fi_das_dashboard=>ts_method_parameter.
+
+    METHODS setup.
+    METHODS read_result
+      RETURNING VALUE(rs_result) TYPE zfi_das_method
+      RAISING cx_static_check.
+    METHODS reference_usd FOR TESTING RAISING cx_static_check.
+    METHODS reference_eur FOR TESTING RAISING cx_static_check.
+    METHODS uuid_not_cached FOR TESTING RAISING cx_static_check.
+    METHODS wtd_filled_blank_zero FOR TESTING RAISING cx_static_check.
+    METHODS zero_po_value FOR TESTING RAISING cx_static_check.
+    METHODS material_company_rule FOR TESTING RAISING cx_static_check.
+    METHODS rate_precision_delta FOR TESTING RAISING cx_static_check.
+    METHODS currency_factor_delta FOR TESTING RAISING cx_static_check.
+    METHODS unsupported_and_blank FOR TESTING RAISING cx_static_check.
+    METHODS date_key_forms FOR TESTING RAISING cx_static_check.
+    METHODS invalid_date_keys FOR TESTING.
+    METHODS month_boundaries FOR TESTING RAISING cx_static_check.
+    METHODS legacy_accrual FOR TESTING RAISING cx_static_check.
+    METHODS legacy_detail_input FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_method_parameters IMPLEMENTATION.
+
+  METHOD setup.
+
+    mo_cut = NEW #( ).
+    mo_cut->mt_exchrt = VALUE #(
+      ( source_curr = 'USD' target_curr = 'USD' exchange_rate = '1' )
+      ( source_curr = 'EUR' target_curr = 'USD' exchange_rate = '1.09' )
+      ( source_curr = 'JPY' target_curr = 'USD' exchange_rate = '0.01' )
+      ( source_curr = 'VND' target_curr = 'USD' exchange_rate = '0.001' ) ).
+    mt_rates = CORRESPONDING #( mo_cut->mt_exchrt ).
+
+    m_current_date = '20261027'.
+
+    TEST-INJECTION method_current_date.
+      l_current_date = ltc_method_parameters=>m_current_date.
+    END-TEST-INJECTION.
+
+    TEST-INJECTION method_company_scope.
+      lt_company_codes = VALUE #( ( value = '2028' ) ( value = '6305' ) ).
+    END-TEST-INJECTION.
+
+    TEST-INJECTION method_exchange_rates.
+      mt_exchrt = CORRESPONDING #( ltc_method_parameters=>mt_rates ).
+    END-TEST-INJECTION.
+
+    ms_parameter = VALUE #(
+      povalue = '1926200.00' pocurrency = 'EUR'
+      wrkstrtdate = '20200401' wrkenddate = '20261130'
+      accrualmethod = 'STL' totwrkcompamt = '963100'
+      edgewtdamt = '1082524.40' totwrkcompper = '50.0'
+      pstyp = '9' company = '3317' ).
+
+  ENDMETHOD.
+
+  METHOD read_result.
+
+    mo_cut->zif_fi_das_dashboard~method_parameters(
+      EXPORTING is_parameter = ms_parameter
+      IMPORTING et_result = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    rs_result = lt_result[ 1 ].
+    cl_abap_unit_assert=>assert_not_initial( rs_result-id ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( rs_result-id ) exp = 32 ).
+
+  ENDMETHOD.
+
+  METHOD reference_usd.
+
+    ms_parameter = VALUE #(
+      povalue = '1604136.00' pocurrency = 'USD'
+      wrkstrtdate = '20190401' wrkenddate = '20260901'
+      accrualmethod = 'STL' totwrkcompamt = '561447.6'
+      edgewtdamt = '1491846.48' totwrkcompper = '35'
+      pstyp = '9' company = '8036' ).
+
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-straightlinemthd exp = 'X' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '1604136.00' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '1604136.00' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompper exp = '100.0' ).
+
+  ENDMETHOD.
+
+  METHOD reference_eur.
+
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-straightlinemthd exp = 'X' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '1902122.50' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '2073313.53' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompper exp = '98.8' ).
+
+  ENDMETHOD.
+
+  METHOD uuid_not_cached.
+
+    DATA(ls_first) = read_result( ).
+    DATA(ls_second) = read_result( ).
+    cl_abap_unit_assert=>assert_differs( act = ls_first-id exp = ls_second-id ).
+    CLEAR: ls_first-id, ls_second-id.
+    cl_abap_unit_assert=>assert_equals( act = ls_first exp = ls_second ).
+
+  ENDMETHOD.
+
+  METHOD wtd_filled_blank_zero.
+
+    ms_parameter-accrualmethod = 'WTD'.
+    ms_parameter-totwrkcompamt = '123.4567'.
+    ms_parameter-totwrkcompper = '12.3'.
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-straightlinemthd ).
+*   Shared ABAP truncates WTD to two decimals; XSA passes the string through
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '123.45' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompper exp = '12.3' ).
+
+    ms_parameter-totwrkcompamt = ``.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '1902122.50' ).
+
+    ms_parameter-totwrkcompamt = '0'.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( ls_result-straightlinemthd ).
+
+  ENDMETHOD.
+
+  METHOD zero_po_value.
+
+    ms_parameter-povalue = 0.
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompper ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+
+*   Explicit zero must override a nonzero legacy gross value
+    DATA(ls_detail) = VALUE zcl_fi_das_dashboard=>ts_detail(
+      effective_pstype = '9' grossvalue = 100 pocurrency = 'EUR'
+      wrkstrtdate = ms_parameter-wrkstrtdate wrkenddate = ms_parameter-wrkenddate ).
+    DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_odata_result( accrualmethod = 'STL' ).
+    mo_cut->calculate_accrual( EXPORTING is_detail = ls_detail i_po_value = 0
+                              CHANGING cs_result = ls_row ).
+    cl_abap_unit_assert=>assert_initial( ls_row-totwrkcompamt ).
+
+  ENDMETHOD.
+
+  METHOD material_company_rule.
+
+    ms_parameter-pstyp = '0'.
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( ls_result-straightlinemthd ).
+
+    ms_parameter-company = '2028'.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '1902122.50' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-straightlinemthd exp = 'X' ).
+
+    ms_parameter-company = '6305'.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-straightlinemthd exp = 'X' ).
+
+    CLEAR ms_parameter-wrkstrtdate.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( ls_result-straightlinemthd ).
+
+  ENDMETHOD.
+
+  METHOD rate_precision_delta.
+
+*   XSA TF rate is DECIMAL(13,2); the dashboard retains six decimals
+    DATA(ls_xsa_rate) = read_result( ).
+    mt_rates[ source_curr = 'EUR' target_curr = 'USD' ]-exchange_rate = '1.094321'.
+    DATA(ls_dashboard_rate) = read_result( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_dashboard_rate-totwrkcompamt exp = ls_xsa_rate-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_dashboard_rate-totwrkcompper exp = ls_xsa_rate-totwrkcompper ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_dashboard_rate-totwrkcompamt_cocdecurr - ls_xsa_rate-totwrkcompamt_cocdecurr
+      exp = '8219.07' ).
+
+  ENDMETHOD.
+
+  METHOD unsupported_and_blank.
+
+*   XSA empty/unknown method returns NULL; shared ABAP returns cleared fields
+    ms_parameter-accrualmethod = 'OTHER'.
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_initial( ls_result-accrualmethod ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompamt ).
+    cl_abap_unit_assert=>assert_initial( ls_result-totwrkcompper ).
+
+*   ABAP also interprets the blank method as automatic WTD/STL selection
+    CLEAR ms_parameter-accrualmethod.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).
+    ms_parameter-totwrkcompamt = ``.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'STL' ).
+
+  ENDMETHOD.
+
+  METHOD currency_factor_delta.
+
+*   XSA multiplies the supplied amount by 100; ABAP cancels the factor
+*   before convert_to_usd. Keep this known difference visible, not hidden.
+    ms_parameter-accrualmethod = 'WTD'.
+    ms_parameter-totwrkcompamt = '100'.
+    ms_parameter-pocurrency = 'JPY'.
+    DATA(ls_result) = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '100.00' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '1.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = 100 - ls_result-totwrkcompamt_cocdecurr exp = '99.00' ).
+
+    ms_parameter-pocurrency = 'VND'.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '0.10' ).
+*   XSA is 10.00 with the same 0.001 rate (before TF rate rounding)
+    cl_abap_unit_assert=>assert_equals(
+      act = 10 - ls_result-totwrkcompamt_cocdecurr exp = '9.90' ).
+
+    ms_parameter-accrualmethod = 'STL'.
+    ms_parameter-povalue = 100.
+    ms_parameter-wrkenddate = '20260901'.
+    ls_result = read_result( ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '100.00' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '0.10' ).
+
+  ENDMETHOD.
+
+  METHOD date_key_forms.
+
+    DATA lt_values TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    lt_values = VALUE #( ( `2020-04-01` ) ( `2020-04-01T00:00:00` )
+                        ( `datetime'2020-04-01T00:00:00'` )
+                        ( `20200401` ) ( `20200401000000` )
+                        ( `20200401000000.0000000` ) ).
+    LOOP AT lt_values INTO DATA(l_value).
+      cl_abap_unit_assert=>assert_equals(
+        act = zcl_fi_das_dashboard=>parse_method_date( l_value ) exp = CONV d( '20200401' ) ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD invalid_date_keys.
+
+    DATA lt_values TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    lt_values = VALUE #( ( `` ) ( `00000000` ) ( `2026-02-29` ) ( `2026-04-31` )
+                        ( `2026-13-01` ) ( `2026-04-01garbage` )
+                        ( `2026-04-01T25:00:00` ) ( `not-a-date` ) ).
+    LOOP AT lt_values INTO DATA(l_value).
+      TRY.
+          zcl_fi_das_dashboard=>parse_method_date( l_value ).
+          cl_abap_unit_assert=>fail( msg = |Accepted invalid date: { l_value }| ).
+        CATCH zcx_fi_das_error.
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD month_boundaries.
+
+    m_current_date = '20261006'.
+    mo_cut->get_month_difference(
+      EXPORTING i_work_start_date = '20200401' i_work_end_date = '20261130'
+      IMPORTING e_total_months = DATA(l_total) e_elapsed_months = DATA(l_elapsed) ).
+    cl_abap_unit_assert=>assert_equals( act = l_total exp = 80 ).
+    cl_abap_unit_assert=>assert_equals( act = l_elapsed exp = 78 ).
+
+    m_current_date = '20261007'.
+    mo_cut->get_month_difference(
+      EXPORTING i_work_start_date = '20200401' i_work_end_date = '20261130'
+      IMPORTING e_total_months = l_total e_elapsed_months = l_elapsed ).
+    cl_abap_unit_assert=>assert_equals( act = l_elapsed exp = 79 ).
+
+    mo_cut->get_month_difference(
+      EXPORTING i_work_start_date = '20200415' i_work_end_date = '20261115'
+      IMPORTING e_total_months = l_total e_elapsed_months = l_elapsed ).
+    cl_abap_unit_assert=>assert_equals( act = l_total exp = 79 ).
+    mo_cut->get_month_difference(
+      EXPORTING i_work_start_date = '20200416' i_work_end_date = '20261115'
+      IMPORTING e_total_months = l_total e_elapsed_months = l_elapsed ).
+    cl_abap_unit_assert=>assert_equals( act = l_total exp = 78 ).
+    mo_cut->get_month_difference(
+      EXPORTING i_work_start_date = '20200416' i_work_end_date = '20261116'
+      IMPORTING e_total_months = l_total e_elapsed_months = l_elapsed ).
+    cl_abap_unit_assert=>assert_equals( act = l_total exp = 79 ).
+
+  ENDMETHOD.
+
+  METHOD legacy_accrual.
+
+    TYPES: BEGIN OF ts_currency,
+             currency TYPE waers,
+             factor TYPE i,
+             wtd_usd TYPE zfi_das_shared-totwrkcompamt_usd,
+             stl_usd TYPE zfi_das_shared-totwrkcompamt_usd,
+           END OF ts_currency.
+    DATA lt_currencies TYPE STANDARD TABLE OF ts_currency WITH EMPTY KEY.
+    lt_currencies = VALUE #(
+      ( currency = 'USD' factor = 1 wtd_usd = '45.67' stl_usd = '100.00' )
+      ( currency = 'EUR' factor = 1 wtd_usd = '49.78' stl_usd = '109.00' )
+      ( currency = 'JPY' factor = 100 wtd_usd = '0.45' stl_usd = '100.00' )
+      ( currency = 'VND' factor = 100 wtd_usd = '0.05' stl_usd = '10.00' ) ).
+    LOOP AT lt_currencies INTO DATA(ls_currency).
+      DATA(ls_detail) = VALUE zcl_fi_das_dashboard=>ts_detail(
+        effective_pstype = '9' grossvalue = 100 pocurrency = ls_currency-currency
+        wrkstrtdate = '20190401' wrkenddate = '20260901'
+        serviceamount = '45.67' servicepercentage = '45.6' ).
+      DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_odata_result( accrualmethod = 'WTD' ).
+      mo_cut->calculate_accrual( EXPORTING is_detail = ls_detail CHANGING cs_result = ls_row ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-totwrkcompamt exp = '45.67' ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-accrualmethod exp = 'WTD' ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-totwrkcompper exp = '45.6' ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-totwrkcompamt_usd exp = ls_currency-wtd_usd ).
+
+      CLEAR ls_detail-serviceamount.
+      mo_cut->calculate_accrual( EXPORTING is_detail = ls_detail CHANGING cs_result = ls_row ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-accrualmethod exp = 'STL' ).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_row-totwrkcompamt exp = 100 * ls_currency-factor ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-totwrkcompamt_usd exp = ls_currency-stl_usd ).
+
+      ls_row-accrualmethod = 'OTHER'.
+      mo_cut->calculate_accrual( EXPORTING is_detail = ls_detail CHANGING cs_result = ls_row ).
+      cl_abap_unit_assert=>assert_initial( ls_row-totwrkcompamt ).
+      cl_abap_unit_assert=>assert_initial( ls_row-accrualmethod ).
+
+      ls_detail-effective_pstype = '0'.
+      mo_cut->calculate_accrual( EXPORTING is_detail = ls_detail CHANGING cs_result = ls_row ).
+      cl_abap_unit_assert=>assert_equals( act = ls_row-accrualmethod exp = 'STL' ).
+      cl_abap_unit_assert=>assert_initial( ls_row-totwrkcompamt ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD legacy_detail_input.
+
+*   get_details retains original EKPO conversion/initial semantics
+    DATA l_original TYPE ekpo-zserv_amt.
+    DATA l_amount TYPE string.
+    l_amount = COND #( WHEN l_original IS INITIAL THEN `` ELSE CONV string( l_original ) ).
+    cl_abap_unit_assert=>assert_initial( l_amount ).
+    l_original = '0'.
+    l_amount = COND #( WHEN l_original IS INITIAL THEN `` ELSE CONV string( l_original ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = xsdbool( l_amount IS NOT INITIAL ) exp = xsdbool( l_original IS NOT INITIAL ) ).
+
+    DATA(ls_detail) = VALUE zcl_fi_das_dashboard=>ts_detail(
+      serviceamount = '1234567890123.456789' servicepercentage = '98.75' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_detail-serviceamount exp = `1234567890123.456789` ).
+    cl_abap_unit_assert=>assert_equals( act = ls_detail-servicepercentage exp = `98.75` ).
+
+  ENDMETHOD.
+
+ENDCLASS.

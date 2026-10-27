@@ -1,0 +1,104 @@
+" Local test include of ZCL_ZFI_DAS_DPC_EXT after SEGW regeneration.
+CLASS ltc_method_keys DEFINITION DEFERRED.
+
+CLASS zcl_zfi_das_dpc_ext DEFINITION
+  LOCAL FRIENDS ltc_method_keys.
+
+CLASS ltc_method_keys DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_zfi_das_dpc_ext.
+    DATA mt_keys TYPE /iwbep/t_mgw_name_value_pair.
+
+    METHODS setup.
+    METHODS all_keys FOR TESTING RAISING cx_static_check.
+    METHODS missing_keys FOR TESTING.
+    METHODS invalid_date FOR TESTING.
+    METHODS blank_and_zero FOR TESTING RAISING cx_static_check.
+    METHODS po_fraction_preserved FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_method_keys IMPLEMENTATION.
+
+  METHOD setup.
+
+    mo_cut = NEW #( ).
+*   Deliberately not in metadata order
+    mt_keys = VALUE #(
+      ( name = 'IV_COMPANY' value = '3317' )
+      ( name = 'IV_PSTYP' value = '9' )
+      ( name = 'IV_EDGEWTDAMT' value = '1082524.40' )
+      ( name = 'IV_TOTWRKCOMPPER' value = '50.0' )
+      ( name = 'IV_TOTWRKCOMPAMT' value = '963100' )
+      ( name = 'IV_ACCRUALMETHOD' value = 'STL' )
+      ( name = 'IV_WRKENDDATE' value = '20261130000000' )
+      ( name = 'IV_WRKSTRTDATE' value = '2020-04-01' )
+      ( name = 'IV_POCURRENCY' value = 'EUR' )
+      ( name = 'IV_POVALUE' value = '1926200.00' ) ).
+
+  ENDMETHOD.
+
+  METHOD all_keys.
+
+    DATA(ls_parameter) = mo_cut->get_method_parameter( mt_keys ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_parameter
+      exp = VALUE zif_fi_das_dashboard=>ts_method_parameter(
+        povalue = '1926200.00' pocurrency = 'EUR'
+        wrkstrtdate = '20200401' wrkenddate = '20261130'
+        accrualmethod = 'STL' totwrkcompamt = '963100'
+        totwrkcompper = '50.0' edgewtdamt = '1082524.40'
+        pstyp = '9' company = '3317' ) ).
+
+  ENDMETHOD.
+
+  METHOD missing_keys.
+
+    LOOP AT mt_keys INTO DATA(ls_key).
+      DATA(lt_keys) = mt_keys.
+      DELETE lt_keys WHERE name = ls_key-name.
+      TRY.
+          mo_cut->get_method_parameter( lt_keys ).
+          cl_abap_unit_assert=>fail( msg = |Accepted missing key: { ls_key-name }| ).
+        CATCH /iwbep/cx_mgw_tech_exception INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_bound( lx_error->previous ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD invalid_date.
+
+    mt_keys[ name = 'IV_WRKSTRTDATE' ]-value = '2026-02-29'.
+    TRY.
+        mo_cut->get_method_parameter( mt_keys ).
+        cl_abap_unit_assert=>fail( msg = 'Accepted invalid date' ).
+      CATCH /iwbep/cx_mgw_tech_exception INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_true( xsdbool( lx_error->previous IS INSTANCE OF zcx_fi_das_error ) ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD blank_and_zero.
+
+    CLEAR mt_keys[ name = 'IV_TOTWRKCOMPAMT' ]-value.
+    DATA(ls_parameter) = mo_cut->get_method_parameter( mt_keys ).
+    cl_abap_unit_assert=>assert_initial( ls_parameter-totwrkcompamt ).
+
+    mt_keys[ name = 'IV_TOTWRKCOMPAMT' ]-value = '0'.
+    ls_parameter = mo_cut->get_method_parameter( mt_keys ).
+    cl_abap_unit_assert=>assert_equals( act = ls_parameter-totwrkcompamt exp = `0` ).
+
+  ENDMETHOD.
+
+  METHOD po_fraction_preserved.
+
+    mt_keys[ name = 'IV_POVALUE' ]-value = '123.456'.
+    DATA(ls_parameter) = mo_cut->get_method_parameter( mt_keys ).
+    cl_abap_unit_assert=>assert_equals( act = ls_parameter-povalue exp = CONV decfloat34( '123.456' ) ).
+
+  ENDMETHOD.
+
+ENDCLASS.

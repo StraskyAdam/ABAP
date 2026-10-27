@@ -32,6 +32,14 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    CLASS-METHODS parse_method_date
+      IMPORTING
+        i_value       TYPE string
+      RETURNING
+        VALUE(r_date) TYPE d
+      RAISING
+        zcx_fi_das_error.
+
     METHODS get_exclusion_candidates
       IMPORTING
         i_mode         TYPE zif_fi_das_dashboard=>t_mode
@@ -213,8 +221,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         priceunit              TYPE ekpo-peinh,
         orderquantity          TYPE ekpo-menge,
         popreparer             TYPE zif_fi_das_dashboard=>t_email,
-        serviceamount          TYPE ekpo-zserv_amt,
-        servicepercentage      TYPE ekpo-zserv_perc,
+        serviceamount          TYPE string,
+        servicepercentage      TYPE string,
         polinedesc             TYPE t_text_5000,
         zactivitynbr           TYPE zactivitynbr,
         companycode            TYPE bukrs,
@@ -726,7 +734,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_accrual
       IMPORTING
-        is_detail TYPE ts_detail
+        is_detail  TYPE ts_detail
+        i_po_value TYPE t_amount_precision OPTIONAL
       CHANGING
         cs_result TYPE ts_odata_result
       RAISING
@@ -854,6 +863,94 @@ CLASS zcl_fi_das_dashboard DEFINITION
 ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
+
+  METHOD parse_method_date.
+
+    DATA(l_value) = i_value.
+
+    FIND REGEX `^datetime'([^']+)'$` IN l_value SUBMATCHES DATA(l_literal).
+    IF sy-subrc = 0.
+      l_value = l_literal.
+    ENDIF.
+
+    FIND REGEX `^[0-9]{4}-[0-9]{2}-[0-9]{2}(T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,7})?)?$` IN l_value.
+    IF sy-subrc = 0.
+      r_date = l_value(4) && l_value+5(2) && l_value+8(2).
+    ELSE.
+*     Gateway may deliver an internal DATS or timestamp key value
+      FIND REGEX `^[0-9]{8}(([01][0-9]|2[0-3])[0-5][0-9][0-5][0-9](\.[0-9]{1,7})?)?$` IN l_value.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = |Invalid method date: { i_value }|.
+      ENDIF.
+      r_date = l_value(8).
+    ENDIF.
+
+    CALL FUNCTION 'DATE_CHECK_PLAUSIBILITY'
+      EXPORTING
+        date                      = r_date
+      EXCEPTIONS
+        plausibility_check_failed = 1
+        OTHERS                    = 2.
+
+    IF sy-subrc <> 0 OR r_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = |Invalid method date: { i_value }|.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~method_parameters.
+
+    CLEAR et_result.
+
+    DATA(ls_detail) = VALUE ts_detail(
+      effective_pstype = is_parameter-pstyp
+      wrkstrtdate = is_parameter-wrkstrtdate
+      wrkenddate = is_parameter-wrkenddate
+      pocurrency = is_parameter-pocurrency
+      companycode = is_parameter-company
+      serviceamount = is_parameter-totwrkcompamt
+      servicepercentage = |{ is_parameter-totwrkcompper NUMBER = RAW }| ).
+
+    IF ls_detail-effective_pstype = zif_fi_das_dashboard=>mc_pstype_material AND
+       ls_detail-wrkstrtdate IS NOT INITIAL.
+
+      TEST-SEAM method_company_scope.
+        DATA(lt_company_codes) = get_japan_brazil( ).
+      END-TEST-SEAM.
+
+      IF line_exists( lt_company_codes[ value = ls_detail-companycode wildcard = abap_false ] ).
+        ls_detail-effective_pstype = zif_fi_das_dashboard=>mc_pstype_service.
+      ENDIF.
+    ENDIF.
+
+    TEST-SEAM method_exchange_rates.
+      get_exchrt( VALUE #( ( sign = 'I' option = 'EQ' low = CONV string( ls_detail-pocurrency ) ) ) ).
+    END-TEST-SEAM.
+
+    DATA(ls_result) = VALUE ts_odata_result( accrualmethod = is_parameter-accrualmethod ).
+
+    calculate_accrual( EXPORTING is_detail = ls_detail
+                                i_po_value = CONV t_amount_precision( is_parameter-povalue )
+                      CHANGING cs_result = ls_result ).
+
+    DATA(ls_method) = CORRESPONDING zfi_das_method( ls_result ).
+    ls_method-totwrkcompamt_cocdecurr = ls_result-totwrkcompamt_usd.
+
+    TRY.
+        ls_method-id = cl_system_uuid=>create_uuid_c32_static( ).
+
+      CATCH cx_uuid_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_error.
+
+    ENDTRY.
+
+    APPEND ls_method TO et_result.
+
+  ENDMETHOD.
 
   METHOD get_audit
    BY DATABASE PROCEDURE
@@ -1312,8 +1409,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    DATA l_po_value TYPE t_amount_precision.
+
+    IF i_po_value IS SUPPLIED.
+      l_po_value = i_po_value.
+    ELSE.
+      l_po_value = is_detail-grossvalue * get_currency_factor( is_detail-pocurrency ).
+    ENDIF.
+
 *   calculates the STL candidate before method selection
-    DATA(ls_straight_line) = calculate_straight_line( i_po_value = CONV t_amount_precision( is_detail-grossvalue * get_currency_factor( is_detail-pocurrency ) )
+    DATA(ls_straight_line) = calculate_straight_line( i_po_value = l_po_value
                                                       i_po_currency     = is_detail-pocurrency
                                                       i_work_start_date = is_detail-wrkstrtdate
                                                       i_work_end_date   = is_detail-wrkenddate ).
@@ -1912,6 +2017,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           ENDIF.
 
           INSERT VALUE #( BASE CORRESPONDING #( <fs_base> )
+                          serviceamount = COND #( WHEN CONV ekpo-zserv_amt( <fs_base>-serviceamount ) IS INITIAL
+                                                    THEN ``
+                                                    ELSE CONV string( CONV ekpo-zserv_amt( <fs_base>-serviceamount ) ) )
+                          servicepercentage = CONV string( CONV ekpo-zserv_perc( <fs_base>-servicepercentage ) )
                           effective_pstype = <fs_key>-pstype
                           poowner_email    = <fs_key>-poowner_email ) INTO TABLE rt_details.
 
@@ -2585,7 +2694,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   METHOD get_month_difference.
 
 *   on days 1-6 the previous month is still the current period
-    DATA(l_current_date) = sy-datum.
+    TEST-SEAM method_current_date.
+      DATA(l_current_date) = sy-datum.
+    END-TEST-SEAM.
     DATA(l_current_day)  = CONV i( l_current_date+6(2) ).
 
     IF l_current_day BETWEEN mc_period_first_day AND mc_period_last_day.

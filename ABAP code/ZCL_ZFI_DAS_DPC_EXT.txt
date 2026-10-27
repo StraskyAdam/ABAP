@@ -12,6 +12,8 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
         REDEFINITION.
     METHODS exclusionposet_get_entityset
         REDEFINITION.
+    METHODS methodset_get_entityset
+        REDEFINITION.
 
   PRIVATE SECTION.
 
@@ -33,6 +35,13 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
         !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
       RETURNING
         VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_request-parameter .
+    METHODS get_method_parameter
+      IMPORTING
+        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
+      RETURNING
+        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_method_parameter
+      RAISING
+        /iwbep/cx_mgw_tech_exception .
     METHODS get_paging
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
@@ -53,6 +62,64 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
 ENDCLASS.
 
 CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+
+  METHOD get_method_parameter.
+
+    TRY.
+        rs_parameter-povalue = it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_povalue ]-value.
+
+        rs_parameter-pocurrency = EXACT #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_pocurrency ]-value ).
+
+        rs_parameter-wrkstrtdate = zcl_fi_das_dashboard=>parse_method_date(
+          it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_wrkstrtdate ]-value ).
+
+        rs_parameter-wrkenddate = zcl_fi_das_dashboard=>parse_method_date(
+          it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_wrkenddate ]-value ).
+
+        rs_parameter-accrualmethod = EXACT #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_accrualmethod ]-value ).
+
+        rs_parameter-totwrkcompamt = it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_totwrkcompamt ]-value.
+
+        rs_parameter-totwrkcompper = it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_totwrkcompper ]-value.
+
+        rs_parameter-edgewtdamt = it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_edgewtdamt ]-value.
+
+        rs_parameter-pstyp = EXACT #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_pstyp ]-value ).
+
+        rs_parameter-company = EXACT #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_company ]-value ).
+
+      CATCH cx_sy_itab_line_not_found
+            cx_sy_conversion_error
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD methodset_get_entityset.
+
+    TRY.
+        get_dashboard( )->method_parameters(
+          EXPORTING
+            is_parameter = get_method_parameter( it_key_tab )
+          IMPORTING
+            et_result    = et_entityset ).
+
+      CATCH cx_sy_conversion_error
+            cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
 
   METHOD build_request.
 

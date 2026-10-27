@@ -18,13 +18,15 @@ CLASS ltc_dash_pure_branches DEFINITION DEFERRED.
 CLASS ltcl_review_grace_test DEFINITION DEFERRED.
 CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
+CLASS ltc_method_parameters DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
                 ltc_dash_pure_branches
                 ltcl_review_grace_test
                 ltc_request_processing
-                ltc_amdp_filters.
+                ltc_amdp_filters
+                ltc_method_parameters.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT

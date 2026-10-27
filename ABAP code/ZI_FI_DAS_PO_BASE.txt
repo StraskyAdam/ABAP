@@ -7,16 +7,16 @@
 define view ZI_FI_DAS_PO_BASE
   with parameters
     p_use_replication : abap.char(1)
-  as select from ZI_FI_DAS_EKPO(
-    p_use_replication: $parameters.p_use_replication ) as item
-    inner join ZI_FI_DAS_EKKO(
-      p_use_replication: $parameters.p_use_replication ) as header
+    
+  as select from ZI_FI_DAS_EKPO( p_use_replication: $parameters.p_use_replication ) as item
+  
+    inner join ZI_FI_DAS_EKKO( p_use_replication: $parameters.p_use_replication ) as header
       on header.ebeln = item.ebeln
 
-    inner join t001
+    inner join ZI_FI_DAS_T001( p_use_replication: $parameters.p_use_replication ) as t001
       on t001.bukrs = header.bukrs
 
-    left outer join lfa1
+    left outer join ZI_FI_DAS_LFA1( p_use_replication: $parameters.p_use_replication ) as lfa1
       on lfa1.lifnr = header.lifnr
 {
   key item.ebeln        as PoNumber,

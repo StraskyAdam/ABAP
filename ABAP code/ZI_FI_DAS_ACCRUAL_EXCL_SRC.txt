@@ -1,0 +1,52 @@
+@AbapCatalog.sqlViewName: 'ZDASACCREXCLS'
+@EndUserText.label: 'Accrual exclusion rules source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ACCRUAL_EXCL_SRC
+  as select from zfi_accrual_excl as excl
+{
+  excl.ruleid,
+  excl.ruletype,
+  excl.bukrsfr,
+  excl.bukrsto,
+  excl.ponum,
+  excl.lifnr,
+  excl.saktofr,
+  excl.saktoto,
+  excl.kostlfr,
+  excl.kostlto,
+  excl.aufnrfr,
+  excl.aufnrto,
+  excl.prctrfr,
+  excl.prctrto,
+  excl.threshold,
+  ' ' as use_replication
+}
+where excl.ruletype = 'PO'
+   or excl.ruletype = 'IV'
+   or excl.ruletype = 'GL'
+   or excl.ruletype = 'CC'
+   or excl.ruletype = 'VD'
+   or excl.ruletype = 'PC'
+   or excl.ruletype = 'TR'
+
+union all
+
+select from zfi_das_acc_excl as replication
+{
+  replication.ruleid,
+  replication.ruletype,
+  replication.bukrsfr,
+  replication.bukrsto,
+  replication.ponum,
+  replication.lifnr,
+  replication.saktofr,
+  replication.saktoto,
+  replication.kostlfr,
+  replication.kostlto,
+  replication.aufnrfr,
+  replication.aufnrto,
+  replication.prctrfr,
+  replication.prctrto,
+  replication.threshold,
+  'X' as use_replication
+}

@@ -416,7 +416,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
         THEN @abap_true ELSE @abap_false END AS n_ponum,
       CASE WHEN lifnr IS NULL
         THEN @abap_true ELSE @abap_false END AS n_lifnr
-      FROM zfi_accrual_excl
+      FROM zi_fi_das_accrual_excl( p_use_replication = @m_used_replication )
          INTO TABLE @lt_rules.
 
     IF sy-subrc <> 0.
@@ -1012,7 +1012,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    INSERT zfi_das_po_excl FROM TABLE @it_package.
+    INSERT zfi_das_po_excl FROM TABLE @it_package ACCEPTING DUPLICATE KEYS.
 
     IF sy-subrc <> 0.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH mc_target.

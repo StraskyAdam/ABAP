@@ -1,0 +1,38 @@
+28.10.2026     Dynamic List Display                                                              1
+--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+|Language|AppAr  |MsgNo|Message Text                                                             |
+--------------------------------------------------------------------------------------------------
+|EN      |ZFI_DAS|000  |&1 &2 &3 &4 &5                                                           |
+|EN      |ZFI_DAS|001  |Record already exists!                                                   |
+|EN      |ZFI_DAS|002  |Configuration could not be created                                       |
+|EN      |ZFI_DAS|003  |Configuration could not be deleted                                       |
+|EN      |ZFI_DAS|004  |Configuration could not be updated                                       |
+|EN      |ZFI_DAS|005  |Unsupported mode                                                         |
+|EN      |ZFI_DAS|006  |User e-mail must not be empty                                            |
+|EN      |ZFI_DAS|007  |Unsupported owner indicator                                              |
+|EN      |ZFI_DAS|008  |Unsupported pstype                                                       |
+|EN      |ZFI_DAS|009  |Paging values cannot be negative                                         |
+|EN      |ZFI_DAS|010  |Inconsistent filter request: filter select options exist without a filter|
+|EN      |ZFI_DAS|011  |Invalid services-completed amount: &1                                    |
+|EN      |ZFI_DAS|012  |Invalid work-completed percentage: &1                                    |
+|EN      |ZFI_DAS|014  |USD PO threshold is missing                                              |
+|EN      |ZFI_DAS|015  |Japan_Brazil configuration is missing                                    |
+|EN      |ZFI_DAS|016  |Invalid ACCRUAL_REVIEW_DATE configuration                                |
+|EN      |ZFI_DAS|017  |Exchange rate not found for &1 to &2                                     |
+|EN      |ZFI_DAS|018  |Unsupported decimal count: &1                                            |
+|EN      |ZFI_DAS|019  |Unsupported replication table: &1                                        |
+|EN      |ZFI_DAS|020  |Missing table authorization: &1 &2                                       |
+|EN      |ZFI_DAS|021  |Cannot lock table: &1                                                    |
+|EN      |ZFI_DAS|022  |Day &1 is outside the permitted range 1 to 31                            |
+|EN      |ZFI_DAS|023  |Configuration &1 has invalid numeric value &2                            |
+|EN      |ZFI_DAS|024  |Configuration &1 value &2 must be between1 and 31                        |
+|EN      |ZFI_DAS|025  |Invalid replication package for: &1                                      |
+|EN      |ZFI_DAS|026  |No source implementation for: &1                                         |
+|EN      |ZFI_DAS|027  |No insert implementation for: &1                                         |
+|EN      |ZFI_DAS|028  |Table value help could not be displayed.                                 |
+|EN      |ZFI_DAS|029  |No delete implementation for: &1                                         |
+|EN      |ZFI_DAS|030  |Insert into table &1 failed                                              |
+|EN      |ZFI_DAS|031  |Commit failed for table &1                                               |
+|EN      |ZFI_DAS|032  |Error deleting data from table &1                                        |
+--------------------------------------------------------------------------------------------------

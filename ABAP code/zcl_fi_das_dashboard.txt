@@ -3118,7 +3118,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       INNER JOIN zdasadrp( p_use_replication => :i_use_replication ) AS person
               ON person.mandt      = user_data.mandt
              AND person.persnumber = user_data.persnumber
-             AND person.nation     = :lc_empty_string
 
       INNER JOIN zdasadr6( p_use_replication => :i_use_replication ) AS email
               ON email.mandt      = user_data.mandt

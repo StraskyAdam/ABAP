@@ -2,6 +2,9 @@ REPORT zfi_das_replication.
 
 INCLUDE zfi_das_replication_def.
 
+PARAMETERS: p_table TYPE tabname OBLIGATORY,
+            p_del   AS CHECKBOX DEFAULT abap_true.
+
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_table.
   lcl_replication=>value_help( ).
 

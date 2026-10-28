@@ -2142,16 +2142,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_keys
-    BY DATABASE PROCEDURE
-    FOR HDB
-    LANGUAGE SQLSCRIPT
-    OPTIONS READ-ONLY
-    USING
-      zifidaspobase
-      zdasekkn
-      zdascsks
-      zfi_das_po_excl
-      zfi_das_exchrt.
+     BY DATABASE PROCEDURE
+     FOR HDB
+     LANGUAGE SQLSCRIPT
+     OPTIONS READ-ONLY
+     USING
+       zifidaspobase
+       zdasekkn
+       zdascsks
+       zfi_das_po_excl
+       zfi_das_exchrt.
 
     DECLARE lc_empty_string     CONSTANT NVARCHAR(1) = '';
     DECLARE lc_space            CONSTANT NVARCHAR(1) = ' ';
@@ -2159,6 +2159,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DECLARE lc_false            CONSTANT NVARCHAR(1) = '';
     DECLARE lc_zero             CONSTANT NVARCHAR(1) = '0';
     DECLARE lc_all              CONSTANT NVARCHAR(1) = '*';
+
+    DECLARE lc_client_context   CONSTANT NVARCHAR(10) = 'CLIENT';
 
     DECLARE lc_pstype_material  CONSTANT NVARCHAR(1) = '0';
     DECLARE lc_pstype_service   CONSTANT NVARCHAR(1) = '9';
@@ -2204,7 +2206,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           ELSE :lc_false
         END AS is_japan_brazil
 
-      FROM zifidaspobase( p_use_replication => :i_use_replication ) AS base;
+      FROM zifidaspobase( p_use_replication => :i_use_replication ) AS base
+      WHERE base.mandt = SESSION_CONTEXT( :lc_client_context );
 
 *   Apply owner and PSTYPE/business selection logic
     lt_base_candidates =
@@ -2306,11 +2309,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         LEFT OUTER JOIN zdasekkn( p_use_replication => :i_use_replication ) AS account
           ON  account.ebeln = candidate.ponumber
           AND account.ebelp = candidate.itemno
+          AND account.mandt = SESSION_CONTEXT( :lc_client_context )
 
         LEFT OUTER JOIN zdascsks( p_use_replication => :i_use_replication ) AS cost_center
           ON  cost_center.kostl = account.kostl
           AND cost_center.kokrs = account.kokrs
           AND cost_center.datbi >= CURRENT_DATE
+          AND cost_center.mandt = account.mandt
 
         WHERE
           EXISTS
@@ -2425,7 +2430,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           :i_threshold_usd * CAST( 1 / exchange_rate.exchange_rate AS DECIMAL(15,6) ),2 ) AS threshold_converted
       FROM :lt_po_totals AS total
       INNER JOIN zfi_das_exchrt AS exchange_rate
-        ON exchange_rate.source_curr = total.pocurrency;
+        ON exchange_rate.source_curr = total.pocurrency
+       AND exchange_rate.mandt = SESSION_CONTEXT( :lc_client_context );
 
     lt_threshold_classified =
       SELECT DISTINCT
@@ -2482,6 +2488,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             FROM zfi_das_po_excl AS exclusion
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
+             AND exclusion.mandt = SESSION_CONTEXT( :lc_client_context )
         );
 
     ELSE
@@ -2500,6 +2507,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
            WHERE exclusion.ponumber = candidate.ponumber
              AND exclusion.itemno   = candidate.itemno
              AND exclusion.pstype   = candidate.pstype
+             AND exclusion.mandt = SESSION_CONTEXT( :lc_client_context )
         );
 
     END IF;
@@ -3086,12 +3094,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DECLARE lc_user_type_dialog CONSTANT NVARCHAR(1)  = 'A';
     DECLARE lc_rpa_pattern      CONSTANT NVARCHAR(5)  = '%RPA%';
     DECLARE lc_numeric_chars    CONSTANT NVARCHAR(10) = '0123456789';
+    DECLARE lc_client_context   CONSTANT NVARCHAR(10) = 'CLIENT';
 
     lt_requested =
       SELECT DISTINCT
         LOWER( TRIM( poowner_email ) ) AS email
       FROM :it_details
-      WHERE poowner_email IS NOT NULL AND TRIM( poowner_email ) <> :lc_empty_string;
+      WHERE poowner_email IS NOT NULL
+        AND TRIM( poowner_email ) <> :lc_empty_string;
 
     lt_candidates =
       SELECT
@@ -3105,22 +3115,33 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         email.persnumber                 AS adr6_persnumber
       FROM zdasusr21( p_use_replication => :i_use_replication ) AS user_data
 
-      INNER JOIN zdasadrp( p_use_replication => :i_use_replication ) AS person ON person.persnumber = user_data.persnumber
+      INNER JOIN zdasadrp( p_use_replication => :i_use_replication ) AS person
+              ON person.mandt      = user_data.mandt
+             AND person.persnumber = user_data.persnumber
+             AND person.nation     = :lc_empty_string
 
-      INNER JOIN zdasadr6( p_use_replication => :i_use_replication ) AS email ON email.persnumber = user_data.persnumber AND
-                                                                                 email.addrnumber = user_data.addrnumber
+      INNER JOIN zdasadr6( p_use_replication => :i_use_replication ) AS email
+              ON email.mandt      = user_data.mandt
+             AND email.persnumber = user_data.persnumber
+             AND email.addrnumber = user_data.addrnumber
 
-      INNER JOIN zdasusr01( p_use_replication => :i_use_replication ) AS user_defaults ON user_defaults.bname = user_data.bname
+      INNER JOIN zdasusr01( p_use_replication => :i_use_replication ) AS user_defaults
+              ON user_defaults.mandt = user_data.mandt
+             AND user_defaults.bname = user_data.bname
 
-      INNER JOIN zdasusr02( p_use_replication => :i_use_replication ) AS user_logon ON user_logon.bname = user_data.bname
+      INNER JOIN zdasusr02( p_use_replication => :i_use_replication ) AS user_logon
+              ON user_logon.mandt = user_data.mandt
+             AND user_logon.bname = user_data.bname
 
-      INNER JOIN :lt_requested AS requested ON requested.email = LOWER( TRIM( email.smtp_addr ) )
+      INNER JOIN :lt_requested AS requested
+              ON requested.email = LOWER( TRIM( email.smtp_addr ) )
 
-      WHERE user_logon.ustyp = :lc_user_type_dialog AND
-            user_logon.class NOT LIKE :lc_rpa_pattern AND
-            user_logon.gltgv < CURRENT_DATE AND
-            user_logon.gltgb >= CURRENT_DATE AND
-            LOCATE( :lc_numeric_chars, SUBSTRING( user_data.bname, 1, 1 ) ) = 0;
+      WHERE user_data.mandt = SESSION_CONTEXT( :lc_client_context )
+        AND user_logon.ustyp = :lc_user_type_dialog
+        AND user_logon.class NOT LIKE :lc_rpa_pattern
+        AND user_logon.gltgv < CURRENT_DATE
+        AND user_logon.gltgb >= CURRENT_DATE
+        AND LOCATE( :lc_numeric_chars, SUBSTRING( user_data.bname, 1, 1 ) ) = 0;
 
     et_users =
       SELECT email, username, full_name, decimal_format, datfm
@@ -3140,8 +3161,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               adr6_addrnumber DESC,
               adr6_persnumber DESC
           ) AS row_number_value
-
-        FROM :lt_candidates )
+        FROM :lt_candidates
+      )
       WHERE row_number_value = 1;
 
   ENDMETHOD.
@@ -3290,6 +3311,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_use_replication.
+
+*    r_use_replication = abap_true.
+*    RETURN.
 
     r_use_replication = abap_false.
 

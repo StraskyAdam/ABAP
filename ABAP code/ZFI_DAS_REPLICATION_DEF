@@ -37,6 +37,13 @@ CLASS lcl_replication DEFINITION FINAL.
                mc_table_ekbe      TYPE tabname  VALUE 'EKBE',
                mc_table_t001      TYPE tabname  VALUE 'T001',
                mc_table_lfa1      TYPE tabname  VALUE 'LFA1',
+               mc_table_csks      TYPE tabname  VALUE 'CSKS',
+               mc_table_cskt      TYPE tabname  VALUE 'CSKT',
+               mc_table_usr01     TYPE tabname  VALUE 'USR01',
+               mc_table_usr02     TYPE tabname  VALUE 'USR02',
+               mc_table_usr21     TYPE tabname  VALUE 'USR21',
+               mc_table_adrp      TYPE tabname  VALUE 'ADRP',
+               mc_table_adr6      TYPE tabname  VALUE 'ADR6',
                mc_table_excl      TYPE tabname  VALUE 'ZFI_ACCRUAL_EXCL',
 
                mc_target_ekko     TYPE tabname  VALUE 'ZFI_DAS_EKKO',
@@ -45,6 +52,13 @@ CLASS lcl_replication DEFINITION FINAL.
                mc_target_ekbe     TYPE tabname  VALUE 'ZFI_DAS_EKBE',
                mc_target_t001     TYPE tabname  VALUE 'ZFI_DAS_T001',
                mc_target_lfa1     TYPE tabname  VALUE 'ZFI_DAS_LFA1',
+               mc_target_csks     TYPE tabname  VALUE 'ZFI_DAS_CSKS',
+               mc_target_cskt     TYPE tabname  VALUE 'ZFI_DAS_CSKT',
+               mc_target_usr01    TYPE tabname  VALUE 'ZFI_DAS_USR01',
+               mc_target_usr02    TYPE tabname  VALUE 'ZFI_DAS_USR02',
+               mc_target_usr21    TYPE tabname  VALUE 'ZFI_DAS_USR21',
+               mc_target_adrp     TYPE tabname  VALUE 'ZFI_DAS_ADRP',
+               mc_target_adr6     TYPE tabname  VALUE 'ZFI_DAS_ADR6',
                mc_target_excl     TYPE tabname  VALUE 'ZFI_DAS_ACC_EXCL',
 
                mc_package_size    TYPE i VALUE 100000,
@@ -150,6 +164,20 @@ CLASS lcl_replication IMPLEMENTATION.
                             target  = mc_target_t001 )
                           ( tabname = mc_table_lfa1
                             target  = mc_target_lfa1 )
+                          ( tabname = mc_table_csks
+                            target  = mc_target_csks  )
+                          ( tabname = mc_table_cskt
+                            target  = mc_target_cskt  )
+                          ( tabname = mc_table_usr01
+                             target = mc_target_usr01 )
+                          ( tabname = mc_table_usr02
+                            target  = mc_target_usr02 )
+                          ( tabname = mc_table_usr21
+                            target  = mc_target_usr21 )
+                          ( tabname = mc_table_adrp
+                            target  = mc_target_adrp )
+                          ( tabname = mc_table_adr6
+                            target  = mc_target_adr6 )
                           ( tabname = mc_table_excl
                             target  = mc_target_excl ) ).
 
@@ -253,6 +281,27 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_lfa1.
         DELETE FROM zfi_das_lfa1.
+
+      WHEN mc_table_csks.
+        DELETE FROM zfi_das_csks.
+
+      WHEN mc_table_cskt.
+        DELETE FROM zfi_das_cskt.
+
+      WHEN mc_table_usr01.
+        DELETE FROM zfi_das_usr01.
+
+      WHEN mc_table_usr02.
+        DELETE FROM zfi_das_usr02.
+
+      WHEN mc_table_usr21.
+        DELETE FROM zfi_das_usr21.
+
+      WHEN mc_table_adrp.
+        DELETE FROM zfi_das_adrp.
+
+      WHEN mc_table_adr6.
+        DELETE FROM zfi_das_adr6.
 
       WHEN mc_table_excl.
         DELETE FROM zfi_das_acc_excl.
@@ -401,6 +450,41 @@ CLASS lcl_replication IMPLEMENTATION.
           SELECT lifnr, name1
             FROM zi_fi_das_lfa1( p_use_replication = @abap_false ).
 
+      WHEN mc_table_csks.
+        OPEN CURSOR @m_cursor FOR
+          SELECT kokrs, kostl, datbi, name1, zzrptun
+            FROM zi_fi_das_csks( p_use_replication = @abap_false ).
+
+      WHEN mc_table_cskt.
+        OPEN CURSOR @m_cursor FOR
+          SELECT spras, kokrs, kostl, datbi, ktext, ltext, mctxt
+            FROM zi_fi_das_cskt( p_use_replication = @abap_false ).
+
+      WHEN mc_table_usr01.
+        OPEN CURSOR @m_cursor FOR
+          SELECT bname, datfm, dcpfm
+            FROM zi_fi_das_usr01( p_use_replication = @abap_false ).
+
+      WHEN mc_table_usr02.
+        OPEN CURSOR @m_cursor FOR
+          SELECT bname, gltgv, gltgb, ustyp, class
+            FROM zi_fi_das_usr02( p_use_replication = @abap_false ).
+
+      WHEN mc_table_usr21.
+        OPEN CURSOR @m_cursor FOR
+          SELECT bname, persnumber, addrnumber
+            FROM zi_fi_das_usr21( p_use_replication = @abap_false ).
+
+      WHEN mc_table_adrp.
+        OPEN CURSOR @m_cursor FOR
+          SELECT persnumber, date_from, nation, name_text
+            FROM zi_fi_das_adrp( p_use_replication = @abap_false ).
+
+      WHEN mc_table_adr6.
+        OPEN CURSOR @m_cursor FOR
+          SELECT addrnumber, persnumber, date_from, consnumber, smtp_addr
+            FROM zi_fi_das_adr6( p_use_replication = @abap_false ).
+
       WHEN mc_table_excl.
 
         OPEN CURSOR @m_cursor FOR
@@ -463,6 +547,27 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_lfa1.
         INSERT zfi_das_lfa1 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_csks.
+        INSERT zfi_das_csks FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_cskt.
+        INSERT zfi_das_cskt FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_usr01.
+        INSERT zfi_das_usr01 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_usr02.
+        INSERT zfi_das_usr02 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_usr21.
+        INSERT zfi_das_usr21 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_adrp.
+        INSERT zfi_das_adrp FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_adr6.
+        INSERT zfi_das_adr6 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
 
       WHEN mc_table_excl.
         INSERT zfi_das_acc_excl FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.

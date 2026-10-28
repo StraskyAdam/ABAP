@@ -1,0 +1,29 @@
+@AbapCatalog.sqlViewName: 'ZDASCSKTSRC'
+@EndUserText.label: 'CSKT source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_CSKT_SRC
+  as select from cskt as source
+{
+  source.spras,
+  source.kokrs,
+  source.kostl,
+  source.datbi,
+  source.ktext,
+  source.ltext,
+  source.mctxt,
+  ' ' as use_replication
+}
+
+union all
+
+select from zfi_das_cskt as replication
+{
+  replication.spras,
+  replication.kokrs,
+  replication.kostl,
+  replication.datbi,
+  replication.ktext,
+  replication.ltext,
+  replication.mctxt,
+  'X' as use_replication
+}

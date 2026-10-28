@@ -553,9 +553,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_users
       IMPORTING
-        VALUE(it_details) TYPE tt_detail
+        VALUE(it_details)        TYPE tt_detail
+        VALUE(i_use_replication) TYPE abap_bool
       EXPORTING
-        VALUE(et_users)   TYPE tt_user
+        VALUE(et_users)          TYPE tt_user
       RAISING
         cx_amdp_error.
 
@@ -608,7 +609,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_decimal_format
       IMPORTING
-        i_email                 TYPE zif_fi_das_dashboard=>t_email
+        is_request              TYPE ts_internal_request
       RETURNING
         VALUE(r_decimal_format) TYPE xudcpfm
       RAISING
@@ -1634,14 +1635,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       ekkn~menge   AS quantity
     FROM zi_fi_das_ekkn( p_use_replication = @is_request-use_replication ) AS ekkn
 
-     LEFT OUTER JOIN cskt ON cskt~kokrs = ekkn~kokrs AND
-                             cskt~kostl = ekkn~kostl AND
-                             cskt~spras = 'E' AND
-                             cskt~datbi >= @sy-datum
+     LEFT OUTER JOIN zi_fi_das_cskt( p_use_replication = @is_request-use_replication ) AS cskt ON cskt~kokrs = ekkn~kokrs AND
+                                                                                                  cskt~kostl = ekkn~kostl AND
+                                                                                                  cskt~spras = 'E' AND
+                                                                                                  cskt~datbi >= @sy-datum
 
-     LEFT OUTER JOIN csks ON csks~kokrs = ekkn~kokrs AND
-                             csks~kostl = ekkn~kostl AND
-                             csks~datbi >= @sy-datum
+     LEFT OUTER JOIN zi_fi_das_csks( p_use_replication = @is_request-use_replication ) AS csks  ON csks~kokrs = ekkn~kokrs AND
+                                                                                                   csks~kostl = ekkn~kostl AND
+                                                                                                   csks~datbi >= @sy-datum
      FOR ALL ENTRIES IN @it_keys
          WHERE ekkn~ebeln = @it_keys-ponumber AND
                ekkn~ebelp = @it_keys-itemno
@@ -1788,6 +1789,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     rs_context-review_day = get_review_day( ).
 
     get_users( EXPORTING it_details = rs_context-details
+                         i_use_replication = is_request-use_replication
                IMPORTING et_users   = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
@@ -1846,7 +1848,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     r_decimal_format = mc_default_decimal_format.
 
-    DATA(l_email) = CONV ad_smtpadr( to_lower( i_email ) ).
+    DATA(l_email) = CONV ad_smtpadr( to_lower( is_request-parameter-email ) ).
 
     IF l_email IS INITIAL.
       RETURN.
@@ -1855,12 +1857,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     SELECT DISTINCT
            user_data~bname,
            user_defaults~dcpfm
-      FROM usr21 AS user_data
-    INNER JOIN adr6 AS email
-        ON email~persnumber = user_data~persnumber AND
-           email~addrnumber = user_data~addrnumber
-    INNER JOIN usr01 AS user_defaults ON user_defaults~bname = user_data~bname
-    INNER JOIN usr02 AS logon_data ON logon_data~bname = user_data~bname
+      FROM zi_fi_das_usr21( p_use_replication = @is_request-use_replication ) AS user_data
+
+    INNER JOIN zi_fi_das_adr6( p_use_replication = @is_request-use_replication ) AS email ON email~persnumber = user_data~persnumber AND
+                                                                                             email~addrnumber = user_data~addrnumber
+
+    INNER JOIN zi_fi_das_usr01( p_use_replication = @is_request-use_replication ) AS user_defaults ON user_defaults~bname = user_data~bname
+
+    INNER JOIN zi_fi_das_usr02( p_use_replication = @is_request-use_replication ) AS logon_data ON logon_data~bname = user_data~bname
+
       WHERE email~smtp_addr = @l_email AND
             logon_data~ustyp = @mc_user_type_dialog AND
             logon_data~class NOT LIKE @mc_rpa_pattern AND
@@ -2144,7 +2149,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     USING
       zifidaspobase
       zdasekkn
-      csks
+      zdascsks
       zfi_das_po_excl
       zfi_das_exchrt.
 
@@ -2302,7 +2307,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
           ON  account.ebeln = candidate.ponumber
           AND account.ebelp = candidate.itemno
 
-        LEFT OUTER JOIN csks AS cost_center
+        LEFT OUTER JOIN zdascsks( p_use_replication => :i_use_replication ) AS cost_center
           ON  cost_center.kostl = account.kostl
           AND cost_center.kokrs = account.kokrs
           AND cost_center.datbi >= CURRENT_DATE
@@ -2788,7 +2793,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA lt_result TYPE tt_odata_result.
 
-    DATA(l_decimal_format) = get_decimal_format( is_request-parameter-email ).
+    DATA(l_decimal_format) = get_decimal_format( is_request ).
 
     DATA(l_last_key) = lines( it_keys ).
 
@@ -3071,11 +3076,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
    FOR HDB
    LANGUAGE SQLSCRIPT
    OPTIONS READ-ONLY
-   USING usr21
-         adrp
-         adr6
-         usr01
-         usr02.
+   USING zdasusr21
+         zdasadrp
+         zdasadr6
+         zdasusr01
+         zdasusr02.
 
     DECLARE lc_empty_string     CONSTANT NVARCHAR(1)  = '';
     DECLARE lc_user_type_dialog CONSTANT NVARCHAR(1)  = 'A';
@@ -3098,16 +3103,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         user_data.bname                  AS usr21_bname,
         email.addrnumber                 AS adr6_addrnumber,
         email.persnumber                 AS adr6_persnumber
-      FROM usr21 AS user_data
+      FROM zdasusr21( p_use_replication => :i_use_replication ) AS user_data
 
-      INNER JOIN adrp AS person ON person.persnumber = user_data.persnumber
+      INNER JOIN zdasadrp( p_use_replication => :i_use_replication ) AS person ON person.persnumber = user_data.persnumber
 
-      INNER JOIN adr6 AS email ON email.persnumber = user_data.persnumber AND
-                                  email.addrnumber = user_data.addrnumber
+      INNER JOIN zdasadr6( p_use_replication => :i_use_replication ) AS email ON email.persnumber = user_data.persnumber AND
+                                                                                 email.addrnumber = user_data.addrnumber
 
-      INNER JOIN usr01 AS user_defaults ON user_defaults.bname = user_data.bname
+      INNER JOIN zdasusr01( p_use_replication => :i_use_replication ) AS user_defaults ON user_defaults.bname = user_data.bname
 
-      INNER JOIN usr02 AS user_logon ON user_logon.bname = user_data.bname
+      INNER JOIN zdasusr02( p_use_replication => :i_use_replication ) AS user_logon ON user_logon.bname = user_data.bname
 
       INNER JOIN :lt_requested AS requested ON requested.email = LOWER( TRIM( email.smtp_addr ) )
 

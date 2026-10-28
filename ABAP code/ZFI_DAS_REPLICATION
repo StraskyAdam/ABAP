@@ -19,6 +19,7 @@ START-OF-SELECTION.
 
   " Optional, one-use SUBMIT acknowledgement; never a source-mode switch.
   FREE MEMORY ID 'ZFI_DAS_REPL_DONE'.
+  CLEAR gv_test_token.
   IMPORT token = gv_test_token FROM MEMORY ID 'ZFI_DAS_REPL_REQUEST'.
   FREE MEMORY ID 'ZFI_DAS_REPL_REQUEST'.
 

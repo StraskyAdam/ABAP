@@ -30,6 +30,11 @@ CLASS lcl_repl_contract DEFINITION FINAL.
              deleted TYPE abap_bool,
              success TYPE abap_bool,
            END OF ts_completion.
+    TYPES: BEGIN OF ts_differences,
+             total TYPE int8,
+             shown TYPE i,
+             text TYPE string,
+           END OF ts_differences.
     CLASS-METHODS:
       require IMPORTING ok TYPE abap_bool message TYPE string
         RAISING zcx_fi_das_error,
@@ -40,17 +45,43 @@ CLASS lcl_repl_contract DEFINITION FINAL.
       mode_receipt IMPORTING hits TYPE i desired TYPE abap_bool observed TYPE abap_bool
         RAISING zcx_fi_das_error,
       same_dataset IMPORTING source TYPE STANDARD TABLE replica TYPE STANDARD TABLE
-                             label TYPE string RAISING zcx_fi_das_error,
+                             label TYPE string key_fields TYPE string DEFAULT ''
+        RAISING zcx_fi_das_error,
+      dataset_differences IMPORTING source TYPE STANDARD TABLE replica TYPE STANDARD TABLE
+                                   key_fields TYPE string DEFAULT ''
+        RETURNING VALUE(result) TYPE ts_differences RAISING zcx_fi_das_error,
       page IMPORTING json TYPE string RETURNING VALUE(result) TYPE ts_page
         RAISING zcx_fi_das_error,
-      same_page IMPORTING source TYPE ts_page replica TYPE ts_page
+      same_page IMPORTING source TYPE ts_page replica TYPE ts_page context TYPE string DEFAULT ''
+        RAISING zcx_fi_das_error,
+      page_differences IMPORTING source TYPE ts_page replica TYPE ts_page
+        RETURNING VALUE(result) TYPE ts_differences,
+      require_schema IMPORTING page TYPE ts_page expected TYPE any context TYPE string DEFAULT ''
+        RAISING zcx_fi_das_error,
+      null_predicate IMPORTING fields TYPE string RETURNING VALUE(predicate) TYPE string
         RAISING zcx_fi_das_error,
       properties IMPORTING json TYPE string RETURNING VALUE(result) TYPE tt_property
         RAISING zcx_fi_das_error.
   PRIVATE SECTION.
+    TYPES: BEGIN OF ts_index,
+             key TYPE string,
+             ordinal TYPE i,
+             row_index TYPE i,
+             matched TYPE abap_bool,
+           END OF ts_index,
+           tt_index TYPE HASHED TABLE OF ts_index WITH UNIQUE KEY key ordinal.
+    CONSTANTS max_details TYPE i VALUE 20.
     CLASS-METHODS:
-      value IMPORTING json TYPE string CHANGING pos TYPE i
-        RETURNING VALUE(token) TYPE string RAISING zcx_fi_das_error,
+      index_rows IMPORTING rows TYPE STANDARD TABLE key_fields TYPE string
+        RETURNING VALUE(result) TYPE tt_index RAISING zcx_fi_das_error,
+      add_difference IMPORTING detail TYPE string CHANGING result TYPE ts_differences,
+      preview IMPORTING value TYPE any RETURNING VALUE(text) TYPE string,
+      collect_fields IMPORTING structure TYPE REF TO cl_abap_structdescr
+        CHANGING names TYPE stringtab,
+      row_differences IMPORTING source TYPE any replica TYPE any label TYPE string
+        CHANGING result TYPE ts_differences,
+      read_value IMPORTING json TYPE string EXPORTING token TYPE string
+        CHANGING pos TYPE i RAISING zcx_fi_das_error,
       whitespace IMPORTING json TYPE string CHANGING pos TYPE i.
 ENDCLASS.
 
@@ -81,9 +112,10 @@ CLASS ltc_repl_integration DEFINITION FINAL FOR TESTING
     METHODS:
       refresh_verify_gateway FOR TESTING RAISING cx_static_check,
       teardown,
-      clock RETURNING VALUE(result) TYPE ts_clock,
+      clock RETURNING VALUE(result) TYPE ts_clock RAISING zcx_fi_das_error,
       refresh IMPORTING tabname TYPE tabname RAISING cx_static_check,
       verify_sources RAISING cx_static_check,
+      null_preflight IMPORTING view TYPE string fields TYPE string RAISING cx_static_check,
       gateway IMPORTING path TYPE string mode TYPE abap_bool
         RETURNING VALUE(result) TYPE lcl_repl_contract=>ts_page
         RAISING cx_static_check,
@@ -101,6 +133,9 @@ CLASS ltc_repl_contract DEFINITION FINAL FOR TESTING
       malformed_duplicate_keys FOR TESTING RAISING cx_static_check,
       refresh_receipts FOR TESTING RAISING cx_static_check,
       mode_proof FOR TESTING RAISING cx_static_check,
+      diagnostic_counts FOR TESTING RAISING cx_static_check,
+      schema_completeness FOR TESTING RAISING cx_static_check,
+      null_predicates FOR TESTING RAISING cx_static_check,
       source_gate FOR TESTING RAISING cx_static_check.
     METHODS fixture IMPORTING extra TYPE string DEFAULT '"AMOUNT":"1.00"'
       RETURNING VALUE(json) TYPE string.
@@ -131,9 +166,147 @@ CLASS lcl_repl_contract IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD same_dataset.
-    " Callers sort by EVERY projected field; standard tables retain duplicates.
-    require( ok = xsdbool( source = replica )
-             message = |SOURCE MISMATCH: { label }; complete sorted replicated-column multiset differs| ).
+    IF source = replica.
+      RETURN.
+    ENDIF.
+    DATA(differences) = dataset_differences(
+      source = source replica = replica key_fields = key_fields ).
+    require( ok = xsdbool( differences-total = 0 )
+      message = |SOURCE MISMATCH { label }: live rows={ lines( source ) }, replicated rows={ lines( replica ) }; total differences={ differences-total }, first { differences-shown }:{ differences-text }| ).
+  ENDMETHOD.
+
+  METHOD add_difference.
+    result-total = result-total + 1.
+    IF result-shown < max_details.
+      result-shown = result-shown + 1.
+      result-text = result-text && cl_abap_char_utilities=>newline
+        && substring( val = detail len = nmin( val1 = strlen( detail ) val2 = 600 ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD preview.
+    text = |{ value }|.
+    IF strlen( text ) > 120.
+      text = substring( val = text len = 120 ) && '...'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD collect_fields.
+    LOOP AT structure->get_components( ) INTO DATA(component).
+      IF component-as_include = abap_true.
+        collect_fields( EXPORTING structure = CAST cl_abap_structdescr( component-type )
+                        CHANGING names = names ).
+      ELSE.
+        APPEND component-name TO names.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD require_schema.
+    DATA names TYPE stringtab.
+    DATA(differences) = VALUE ts_differences( ).
+    collect_fields( EXPORTING structure = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data( expected ) ) CHANGING names = names ).
+    LOOP AT page-rows INTO DATA(row).
+      LOOP AT names INTO DATA(name).
+        IF NOT line_exists( row-properties[ name = name ] ).
+          add_difference(
+            EXPORTING detail = |Key { row-ponumber }/{ row-itemno } missing required business property { name }|
+            CHANGING result = differences ).
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+    require( ok = xsdbool( differences-total = 0 )
+      message = |Incomplete Gateway schema { context }: missing={ differences-total }, first { differences-shown }:{ differences-text }| ).
+  ENDMETHOD.
+
+  METHOD null_predicate.
+    require( ok = xsdbool( fields IS NOT INITIAL AND fields CO 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789 ' )
+      message = 'Invalid null-check projection' ).
+    DATA names TYPE stringtab.
+    SPLIT fields AT space INTO TABLE names.
+    LOOP AT names INTO DATA(name) WHERE table_line IS NOT INITIAL.
+      IF predicate IS NOT INITIAL.
+        predicate = predicate && ' OR '.
+      ENDIF.
+      predicate = predicate && name && ' IS NULL'.
+    ENDLOOP.
+    require( ok = xsdbool( predicate IS NOT INITIAL ) message = 'Empty null-check projection' ).
+  ENDMETHOD.
+
+  METHOD index_rows.
+    TYPES: BEGIN OF ts_count,
+             key TYPE string,
+             count TYPE i,
+           END OF ts_count.
+    DATA counts TYPE HASHED TABLE OF ts_count WITH UNIQUE KEY key.
+    DATA fields TYPE stringtab.
+    SPLIT key_fields AT space INTO TABLE fields.
+    LOOP AT rows ASSIGNING FIELD-SYMBOL(<row>).
+      DATA(row_index) = sy-tabix.
+      DATA(key) = CONV string( '*' ).
+      LOOP AT fields INTO DATA(field) WHERE table_line IS NOT INITIAL.
+        ASSIGN COMPONENT field OF STRUCTURE <row> TO FIELD-SYMBOL(<value>).
+        require( ok = xsdbool( sy-subrc = 0 ) message = |Unknown dataset key field { field }| ).
+        DATA(text) = CONV string( <value> ).
+        key = key && |/{ field }={ strlen( text ) }:{ text }|.
+      ENDLOOP.
+      READ TABLE counts ASSIGNING FIELD-SYMBOL(<count>) WITH TABLE KEY key = key.
+      IF sy-subrc <> 0.
+        INSERT VALUE #( key = key ) INTO TABLE counts ASSIGNING <count>.
+      ENDIF.
+      <count>-count = <count>-count + 1.
+      INSERT VALUE #( key = key ordinal = <count>-count row_index = row_index ) INTO TABLE result.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD row_differences.
+    IF source = replica.
+      RETURN.
+    ENDIF.
+    DATA(description) = cl_abap_typedescr=>describe_by_data( source ).
+    IF description->kind <> cl_abap_typedescr=>kind_struct.
+      IF source <> replica.
+        add_difference( EXPORTING detail = |{ label } value source=[{ preview( source ) }] replica=[{ preview( replica ) }]|
+                        CHANGING result = result ).
+      ENDIF.
+      RETURN.
+    ENDIF.
+    DATA(structure) = CAST cl_abap_structdescr( description ).
+    LOOP AT structure->get_components( ) INTO DATA(component).
+      ASSIGN COMPONENT component-name OF STRUCTURE source TO FIELD-SYMBOL(<source>).
+      ASSIGN COMPONENT component-name OF STRUCTURE replica TO FIELD-SYMBOL(<replica>).
+      IF <source> <> <replica>.
+        add_difference(
+          EXPORTING detail = |{ label } field { component-name } source=[{ preview( <source> ) }] replica=[{ preview( <replica> ) }]|
+          CHANGING result = result ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD dataset_differences.
+    " Both inputs are sorted on all fields. Ordinals retain repeated keys/rows.
+    DATA(source_index) = index_rows( rows = source key_fields = key_fields ).
+    DATA(replica_index) = index_rows( rows = replica key_fields = key_fields ).
+    LOOP AT source_index INTO DATA(entry).
+      READ TABLE replica_index ASSIGNING FIELD-SYMBOL(<match>)
+        WITH TABLE KEY key = entry-key ordinal = entry-ordinal.
+      IF sy-subrc <> 0.
+        add_difference( EXPORTING detail = |Missing replica key { entry-key } occurrence { entry-ordinal }|
+                        CHANGING result = result ).
+        CONTINUE.
+      ENDIF.
+      <match>-matched = abap_true.
+      READ TABLE source INDEX entry-row_index ASSIGNING FIELD-SYMBOL(<source>).
+      READ TABLE replica INDEX <match>-row_index ASSIGNING FIELD-SYMBOL(<replica>).
+      row_differences( EXPORTING source = <source> replica = <replica>
+                                label = |Key { entry-key } occurrence { entry-ordinal }|
+                       CHANGING result = result ).
+    ENDLOOP.
+    LOOP AT replica_index INTO entry WHERE matched = abap_false.
+      add_difference( EXPORTING detail = |Extra replica key { entry-key } occurrence { entry-ordinal }|
+                      CHANGING result = result ).
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD whitespace.
@@ -148,7 +321,8 @@ CLASS lcl_repl_contract IMPLEMENTATION.
     ENDWHILE.
   ENDMETHOD.
 
-  METHOD value.
+  METHOD read_value.
+    CLEAR token.
     whitespace( EXPORTING json = json CHANGING pos = pos ).
     DATA: quoted TYPE abap_bool, escaped TYPE abap_bool, stack TYPE string.
     WHILE pos < strlen( json ).
@@ -196,7 +370,7 @@ CLASS lcl_repl_contract IMPLEMENTATION.
     pos = pos + 1.
     whitespace( EXPORTING json = json CHANGING pos = pos ).
     WHILE pos < strlen( json ) AND json+pos(1) <> '}'.
-      " Read name separately: value() intentionally stops at a colon only here.
+      " Business names are literal SEGW names; escaped names fail closed.
       require( ok = xsdbool( json+pos(1) = '"' ) message = 'Expected property name' ).
       pos = pos + 1.
       DATA(start) = pos.
@@ -211,7 +385,7 @@ CLASS lcl_repl_contract IMPLEMENTATION.
       require( ok = xsdbool( pos < strlen( json ) AND json+pos(1) = ':' )
                message = 'Expected property colon' ).
       pos = pos + 1.
-      DATA(token) = value( EXPORTING json = json CHANGING pos = pos ).
+      read_value( EXPORTING json = json IMPORTING token = DATA(token) CHANGING pos = pos ).
       INSERT VALUE #( name = name token = token ) INTO TABLE result.
       require( ok = xsdbool( sy-subrc = 0 ) message = |Duplicate JSON property { name }| ).
       whitespace( EXPORTING json = json CHANGING pos = pos ).
@@ -250,7 +424,7 @@ CLASS lcl_repl_contract IMPLEMENTATION.
     DATA pos TYPE i VALUE 1.
     DATA keys TYPE HASHED TABLE OF string WITH UNIQUE KEY table_line.
     WHILE pos < strlen( array ) AND array+pos(1) <> ']'.
-      DATA(row_json) = value( EXPORTING json = array CHANGING pos = pos ).
+      read_value( EXPORTING json = array IMPORTING token = DATA(row_json) CHANGING pos = pos ).
       DATA(props) = properties( row_json ).
       DELETE props WHERE name = '__metadata'.
       require( ok = xsdbool( line_exists( props[ name = 'PONUMBER' ] )
@@ -282,13 +456,58 @@ CLASS lcl_repl_contract IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD same_page.
-    require( ok = xsdbool( source-count = replica-count ) message = 'Gateway total count differs' ).
-    require( ok = xsdbool( lines( source-rows ) = lines( replica-rows ) )
-             message = 'Gateway page length differs' ).
-    LOOP AT source-rows ASSIGNING FIELD-SYMBOL(<row>).
-      DATA(index) = sy-tabix.
-      require( ok = xsdbool( <row> = replica-rows[ index ] )
-               message = |Gateway ordered row { index } differs: { <row>-ponumber }/{ <row>-itemno }; exact business tokens required| ).
+    IF source = replica.
+      RETURN.
+    ENDIF.
+    DATA(differences) = page_differences( source = source replica = replica ).
+    require( ok = xsdbool( differences-total = 0 )
+      message = |Gateway { context }: differences={ differences-total }, first { differences-shown }:{ differences-text }| ).
+  ENDMETHOD.
+
+  METHOD page_differences.
+    IF source-count <> replica-count.
+      add_difference( EXPORTING detail = |Inlinecount source={ source-count } replica={ replica-count }|
+                      CHANGING result = result ).
+    ENDIF.
+    LOOP AT source-rows ASSIGNING FIELD-SYMBOL(<source>).
+      DATA(source_position) = sy-tabix.
+      READ TABLE replica-rows ASSIGNING FIELD-SYMBOL(<replica>)
+        WITH KEY ponumber = <source>-ponumber itemno = <source>-itemno.
+      DATA(replica_position) = sy-tabix.
+      DATA(label) = |Key { <source>-ponumber }/{ <source>-itemno }|.
+      IF sy-subrc <> 0.
+        add_difference( EXPORTING detail = |Missing replica { label }| CHANGING result = result ).
+        CONTINUE.
+      ENDIF.
+      IF source_position <> replica_position.
+        add_difference( EXPORTING detail = |{ label } position source={ source_position } replica={ replica_position }|
+                        CHANGING result = result ).
+      ENDIF.
+      LOOP AT <source>-properties INTO DATA(property).
+        READ TABLE <replica>-properties INTO DATA(other) WITH TABLE KEY name = property-name.
+        IF sy-subrc <> 0.
+          add_difference(
+            EXPORTING detail = |{ label } missing property { property-name } source=[{ preview( property-token ) }]|
+            CHANGING result = result ).
+        ELSEIF property-token <> other-token.
+          add_difference(
+            EXPORTING detail = |{ label } field { property-name } source=[{ preview( property-token ) }] replica=[{ preview( other-token ) }]|
+            CHANGING result = result ).
+        ENDIF.
+      ENDLOOP.
+      LOOP AT <replica>-properties INTO property.
+        IF NOT line_exists( <source>-properties[ name = property-name ] ).
+          add_difference(
+            EXPORTING detail = |{ label } extra property { property-name } replica=[{ preview( property-token ) }]|
+            CHANGING result = result ).
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT replica-rows ASSIGNING <replica>.
+      IF NOT line_exists( source-rows[ ponumber = <replica>-ponumber itemno = <replica>-itemno ] ).
+        add_difference( EXPORTING detail = |Extra replica key { <replica>-ponumber }/{ <replica>-itemno }|
+                        CHANGING result = result ).
+      ENDIF.
     ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
@@ -481,6 +700,95 @@ CLASS ltc_repl_contract IMPLEMENTATION.
     ENDDO.
     lcl_repl_contract=>gate( refreshed = 14 verified = 14 ).
   ENDMETHOD.
+
+  METHOD diagnostic_counts.
+    TYPES: BEGIN OF ts_value,
+             key TYPE i,
+             payload TYPE string,
+           END OF ts_value,
+           tt_value TYPE STANDARD TABLE OF ts_value WITH EMPTY KEY.
+    DATA: source TYPE tt_value, replica TYPE tt_value.
+    DO 25 TIMES.
+      APPEND VALUE #( key = sy-index payload = 'A' ) TO source.
+      APPEND VALUE #( key = sy-index payload = 'B' ) TO replica.
+    ENDDO.
+    DATA(differences) = lcl_repl_contract=>dataset_differences(
+      source = source replica = replica key_fields = 'KEY' ).
+    cl_abap_unit_assert=>assert_equals( act = differences-total exp = 25 ).
+    cl_abap_unit_assert=>assert_equals( act = differences-shown exp = 20 ).
+    cl_abap_unit_assert=>assert_true( xsdbool(
+      differences-text CS 'field PAYLOAD source=[A] replica=[B]' ) ).
+    CLEAR: source, replica.
+    source = VALUE #( ( key = 1 payload = 'A' ) ).
+    replica = VALUE #( ( key = 2 payload = 'B' ) ).
+    differences = lcl_repl_contract=>dataset_differences(
+      source = source replica = replica key_fields = 'KEY' ).
+    cl_abap_unit_assert=>assert_equals( act = differences-total exp = 2 ).
+    cl_abap_unit_assert=>assert_true( xsdbool(
+      differences-text CS 'Missing replica key' AND differences-text CS 'Extra replica key' ) ).
+
+    DATA: source_fields TYPE string, replica_fields TYPE string.
+    DO 30 TIMES.
+      IF sy-index > 1.
+        source_fields = source_fields && ','.
+        replica_fields = replica_fields && ','.
+      ENDIF.
+      source_fields = source_fields && |"FIELD{ sy-index }":"A"|.
+      replica_fields = replica_fields && |"FIELD{ sy-index }":"B"|.
+    ENDDO.
+    DATA(source_page) = lcl_repl_contract=>page( fixture( source_fields ) ).
+    DATA(replica_page) = lcl_repl_contract=>page( fixture( replica_fields ) ).
+    differences = lcl_repl_contract=>page_differences( source = source_page replica = replica_page ).
+    cl_abap_unit_assert=>assert_equals( act = differences-total exp = 30 ).
+    cl_abap_unit_assert=>assert_equals( act = differences-shown exp = 20 ).
+    cl_abap_unit_assert=>assert_true( xsdbool(
+      differences-text CS 'source=["A"] replica=["B"]' ) ).
+    replica_page-rows[ 1 ]-ponumber = '"8000000002"'.
+    differences = lcl_repl_contract=>page_differences( source = source_page replica = replica_page ).
+    cl_abap_unit_assert=>assert_equals( act = differences-total exp = 2 ).
+    cl_abap_unit_assert=>assert_true( xsdbool(
+      differences-text CS 'Missing replica Key' AND differences-text CS 'Extra replica key' ) ).
+  ENDMETHOD.
+
+  METHOD schema_completeness.
+    TYPES: BEGIN OF ts_identity,
+             full_name TYPE string,
+             username TYPE string,
+             decimal_format TYPE string,
+           END OF ts_identity.
+    DATA expected TYPE ts_identity.
+    DATA(page) = lcl_repl_contract=>page( fixture(
+      `"FULL_NAME":"","USERNAME":"","DECIMAL_FORMAT":""` ) ).
+    lcl_repl_contract=>require_schema( page = page expected = expected ).
+    DATA required TYPE stringtab.
+    required = VALUE #( ( `FULL_NAME` ) ( `USERNAME` ) ( `DECIMAL_FORMAT` ) ).
+    LOOP AT required INTO DATA(required_name).
+      DATA(incomplete) = page.
+      ASSIGN incomplete-rows[ 1 ] TO FIELD-SYMBOL(<incomplete_row>).
+      DELETE <incomplete_row>-properties WHERE name = required_name.
+      TRY.
+          lcl_repl_contract=>require_schema( page = incomplete expected = expected ).
+          cl_abap_unit_assert=>fail( |Identically missing property { required_name } must not pass| ).
+        CATCH zcx_fi_das_error INTO DATA(error).
+          cl_abap_unit_assert=>assert_true( xsdbool( error->get_text( ) CS required_name ) ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD null_predicates.
+    cl_abap_unit_assert=>assert_equals(
+      act = lcl_repl_contract=>null_predicate( 'EBELN EBELP ZSERV_AMT' )
+      exp = 'EBELN IS NULL OR EBELP IS NULL OR ZSERV_AMT IS NULL' ).
+    DATA invalid TYPE stringtab.
+    invalid = VALUE #( ( `` ) ( `   ` ) ( `EBELN) OR 1=1` ) ).
+    LOOP AT invalid INTO DATA(fields).
+      TRY.
+          DATA(predicate) = lcl_repl_contract=>null_predicate( fields ).
+          cl_abap_unit_assert=>fail( 'Invalid/empty null predicate accepted' ).
+        CATCH zcx_fi_das_error.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltc_repl_integration IMPLEMENTATION.
@@ -496,16 +804,20 @@ CLASS ltc_repl_integration IMPLEMENTATION.
         rs_request-use_replication = ltc_repl_integration=>desired.
         ltc_repl_integration=>observed = rs_request-use_replication.
         ltc_repl_integration=>hits = ltc_repl_integration=>hits + 1.
+      ELSE.
+        rs_request-use_replication = get_use_replication( ).
       ENDIF.
     END-TEST-INJECTION.
 
+    CLEAR: armed, desired, observed, hits.
     lcl_repl_contract=>require(
       ok = xsdbool( enabled = abap_true AND sy-sysid = authorized_system
                     AND sy-mandt = authorized_client AND sy-uname = authorized_user
-                    AND scenario_email <> 'REPLACE_IN_NONPROD' )
+                    AND scenario_email IS NOT INITIAL
+                    AND scenario_email <> 'REPLACE_IN_NONPROD' AND page_size > 0 )
       message = 'PRECONDITION: destructive suite disabled; explicitly authorize system/client/user/email locally' ).
     SELECT SINGLE cccategory FROM t000 WHERE mandt = @sy-mandt INTO @DATA(category).
-    lcl_repl_contract=>require( ok = xsdbool( sy-subrc = 0 AND category <> 'P' )
+    lcl_repl_contract=>require( ok = xsdbool( sy-subrc = 0 AND category IS NOT INITIAL AND category <> 'P' )
       message = 'PRECONDITION: production/unknown client forbidden' ).
     CLEAR: refreshed, verified.
     started = clock( ).
@@ -520,15 +832,24 @@ CLASS ltc_repl_integration IMPLEMENTATION.
     verify_sources( ).
     lcl_repl_contract=>gate( refreshed = refreshed verified = verified ).
 
-    DATA(email) = scenario_email.
-    REPLACE ALL OCCURRENCES OF '''' IN email WITH ''''''.
-    email = cl_http_utility=>escape_url( email ).
     DO 2 TIMES.
       DATA(owner) = COND string( WHEN sy-index = 1 THEN '' ELSE 'X' ).
       DO 3 TIMES.
         DATA(flow) = sy-index.
         DO 2 TIMES.
           DATA(pstype) = COND string( WHEN sy-index = 1 THEN '0' ELSE '9' ).
+          " Owner identities match the five original Gateway parity cases.
+          DATA(email) = scenario_email.
+          IF owner = abap_true.
+            email = SWITCH string( flow
+              WHEN 1 THEN COND #( WHEN pstype = '0' THEN 'anita.estrada@takeda.com'
+                                  ELSE 'elisa.pawlak@takeda.com' )
+              WHEN 2 THEN COND #( WHEN pstype = '0' THEN 'katarina.simic@takeda.com'
+                                  ELSE 'teresa.scoggin@takeda.com' )
+              ELSE 'alta.bazile@takeda.com' ).
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '''' IN email WITH ''''''.
+          email = cl_http_utility=>escape_url( email ).
           DATA(base) = SWITCH string( flow
             WHEN 1 THEN |openPOParameters(IP_PSTYPE='{ pstype }',IP_EMAIL='{ email }',IP_POOWNER='{ owner }')/Results|
             WHEN 2 THEN |thresholdParameters(IP_PSTYPE='{ pstype }',IP_EMAIL='{ email }',IP_POOWNER='{ owner }')/Results|
@@ -562,16 +883,23 @@ CLASS ltc_repl_integration IMPLEMENTATION.
   METHOD verify_sources.
     " Explicit projections exclude client/source discriminator, not business data.
     " Each pair is freed before the next pair; no hashes, DISTINCT or key collapse.
+    " Check SQL NULL in BOTH CDS variants before conversion to ABAP values.
+    " Any projected NULL fails closed; NULL is never accepted as ABAP initial.
+    null_preflight( view = 'ZI_FI_DAS_EKKO'
+      fields = 'EBELN BUKRS AEDAT LIFNR EKORG WAERS UNSEZ BEDAT' ).
     SELECT ebeln, bukrs, aedat, lifnr, ekorg, waers, unsez, bedat
       FROM zi_fi_das_ekko( p_use_replication = @abap_false ) INTO TABLE @DATA(ekko_s).
     SELECT ebeln, bukrs, aedat, lifnr, ekorg, waers, unsez, bedat
       FROM zi_fi_das_ekko( p_use_replication = @abap_true ) INTO TABLE @DATA(ekko_r).
     SORT ekko_s BY ebeln bukrs aedat lifnr ekorg waers unsez bedat.
     SORT ekko_r BY ebeln bukrs aedat lifnr ekorg waers unsez bedat.
-    lcl_repl_contract=>same_dataset( source = ekko_s replica = ekko_r label = 'EKKO' ).
+    lcl_repl_contract=>same_dataset( source = ekko_s replica = ekko_r label = 'EKKO'
+                                    key_fields = 'EBELN' ).
     verified = verified + 1.
     FREE: ekko_s, ekko_r.
 
+    null_preflight( view = 'ZI_FI_DAS_EKPO'
+      fields = 'EBELN EBELP TXZ01 BUKRS MENGE MEINS NETPR PEINH NETWR BRTWR PSTYP XERSY ZSTART_DATE ZEND_DATE ZSERV_AMT ZSERV_PERC PO_REQUESTOR PO_PREPARER ZACTIVITYNBR' ).
     SELECT ebeln, ebelp, txz01, bukrs, menge, meins, netpr, peinh, netwr, brtwr,
            pstyp, xersy, zstart_date, zend_date, zserv_amt, zserv_perc,
            po_requestor, po_preparer, zactivitynbr
@@ -586,20 +914,26 @@ CLASS ltc_repl_integration IMPLEMENTATION.
     SORT ekpo_r BY ebeln ebelp txz01 bukrs menge meins netpr peinh netwr brtwr
                   pstyp xersy zstart_date zend_date zserv_amt zserv_perc
                   po_requestor po_preparer zactivitynbr.
-    lcl_repl_contract=>same_dataset( source = ekpo_s replica = ekpo_r label = 'EKPO' ).
+    lcl_repl_contract=>same_dataset( source = ekpo_s replica = ekpo_r label = 'EKPO'
+                                    key_fields = 'EBELN EBELP' ).
     verified = verified + 1.
     FREE: ekpo_s, ekpo_r.
 
+    null_preflight( view = 'ZI_FI_DAS_EKKN'
+      fields = 'EBELN EBELP ZEKKN MENGE VPROZ SAKTO KOSTL ANLN1 AUFNR KOKRS PRCTR' ).
     SELECT ebeln, ebelp, zekkn, menge, vproz, sakto, kostl, anln1, aufnr, kokrs, prctr
       FROM zi_fi_das_ekkn( p_use_replication = @abap_false ) INTO TABLE @DATA(ekkn_s).
     SELECT ebeln, ebelp, zekkn, menge, vproz, sakto, kostl, anln1, aufnr, kokrs, prctr
       FROM zi_fi_das_ekkn( p_use_replication = @abap_true ) INTO TABLE @DATA(ekkn_r).
     SORT ekkn_s BY ebeln ebelp zekkn menge vproz sakto kostl anln1 aufnr kokrs prctr.
     SORT ekkn_r BY ebeln ebelp zekkn menge vproz sakto kostl anln1 aufnr kokrs prctr.
-    lcl_repl_contract=>same_dataset( source = ekkn_s replica = ekkn_r label = 'EKKN' ).
+    lcl_repl_contract=>same_dataset( source = ekkn_s replica = ekkn_r label = 'EKKN'
+                                    key_fields = 'EBELN EBELP ZEKKN' ).
     verified = verified + 1.
     FREE: ekkn_s, ekkn_r.
 
+    null_preflight( view = 'ZI_FI_DAS_EKBE'
+      fields = 'EBELN EBELP ZEKKN VGABE GJAHR BELNR BUZEI BEWTP MENGE DMBTR WRBTR WAERS SHKZG BUDAT REFWR' ).
     SELECT ebeln, ebelp, zekkn, vgabe, gjahr, belnr, buzei, bewtp, menge,
            dmbtr, wrbtr, waers, shkzg, budat, refwr
       FROM zi_fi_das_ekbe( p_use_replication = @abap_false ) INTO TABLE @DATA(ekbe_s).
@@ -608,82 +942,103 @@ CLASS ltc_repl_integration IMPLEMENTATION.
       FROM zi_fi_das_ekbe( p_use_replication = @abap_true ) INTO TABLE @DATA(ekbe_r).
     SORT ekbe_s BY ebeln ebelp zekkn vgabe gjahr belnr buzei bewtp menge dmbtr wrbtr waers shkzg budat refwr.
     SORT ekbe_r BY ebeln ebelp zekkn vgabe gjahr belnr buzei bewtp menge dmbtr wrbtr waers shkzg budat refwr.
-    lcl_repl_contract=>same_dataset( source = ekbe_s replica = ekbe_r label = 'EKBE' ).
+    lcl_repl_contract=>same_dataset( source = ekbe_s replica = ekbe_r label = 'EKBE'
+                                    key_fields = 'EBELN EBELP ZEKKN VGABE GJAHR BELNR BUZEI' ).
     verified = verified + 1.
     FREE: ekbe_s, ekbe_r.
 
+    null_preflight( view = 'ZI_FI_DAS_T001' fields = 'BUKRS BUTXT LAND1 WAERS' ).
     SELECT bukrs, butxt, land1, waers FROM zi_fi_das_t001( p_use_replication = @abap_false ) INTO TABLE @DATA(t001_s).
     SELECT bukrs, butxt, land1, waers FROM zi_fi_das_t001( p_use_replication = @abap_true ) INTO TABLE @DATA(t001_r).
     SORT t001_s BY bukrs butxt land1 waers.
     SORT t001_r BY bukrs butxt land1 waers.
-    lcl_repl_contract=>same_dataset( source = t001_s replica = t001_r label = 'T001' ).
+    lcl_repl_contract=>same_dataset( source = t001_s replica = t001_r label = 'T001'
+                                    key_fields = 'BUKRS' ).
     verified = verified + 1.
     FREE: t001_s, t001_r.
 
+    null_preflight( view = 'ZI_FI_DAS_LFA1' fields = 'LIFNR NAME1' ).
     SELECT lifnr, name1 FROM zi_fi_das_lfa1( p_use_replication = @abap_false ) INTO TABLE @DATA(lfa1_s).
     SELECT lifnr, name1 FROM zi_fi_das_lfa1( p_use_replication = @abap_true ) INTO TABLE @DATA(lfa1_r).
     SORT lfa1_s BY lifnr name1.
     SORT lfa1_r BY lifnr name1.
-    lcl_repl_contract=>same_dataset( source = lfa1_s replica = lfa1_r label = 'LFA1 transformed NAME1' ).
+    lcl_repl_contract=>same_dataset( source = lfa1_s replica = lfa1_r label = 'LFA1 transformed NAME1'
+                                    key_fields = 'LIFNR' ).
     verified = verified + 1.
     FREE: lfa1_s, lfa1_r.
 
+    null_preflight( view = 'ZI_FI_DAS_CSKS' fields = 'KOKRS KOSTL DATBI NAME1 ZZRPTUN' ).
     SELECT kokrs, kostl, datbi, name1, zzrptun FROM zi_fi_das_csks( p_use_replication = @abap_false ) INTO TABLE @DATA(csks_s).
     SELECT kokrs, kostl, datbi, name1, zzrptun FROM zi_fi_das_csks( p_use_replication = @abap_true ) INTO TABLE @DATA(csks_r).
     SORT csks_s BY kokrs kostl datbi name1 zzrptun.
     SORT csks_r BY kokrs kostl datbi name1 zzrptun.
-    lcl_repl_contract=>same_dataset( source = csks_s replica = csks_r label = 'CSKS' ).
+    lcl_repl_contract=>same_dataset( source = csks_s replica = csks_r label = 'CSKS'
+                                    key_fields = 'KOKRS KOSTL DATBI' ).
     verified = verified + 1.
     FREE: csks_s, csks_r.
 
+    null_preflight( view = 'ZI_FI_DAS_CSKT' fields = 'SPRAS KOKRS KOSTL DATBI KTEXT LTEXT MCTXT' ).
     SELECT spras, kokrs, kostl, datbi, ktext, ltext, mctxt FROM zi_fi_das_cskt( p_use_replication = @abap_false ) INTO TABLE @DATA(cskt_s).
     SELECT spras, kokrs, kostl, datbi, ktext, ltext, mctxt FROM zi_fi_das_cskt( p_use_replication = @abap_true ) INTO TABLE @DATA(cskt_r).
     SORT cskt_s BY spras kokrs kostl datbi ktext ltext mctxt.
     SORT cskt_r BY spras kokrs kostl datbi ktext ltext mctxt.
-    lcl_repl_contract=>same_dataset( source = cskt_s replica = cskt_r label = 'CSKT' ).
+    lcl_repl_contract=>same_dataset( source = cskt_s replica = cskt_r label = 'CSKT'
+                                    key_fields = 'SPRAS KOKRS KOSTL DATBI' ).
     verified = verified + 1.
     FREE: cskt_s, cskt_r.
 
+    null_preflight( view = 'ZI_FI_DAS_USR01' fields = 'BNAME DATFM DCPFM' ).
     SELECT bname, datfm, dcpfm FROM zi_fi_das_usr01( p_use_replication = @abap_false ) INTO TABLE @DATA(usr01_s).
     SELECT bname, datfm, dcpfm FROM zi_fi_das_usr01( p_use_replication = @abap_true ) INTO TABLE @DATA(usr01_r).
     SORT usr01_s BY bname datfm dcpfm.
     SORT usr01_r BY bname datfm dcpfm.
-    lcl_repl_contract=>same_dataset( source = usr01_s replica = usr01_r label = 'USR01' ).
+    lcl_repl_contract=>same_dataset( source = usr01_s replica = usr01_r label = 'USR01'
+                                    key_fields = 'BNAME' ).
     verified = verified + 1.
     FREE: usr01_s, usr01_r.
 
+    null_preflight( view = 'ZI_FI_DAS_USR02' fields = 'BNAME GLTGV GLTGB USTYP CLASS' ).
     SELECT bname, gltgv, gltgb, ustyp, class FROM zi_fi_das_usr02( p_use_replication = @abap_false ) INTO TABLE @DATA(usr02_s).
     SELECT bname, gltgv, gltgb, ustyp, class FROM zi_fi_das_usr02( p_use_replication = @abap_true ) INTO TABLE @DATA(usr02_r).
     SORT usr02_s BY bname gltgv gltgb ustyp class.
     SORT usr02_r BY bname gltgv gltgb ustyp class.
-    lcl_repl_contract=>same_dataset( source = usr02_s replica = usr02_r label = 'USR02' ).
+    lcl_repl_contract=>same_dataset( source = usr02_s replica = usr02_r label = 'USR02'
+                                    key_fields = 'BNAME' ).
     verified = verified + 1.
     FREE: usr02_s, usr02_r.
 
+    null_preflight( view = 'ZI_FI_DAS_USR21' fields = 'BNAME PERSNUMBER ADDRNUMBER' ).
     SELECT bname, persnumber, addrnumber FROM zi_fi_das_usr21( p_use_replication = @abap_false ) INTO TABLE @DATA(usr21_s).
     SELECT bname, persnumber, addrnumber FROM zi_fi_das_usr21( p_use_replication = @abap_true ) INTO TABLE @DATA(usr21_r).
     SORT usr21_s BY bname persnumber addrnumber.
     SORT usr21_r BY bname persnumber addrnumber.
-    lcl_repl_contract=>same_dataset( source = usr21_s replica = usr21_r label = 'USR21' ).
+    lcl_repl_contract=>same_dataset( source = usr21_s replica = usr21_r label = 'USR21'
+                                    key_fields = 'BNAME' ).
     verified = verified + 1.
     FREE: usr21_s, usr21_r.
 
+    null_preflight( view = 'ZI_FI_DAS_ADRP' fields = 'PERSNUMBER DATE_FROM NATION NAME_TEXT' ).
     SELECT persnumber, date_from, nation, name_text FROM zi_fi_das_adrp( p_use_replication = @abap_false ) INTO TABLE @DATA(adrp_s).
     SELECT persnumber, date_from, nation, name_text FROM zi_fi_das_adrp( p_use_replication = @abap_true ) INTO TABLE @DATA(adrp_r).
     SORT adrp_s BY persnumber date_from nation name_text.
     SORT adrp_r BY persnumber date_from nation name_text.
-    lcl_repl_contract=>same_dataset( source = adrp_s replica = adrp_r label = 'ADRP' ).
+    lcl_repl_contract=>same_dataset( source = adrp_s replica = adrp_r label = 'ADRP'
+                                    key_fields = 'PERSNUMBER DATE_FROM NATION' ).
     verified = verified + 1.
     FREE: adrp_s, adrp_r.
 
+    null_preflight( view = 'ZI_FI_DAS_ADR6' fields = 'ADDRNUMBER PERSNUMBER DATE_FROM CONSNUMBER SMTP_ADDR' ).
     SELECT addrnumber, persnumber, date_from, consnumber, smtp_addr FROM zi_fi_das_adr6( p_use_replication = @abap_false ) INTO TABLE @DATA(adr6_s).
     SELECT addrnumber, persnumber, date_from, consnumber, smtp_addr FROM zi_fi_das_adr6( p_use_replication = @abap_true ) INTO TABLE @DATA(adr6_r).
     SORT adr6_s BY addrnumber persnumber date_from consnumber smtp_addr.
     SORT adr6_r BY addrnumber persnumber date_from consnumber smtp_addr.
-    lcl_repl_contract=>same_dataset( source = adr6_s replica = adr6_r label = 'ADR6' ).
+    lcl_repl_contract=>same_dataset( source = adr6_s replica = adr6_r label = 'ADR6'
+                                    key_fields = 'ADDRNUMBER PERSNUMBER DATE_FROM CONSNUMBER' ).
     verified = verified + 1.
     FREE: adr6_s, adr6_r.
 
+    null_preflight( view = 'ZI_FI_DAS_ACCRUAL_EXCL'
+      fields = 'RULEID RULETYPE BUKRSFR BUKRSTO PONUM LIFNR SAKTOFR SAKTOTO KOSTLFR KOSTLTO AUFNRFR AUFNRTO PRCTRFR PRCTRTO THRESHOLD' ).
     SELECT ruleid, ruletype, bukrsfr, bukrsto, ponum, lifnr, saktofr, saktoto,
            kostlfr, kostlto, aufnrfr, aufnrto, prctrfr, prctrto, threshold
       FROM zi_fi_das_accrual_excl( p_use_replication = @abap_false ) INTO TABLE @DATA(excl_s).
@@ -694,12 +1049,37 @@ CLASS ltc_repl_integration IMPLEMENTATION.
                    kostlfr kostlto aufnrfr aufnrto prctrfr prctrto threshold.
     SORT excl_r BY ruleid ruletype bukrsfr bukrsto ponum lifnr saktofr saktoto
                    kostlfr kostlto aufnrfr aufnrto prctrfr prctrto threshold.
-    lcl_repl_contract=>same_dataset( source = excl_s replica = excl_r label = 'ACCRUAL_EXCL' ).
+    lcl_repl_contract=>same_dataset( source = excl_s replica = excl_r label = 'ACCRUAL_EXCL'
+                                    key_fields = 'RULEID' ).
     verified = verified + 1.
     FREE: excl_s, excl_r.
   ENDMETHOD.
 
+  METHOD null_preflight.
+    CASE view.
+      WHEN 'ZI_FI_DAS_EKKO' OR 'ZI_FI_DAS_EKPO' OR 'ZI_FI_DAS_EKKN'
+        OR 'ZI_FI_DAS_EKBE' OR 'ZI_FI_DAS_T001' OR 'ZI_FI_DAS_LFA1'
+        OR 'ZI_FI_DAS_CSKS' OR 'ZI_FI_DAS_CSKT' OR 'ZI_FI_DAS_USR01'
+        OR 'ZI_FI_DAS_USR02' OR 'ZI_FI_DAS_USR21' OR 'ZI_FI_DAS_ADRP'
+        OR 'ZI_FI_DAS_ADR6' OR 'ZI_FI_DAS_ACCRUAL_EXCL'.
+      WHEN OTHERS.
+        lcl_repl_contract=>require( ok = abap_false message = 'Unknown null-preflight CDS view' ).
+    ENDCASE.
+    DATA(condition) = lcl_repl_contract=>null_predicate( fields ).
+    DO 2 TIMES.
+      DATA(parameters) = COND string( WHEN sy-index = 1
+        THEN '( p_use_replication = '' '' )'
+        ELSE '( p_use_replication = ''X'' )' ).
+      DATA(from_clause) = view && parameters.
+      DATA null_count TYPE int8.
+      SELECT COUNT( * ) FROM (from_clause) WHERE (condition) INTO @null_count.
+      lcl_repl_contract=>require( ok = xsdbool( null_count = 0 )
+        message = |PRECONDITION: projected SQL NULL found: { from_clause }, rows={ null_count }; null indicators required before comparison| ).
+    ENDDO.
+  ENDMETHOD.
+
   METHOD gateway.
+    CLEAR: armed, desired, observed, hits.
     lcl_repl_contract=>gate( refreshed = refreshed verified = verified ).
     lcl_repl_contract=>require( ok = xsdbool( clock( ) = started )
       message = 'PRECONDITION: server/local/UTC/CET/database day or month changed; rerun' ).
@@ -716,16 +1096,30 @@ CLASS ltc_repl_integration IMPLEMENTATION.
           IMPORTING ev_status_code = DATA(status) ev_status_text = DATA(status_text)
                     ev_response_body = DATA(body) ).
       CLEANUP.
-        armed = abap_false.
+        CLEAR: armed, desired, observed, hits.
     ENDTRY.
-    armed = abap_false.
+    DATA(receipt_hits) = hits.
+    DATA(receipt_mode) = observed.
+    CLEAR: armed, desired, observed, hits.
     " This must precede ANY response comparison, including the first probe.
-    lcl_repl_contract=>mode_receipt( hits = hits desired = mode observed = observed ).
+    lcl_repl_contract=>mode_receipt( hits = receipt_hits desired = mode observed = receipt_mode ).
     lcl_repl_contract=>require( ok = xsdbool( clock( ) = started )
       message = 'PRECONDITION: server/local/UTC/CET/database day or month changed; rerun' ).
     lcl_repl_contract=>require( ok = xsdbool( status = 200 )
       message = |Gateway HTTP { status } { status_text }; { path }| ).
     result = lcl_repl_contract=>page( /iwfnd/cl_sutil_xml_helper=>transform_to_string( body ) ).
+    IF path CS '/openPOParameters('.
+      DATA expected_over TYPE zfi_das_over.
+      lcl_repl_contract=>require_schema( page = result expected = expected_over context = path ).
+    ELSEIF path CS '/thresholdParameters('.
+      DATA expected_under TYPE zfi_das_under.
+      lcl_repl_contract=>require_schema( page = result expected = expected_under context = path ).
+    ELSEIF path CS '/exclusionPOParameters('.
+      DATA expected_exclude TYPE zfi_das_exclude.
+      lcl_repl_contract=>require_schema( page = result expected = expected_exclude context = path ).
+    ELSE.
+      lcl_repl_contract=>require( ok = abap_false message = |Unknown full-result schema: { path }| ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD clock.
@@ -736,11 +1130,22 @@ CLASS ltc_repl_integration IMPLEMENTATION.
     result-local = sy-datlo.
     GET TIME STAMP FIELD stamp.
     CONVERT TIME STAMP stamp TIME ZONE 'UTC' INTO DATE result-utc.
+    lcl_repl_contract=>require( ok = xsdbool( sy-subrc = 0 )
+      message = 'PRECONDITION: UTC clock conversion failed' ).
     CONVERT TIME STAMP stamp TIME ZONE 'CET' INTO DATE result-cet.
+    lcl_repl_contract=>require( ok = xsdbool( sy-subrc = 0 )
+      message = 'PRECONDITION: CET clock conversion failed' ).
     EXEC SQL.
       SELECT CURRENT_DATE INTO :db_date FROM DUMMY
     ENDEXEC.
     result-database = db_date.
+    lcl_repl_contract=>require(
+      ok = xsdbool( result-server IS NOT INITIAL AND result-local IS NOT INITIAL
+                    AND result-utc IS NOT INITIAL AND result-cet IS NOT INITIAL
+                    AND result-database IS NOT INITIAL )
+      message = 'PRECONDITION: unavailable day/month boundary clock' ).
+    lcl_repl_contract=>require( ok = xsdbool( result-server = result-database )
+      message = 'PRECONDITION: ABAP sy-datum and HANA CURRENT_DATE must be aligned' ).
   ENDMETHOD.
 
   METHOD scenario.
@@ -770,7 +1175,7 @@ CLASS ltc_repl_integration IMPLEMENTATION.
       DATA(path) = |/sap/opu/odata/sap/ZFI_DAS_SRV/{ base }?$format=json&$inlinecount=allpages&$orderby={ orderby }&$top={ size }&$skip={ skip }{ filter }|.
       DATA(source) = gateway( path = path mode = abap_false ).
       DATA(replica) = gateway( path = path mode = abap_true ).
-      lcl_repl_contract=>same_page( source = source replica = replica ).
+      lcl_repl_contract=>same_page( source = source replica = replica context = path ).
       IF total = -1.
         total = source-count.
         lcl_repl_contract=>require(
@@ -812,7 +1217,7 @@ CLASS ltc_repl_integration IMPLEMENTATION.
     DATA(tail_path) = |/sap/opu/odata/sap/ZFI_DAS_SRV/{ base }?$format=json&$inlinecount=allpages&$orderby={ orderby }&$top={ size }&$skip={ skip }{ filter }|.
     source = gateway( path = tail_path mode = abap_false ).
     replica = gateway( path = tail_path mode = abap_true ).
-    lcl_repl_contract=>same_page( source = source replica = replica ).
+    lcl_repl_contract=>same_page( source = source replica = replica context = tail_path ).
     lcl_repl_contract=>require( ok = xsdbool( source-rows IS INITIAL AND source-count = total )
       message = 'Beyond-end page/count contract violated' ).
   ENDMETHOD.

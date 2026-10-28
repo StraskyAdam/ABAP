@@ -1,0 +1,15 @@
+@AbapCatalog.sqlViewName: 'ZDASCSKS'
+@EndUserText.label: 'CSKS active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_CSKS
+  with parameters
+    p_use_replication : abap.char(1)
+  as select from ZI_FI_DAS_CSKS_SRC
+{
+  kokrs,
+  kostl,
+  datbi,
+  name1,
+  zzrptun
+}
+where use_replication = $parameters.p_use_replication

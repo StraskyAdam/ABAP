@@ -5,10 +5,12 @@
 " - ltcl_review_grace_test: review dates and year rollover (SHORT)
 " - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
 " - ltc_request_processing: filters, sorting/paging, request/package flow
-" - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
-" - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
+" - ltc_fi_das_gateway_parity: fresh replication and live parity (LONG/DANGEROUS)
+" - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/DANGEROUS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
+
+INCLUDE zfi_das_replication_def.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
 CLASS lcl_scope_parity DEFINITION DEFERRED.
@@ -268,7 +270,7 @@ ENDCLASS.
 " Integration/parity: requires live Gateway, database and MIME fixtures.
 CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS
+  RISK LEVEL DANGEROUS
   FRIENDS ltc_parity_helpers lcl_scope_parity.
 
   PRIVATE SECTION.
@@ -3011,7 +3013,7 @@ ENDCLASS.
 
 CLASS lcl_scope_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PUBLIC SECTION.
     CLASS-METHODS run_case
       IMPORTING
@@ -3049,6 +3051,7 @@ CLASS lcl_scope_parity IMPLEMENTATION.
     ENDCASE.
 
     CREATE OBJECT lo_parity.
+    lo_parity->setup( ).
     lo_parity->run_paged_case( is_case = ls_case ).
     lo_parity->assert_no_differences( ).
   ENDMETHOD.
@@ -3056,7 +3059,7 @@ ENDCLASS.
 
 CLASS ltc_scope_over_service DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
@@ -3399,7 +3402,7 @@ ENDCLASS.
 
 CLASS ltc_scope_over_material DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
@@ -3725,7 +3728,7 @@ ENDCLASS.
 
 CLASS ltc_scope_under_service DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
@@ -4051,7 +4054,7 @@ ENDCLASS.
 
 CLASS ltc_scope_under_material DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
@@ -4377,7 +4380,7 @@ ENDCLASS.
 
 CLASS ltc_scope_exclude DEFINITION FINAL FOR TESTING
   DURATION LONG
-  RISK LEVEL HARMLESS.
+  RISK LEVEL DANGEROUS.
   PRIVATE SECTION.
     METHODS run_scope_case
       IMPORTING i_number TYPE numc2
@@ -4706,6 +4709,77 @@ CLASS ltc_fi_das_gateway_parity IMPLEMENTATION.
     CLEAR:
       mt_differences,
       mv_difference_count.
+
+    TYPES:
+      BEGIN OF ts_replication_table,
+        source TYPE tabname,
+        target TYPE tabname,
+        view   TYPE tabname,
+      END OF ts_replication_table.
+
+    DATA lt_tables TYPE STANDARD TABLE OF ts_replication_table WITH EMPTY KEY.
+    DATA lr_source TYPE REF TO data.
+    DATA lr_replica TYPE REF TO data.
+    FIELD-SYMBOLS <lt_source> TYPE STANDARD TABLE.
+    FIELD-SYMBOLS <lt_replica> TYPE STANDARD TABLE.
+
+    lt_tables = VALUE #(
+      ( source = 'EKKO' target = 'ZFI_DAS_EKKO' view = 'ZI_FI_DAS_EKKO' )
+      ( source = 'EKPO' target = 'ZFI_DAS_EKPO' view = 'ZI_FI_DAS_EKPO' )
+      ( source = 'EKKN' target = 'ZFI_DAS_EKKN' view = 'ZI_FI_DAS_EKKN' )
+      ( source = 'EKBE' target = 'ZFI_DAS_EKBE' view = 'ZI_FI_DAS_EKBE' )
+      ( source = 'T001' target = 'ZFI_DAS_T001' view = 'ZI_FI_DAS_T001' )
+      ( source = 'LFA1' target = 'ZFI_DAS_LFA1' view = 'ZI_FI_DAS_LFA1' )
+      ( source = 'CSKS' target = 'ZFI_DAS_CSKS' view = 'ZI_FI_DAS_CSKS' )
+      ( source = 'CSKT' target = 'ZFI_DAS_CSKT' view = 'ZI_FI_DAS_CSKT' )
+      ( source = 'USR01' target = 'ZFI_DAS_USR01' view = 'ZI_FI_DAS_USR01' )
+      ( source = 'USR02' target = 'ZFI_DAS_USR02' view = 'ZI_FI_DAS_USR02' )
+      ( source = 'USR21' target = 'ZFI_DAS_USR21' view = 'ZI_FI_DAS_USR21' )
+      ( source = 'ADRP' target = 'ZFI_DAS_ADRP' view = 'ZI_FI_DAS_ADRP' )
+      ( source = 'ADR6' target = 'ZFI_DAS_ADR6' view = 'ZI_FI_DAS_ADR6' )
+      ( source = 'ZFI_ACCRUAL_EXCL' target = 'ZFI_DAS_ACC_EXCL'
+        view = 'ZI_FI_DAS_ACCRUAL_EXCL' ) ).
+
+    LOOP AT lt_tables INTO DATA(ls_table).
+      DATA(l_refreshed) = abap_false.
+      DATA(l_error) = ``.
+
+      TRY.
+          NEW lcl_replication( )->run(
+            i_table  = ls_table-source
+            i_delete = abap_true ).
+          l_refreshed = abap_true.
+        CATCH cx_root INTO DATA(lx_refresh).
+          l_error = lx_refresh->get_text( ).
+      ENDTRY.
+
+      cl_abap_unit_assert=>assert_true(
+        act  = l_refreshed
+        msg  = |Fresh replication fill failed for { ls_table-target }: { l_error }|
+        quit = if_aunit_constants=>quit-test ).
+
+      CREATE DATA lr_source TYPE STANDARD TABLE OF (ls_table-target).
+      CREATE DATA lr_replica TYPE STANDARD TABLE OF (ls_table-target).
+      ASSIGN lr_source->* TO <lt_source>.
+      ASSIGN lr_replica->* TO <lt_replica>.
+
+      DATA(l_source_view) = |{ ls_table-view }( p_use_replication = ' ' )|.
+      DATA(l_replica_view) = |{ ls_table-view }( p_use_replication = 'X' )|.
+
+      SELECT * FROM (l_source_view)
+        INTO CORRESPONDING FIELDS OF TABLE @<lt_source>.
+      SELECT * FROM (l_replica_view)
+        INTO CORRESPONDING FIELDS OF TABLE @<lt_replica>.
+
+      SORT <lt_source>.
+      SORT <lt_replica>.
+
+      cl_abap_unit_assert=>assert_equals(
+        exp  = <lt_source>
+        act  = <lt_replica>
+        msg  = |Fresh replication content differs for { ls_table-target }|
+        quit = if_aunit_constants=>quit-test ).
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD test_over_material.

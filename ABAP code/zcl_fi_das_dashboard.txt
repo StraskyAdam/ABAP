@@ -3110,9 +3110,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
         user_defaults.datfm              AS datfm,
+
         user_data.bname                  AS usr21_bname,
         email.addrnumber                 AS adr6_addrnumber,
-        email.persnumber                 AS adr6_persnumber
+        email.persnumber                 AS adr6_persnumber,
+
+        person.date_from                 AS adrp_date_from,
+        person.nation                    AS adrp_nation,
+        email.date_from                  AS adr6_date_from,
+        email.consnumber                 AS adr6_consnumber
+
       FROM zdasusr21( p_use_replication => :i_use_replication ) AS user_data
 
       INNER JOIN zdasadrp( p_use_replication => :i_use_replication ) AS person
@@ -3158,7 +3165,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             ORDER BY
               usr21_bname DESC,
               adr6_addrnumber DESC,
-              adr6_persnumber DESC
+              adr6_persnumber DESC,
+              adrp_date_from DESC,
+              adrp_nation DESC,
+              adr6_date_from DESC,
+              adr6_consnumber DESC
           ) AS row_number_value
         FROM :lt_candidates
       )
@@ -3310,9 +3321,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_use_replication.
-
-*    r_use_replication = abap_true.
-*    RETURN.
 
     r_use_replication = abap_false.
 

@@ -2,13 +2,6 @@
 *& Include ZFI_DAS_REPLICATION_DEF
 *&---------------------------------------------------------------------*
 
-***************************   Data and parameters    ******************************
-
-PARAMETERS: p_table TYPE tabname OBLIGATORY,
-            p_del   AS CHECKBOX DEFAULT abap_true.
-
-****************************      Local class         ******************************
-
 CLASS lcl_replication DEFINITION FINAL.
 
   PUBLIC SECTION.

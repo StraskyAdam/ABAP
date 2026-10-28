@@ -11,6 +11,8 @@ define view ZI_FI_DAS_ADR6_SRC
   source.smtp_addr,
   ' ' as use_replication
 }
+where source.addrnumber <> 'NULL'
+   or source.persnumber <> 'NULL'
 
 union all
 

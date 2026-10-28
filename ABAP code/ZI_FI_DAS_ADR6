@@ -1,0 +1,15 @@
+@AbapCatalog.sqlViewName: 'ZDASADR6'
+@EndUserText.label: 'ADR6 active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ADR6
+  with parameters
+    p_use_replication : abap.char(1)
+  as select from ZI_FI_DAS_ADR6_SRC
+{
+  addrnumber,
+  persnumber,
+  date_from,
+  consnumber,
+  smtp_addr
+}
+where use_replication = $parameters.p_use_replication

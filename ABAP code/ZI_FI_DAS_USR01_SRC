@@ -1,0 +1,21 @@
+@AbapCatalog.sqlViewName: 'ZDASUSR01SRC'
+@EndUserText.label: 'USR01 source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_USR01_SRC
+  as select from usr01 as source
+{
+  source.bname,
+  source.datfm,
+  source.dcpfm,
+  ' ' as use_replication
+}
+
+union all
+
+select from zfi_das_usr01 as replication
+{
+  replication.bname,
+  replication.datfm,
+  replication.dcpfm,
+  'X' as use_replication
+}

@@ -1,0 +1,13 @@
+@AbapCatalog.sqlViewName: 'ZDASUSR01'
+@EndUserText.label: 'USR01 active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_USR01
+  with parameters
+    p_use_replication : abap.char(1)
+  as select from ZI_FI_DAS_USR01_SRC
+{
+  bname,
+  datfm,
+  dcpfm
+}
+where use_replication = $parameters.p_use_replication

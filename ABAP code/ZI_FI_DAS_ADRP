@@ -1,0 +1,14 @@
+@AbapCatalog.sqlViewName: 'ZDASADRP'
+@EndUserText.label: 'ADRP active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ADRP
+  with parameters
+    p_use_replication : abap.char(1)
+  as select from ZI_FI_DAS_ADRP_SRC
+{
+  persnumber,
+  date_from,
+  nation,
+  name_text
+}
+where use_replication = $parameters.p_use_replication

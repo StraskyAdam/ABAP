@@ -1,0 +1,23 @@
+@AbapCatalog.sqlViewName: 'ZDASADRPSRC'
+@EndUserText.label: 'ADRP source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ADRP_SRC
+  as select from adrp as source
+{
+  source.persnumber,
+  source.date_from,
+  source.nation,
+  source.name_text,
+  ' ' as use_replication
+}
+
+union all
+
+select from zfi_das_adrp as replication
+{
+  replication.persnumber,
+  replication.date_from,
+  replication.nation,
+  replication.name_text,
+  'X' as use_replication
+}

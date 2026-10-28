@@ -1,0 +1,15 @@
+@AbapCatalog.sqlViewName: 'ZDASUSR02'
+@EndUserText.label: 'USR02 active source'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_USR02
+  with parameters
+    p_use_replication : abap.char(1)
+  as select from ZI_FI_DAS_USR02_SRC
+{
+  bname,
+  gltgv,
+  gltgb,
+  ustyp,
+  class
+}
+where use_replication = $parameters.p_use_replication

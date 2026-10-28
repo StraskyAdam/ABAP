@@ -1,0 +1,27 @@
+@AbapCatalog.sqlViewName: 'ZDASADR6SRC'
+@EndUserText.label: 'ADR6 source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_ADR6_SRC
+  as select from adr6 as source
+{
+  source.addrnumber,
+  source.persnumber,
+  source.date_from,
+  source.consnumber,
+  source.smtp_addr,
+  ' ' as use_replication
+}
+where source.addrnumber <> 'NULL'
+   or source.persnumber <> 'NULL'
+
+union all
+
+select from zfi_das_adr6 as replication
+{
+  replication.addrnumber,
+  replication.persnumber,
+  replication.date_from,
+  replication.consnumber,
+  replication.smtp_addr,
+  'X' as use_replication
+}

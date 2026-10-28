@@ -149,6 +149,24 @@ without SAP runtime evidence.
    and activate the class. The file is self-contained and does not read MIME
    fixtures. ABAP Unit test seams and the Gateway client classes used by the
    existing suite must be available on the installed SAP release.
+
+   **Syntax error `Seam "DAS_REPLICATION_MODE" does not exist`:** the local
+   tests and dashboard implementation must belong to the same class pool.
+   In `ZCL_FI_DAS_DASHBOARD->adjust_request`, replace the standalone source
+   assignment with the block already supplied in
+   `ABAP code/zcl_fi_das_dashboard.txt`:
+
+   ```abap
+       TEST-SEAM das_replication_mode.
+         rs_request-use_replication = get_use_replication( ).
+       END-TEST-SEAM.
+   ```
+
+   Save both the implementation and local test source, then activate the
+   **entire class together**, not only the test include. Do not remove the
+   injection or its execution-receipt checks to bypass the syntax error.
+   Without a test injection the seam executes the original assignment.
+
 3. Keep `ltc_repl_integration=>enabled = abap_false`. Select only the local
    `ltc_repl_contract` test class in the ABAP Unit runner and execute its
    SHORT/HARMLESS in-memory regression tests. This does not refresh data or

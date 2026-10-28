@@ -35,12 +35,16 @@ CLASS lcl_replication DEFINITION FINAL.
                mc_table_ekpo      TYPE tabname  VALUE 'EKPO',
                mc_table_ekkn      TYPE tabname  VALUE 'EKKN',
                mc_table_ekbe      TYPE tabname  VALUE 'EKBE',
+               mc_table_t001      TYPE tabname  VALUE 'T001',
+               mc_table_lfa1      TYPE tabname  VALUE 'LFA1',
                mc_table_excl      TYPE tabname  VALUE 'ZFI_ACCRUAL_EXCL',
 
                mc_target_ekko     TYPE tabname  VALUE 'ZFI_DAS_EKKO',
                mc_target_ekpo     TYPE tabname  VALUE 'ZFI_DAS_EKPO',
                mc_target_ekkn     TYPE tabname  VALUE 'ZFI_DAS_EKKN',
                mc_target_ekbe     TYPE tabname  VALUE 'ZFI_DAS_EKBE',
+               mc_target_t001     TYPE tabname  VALUE 'ZFI_DAS_T001',
+               mc_target_lfa1     TYPE tabname  VALUE 'ZFI_DAS_LFA1',
                mc_target_excl     TYPE tabname  VALUE 'ZFI_DAS_ACC_EXCL',
 
                mc_package_size    TYPE i VALUE 100000,
@@ -142,6 +146,10 @@ CLASS lcl_replication IMPLEMENTATION.
                             target  = mc_target_ekkn )
                           ( tabname = mc_table_ekbe
                             target  = mc_target_ekbe )
+                          ( tabname = mc_table_t001
+                            target  = mc_target_t001 )
+                          ( tabname = mc_table_lfa1
+                            target  = mc_target_lfa1 )
                           ( tabname = mc_table_excl
                             target  = mc_target_excl ) ).
 
@@ -240,6 +248,12 @@ CLASS lcl_replication IMPLEMENTATION.
       WHEN mc_table_ekbe.
         DELETE FROM zfi_das_ekbe.
 
+      WHEN mc_table_t001.
+        DELETE FROM zfi_das_t001.
+
+      WHEN mc_table_lfa1.
+        DELETE FROM zfi_das_lfa1.
+
       WHEN mc_table_excl.
         DELETE FROM zfi_das_acc_excl.
 
@@ -248,7 +262,7 @@ CLASS lcl_replication IMPLEMENTATION.
 
     ENDCASE.
 
-    IF sy-subrc <> 0.
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH m_target.
     ENDIF.
 
@@ -375,6 +389,18 @@ CLASS lcl_replication IMPLEMENTATION.
                  waers, shkzg, budat, refwr
              FROM zi_fi_das_ekbe( p_use_replication = @abap_false ).
 
+      WHEN mc_table_t001.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT bukrs, butxt, land1, waers
+            FROM zi_fi_das_t001( p_use_replication = @abap_false ).
+
+      WHEN mc_table_lfa1.
+
+        OPEN CURSOR @m_cursor FOR
+          SELECT lifnr, name1
+            FROM zi_fi_das_lfa1( p_use_replication = @abap_false ).
+
       WHEN mc_table_excl.
 
         OPEN CURSOR @m_cursor FOR
@@ -431,6 +457,12 @@ CLASS lcl_replication IMPLEMENTATION.
 
       WHEN mc_table_ekbe.
         INSERT zfi_das_ekbe FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_t001.
+        INSERT zfi_das_t001 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
+
+      WHEN mc_table_lfa1.
+        INSERT zfi_das_lfa1 FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.
 
       WHEN mc_table_excl.
         INSERT zfi_das_acc_excl FROM TABLE @<ft_package> ACCEPTING DUPLICATE KEYS.

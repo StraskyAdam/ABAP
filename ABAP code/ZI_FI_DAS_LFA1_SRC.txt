@@ -1,0 +1,19 @@
+@AbapCatalog.sqlViewName: 'ZDASLFA1SRC'
+@EndUserText.label: 'LFA1 source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_LFA1_SRC
+  as select from lfa1 as supplier
+{
+  supplier.lifnr                       as lifnr,
+  replace( supplier.name1, 'Ø', ' ' )  as name1,
+  ' '                                  as use_replication
+}
+
+union all
+
+select from zfi_das_lfa1 as replication
+{
+  replication.lifnr as lifnr,
+  replication.name1 as name1,
+  'X'               as use_replication
+}

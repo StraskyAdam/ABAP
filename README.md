@@ -236,6 +236,11 @@ test-method/structure checks and CRLF-aware whitespace checks. The new pure
 suite contains ten ABAP Unit regression methods; these are source additions,
 not ten claimed runtime passes.
 
+Changed-file secret scanning reported no secrets, and read-only code review
+reported no significant issues. CodeQL was invoked but performed **no analysis**
+because it detected no changed code in a supported language; this is not a
+CodeQL security pass for ABAP.
+
 No authorized SAP/SEGW runtime is configured in the coding environment.
 **SAP activation/syntax checking, ABAP Unit execution, actual replication and
 real live/replica Gateway comparisons have not been run here.** Repository

@@ -996,6 +996,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     rs_request-use_replication = get_use_replication( ).
 
+    TEST-SEAM das_replication_mode.
+    END-TEST-SEAM.
+
     rs_request-parameter-email = get_email( rs_request-parameter-email ).
 
     extract_filters( CHANGING cs_request = rs_request ).

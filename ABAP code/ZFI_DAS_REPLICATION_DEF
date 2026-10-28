@@ -7,6 +7,16 @@
 PARAMETERS: p_table TYPE tabname OBLIGATORY,
             p_del   AS CHECKBOX DEFAULT abap_true.
 
+TYPES: BEGIN OF ty_test_completion,
+         token   TYPE sysuuid_c32,
+         tabname TYPE tabname,
+         deleted TYPE abap_bool,
+         success TYPE abap_bool,
+       END OF ty_test_completion.
+
+DATA: gv_test_token TYPE sysuuid_c32,
+      gs_test_completion TYPE ty_test_completion.
+
 ****************************      Local class         ******************************
 
 CLASS lcl_replication DEFINITION FINAL.

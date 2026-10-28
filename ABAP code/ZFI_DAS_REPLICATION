@@ -17,9 +17,22 @@ AT SELECTION-SCREEN.
 
 START-OF-SELECTION.
 
+  " Optional, one-use SUBMIT acknowledgement; never a source-mode switch.
+  FREE MEMORY ID 'ZFI_DAS_REPL_DONE'.
+  IMPORT token = gv_test_token FROM MEMORY ID 'ZFI_DAS_REPL_REQUEST'.
+  FREE MEMORY ID 'ZFI_DAS_REPL_REQUEST'.
+
   TRY.
       NEW lcl_replication( )->run( i_table  = p_table
                                    i_delete = p_del ).
+
+      IF gv_test_token IS NOT INITIAL.
+        gs_test_completion = VALUE #( token   = gv_test_token
+                                      tabname = p_table
+                                      deleted = p_del
+                                      success = abap_true ).
+        EXPORT completion = gs_test_completion TO MEMORY ID 'ZFI_DAS_REPL_DONE'.
+      ENDIF.
 
     CATCH zcx_fi_das_error INTO DATA(lx_error).
 

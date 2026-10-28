@@ -1,0 +1,11 @@
+@EndUserText.label : 'Accrual method calculation'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_method {
+  id                     : abap.char(32);
+  straightlinemthd        : abap.char(1);
+  accrualmethod          : abap.char(50);
+  totwrkcompamt          : abap.dec(13,2);
+  totwrkcompamt_cocdecurr : abap.dec(13,2);
+  totwrkcompper          : abap.dec(13,1);
+
+}

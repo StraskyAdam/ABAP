@@ -10,6 +10,17 @@ INTERFACE zif_fi_das_dashboard
              mc_parameter_pstype  TYPE string VALUE 'IP_PSTYPE',
              mc_parameter_poowner TYPE string VALUE 'IP_POOWNER',
 
+             mc_parameter_povalue       TYPE string VALUE 'IV_POVALUE',
+             mc_parameter_pocurrency    TYPE string VALUE 'IV_POCURRENCY',
+             mc_parameter_wrkstrtdate   TYPE string VALUE 'IV_WRKSTRTDATE',
+             mc_parameter_wrkenddate    TYPE string VALUE 'IV_WRKENDDATE',
+             mc_parameter_accrualmethod TYPE string VALUE 'IV_ACCRUALMETHOD',
+             mc_parameter_totwrkcompamt TYPE string VALUE 'IV_TOTWRKCOMPAMT',
+             mc_parameter_totwrkcompper TYPE string VALUE 'IV_TOTWRKCOMPPER',
+             mc_parameter_edgewtdamt    TYPE string VALUE 'IV_EDGEWTDAMT',
+             mc_parameter_pstyp         TYPE string VALUE 'IV_PSTYP',
+             mc_parameter_company       TYPE string VALUE 'IV_COMPANY',
+
              mc_pstype_material   TYPE t_pstype VALUE '0',
              mc_pstype_service    TYPE t_pstype VALUE '9',
              mc_pstype_all        TYPE t_pstype VALUE '*',
@@ -60,9 +71,33 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_request,
 
+         BEGIN OF ts_method_parameter,
+           povalue       TYPE decfloat34,
+           pocurrency    TYPE waers,
+           wrkstrtdate   TYPE d,
+           wrkenddate    TYPE d,
+           accrualmethod TYPE zfi_das_shared-accrualmethod,
+           totwrkcompamt TYPE string,
+           totwrkcompper TYPE zfi_das_method-totwrkcompper,
+           edgewtdamt    TYPE zfi_das_over_under-edgewtdamt,
+           pstyp         TYPE t_pstype,
+           company       TYPE bukrs,
+         END OF ts_method_parameter,
+
+         tt_zfi_das_method TYPE STANDARD TABLE OF zfi_das_method,
          tt_zfi_das_over TYPE STANDARD TABLE OF zfi_das_over,
          tt_zfi_das_under TYPE STANDARD TABLE OF zfi_das_under,
          tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude.
+
+  METHODS method_parameters
+    IMPORTING
+      !is_parameter TYPE ts_method_parameter
+    EXPORTING
+      !et_result    TYPE tt_zfi_das_method
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
 
   METHODS over
     IMPORTING

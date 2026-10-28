@@ -1,0 +1,25 @@
+@AbapCatalog.sqlViewName: 'ZDASCSKSSRC'
+@EndUserText.label: 'CSKS source variants'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+define view ZI_FI_DAS_CSKS_SRC
+  as select from csks as source
+{
+  source.kokrs,
+  source.kostl,
+  source.datbi,
+  source.name1,
+  source.zzrptun,
+  ' ' as use_replication
+}
+
+union all
+
+select from zfi_das_csks as replication
+{
+  replication.kokrs,
+  replication.kostl,
+  replication.datbi,
+  replication.name1,
+  replication.zzrptun,
+  'X' as use_replication
+}

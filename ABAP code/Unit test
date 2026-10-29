@@ -6,11 +6,13 @@
 " - ltc_amdp_filters: synthetic filter integration on HANA (MEDIUM)
 " - ltc_request_processing: filters, sorting/paging, request/package flow
 " - ltc_fi_das_gateway_parity: live integration/parity (LONG/HARMLESS)
+" - ltc_gateway_replication_parity: refresh + SEGW parity (LONG/DANGEROUS)
 " - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
+CLASS ltc_gateway_replication_parity DEFINITION DEFERRED.
 CLASS lcl_scope_parity DEFINITION DEFERRED.
 CLASS ltc_parity_helpers DEFINITION DEFERRED.
 CLASS ltcl_invoice_null_propagation DEFINITION DEFERRED.
@@ -269,7 +271,8 @@ ENDCLASS.
 CLASS ltc_fi_das_gateway_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
   RISK LEVEL HARMLESS
-  FRIENDS ltc_parity_helpers lcl_scope_parity.
+  FRIENDS ltc_parity_helpers lcl_scope_parity
+          ltc_gateway_replication_parity.
 
   PRIVATE SECTION.
     TYPES:
@@ -4698,6 +4701,381 @@ CLASS ltc_scope_exclude IMPLEMENTATION.
 
   METHOD test_scope_62.
     run_scope_case( '62' ).
+  ENDMETHOD.
+ENDCLASS.
+
+INCLUDE zfi_das_replication_def.
+
+" Requires local ZFI_DAS_SRV in an isolated client with stable source data.
+" Refresh and mode switches are committed.
+CLASS ltc_gateway_replication_parity DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS mc_page_size TYPE i VALUE 30000.
+    DATA:
+      mo_gateway       TYPE REF TO ltc_fi_das_gateway_parity,
+      ms_original      TYPE zfi_das_conf_val,
+      mt_seen_keys     TYPE ltc_fi_das_gateway_parity=>tt_expected_index,
+      mv_had_config    TYPE abap_bool,
+      mv_locked        TYPE abap_bool,
+      mv_restore       TYPE abap_bool.
+
+    METHODS teardown RAISING zcx_fi_das_error.
+    METHODS over_material FOR TESTING RAISING cx_static_check.
+    METHODS over_service FOR TESTING RAISING cx_static_check.
+    METHODS under_material FOR TESTING RAISING cx_static_check.
+    METHODS under_service FOR TESTING RAISING cx_static_check.
+    METHODS exclude FOR TESTING RAISING cx_static_check.
+    METHODS run_case
+      IMPORTING
+        i_flow   TYPE zif_fi_das_dashboard=>t_mode
+        i_pstype TYPE zif_fi_das_dashboard=>t_pstype
+      RAISING cx_static_check.
+    METHODS refresh_replication RAISING zcx_fi_das_error.
+    METHODS replication_identical
+      IMPORTING i_view TYPE tabname
+      RETURNING VALUE(rv_identical) TYPE abap_bool.
+    METHODS force_mode
+      IMPORTING i_replication TYPE abap_bool
+      RAISING zcx_fi_das_error.
+    METHODS restore_config RAISING zcx_fi_das_error.
+    METHODS compare_responses
+      IMPORTING
+        i_live    TYPE string
+        i_replica TYPE string
+        i_skip    TYPE i
+      RAISING zcx_fi_das_error.
+    METHODS next_properties
+      IMPORTING i_json TYPE string
+      EXPORTING et_properties
+        TYPE ltc_fi_das_gateway_parity=>tt_json_property
+      CHANGING c_position TYPE i
+      RAISING zcx_fi_das_error.
+ENDCLASS.
+
+CLASS ltc_gateway_replication_parity IMPLEMENTATION.
+  METHOD over_material.
+    run_case( i_flow   = zif_fi_das_dashboard=>mc_over
+              i_pstype = zif_fi_das_dashboard=>mc_pstype_material ).
+  ENDMETHOD.
+
+  METHOD over_service.
+    run_case( i_flow   = zif_fi_das_dashboard=>mc_over
+              i_pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+  ENDMETHOD.
+
+  METHOD under_material.
+    run_case( i_flow   = zif_fi_das_dashboard=>mc_under
+              i_pstype = zif_fi_das_dashboard=>mc_pstype_material ).
+  ENDMETHOD.
+
+  METHOD under_service.
+    run_case( i_flow   = zif_fi_das_dashboard=>mc_under
+              i_pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+  ENDMETHOD.
+
+  METHOD exclude.
+    run_case( i_flow   = zif_fi_das_dashboard=>mc_exclude
+              i_pstype = zif_fi_das_dashboard=>mc_pstype_all ).
+  ENDMETHOD.
+
+  METHOD refresh_replication.
+    DATA lt_tables TYPE STANDARD TABLE OF tabname WITH EMPTY KEY.
+
+    lt_tables = VALUE #(
+      ( 'EKKO' ) ( 'EKPO' ) ( 'EKKN' ) ( 'EKBE' )
+      ( 'T001' ) ( 'LFA1' ) ( 'CSKS' ) ( 'CSKT' )
+      ( 'USR01' ) ( 'USR02' ) ( 'USR21' ) ( 'ADRP' )
+      ( 'ADR6' ) ( 'ZFI_ACCRUAL_EXCL' ) ).
+
+    LOOP AT lt_tables INTO DATA(lv_table).
+      DATA(lv_view) = CONV tabname(
+        COND string( WHEN lv_table = 'ZFI_ACCRUAL_EXCL'
+                     THEN 'ZI_FI_DAS_ACCRUAL_EXCL'
+                     ELSE |ZI_FI_DAS_{ lv_table }| ) ).
+      IF replication_identical( lv_view ) = abap_false.
+        NEW lcl_replication( )->run(
+          i_table  = lv_table
+          i_delete = abap_true ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD replication_identical.
+    DATA:
+      lr_live    TYPE REF TO data,
+      lr_replica TYPE REF TO data,
+      lt_fields  TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    FIELD-SYMBOLS:
+      <lt_live>    TYPE ANY TABLE,
+      <lt_replica> TYPE ANY TABLE.
+
+    " Full-row non-unique keys include numeric fields and preserve duplicates.
+    CREATE DATA lr_live TYPE SORTED TABLE OF (i_view)
+      WITH NON-UNIQUE KEY table_line.
+    CREATE DATA lr_replica TYPE SORTED TABLE OF (i_view)
+      WITH NON-UNIQUE KEY table_line.
+    ASSIGN lr_live->* TO <lt_live>.
+    ASSIGN lr_replica->* TO <lt_replica>.
+
+    DATA(lo_row) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_name( i_view ) ).
+    LOOP AT lo_row->components INTO DATA(ls_field).
+      " EKPO exposes this routing flag; it is not replicated business data.
+      IF ls_field-name <> 'USE_REPLICATION'.
+        APPEND CONV string( ls_field-name ) TO lt_fields.
+      ENDIF.
+    ENDLOOP.
+
+    " View names originate only from the fixed replication table list above.
+    DATA(lv_fields) = concat_lines_of( table = lt_fields sep = `, ` ).
+    DATA(lv_source) = |{ i_view }( p_use_replication = ' ' )|.
+    SELECT (lv_fields) FROM (lv_source)
+      INTO CORRESPONDING FIELDS OF TABLE @<lt_live>.
+    lv_source = |{ i_view }( p_use_replication = 'X' )|.
+    SELECT (lv_fields) FROM (lv_source)
+      INTO CORRESPONDING FIELDS OF TABLE @<lt_replica>.
+
+    rv_identical = xsdbool( <lt_live> = <lt_replica> ).
+  ENDMETHOD.
+
+  METHOD run_case.
+    DATA:
+      lv_live    TYPE string,
+      lv_replica TYPE string,
+      lv_skip    TYPE i,
+      lv_total   TYPE int8 VALUE -1.
+
+    refresh_replication( ).
+
+    CLEAR mt_seen_keys.
+    mo_gateway = NEW #( ).
+    DATA(ls_case) = VALUE ltc_fi_das_gateway_parity=>ts_case(
+      email         = 'adam.strasky@takeda.com'
+      flow          = i_flow
+      pstype        = i_pstype
+      top           = mc_page_size
+      top_specified = abap_true
+      inlinecount   = abap_true ).
+
+    zcl_fi_das_utility=>lock_table( 'ZFI_DAS_CONF_VAL' ).
+    mv_locked = abap_true.
+
+    TRY.
+        CLEAR ms_original.
+        SELECT SINGLE *
+          FROM zfi_das_conf_val
+          WHERE config_name = @zcl_fi_das_dashboard=>mc_config_replication_to
+          INTO @ms_original.
+        mv_had_config = xsdbool( sy-subrc = 0 ).
+        mv_restore = abap_true.
+
+        DO.
+          force_mode( abap_false ).
+          mo_gateway->get_gateway_response(
+            EXPORTING is_case = ls_case
+                      i_skip  = lv_skip
+            IMPORTING e_json  = lv_live ).
+
+          force_mode( abap_true ).
+          mo_gateway->get_gateway_response(
+            EXPORTING is_case = ls_case
+                      i_skip  = lv_skip
+            IMPORTING e_json  = lv_replica ).
+
+          compare_responses( i_live    = lv_live
+                             i_replica = lv_replica
+                             i_skip    = lv_skip ).
+          DATA(lv_page_total) = mo_gateway->read_inline_count( lv_live ).
+          IF lv_total < 0.
+            lv_total = lv_page_total.
+          ENDIF.
+          cl_abap_unit_assert=>assert_equals(
+            exp = lv_total
+            act = lv_page_total
+            msg = |Skip { lv_skip }: total changed while paging| ).
+
+          DATA(lv_rows) = mo_gateway->get_result_count( lv_live ).
+          cl_abap_unit_assert=>assert_true(
+            act = xsdbool( lv_rows <= mc_page_size
+                           AND CONV int8( lv_skip ) + lv_rows <= lv_total )
+            msg = |Skip { lv_skip }: page exceeds requested size or total| ).
+          IF lv_rows = 0.
+            cl_abap_unit_assert=>assert_equals(
+              exp = lv_total
+              act = CONV int8( lv_skip )
+              msg = |Skip { lv_skip }: empty page before all rows were read| ).
+            EXIT.
+          ENDIF.
+
+          " Advance by actual rows, even if the server caps pages below $top.
+          lv_skip = lv_skip + lv_rows.
+          FREE: lv_live, lv_replica.
+        ENDDO.
+
+      CATCH cx_root INTO DATA(lx_error).
+        restore_config( ).
+        cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
+    ENDTRY.
+
+    restore_config( ).
+  ENDMETHOD.
+
+  METHOD force_mode.
+    DATA(ls_config) = ms_original.
+    ls_config-config_name = zcl_fi_das_dashboard=>mc_config_replication_to.
+    ls_config-config_value = COND #( WHEN i_replication = abap_true
+                                     THEN '31'
+                                     ELSE space ).
+
+    MODIFY zfi_das_conf_val FROM @ls_config.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Cannot force Gateway data source mode'.
+    ENDIF.
+    COMMIT WORK AND WAIT.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Cannot commit Gateway data source mode'.
+    ENDIF.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = i_replication
+      act = zcl_fi_das_dashboard=>get_use_replication( )
+      msg = 'Gateway data source mode was not forced' ).
+  ENDMETHOD.
+
+  METHOD restore_config.
+    IF mv_restore = abap_true.
+      IF mv_had_config = abap_true.
+        MODIFY zfi_das_conf_val FROM @ms_original.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_text = 'Cannot restore Gateway data source configuration'.
+        ENDIF.
+      ELSE.
+        DELETE FROM zfi_das_conf_val
+          WHERE config_name = @zcl_fi_das_dashboard=>mc_config_replication_to.
+        IF sy-subrc <> 0 AND sy-subrc <> 4.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_text = 'Cannot remove temporary Gateway configuration'.
+        ENDIF.
+      ENDIF.
+      COMMIT WORK AND WAIT.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Cannot commit restored Gateway configuration'.
+      ENDIF.
+
+      mv_restore = abap_false.
+    ENDIF.
+
+    IF mv_locked = abap_true.
+      zcl_fi_das_utility=>unlock_table( 'ZFI_DAS_CONF_VAL' ).
+      mv_locked = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD teardown.
+    restore_config( ).
+  ENDMETHOD.
+
+  METHOD compare_responses.
+    DATA:
+      lv_live_position    TYPE i,
+      lv_replica_position TYPE i.
+
+    DATA(lv_live_rows) = mo_gateway->get_result_count( i_live ).
+    DATA(lv_replica_rows) = mo_gateway->get_result_count( i_replica ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_live_rows
+      act = lv_replica_rows
+      msg = |Skip { i_skip }: LIVE vs REPLICATION missing/extra rows| ).
+
+    FIND FIRST OCCURRENCE OF '"__count"' IN i_live.
+    cl_abap_unit_assert=>assert_subrc(
+      msg = 'LIVE response is missing inline count' ).
+    FIND FIRST OCCURRENCE OF '"__count"' IN i_replica.
+    cl_abap_unit_assert=>assert_subrc(
+      msg = 'REPLICATION response is missing inline count' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = mo_gateway->read_inline_count( i_live )
+      act = mo_gateway->read_inline_count( i_replica )
+      msg = |Skip { i_skip }: LIVE vs REPLICATION total differs| ).
+
+    mo_gateway->find_results_array_bounds(
+      EXPORTING i_json = i_live
+      IMPORTING e_array_from = lv_live_position ).
+    mo_gateway->find_results_array_bounds(
+      EXPORTING i_json = i_replica
+      IMPORTING e_array_from = lv_replica_position ).
+    lv_live_position = lv_live_position + 1.
+    lv_replica_position = lv_replica_position + 1.
+
+    DO lv_live_rows TIMES.
+      DATA(lv_row) = i_skip + sy-index.
+      next_properties(
+        EXPORTING i_json = i_live
+        IMPORTING et_properties = DATA(lt_live)
+        CHANGING c_position = lv_live_position ).
+      next_properties(
+        EXPORTING i_json = i_replica
+        IMPORTING et_properties = DATA(lt_replica)
+        CHANGING c_position = lv_replica_position ).
+
+      cl_abap_unit_assert=>assert_equals(
+        exp = lines( lt_live )
+        act = lines( lt_replica )
+        msg = |Row { lv_row }: missing/extra business fields| ).
+      LOOP AT lt_live INTO DATA(ls_live).
+        READ TABLE lt_replica WITH TABLE KEY name = ls_live-name
+          INTO DATA(ls_replica).
+        cl_abap_unit_assert=>assert_subrc(
+          msg = |Row { lv_row }: missing field { ls_live-name }| ).
+        cl_abap_unit_assert=>assert_equals(
+          exp = ls_live-token
+          act = ls_replica-token
+          msg = |Row { lv_row }, field { ls_live-name }: LIVE vs REPLICATION| ).
+      ENDLOOP.
+
+      " Reject repeated pages/keys, including duplicates across page boundaries.
+      READ TABLE lt_live WITH TABLE KEY name = 'PONUMBER'
+        INTO DATA(ls_po).
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: missing PONUMBER| ).
+      READ TABLE lt_live WITH TABLE KEY name = 'ITEMNO'
+        INTO DATA(ls_item).
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: missing ITEMNO| ).
+      INSERT VALUE #( ponumber = ls_po-token itemno = ls_item-token )
+        INTO TABLE mt_seen_keys.
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: duplicate key across paged results| ).
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD next_properties.
+    c_position = mo_gateway->skip_whitespace(
+      i_text = i_json i_position = c_position ).
+    IF i_json+c_position(1) = ','.
+      c_position = mo_gateway->skip_whitespace(
+        i_text = i_json i_position = c_position + 1 ).
+    ENDIF.
+    IF i_json+c_position(1) <> '{'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Gateway result row is not a JSON object'.
+    ENDIF.
+
+    DATA(lv_end) = mo_gateway->read_json_value_end(
+      i_text = i_json i_start = c_position ).
+    " Parser excludes only OData __metadata; all business tokens stay exact.
+    et_properties = mo_gateway->read_object_properties(
+      i_json        = i_json
+      i_object_from = c_position
+      i_object_to   = lv_end - 1 ).
+    c_position = lv_end.
   ENDMETHOD.
 ENDCLASS.
 

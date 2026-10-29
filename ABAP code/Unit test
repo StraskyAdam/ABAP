@@ -4736,6 +4736,9 @@ CLASS ltc_gateway_replication_parity DEFINITION FINAL FOR TESTING
         i_pstype TYPE zif_fi_das_dashboard=>t_pstype
       RAISING cx_static_check.
     METHODS refresh_replication RAISING zcx_fi_das_error.
+    METHODS replication_identical
+      IMPORTING i_view TYPE tabname
+      RETURNING VALUE(rv_identical) TYPE abap_bool.
     METHODS force_mode
       IMPORTING i_replication TYPE abap_bool
       RAISING zcx_fi_das_error.
@@ -4790,10 +4793,53 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
       ( 'ADR6' ) ( 'ZFI_ACCRUAL_EXCL' ) ).
 
     LOOP AT lt_tables INTO DATA(lv_table).
-      NEW lcl_replication( )->run(
-        i_table  = lv_table
-        i_delete = abap_true ).
+      DATA(lv_view) = CONV tabname(
+        COND string( WHEN lv_table = 'ZFI_ACCRUAL_EXCL'
+                     THEN 'ZI_FI_DAS_ACCRUAL_EXCL'
+                     ELSE |ZI_FI_DAS_{ lv_table }| ) ).
+      IF replication_identical( lv_view ) = abap_false.
+        NEW lcl_replication( )->run(
+          i_table  = lv_table
+          i_delete = abap_true ).
+      ENDIF.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD replication_identical.
+    DATA:
+      lr_live    TYPE REF TO data,
+      lr_replica TYPE REF TO data,
+      lt_fields  TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    FIELD-SYMBOLS:
+      <lt_live>    TYPE ANY TABLE,
+      <lt_replica> TYPE ANY TABLE.
+
+    " Full-row non-unique keys include numeric fields and preserve duplicates.
+    CREATE DATA lr_live TYPE SORTED TABLE OF (i_view)
+      WITH NON-UNIQUE KEY table_line.
+    CREATE DATA lr_replica LIKE lr_live->*.
+    ASSIGN lr_live->* TO <lt_live>.
+    ASSIGN lr_replica->* TO <lt_replica>.
+
+    DATA(lo_row) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_name( i_view ) ).
+    LOOP AT lo_row->components INTO DATA(ls_field).
+      " EKPO exposes this routing flag; it is not replicated business data.
+      IF ls_field-name <> 'USE_REPLICATION'.
+        APPEND CONV string( ls_field-name ) TO lt_fields.
+      ENDIF.
+    ENDLOOP.
+
+    " View names originate only from the fixed replication table list above.
+    DATA(lv_fields) = concat_lines_of( table = lt_fields sep = `, ` ).
+    DATA(lv_source) = |{ i_view }( p_use_replication = ' ' )|.
+    SELECT (lv_fields) FROM (lv_source)
+      INTO CORRESPONDING FIELDS OF TABLE @<lt_live>.
+    lv_source = |{ i_view }( p_use_replication = 'X' )|.
+    SELECT (lv_fields) FROM (lv_source)
+      INTO CORRESPONDING FIELDS OF TABLE @<lt_replica>.
+
+    rv_identical = xsdbool( <lt_live> = <lt_replica> ).
   ENDMETHOD.
 
   METHOD run_case.

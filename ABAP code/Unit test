@@ -4817,7 +4817,8 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
     " Full-row non-unique keys include numeric fields and preserve duplicates.
     CREATE DATA lr_live TYPE SORTED TABLE OF (i_view)
       WITH NON-UNIQUE KEY table_line.
-    CREATE DATA lr_replica LIKE lr_live->*.
+    CREATE DATA lr_replica TYPE SORTED TABLE OF (i_view)
+      WITH NON-UNIQUE KEY table_line.
     ASSIGN lr_live->* TO <lt_live>.
     ASSIGN lr_replica->* TO <lt_replica>.
 

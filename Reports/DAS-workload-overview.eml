@@ -1,0 +1,1469 @@
+Subject: DAS =?utf-8?b?4oCU?= Consolidated Development Inventory, Effort
+ Estimates and Remaining Workload
+X-Unsent: 1
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============7101800214061109038=="
+
+--===============7101800214061109038==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hi,
+
+Below is the consolidated DAS workload overview, covering the technical objec=
+t inventory, completed and ongoing development, remaining scope, estimates an=
+d coordination activities.
+
+To keep the comparison meaningful, I have separated implementation status, pl=
+anned schedule and actual time records=E2=80=94as these are not interchangeab=
+le, even when placed in the same spreadsheet.
+
+1. BASIS OF THE FIGURES
+
+Miro hours below are calculated from scheduled weekdays =C3=97 8 hours, exclu=
+ding weekends but not public holidays. They are schedule equivalents, not con=
+firmed person-hour budgets.
+
+Development effort figures are retrospective or forward-looking technical est=
+imates. Actual incurred development hours are not recorded in the supplied Gi=
+t/Miro data.
+
+Miro estimates belong to functional tasks. Several technical objects support =
+the same task, so repeated Miro figures must not be added together.
+
+Source line counts include comments and blank lines. For DDIC definitions, ge=
+nerated classes and Gateway projects, code-line counts are not a meaningful s=
+ize measure.
+
+Some artifacts were already present in the initial repository import. Their o=
+riginal development dates and individual authorship cannot be established fro=
+m Git alone.
+
+Objects visible in the package are not necessarily completed business feature=
+s. For example, an existing audit table does not mean that the complete Audit=
+ Log function is delivered.
+
+2. CURRENT DELIVERY STATUS
+
+Work item | Recorded status | Miro scheduled equivalent
+Country and Company Code | Done; assigned to Adam | 32 h
+User Role Config | Done; assigned to Adam | 32 h
+Languages | Done; assigned to Adam | 32 h
+Help Links | Done; assigned to Adam | 32 h
+exclusionPO | Done; assigned to Adam | 32 h
+exchangeRate | Done; assigned to Adam | 16 h
+Indirect Services & Indirect Materials | Implemented; waiting for UI integrat=
+ion and subsequent testing | 200 h
+Filter To Act Upon over 50K | Implemented; waiting for integration | 80 h
+Filter To Act Upon under 50K | Implemented; waiting for integration | 80 h
+For information only | Implemented; waiting for integration | 8 h
+Filters on screen | Implemented; waiting for integration | 16 h
+PO Details Link | Implemented; waiting for integration | 40 h
+Goods Receipt | Implemented; waiting for integration | 32 h
+Replication of tables | In progress; assigned to Adam | 40 h
+Migration of tables | In progress; assigned to Adam; performed progressively =
+as needed | Not estimated
+Test Configuration App | Blocked pending Dashboard completion and joint end-t=
+o-end testing | No usable separate effort estimate
+
+Several implemented dashboard items have future dates in Miro. Their implemen=
+tation status and scheduled dates therefore need to be read separately.
+
+3. DEVELOPMENT INVENTORY
+
+The repository contains 53 artifacts under "ABAP code", totalling 19,587 line=
+s:
+
+Category | Lines
+ABAP class, report, interface and definition exports | 7,907
+30 CDS views | 829
+Two Gateway metadata exports | 445
+ABAP Unit test suite | 10,081
+Test-case material | 325
+TOTAL | 19,587
+
+3.1 Classes, interface and tests
+
+The Miro column identifies related functional scope, not a separately approve=
+d estimate for each class.
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZCL_FI_DAS_CONFIG_UTIL | 530 | Country and Company Code 32 h; User Role Confi=
+g 32 h; Languages 32 h; Help Links 32 h =E2=80=94 shared support | 16=E2=80=
+=9332 h
+ZCL_FI_DAS_DASHBOARD | 3,362 | Indirect Services & Indirect Materials =E2=80=
+=94 200 h, plus related dashboard tasks | 120=E2=80=93200 h
+ZCL_FI_DAS_UTILITY | 647 | Indirect Services & Indirect Materials =E2=80=94 2=
+00 h; shared configuration support | 24=E2=80=9340 h
+ZCL_ZFI_DAS_CONFIGURAT_DPC | N/A =E2=80=94 generated | Configuration (App); n=
+o separate service estimate | Included in service generation/setup
+ZCL_ZFI_DAS_CONFIGURAT_DPC_EXT | 393 | Country and Company Code 32 h; User Ro=
+le Config 32 h; Languages 32 h; Help Links 32 h =E2=80=94 shared service | 16=
+=E2=80=9332 h
+ZCL_ZFI_DAS_CONFIGURAT_MPC | N/A =E2=80=94 generated | Configuration (App); n=
+o separate service estimate | Included in service generation/setup
+ZCL_ZFI_DAS_CONFIGURAT_MPC_EXT | Source unavailable | Configuration (App); no=
+ separate service estimate | Cannot estimate without source
+ZCL_ZFI_DAS_DPC | N/A =E2=80=94 generated | Indirect Services & Indirect Mate=
+rials =E2=80=94 200 h | Included in service generation/setup
+ZCL_ZFI_DAS_DPC_EXT | 216 | Indirect Services & Indirect Materials =E2=80=94 =
+200 h, plus related dashboard tasks | 8=E2=80=9324 h
+ZCL_ZFI_DAS_MPC | N/A =E2=80=94 generated | Indirect Services & Indirect Mate=
+rials =E2=80=94 200 h | Included in service generation/setup
+ZCL_ZFI_DAS_MPC_EXT | Source unavailable | Indirect Services & Indirect Mater=
+ials =E2=80=94 200 h | Cannot estimate without source
+ZCX_FI_DAS_ERROR | 43 | Shared technical foundation; no separate estimate | 4=
+=E2=80=938 h
+ZIF_FI_DAS_DASHBOARD | 100 | Indirect Services & Indirect Materials =E2=80=94=
+ 200 h | 8=E2=80=9316 h
+ABAP Unit test classes =E2=80=94 file "Unit test" | 10,081 | Dashboard / Repl=
+ication of tables =E2=80=94 200 h / 40 h; no separate test-suite estimate | 8=
+0=E2=80=93160 h
+Test scenarios =E2=80=94 file "Test cases" | 325 | Dashboard testing; no sepa=
+rate scenario-documentation estimate | 8=E2=80=9316 h
+
+The Unit test file contains multiple local test classes, not one global SAP c=
+lass. Its estimate covers the entire suite, including scenario preparation an=
+d maintenance; it is not the time associated with the latest commit.
+
+3.2 Programs and includes
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZFI_DAS_EXCHANGE_RATE | 29 | exchangeRate =E2=80=94 16 h | 4=E2=80=938 h
+ZFI_DAS_EXCHANGE_RATE_DEF | 245 | exchangeRate =E2=80=94 16 h, shared across =
+related objects | 16=E2=80=9332 h
+ZFI_DAS_EXCLUSION | 20 | exclusionPO =E2=80=94 32 h | 4=E2=80=938 h
+ZFI_DAS_EXCLUSION_DEF | 999 | exclusionPO =E2=80=94 32 h, shared across relat=
+ed objects | 32=E2=80=9356 h
+ZFI_DAS_REPLICATION | 31 | Replication of tables =E2=80=94 40 h | 4=E2=80=938=
+ h
+ZFI_DAS_REPLICATION_DEF | 611 | Replication of tables =E2=80=94 40 h, shared =
+across related objects | 32=E2=80=9356 h
+ZFI_DAS_DASHBOARD_VIA_ABAP | 574 | Indirect Services & Indirect Materials =E2=
+=80=94 200 h; no separate report estimate | 24=E2=80=9348 h
+
+3.3 CDS data definitions
+
+These estimates assume reuse of common patterns. Shared analysis and integrat=
+ion should not be allocated repeatedly to every view.
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZI_FI_DAS_ACCRUAL_EXCL | 26 | Replication of tables 40 h; exclusionPO 32 h | =
+2=E2=80=934 h
+ZI_FI_DAS_ACCRUAL_EXCL_SRC | 52 | Replication of tables 40 h; exclusionPO 32 =
+h | 4=E2=80=938 h
+ZI_FI_DAS_ADR6 | 15 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_ADR6_SRC | 27 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_ADRP | 14 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_ADRP_SRC | 23 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_CSKS | 15 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_CSKS_SRC | 25 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_CSKT | 17 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_CSKT_SRC | 29 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_EKBE | 26 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_EKBE_SRC | 46 | Replication of tables =E2=80=94 40 h | 4=E2=80=938 h
+ZI_FI_DAS_EKKN | 22 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_EKKN_SRC | 38 | Replication of tables =E2=80=94 40 h | 4=E2=80=938 h
+ZI_FI_DAS_EKKO | 19 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_EKKO_SRC | 37 | Replication of tables =E2=80=94 40 h | 4=E2=80=938 h
+ZI_FI_DAS_EKPO | 31 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_EKPO_SRC | 74 | Replication of tables =E2=80=94 40 h | 6=E2=80=9312=
+ h
+ZI_FI_DAS_EXCHANGE_RATE | 55 | exchangeRate =E2=80=94 16 h | 4=E2=80=938 h
+ZI_FI_DAS_LFA1 | 13 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_LFA1_SRC | 19 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_PO_BASE | 60 | Indirect Services & Indirect Materials =E2=80=94 200=
+ h | 8=E2=80=9316 h
+ZI_FI_DAS_T001 | 15 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_T001_SRC | 23 | Replication of tables =E2=80=94 40 h | 2=E2=80=934 h
+ZI_FI_DAS_USR01 | 13 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_USR01_SRC | 21 | Replication of tables =E2=80=94 40 h | 2=E2=80=934=
+ h
+ZI_FI_DAS_USR02 | 15 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_USR02_SRC | 25 | Replication of tables =E2=80=94 40 h | 2=E2=80=934=
+ h
+ZI_FI_DAS_USR21 | 13 | Replication of tables =E2=80=94 40 h | 1=E2=80=932 h
+ZI_FI_DAS_USR21_SRC | 21 | Replication of tables =E2=80=94 40 h | 2=E2=80=934=
+ h
+
+3.4 Dictionary =E2=80=94 database tables
+
+The estimates below cover technical definitions only, not complete content mi=
+gration, application logic or end-to-end testing. Where only screenshots are =
+available, confidence is low.
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZFI_DAS_ACC_EXCL | N/A =E2=80=94 DDIC | Migration of tables =E2=80=94 not est=
+imated; exclusionPO 32 h | 1=E2=80=933 h
+ZFI_DAS_ADR6 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_ADRP | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_AUDITLOG | N/A =E2=80=94 DDIC | Audit log =E2=80=94 64 h; supporting =
+table only | 2=E2=80=934 h
+ZFI_DAS_BUKRS | N/A =E2=80=94 DDIC | Country and Company Code =E2=80=94 32 h =
+| 1=E2=80=933 h
+ZFI_DAS_CONF_VAL | N/A =E2=80=94 DDIC | Migration of tables =E2=80=94 not est=
+imated; Configuration Values 32 h | 1=E2=80=933 h
+ZFI_DAS_COUNTRY | N/A =E2=80=94 DDIC | Country and Company Code =E2=80=94 32 =
+h | 1=E2=80=933 h
+ZFI_DAS_CSKS | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_CSKT | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_EKBE | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 2=
+=E2=80=934 h
+ZFI_DAS_EKKN | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 2=
+=E2=80=934 h
+ZFI_DAS_EKKO | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 2=
+=E2=80=934 h
+ZFI_DAS_EKPO | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 2=
+=E2=80=934 h
+ZFI_DAS_EMAIL | N/A =E2=80=94 DDIC | Migration of tables =E2=80=94 not estima=
+ted; Email Template 32 h | 1=E2=80=933 h
+ZFI_DAS_EXCHRT | N/A =E2=80=94 DDIC | exchangeRate =E2=80=94 16 h | 1=E2=80=
+=933 h
+ZFI_DAS_HELPLINK | N/A =E2=80=94 DDIC | Help Links =E2=80=94 32 h | 1=E2=80=
+=933 h
+ZFI_DAS_LANG | N/A =E2=80=94 DDIC | Languages =E2=80=94 32 h | 1=E2=80=933 h
+ZFI_DAS_LFA1 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_POSTATUS | N/A =E2=80=94 DDIC | Monthly Status Reset 40 h; Mark as Re=
+viewed 40 h; supporting table only | 1=E2=80=933 h
+ZFI_DAS_PO_AUDIT | N/A =E2=80=94 DDIC | Audit log =E2=80=94 64 h; supporting =
+table only | 2=E2=80=934 h
+ZFI_DAS_PO_EXCL | N/A =E2=80=94 DDIC | exclusionPO =E2=80=94 32 h | 1=E2=80=
+=933 h
+ZFI_DAS_ROLES | N/A =E2=80=94 DDIC | User Role Config =E2=80=94 32 h | 2=E2=
+=80=934 h
+ZFI_DAS_T001 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_THRESH | N/A =E2=80=94 DDIC | Migration of tables =E2=80=94 not estim=
+ated; Threshold 32 h | 1=E2=80=933 h
+ZFI_DAS_USR01 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_USR02 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_USR21 | N/A =E2=80=94 DDIC | Replication of tables =E2=80=94 40 h | 1=
+=E2=80=933 h
+ZFI_DAS_VIDEOLNK | N/A =E2=80=94 DDIC | Migration of tables =E2=80=94 not est=
+imated; Video Links 32 h | 1=E2=80=933 h
+
+Configuration Values, Threshold, Email Template and Video Links are assigned =
+to Radovan in Miro. Their inclusion identifies related technical scope; it do=
+es not attribute those entire functional tasks to me.
+
+3.5 Dictionary =E2=80=94 data elements and structures
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZFI_DAS_REPLICATE_FROM | N/A =E2=80=94 data element | Replication of tables =
+=E2=80=94 40 h | 0.5=E2=80=931 h
+ZFI_DAS_REPLICATE_TO | N/A =E2=80=94 data element | Replication of tables =E2=
+=80=94 40 h | 0.5=E2=80=931 h
+ZFI_DAS_EXCLUDE | 9 =E2=80=94 definition export | For information only =E2=80=
+=94 8 h | 2=E2=80=934 h
+ZFI_DAS_OVER | 9 =E2=80=94 definition export | Filter To Act Upon over 50K =
+=E2=80=94 80 h | 2=E2=80=934 h
+ZFI_DAS_OVER_UNDER | 29 =E2=80=94 definition export | Filter To Act Upon over=
+ 50K 80 h; under 50K 80 h | 4=E2=80=938 h
+ZFI_DAS_SHARED | 53 =E2=80=94 definition export | Indirect Services & Indirec=
+t Materials =E2=80=94 200 h | 4=E2=80=938 h
+ZFI_DAS_UNDER | 7 =E2=80=94 definition export | Filter To Act Upon under 50K =
+=E2=80=94 80 h | 2=E2=80=934 h
+
+3.6 Gateway projects and message class
+
+Object | Lines | Related Miro task =E2=80=94 scheduled equivalent | Retrospec=
+tive effort estimate
+ZFI_DAS =E2=80=94 Gateway Service Builder project | N/A =E2=80=94 project; me=
+tadata export: 287 lines | Indirect Services & Indirect Materials =E2=80=94 2=
+00 h, plus related dashboard tasks | 8=E2=80=9324 h
+ZFI_DAS_CONFIGURATION =E2=80=94 Gateway Service Builder project | N/A =E2=80=
+=94 project; metadata export: 158 lines | Country and Company Code 32 h; User=
+ Role Config 32 h; Languages 32 h; Help Links 32 h | 8=E2=80=9316 h
+ZFI_DAS =E2=80=94 message class | N/A =E2=80=94 message catalogue | Shared te=
+chnical foundation; no separate estimate | 2=E2=80=934 h
+
+Gateway effort covers service modelling, generation and setup. Custom DPC_EXT=
+ implementation is listed separately.
+
+4. REPOSITORY CONTRIBUTION HISTORY
+
+For the period 22 September=E2=80=9329 October 2026:
+
+Measure | Count
+Commits attributed to me on main | 327
+Non-merge commits included above | 288
+Merge commits included above | 39
+
+These figures demonstrate recorded contribution activity, not elapsed develop=
+ment time. They also do not imply that every line in the package was written =
+exclusively by me.
+
+5. REMAINING DEVELOPMENT AND EXPECTED OBJECTS
+
+The following forecast is based on the remaining Miro scope and the existing =
+UI/XSA implementation.
+
+Proposed object names are provisional, not existing or approved deliverables.=
+ Estimates cover implementation and targeted developer testing, excluding bus=
+iness UAT, external-team effort and waiting time. Future line counts are not =
+yet available.
+
+5.1 Backend development
+
+Related Miro task | Expected objects or extensions | Miro scheduled equivalen=
+t | Estimated remaining effort
+Replication of tables =E2=80=94 ongoing | Extend existing ZFI_DAS_REPLICATION=
+, ZFI_DAS_REPLICATION_DEF and related CDS views; complete freeze-period and r=
+eplication verification | 40 h | 16=E2=80=9332 h
+Migration of tables =E2=80=94 ongoing | Complete required DDIC definitions, c=
+ontent migration and reconciliation; reuse existing migration mechanisms wher=
+e possible | Not estimated | 16=E2=80=9340 h, subject to outstanding inventory
+Monthly Status Reset | Proposed report ZFI_DAS_STATUS_RESET; scheduled job; u=
+pdate existing ZFI_DAS_POSTATUS; reuse date/cut-off helpers | 40 h | 16=E2=80=
+=9332 h
+New PO Identification | Extend ZCL_FI_DAS_DASHBOARD and service output with f=
+irst-appearance/month logic; add persistence only if existing data is insuffi=
+cient | 40 h | 16=E2=80=9332 h
+Email Reminder Notifications | Proposed report ZFI_DAS_REMINDERS and shared c=
+lass ZCL_FI_DAS_NOTIFICATION; role-based recipients, templates, workday sched=
+uling and send-status tracking | 80 h | 64=E2=80=93104 h
+PO closure file to TM1 through ECC (AL11) (Background job) | Proposed report =
+ZFI_DAS_CLOSURE_EXPORT; file layout/types, AL11 output, scheduling and applic=
+ation logging; reuse closure processing where possible | 200 h | 80=E2=80=931=
+44 h
+Update PO closure status to Ariba through SOAP | Proposed class ZCL_FI_DAS_AR=
+IBA_CLIENT and report ZFI_DAS_ARIBA_CLOSE; SOAP client/proxy, destination con=
+figuration, response handling, retries and integration-status persistence | 1=
+20 h | 64=E2=80=93112 h
+PO Data File Generation back to ECC (AL11) | Proposed report ZFI_DAS_ACCRUAL_=
+EXPORT and shared file-generation helper; daily/monthly variants, cut-off sna=
+pshot selection, scheduling and reconciliation | 120 h | 80=E2=80=93136 h
+Email Excel Report | Reuse notification class; add report-generation/attachme=
+nt helper and operation in ZCL_ZFI_DAS_DPC_EXT; align output format with UI e=
+xpectations | 80 h | 40=E2=80=9372 h, assuming shared email infrastructure
+Eligible for closure | Extend existing closure calculations; add save-time va=
+lidation through proposed shared class ZCL_FI_DAS_PO_CHANGE and existing Gate=
+way service | 40 h | 16=E2=80=9332 h
+Services Completed Amount | Extend shared PO-change logic and Gateway operati=
+on: amount validation, accrual recalculation, persistence and audit integrati=
+on | 40 h | 24=E2=80=9340 h
+Services Completed % | Extend the same PO-change logic: percentage validation=
+ and conversion to amount; reuse persistence and audit infrastructure | 40 h =
+| 16=E2=80=9324 h, incremental to Amount functionality
+Straight Line Method / Accrual Method | Extend existing calculation logic and=
+ shared PO-change handling for switching, recalculation and persistence | 40 =
+h | 16=E2=80=9332 h
+Audit log | Proposed class ZCL_FI_DAS_AUDIT; reuse existing audit tables; add=
+ service entities/read logic, change capture and export support | 64 h | 40=
+=E2=80=9364 h
+Mark as Reviewed | Complete shared PO-change class and Gateway write handling=
+; authorization, cut-off validation, transactional save and audit capture | 4=
+0 h | 32=E2=80=9356 h
+Help | Extend service read operations over existing help-link configuration; =
+language/role filtering; adapt existing help-fragment binding | 40 h | 8=E2=
+=80=9316 h backend
+Quick Links / References | Reuse help-link read logic and configuration; expo=
+se required links and adapt existing UI bindings | 48 h | 4=E2=80=938 h backe=
+nd, incremental to Help
+Video Links | Extend service read operations over existing video-link configu=
+ration; language/role filtering; adapt existing video fragments | 24 h | 8=E2=
+=80=9316 h backend
+
+The closure-file task needs clarification: its title describes file processin=
+g, while its description also requires immediate DAS=E2=80=93Ariba=E2=80=93EC=
+C closure updates. That distinction materially affects design, dependencies a=
+nd effort.
+
+5.2 Primarily UI work =E2=80=94 ownership to be confirmed
+
+Related Miro task | Expected objects or changes | Miro scheduled equivalent |=
+ Estimated effort
+KPI with progress | Adapt Business.controller.js, TBS.controller.js and dashb=
+oard fragments for timeline/cut-off display | 8 h | 4=E2=80=938 h
+Invoice Track | Controller/navigation configuration changes; no dedicated new=
+ ABAP object expected | 8 h | 2=E2=80=934 h
+PO Depletion Report | Controller/navigation configuration changes; no dedicat=
+ed new ABAP object expected | 8 h | 2=E2=80=934 h
+PO Number Link | Adapt PO-number navigation and configured Ariba URL; backend=
+ changes only if URL resolution requires them | 24 h | 4=E2=80=938 h
+
+Existing UI controllers and fragments should be adapted rather than recreated=
+. The legacy XSA implementation also provides references for reminder process=
+ing, PO-status updates, SOAP closure and report-email handling, but those ref=
+erences do not constitute completed ABAP migration.
+
+Most remaining Miro items have no assignee recorded. This forecast describes =
+the outstanding solution scope, not a confirmed assignment of every item to m=
+e.
+
+6. INTEGRATION, TESTING AND DEPENDENCIES
+
+The implemented backend functionality still requires UI integration, joint va=
+lidation and defect resolution. Expected work includes changes to:
+
+- Business.controller.js, TBS.controller.js, service/model configuration and =
+existing fragments.
+- Gateway contracts and error handling where integration exposes differences.
+- ABAP Unit and integration-test scenarios.
+- Test data, authorization scenarios and reconciliation against legacy behavi=
+our.
+
+There is no reliable separate remaining estimate for the complete integration=
+ phase without agreed interface contracts, test scope and ownership. Configur=
+ation end-to-end testing is currently blocked by the dashboard dependency.
+
+Consequently, a backend item marked "implemented" should not be read as "inte=
+grated, business-tested and ready for production."
+
+7. MEETINGS, SUPPORT AND COORDINATION
+
+DAS-related soft activities over the last six months are approximately:
+
+Activity | Basis | Estimated incurred time
+DAS redevelopment Takeda internal call | Monday, Wednesday and Friday; 30 min=
+utes per meeting =C3=97 26 weeks | 39 h
+Other workshops, discussions and business alignment | Approximate aggregate p=
+rovided | 36 h
+TOTAL | | 75 h
+
+The additional meetings include DAS redevelopment discussions and opened ques=
+tions, ECC versus SAC accrual workshops, PO-closure alignment across DAS=E2=
+=80=93Ariba=E2=80=93ECC, enhancement discussions and catch-ups.
+
+At the same cadence, expected utilization is approximately 2.9 hours per week=
+, before any additional support or oversight not already included in that bas=
+eline.
+
+Further capacity will also be needed for integration coordination, technical =
+support, defect triage, dependency clarification and release preparation. The=
+se activities are not separately quantified in the supplied plan and should n=
+ot be assumed to have zero effort.
+
+8. PLANNING CONCLUSION
+
+The inventory shows that DAS delivery comprises considerably more than the in=
+dividually named application tasks: it includes shared backend logic, service=
+s, replication, DDIC objects, automated tests and integration infrastructure.
+
+The figures above provide a transparent planning baseline. They do not establ=
+ish actual development hours incurred or a confirmed variance against budget.=
+ That comparison requires recorded time entries and an agreed mapping between=
+ functional tasks and shared technical work.
+
+Regards,
+Adam
+
+--===============7101800214061109038==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<!doctype html><html><head><meta charset=3D"utf-8"><title>DAS =E2=80=94 Conso=
+lidated Development Inventory, Effort Estimates and Remaining Workload</title=
+></head><body style=3D"font-family:Calibri,Arial,sans-serif;font-size:14px;co=
+lor:#172033;line-height:1.45;"><p>Hi,</p><p>Below is the consolidated DAS wor=
+kload overview, covering the technical object inventory, completed and ongoin=
+g development, remaining scope, estimates and coordination activities.</p><p>=
+To keep the comparison meaningful, I have separated implementation status, pl=
+anned schedule and actual time records=E2=80=94as these are not interchangeab=
+le, even when placed in the same spreadsheet.</p><h2>1. BASIS OF THE FIGURES<=
+/h2><p>Miro hours below are calculated from scheduled weekdays =C3=97 8 hours=
+, excluding weekends but not public holidays. They are schedule equivalents, =
+not confirmed person-hour budgets.</p><p>Development effort figures are retro=
+spective or forward-looking technical estimates. Actual incurred development =
+hours are not recorded in the supplied Git/Miro data.</p><p>Miro estimates be=
+long to functional tasks. Several technical objects support the same task, so=
+ repeated Miro figures must not be added together.</p><p>Source line counts i=
+nclude comments and blank lines. For DDIC definitions, generated classes and =
+Gateway projects, code-line counts are not a meaningful size measure.</p><p>S=
+ome artifacts were already present in the initial repository import. Their or=
+iginal development dates and individual authorship cannot be established from=
+ Git alone.</p><p>Objects visible in the package are not necessarily complete=
+d business features. For example, an existing audit table does not mean that =
+the complete Audit Log function is delivered.</p><h2>2. CURRENT DELIVERY STAT=
+US</h2><table cellpadding=3D"0" cellspacing=3D"0" style=3D"border-collapse:co=
+llapse;width:100%;font-size:12px;margin:12px 0 20px;"><tr style=3D"background=
+:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;=
+vertical-align:top;">Work item</th><th style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">Recorded status</th><th style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Mi=
+ro scheduled equivalent</th></tr><tr><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">Country and Company Code</td><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">Done; assigned to Adam</td><td style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">32 h</td></tr><tr><td style=3D"=
+border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Use=
+r Role Config</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">Done; assigned to Adam</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">32 h</td></t=
+r><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">Languages</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">Done; assigned to Adam</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>32 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">Help Links</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">Done; assigned to Adam<=
+/td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">32 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">exclusionPO</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Done; ass=
+igned to Adam</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">32 h</td></tr><tr><td style=3D"border:1px solid #=
+cbd5e1;padding:7px;text-align:left;vertical-align:top;">exchangeRate</td><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">Done; assigned to Adam</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">16 h</td></tr><tr><td style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indire=
+ct Services &amp; Indirect Materials</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">Implemented; waiting for U=
+I integration and subsequent testing</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">200 h</td></tr><tr><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">Filter To Act Upon over 50K</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">Implemented; waiting for integra=
+tion</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">80 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">Filter To Act Upon under 50K</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">Implemented; waiting for integration</td><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">80 h</td></tr=
+><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">For information only</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">Implemented; waiting for in=
+tegration</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">8 h</td></tr><tr><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">Filters on screen</td><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">Implemented; waiting for integration</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">16 h</td></tr><tr><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">PO Details Link</td><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">Implemented; waiting for integration</t=
+d><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">40 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">Goods Receipt</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Implement=
+ed; waiting for integration</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">32 h</td></tr><tr><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replica=
+tion of tables</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">In progress; assigned to Adam</td><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40 h=
+</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">Migration of tables</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">In progress; assign=
+ed to Adam; performed progressively as needed</td><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Not estimated</td=
+></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">Test Configuration App</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">Blocked pending Dash=
+board completion and joint end-to-end testing</td><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">No usable separat=
+e effort estimate</td></tr></table><p>Several implemented dashboard items hav=
+e future dates in Miro. Their implementation status and scheduled dates there=
+fore need to be read separately.</p><h2>3. DEVELOPMENT INVENTORY</h2><p>The r=
+epository contains 53 artifacts under &quot;ABAP code&quot;, totalling 19,587=
+ lines:</p><table cellpadding=3D"0" cellspacing=3D"0" style=3D"border-collaps=
+e:collapse;width:100%;font-size:12px;margin:12px 0 20px;"><tr style=3D"backgr=
+ound:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">Category</th><th style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">Lines</th></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ABAP class, report, interface and definition exports</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">7,907</td=
+></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">30 CDS views</td><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">829</td></tr><tr><td style=3D"=
+border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Two=
+ Gateway metadata exports</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">445</td></tr><tr><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ABAP Unit =
+test suite</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">10,081</td></tr><tr><td style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">Test-case material</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">325</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">TOTAL</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">19,587</td></tr></t=
+able><h3>3.1 Classes, interface and tests</h3><p>The Miro column identifies r=
+elated functional scope, not a separately approved estimate for each class.</=
+p><table cellpadding=3D"0" cellspacing=3D"0" style=3D"border-collapse:collaps=
+e;width:100%;font-size:12px;margin:12px 0 20px;"><tr style=3D"background:#e8e=
+ef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">Object</th><th style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">Lines</th><th style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">Related Miro task =
+=E2=80=94 scheduled equivalent</th><th style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">Retrospective effort estimate</t=
+h></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;=
+vertical-align:top;">ZCL_FI_DAS_CONFIG_UTIL</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">530</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Country and Company Code 32 h; User Role Config 32 h; Languages 32 h; Help L=
+inks 32 h =E2=80=94 shared support</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">16=E2=80=9332 h</td></tr><tr=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">ZCL_FI_DAS_DASHBOARD</td><td style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">3,362</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indirect Se=
+rvices &amp; Indirect Materials =E2=80=94 200 h, plus related dashboard tasks=
+</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">120=E2=80=93200 h</td></tr><tr><td style=3D"border:1px solid #=
+cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZCL_FI_DAS_UTILITY</t=
+d><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">647</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">Indirect Services &amp; Indirect Materials =E2=
+=80=94 200 h; shared configuration support</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">24=E2=80=9340 h</td>=
+</tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">ZCL_ZFI_DAS_CONFIGURAT_DPC</td><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 gen=
+erated</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;=
+vertical-align:top;">Configuration (App); no separate service estimate</td><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">Included in service generation/setup</td></tr><tr><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZCL_ZFI_D=
+AS_CONFIGURAT_DPC_EXT</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">393</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">Country and Company Cod=
+e 32 h; User Role Config 32 h; Languages 32 h; Help Links 32 h =E2=80=94 shar=
+ed service</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">16=E2=80=9332 h</td></tr><tr><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZCL_ZFI_DAS_C=
+ONFIGURAT_MPC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">N/A =E2=80=94 generated</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Configurati=
+on (App); no separate service estimate</td><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">Included in service gene=
+ration/setup</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">ZCL_ZFI_DAS_CONFIGURAT_MPC_EXT</td><td st=
+yle=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:to=
+p;">Source unavailable</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">Configuration (App); no separate service=
+ estimate</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">Cannot estimate without source</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ZCL_ZFI_DAS_DPC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">N/A =E2=80=94 generated</td><td style=3D"borde=
+r:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indirect=
+ Services &amp; Indirect Materials =E2=80=94 200 h</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Included in =
+service generation/setup</td></tr><tr><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">ZCL_ZFI_DAS_DPC_EXT</td><td s=
+tyle=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:t=
+op;">216</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">Indirect Services &amp; Indirect Materials =E2=80=94 2=
+00 h, plus related dashboard tasks</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">8=E2=80=9324 h</td></tr><tr>=
+<td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-al=
+ign:top;">ZCL_ZFI_DAS_MPC</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">N/A =E2=80=94 generated</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Indirect Services &amp; Indirect Materials =E2=80=94 200 h</td><td style=3D"=
+border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Inc=
+luded in service generation/setup</td></tr><tr><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZCL_ZFI_DAS_MPC_EXT<=
+/td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">Source unavailable</td><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">Indirect Services &amp; Indire=
+ct Materials =E2=80=94 200 h</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">Cannot estimate without source</td=
+></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">ZCX_FI_DAS_ERROR</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">43</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Shared te=
+chnical foundation; no separate estimate</td><td style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr=
+><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">ZIF_FI_DAS_DASHBOARD</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">100</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indirect =
+Services &amp; Indirect Materials =E2=80=94 200 h</td><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">8=E2=80=9316 =
+h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">ABAP Unit test classes =E2=80=94 file &quot;Unit tes=
+t&quot;</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">10,081</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">Dashboard / Replication of tables =
+=E2=80=94 200 h / 40 h; no separate test-suite estimate</td><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">80=E2=
+=80=93160 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;te=
+xt-align:left;vertical-align:top;">Test scenarios =E2=80=94 file &quot;Test c=
+ases&quot;</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">325</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">Dashboard testing; no separate sce=
+nario-documentation estimate</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">8=E2=80=9316 h</td></tr></table><p=
+>The Unit test file contains multiple local test classes, not one global SAP =
+class. Its estimate covers the entire suite, including scenario preparation a=
+nd maintenance; it is not the time associated with the latest commit.</p><h3>=
+3.2 Programs and includes</h3><table cellpadding=3D"0" cellspacing=3D"0" styl=
+e=3D"border-collapse:collapse;width:100%;font-size:12px;margin:12px 0 20px;">=
+<tr style=3D"background:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">Object</th><th style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Lines</th><t=
+h style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">Related Miro task =E2=80=94 scheduled equivalent</th><th style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Retros=
+pective effort estimate</th></tr><tr><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">ZFI_DAS_EXCHANGE_RATE</td><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">29</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">exchangeRate =E2=80=94 16 h</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 =
+h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">ZFI_DAS_EXCHANGE_RATE_DEF</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">245</td><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">exchangeRate =E2=80=94 16 h, shared across related objects</td><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">16=E2=80=9332 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:=
+7px;text-align:left;vertical-align:top;">ZFI_DAS_EXCLUSION</td><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">20</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">exclusionPO =E2=80=94 32 h</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr>=
+<tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">ZFI_DAS_EXCLUSION_DEF</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">999</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">exclusion=
+PO =E2=80=94 32 h, shared across related objects</td><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">32=E2=80=9356 =
+h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">ZFI_DAS_REPLICATION</td><td style=3D"border:1px soli=
+d #cbd5e1;padding:7px;text-align:left;vertical-align:top;">31</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr><t=
+r><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">ZFI_DAS_REPLICATION_DEF</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">611</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replicati=
+on of tables =E2=80=94 40 h, shared across related objects</td><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">32=
+=E2=80=9356 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">ZFI_DAS_DASHBOARD_VIA_ABAP</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>574</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">Indirect Services &amp; Indirect Materials =E2=80=94 200 h=
+; no separate report estimate</td><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">24=E2=80=9348 h</td></tr></table>=
+<h3>3.3 CDS data definitions</h3><p>These estimates assume reuse of common pa=
+tterns. Shared analysis and integration should not be allocated repeatedly to=
+ every view.</p><table cellpadding=3D"0" cellspacing=3D"0" style=3D"border-co=
+llapse:collapse;width:100%;font-size:12px;margin:12px 0 20px;"><tr style=3D"b=
+ackground:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">Object</th><th style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">Lines</th><th style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Relate=
+d Miro task =E2=80=94 scheduled equivalent</th><th style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">Retrospective effort=
+ estimate</th></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">ZI_FI_DAS_ACCRUAL_EXCL</td><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">26</td>=
+<td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-al=
+ign:top;">Replication of tables 40 h; exclusionPO 32 h</td><td style=3D"borde=
+r:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=
+=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">ZI_FI_DAS_ACCRUAL_EXCL_SRC</td><td style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">52</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">Replication of tables 40 h; exclusionPO 32 h</td><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=
+=938 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">ZI_FI_DAS_ADR6</td><td style=3D"border:1px soli=
+d #cbd5e1;padding:7px;text-align:left;vertical-align:top;">15</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=932 h</td></tr><t=
+r><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">ZI_FI_DAS_ADR6_SRC</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">27</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of =
+tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_F=
+I_DAS_ADRP</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">14</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=94 40 =
+h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">1=E2=80=932 h</td></tr><tr><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_ADRP_SRC</td><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">23</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">Replication of tables =E2=80=94 40 h</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>2=E2=80=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">ZI_FI_DAS_CSKS</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">15</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=932 h</td><=
+/tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">ZI_FI_DAS_CSKS_SRC</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">25</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replicati=
+on of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">ZI_FI_DAS_CSKT</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">17</td><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=
+=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">1=E2=80=932 h</td></tr><tr><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_CSKT_SR=
+C</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">29</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">Replication of tables =E2=80=94 40 h</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_EKBE</td><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">26</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h=
+</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">ZI_FI_DAS_EKBE_SRC</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">46</td><td style=3D"=
+border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Rep=
+lication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr><tr><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">ZI_FI_DAS_EKKN</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">22</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =
+=E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_E=
+KKN_SRC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">38</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">Replication of tables =E2=80=94 40 h</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">4=E2=80=938 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_EKKO</td><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">19</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=
+=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">ZI_FI_DAS_EKKO_SRC</td><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">37</td><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr>=
+<tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">ZI_FI_DAS_EKPO</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">31</td><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of ta=
+bles =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;tex=
+t-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_=
+DAS_EKPO_SRC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align=
+:left;vertical-align:top;">74</td><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=94 4=
+0 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">6=E2=80=9312 h</td></tr><tr><td style=3D"border:1px solid #=
+cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_EXCHANGE_RA=
+TE</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vert=
+ical-align:top;">55</td><td style=3D"border:1px solid #cbd5e1;padding:7px;tex=
+t-align:left;vertical-align:top;">exchangeRate =E2=80=94 16 h</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>4=E2=80=938 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">ZI_FI_DAS_LFA1</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">13</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=932 h</td><=
+/tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">ZI_FI_DAS_LFA1_SRC</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">19</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replicati=
+on of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">ZI_FI_DAS_PO_BASE</td><td style=3D"border:1px solid #cbd5e1;padding:7px;tex=
+t-align:left;vertical-align:top;">60</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">Indirect Services &amp; In=
+direct Materials =E2=80=94 200 h</td><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">8=E2=80=9316 h</td></tr><tr><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">ZI_FI_DAS_T001</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">15</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =
+=E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">1=E2=80=932 h</td></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_T=
+001_SRC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">23</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">Replication of tables =E2=80=94 40 h</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_USR01</td><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">13</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=
+=80=932 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">ZI_FI_DAS_USR01_SRC</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">21</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td><=
+/tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">ZI_FI_DAS_USR02</td><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">15</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication =
+of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">1=E2=80=932 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ZI_FI_DAS_USR02_SRC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;te=
+xt-align:left;vertical-align:top;">25</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =E2=
+=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_USR2=
+1</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">13</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">Replication of tables =E2=80=94 40 h</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">1=E2=80=932 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">ZI_FI_DAS_USR21_SRC</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>21</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">Replication of tables =E2=80=94 40 h</td><td style=3D"borde=
+r:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=
+=934 h</td></tr></table><h3>3.4 Dictionary =E2=80=94 database tables</h3><p>T=
+he estimates below cover technical definitions only, not complete content mig=
+ration, application logic or end-to-end testing. Where only screenshots are a=
+vailable, confidence is low.</p><table cellpadding=3D"0" cellspacing=3D"0" st=
+yle=3D"border-collapse:collapse;width:100%;font-size:12px;margin:12px 0 20px;=
+"><tr style=3D"background:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">Object</th><th style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Lines</th>=
+<th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-al=
+ign:top;">Related Miro task =E2=80=94 scheduled equivalent</th><th style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Retr=
+ospective effort estimate</th></tr><tr><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_ACC_EXCL</td><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">Migration of tables =E2=80=94 not estimat=
+ed; exclusionPO 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;te=
+xt-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_D=
+AS_ADR6</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =
+=E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_ADR=
+P</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=
+=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_AUDITLOG<=
+/td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">Audit log =E2=80=94 64 h; supp=
+orting table only</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"borde=
+r:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_=
+BUKRS</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">Country and Company Code=
+ =E2=80=94 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_CO=
+NF_VAL</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;=
+vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cb=
+d5e1;padding:7px;text-align:left;vertical-align:top;">Migration of tables =E2=
+=80=94 not estimated; Configuration Values 32 h</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</=
+td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">ZFI_DAS_COUNTRY</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">Country and Company Code =E2=80=94 32 h</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</=
+td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">ZFI_DAS_CSKS</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td s=
+tyle=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:t=
+op;">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #=
+cbd5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</td></t=
+r><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">ZFI_DAS_CSKT</td><td style=3D"border:1px solid #cbd5e1;paddin=
+g:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><t=
+r><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">ZFI_DAS_EKBE</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Repli=
+cation of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">ZFI_DAS_EKKN</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication=
+ of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ZFI_DAS_EKKO</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px so=
+lid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of t=
+ables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;te=
+xt-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_D=
+AS_EKPO</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =
+=E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_EMA=
+IL</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vert=
+ical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">Migration of tables =E2=80=
+=94 not estimated; Email Template 32 h</td><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><=
+tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">ZFI_DAS_EXCHRT</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ex=
+changeRate =E2=80=94 16 h</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ZFI_DAS_HELPLINK</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Help Links =
+=E2=80=94 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_LAN=
+G</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">Languages =E2=80=94 32 h</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">ZFI_DAS_LFA1</td><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">N/=
+A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">Replication of tables =E2=80=94 40 h</td><td s=
+tyle=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:t=
+op;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">ZFI_DAS_POSTATUS</td><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">N/A =
+=E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">Monthly Status Reset 40 h; Mark as Reviewed 40 h=
+; supporting table only</td><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZF=
+I_DAS_PO_AUDIT</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Audit log =E2=
+=80=94 64 h; supporting table only</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">ZFI_DAS_PO_EXCL</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">exclu=
+sionPO =E2=80=94 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_=
+DAS_ROLES</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">User Role Config =E2=
+=80=94 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_T001</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=94=
+ 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_THRESH</td><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">Migration of tables =E2=80=94 not e=
+stimated; Threshold 32 h</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>ZFI_DAS_USR01</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-ali=
+gn:left;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of =
+tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"b=
+order:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_=
+DAS_USR02</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replication of table=
+s =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_U=
+SR21</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">Replication of tables =E2=
+=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">1=E2=80=933 h</td></tr><tr><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_VIDEOL=
+NK</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vert=
+ical-align:top;">N/A =E2=80=94 DDIC</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">Migration of tables =E2=80=
+=94 not estimated; Video Links 32 h</td><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">1=E2=80=933 h</td></tr></ta=
+ble><p>Configuration Values, Threshold, Email Template and Video Links are as=
+signed to Radovan in Miro. Their inclusion identifies related technical scope=
+; it does not attribute those entire functional tasks to me.</p><h3>3.5 Dicti=
+onary =E2=80=94 data elements and structures</h3><table cellpadding=3D"0" cel=
+lspacing=3D"0" style=3D"border-collapse:collapse;width:100%;font-size:12px;ma=
+rgin:12px 0 20px;"><tr style=3D"background:#e8eef5;"><th style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Object</th><th=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">Lines</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align=
+:left;vertical-align:top;">Related Miro task =E2=80=94 scheduled equivalent</=
+th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">Retrospective effort estimate</th></tr><tr><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_REP=
+LICATE_FROM</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">N/A =E2=80=94 data element</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Replicatio=
+n of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd5e1;padding:=
+7px;text-align:left;vertical-align:top;">0.5=E2=80=931 h</td></tr><tr><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">ZFI_DAS_REPLICATE_TO</td><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">N/A =E2=80=94 data element</td><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">Replication of tables =E2=80=94 40 h</td><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">0.5=E2=80=931 h</td></tr=
+><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">ZFI_DAS_EXCLUDE</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">9 =E2=80=94 definition export</t=
+d><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">For information only =E2=80=94 8 h</td><td style=3D"border:1px so=
+lid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</t=
+d></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;=
+vertical-align:top;">ZFI_DAS_OVER</td><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">9 =E2=80=94 definition export=
+</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">Filter To Act Upon over 50K =E2=80=94 80 h</td><td style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=
+=80=934 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text=
+-align:left;vertical-align:top;">ZFI_DAS_OVER_UNDER</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">29 =E2=80=
+=94 definition export</td><td style=3D"border:1px solid #cbd5e1;padding:7px;t=
+ext-align:left;vertical-align:top;">Filter To Act Upon over 50K 80 h; under 5=
+0K 80 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">4=E2=80=938 h</td></tr><tr><td style=3D"border:1px soli=
+d #cbd5e1;padding:7px;text-align:left;vertical-align:top;">ZFI_DAS_SHARED</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">53 =E2=80=94 definition export</td><td style=3D"border:1px solid #=
+cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indirect Services &am=
+p; Indirect Materials =E2=80=94 200 h</td><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h</td></tr><t=
+r><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-=
+align:top;">ZFI_DAS_UNDER</td><td style=3D"border:1px solid #cbd5e1;padding:7=
+px;text-align:left;vertical-align:top;">7 =E2=80=94 definition export</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">Filter To Act Upon under 50K =E2=80=94 80 h</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 =
+h</td></tr></table><h3>3.6 Gateway projects and message class</h3><table cell=
+padding=3D"0" cellspacing=3D"0" style=3D"border-collapse:collapse;width:100%;=
+font-size:12px;margin:12px 0 20px;"><tr style=3D"background:#e8eef5;"><th sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">Object</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:le=
+ft;vertical-align:top;">Lines</th><th style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">Related Miro task =E2=80=94 sched=
+uled equivalent</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">Retrospective effort estimate</th></tr><tr><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">ZFI_DAS =E2=80=94 Gateway Service Builder project</td><td style=3D"bord=
+er:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">N/A =E2=
+=80=94 project; metadata export: 287 lines</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">Indirect Services &a=
+mp; Indirect Materials =E2=80=94 200 h, plus related dashboard tasks</td><td =
+style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:=
+top;">8=E2=80=9324 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">ZFI_DAS_CONFIGURATION =E2=80=94 G=
+ateway Service Builder project</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 project; metadata =
+export: 158 lines</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">Country and Company Code 32 h; User Role Conf=
+ig 32 h; Languages 32 h; Help Links 32 h</td><td style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">8=E2=80=9316 h</td></t=
+r><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">ZFI_DAS =E2=80=94 message class</td><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">N/A =E2=80=94 m=
+essage catalogue</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">Shared technical foundation; no separate estim=
+ate</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">2=E2=80=934 h</td></tr></table><p>Gateway effort covers ser=
+vice modelling, generation and setup. Custom DPC_EXT implementation is listed=
+ separately.</p><h2>4. REPOSITORY CONTRIBUTION HISTORY</h2><p>For the period =
+22 September=E2=80=9329 October 2026:</p><table cellpadding=3D"0" cellspacing=
+=3D"0" style=3D"border-collapse:collapse;width:100%;font-size:12px;margin:12p=
+x 0 20px;"><tr style=3D"background:#e8eef5;"><th style=3D"border:1px solid #c=
+bd5e1;padding:7px;text-align:left;vertical-align:top;">Measure</th><th style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Count</th></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">Commits attributed to me on main</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>327</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">Non-merge commits included above</td><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">28=
+8</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:l=
+eft;vertical-align:top;">Merge commits included above</td><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">39</td></=
+tr></table><p>These figures demonstrate recorded contribution activity, not e=
+lapsed development time. They also do not imply that every line in the packag=
+e was written exclusively by me.</p><h2>5. REMAINING DEVELOPMENT AND EXPECTED=
+ OBJECTS</h2><p>The following forecast is based on the remaining Miro scope a=
+nd the existing UI/XSA implementation.</p><p>Proposed object names are provis=
+ional, not existing or approved deliverables. Estimates cover implementation =
+and targeted developer testing, excluding business UAT, external-team effort =
+and waiting time. Future line counts are not yet available.</p><h3>5.1 Backen=
+d development</h3><table cellpadding=3D"0" cellspacing=3D"0" style=3D"border-=
+collapse:collapse;width:100%;font-size:12px;margin:12px 0 20px;"><tr style=3D=
+"background:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">Related Miro task</th><th style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Expected obje=
+cts or extensions</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">Miro scheduled equivalent</th><th style=3D"bo=
+rder:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Estim=
+ated remaining effort</th></tr><tr><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">Replication of tables =E2=80=94 =
+ongoing</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">Extend existing ZFI_DAS_REPLICATION, ZFI_DAS_REPLICATIO=
+N_DEF and related CDS views; complete freeze-period and replication verificat=
+ion</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ver=
+tical-align:top;">40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">16=E2=80=9332 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Migration of tables =E2=80=94 ongoing</td><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">Complete required DDIC d=
+efinitions, content migration and reconciliation; reuse existing migration me=
+chanisms where possible</td><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">Not estimated</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">16=E2=80=93=
+40 h, subject to outstanding inventory</td></tr><tr><td style=3D"border:1px s=
+olid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Monthly Status =
+Reset</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">Proposed report ZFI_DAS_STATUS_RESET; scheduled job; upda=
+te existing ZFI_DAS_POSTATUS; reuse date/cut-off helpers</td><td style=3D"bor=
+der:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40 h</=
+td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical=
+-align:top;">16=E2=80=9332 h</td></tr><tr><td style=3D"border:1px solid #cbd5=
+e1;padding:7px;text-align:left;vertical-align:top;">New PO Identification</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">Extend ZCL_FI_DAS_DASHBOARD and service output with first-appearan=
+ce/month logic; add persistence only if existing data is insufficient</td><td=
+ style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align=
+:top;">40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">16=E2=80=9332 h</td></tr><tr><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Email Remind=
+er Notifications</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">Proposed report ZFI_DAS_REMINDERS and shared c=
+lass ZCL_FI_DAS_NOTIFICATION; role-based recipients, templates, workday sched=
+uling and send-status tracking</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">80 h</td><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">64=E2=80=9310=
+4 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align=
+:left;vertical-align:top;">PO closure file to TM1 through ECC (AL11) (Backgro=
+und job)</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">Proposed report ZFI_DAS_CLOSURE_EXPORT; file layout/ty=
+pes, AL11 output, scheduling and application logging; reuse closure processin=
+g where possible</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-a=
+lign:left;vertical-align:top;">200 h</td><td style=3D"border:1px solid #cbd5e=
+1;padding:7px;text-align:left;vertical-align:top;">80=E2=80=93144 h</td></tr>=
+<tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertica=
+l-align:top;">Update PO closure status to Ariba through SOAP</td><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Pr=
+oposed class ZCL_FI_DAS_ARIBA_CLIENT and report ZFI_DAS_ARIBA_CLOSE; SOAP cli=
+ent/proxy, destination configuration, response handling, retries and integrat=
+ion-status persistence</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">120 h</td><td style=3D"border:1px solid =
+#cbd5e1;padding:7px;text-align:left;vertical-align:top;">64=E2=80=93112 h</td=
+></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">PO Data File Generation back to ECC (AL11)</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Proposed report ZFI_DAS_ACCRUAL_EXPORT and shared file-generation helper; da=
+ily/monthly variants, cut-off snapshot selection, scheduling and reconciliati=
+on</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vert=
+ical-align:top;">120 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">80=E2=80=93136 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Email Excel Report</td><td style=3D"border:1px solid #cbd5e1;padding:7px;tex=
+t-align:left;vertical-align:top;">Reuse notification class; add report-genera=
+tion/attachment helper and operation in ZCL_ZFI_DAS_DPC_EXT; align output for=
+mat with UI expectations</td><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">80 h</td><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40=E2=80=9372 h, as=
+suming shared email infrastructure</td></tr><tr><td style=3D"border:1px solid=
+ #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Eligible for closur=
+e</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;verti=
+cal-align:top;">Extend existing closure calculations; add save-time validatio=
+n through proposed shared class ZCL_FI_DAS_PO_CHANGE and existing Gateway ser=
+vice</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;ve=
+rtical-align:top;">40 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px=
+;text-align:left;vertical-align:top;">16=E2=80=9332 h</td></tr><tr><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>Services Completed Amount</td><td style=3D"border:1px solid #cbd5e1;padding:=
+7px;text-align:left;vertical-align:top;">Extend shared PO-change logic and Ga=
+teway operation: amount validation, accrual recalculation, persistence and au=
+dit integration</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">40 h</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">24=E2=80=9340 h</td></tr><tr=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">Services Completed %</td><td style=3D"border:1px solid #cbd5e1;pad=
+ding:7px;text-align:left;vertical-align:top;">Extend the same PO-change logic=
+: percentage validation and conversion to amount; reuse persistence and audit=
+ infrastructure</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-al=
+ign:left;vertical-align:top;">40 h</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">16=E2=80=9324 h, incremental=
+ to Amount functionality</td></tr><tr><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">Straight Line Method / Accrua=
+l Method</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">Extend existing calculation logic and shared PO-change=
+ handling for switching, recalculation and persistence</td><td style=3D"borde=
+r:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40 h</td=
+><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-a=
+lign:top;">16=E2=80=9332 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">Audit log</td><td style=3D"=
+border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Pro=
+posed class ZCL_FI_DAS_AUDIT; reuse existing audit tables; add service entiti=
+es/read logic, change capture and export support</td><td style=3D"border:1px =
+solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">64 h</td><td s=
+tyle=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:t=
+op;">40=E2=80=9364 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;paddi=
+ng:7px;text-align:left;vertical-align:top;">Mark as Reviewed</td><td style=3D=
+"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Co=
+mplete shared PO-change class and Gateway write handling; authorization, cut-=
+off validation, transactional save and audit capture</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40 h</td><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">32=E2=80=9356 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;p=
+adding:7px;text-align:left;vertical-align:top;">Help</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Extend ser=
+vice read operations over existing help-link configuration; language/role fil=
+tering; adapt existing help-fragment binding</td><td style=3D"border:1px soli=
+d #cbd5e1;padding:7px;text-align:left;vertical-align:top;">40 h</td><td style=
+=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"=
+>8=E2=80=9316 h backend</td></tr><tr><td style=3D"border:1px solid #cbd5e1;pa=
+dding:7px;text-align:left;vertical-align:top;">Quick Links / References</td><=
+td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-ali=
+gn:top;">Reuse help-link read logic and configuration; expose required links =
+and adapt existing UI bindings</td><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">48 h</td><td style=3D"border:1px=
+ solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">4=E2=80=938 h=
+ backend, incremental to Help</td></tr><tr><td style=3D"border:1px solid #cbd=
+5e1;padding:7px;text-align:left;vertical-align:top;">Video Links</td><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">Extend service read operations over existing video-link configuration; lang=
+uage/role filtering; adapt existing video fragments</td><td style=3D"border:1=
+px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">24 h</td><t=
+d style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-alig=
+n:top;">8=E2=80=9316 h backend</td></tr></table><p>The closure-file task need=
+s clarification: its title describes file processing, while its description a=
+lso requires immediate DAS=E2=80=93Ariba=E2=80=93ECC closure updates. That di=
+stinction materially affects design, dependencies and effort.</p><h3>5.2 Prim=
+arily UI work =E2=80=94 ownership to be confirmed</h3><table cellpadding=3D"0=
+" cellspacing=3D"0" style=3D"border-collapse:collapse;width:100%;font-size:12=
+px;margin:12px 0 20px;"><tr style=3D"background:#e8eef5;"><th style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Related M=
+iro task</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">Expected objects or changes</th><th style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Miro schedul=
+ed equivalent</th><th style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">Estimated effort</th></tr><tr><td style=3D"border=
+:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">KPI with =
+progress</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:lef=
+t;vertical-align:top;">Adapt Business.controller.js, TBS.controller.js and da=
+shboard fragments for timeline/cut-off display</td><td style=3D"border:1px so=
+lid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">8 h</td><td styl=
+e=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;=
+">4=E2=80=938 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7p=
+x;text-align:left;vertical-align:top;">Invoice Track</td><td style=3D"border:=
+1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Controller=
+/navigation configuration changes; no dedicated new ABAP object expected</td>=
+<td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-al=
+ign:top;">8 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-alig=
+n:left;vertical-align:top;">2=E2=80=934 h</td></tr><tr><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;">PO Depletion=
+ Report</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left=
+;vertical-align:top;">Controller/navigation configuration changes; no dedicat=
+ed new ABAP object expected</td><td style=3D"border:1px solid #cbd5e1;padding=
+:7px;text-align:left;vertical-align:top;">8 h</td><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">2=E2=80=934 h</td=
+></tr><tr><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;v=
+ertical-align:top;">PO Number Link</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">Adapt PO-number navigation a=
+nd configured Ariba URL; backend changes only if URL resolution requires them=
+</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertic=
+al-align:top;">24 h</td><td style=3D"border:1px solid #cbd5e1;padding:7px;tex=
+t-align:left;vertical-align:top;">4=E2=80=938 h</td></tr></table><p>Existing =
+UI controllers and fragments should be adapted rather than recreated. The leg=
+acy XSA implementation also provides references for reminder processing, PO-s=
+tatus updates, SOAP closure and report-email handling, but those references d=
+o not constitute completed ABAP migration.</p><p>Most remaining Miro items ha=
+ve no assignee recorded. This forecast describes the outstanding solution sco=
+pe, not a confirmed assignment of every item to me.</p><h2>6. INTEGRATION, TE=
+STING AND DEPENDENCIES</h2><p>The implemented backend functionality still req=
+uires UI integration, joint validation and defect resolution. Expected work i=
+ncludes changes to:</p><ul><li>Business.controller.js, TBS.controller.js, ser=
+vice/model configuration and existing fragments.</li><li>Gateway contracts an=
+d error handling where integration exposes differences.</li><li>ABAP Unit and=
+ integration-test scenarios.</li><li>Test data, authorization scenarios and r=
+econciliation against legacy behaviour.</li></ul><p>There is no reliable sepa=
+rate remaining estimate for the complete integration phase without agreed int=
+erface contracts, test scope and ownership. Configuration end-to-end testing =
+is currently blocked by the dashboard dependency.</p><p>Consequently, a backe=
+nd item marked &quot;implemented&quot; should not be read as &quot;integrated=
+, business-tested and ready for production.&quot;</p><h2>7. MEETINGS, SUPPORT=
+ AND COORDINATION</h2><p>DAS-related soft activities over the last six months=
+ are approximately:</p><table cellpadding=3D"0" cellspacing=3D"0" style=3D"bo=
+rder-collapse:collapse;width:100%;font-size:12px;margin:12px 0 20px;"><tr sty=
+le=3D"background:#e8eef5;"><th style=3D"border:1px solid #cbd5e1;padding:7px;=
+text-align:left;vertical-align:top;">Activity</th><th style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Basis</th><th sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">Estimated incurred time</th></tr><tr><td style=3D"border:1px solid #cbd5e1=
+;padding:7px;text-align:left;vertical-align:top;">DAS redevelopment Takeda in=
+ternal call</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:=
+left;vertical-align:top;">Monday, Wednesday and Friday; 30 minutes per meetin=
+g =C3=97 26 weeks</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-=
+align:left;vertical-align:top;">39 h</td></tr><tr><td style=3D"border:1px sol=
+id #cbd5e1;padding:7px;text-align:left;vertical-align:top;">Other workshops, =
+discussions and business alignment</td><td style=3D"border:1px solid #cbd5e1;=
+padding:7px;text-align:left;vertical-align:top;">Approximate aggregate provid=
+ed</td><td style=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vert=
+ical-align:top;">36 h</td></tr><tr><td style=3D"border:1px solid #cbd5e1;padd=
+ing:7px;text-align:left;vertical-align:top;">TOTAL</td><td style=3D"border:1p=
+x solid #cbd5e1;padding:7px;text-align:left;vertical-align:top;"></td><td sty=
+le=3D"border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top=
+;">75 h</td></tr></table><p>The additional meetings include DAS redevelopment=
+ discussions and opened questions, ECC versus SAC accrual workshops, PO-closu=
+re alignment across DAS=E2=80=93Ariba=E2=80=93ECC, enhancement discussions an=
+d catch-ups.</p><p>At the same cadence, expected utilization is approximately=
+ 2.9 hours per week, before any additional support or oversight not already i=
+ncluded in that baseline.</p><p>Further capacity will also be needed for inte=
+gration coordination, technical support, defect triage, dependency clarificat=
+ion and release preparation. These activities are not separately quantified i=
+n the supplied plan and should not be assumed to have zero effort.</p><h2>8. =
+PLANNING CONCLUSION</h2><p>The inventory shows that DAS delivery comprises co=
+nsiderably more than the individually named application tasks: it includes sh=
+ared backend logic, services, replication, DDIC objects, automated tests and =
+integration infrastructure.</p><p>The figures above provide a transparent pla=
+nning baseline. They do not establish actual development hours incurred or a =
+confirmed variance against budget. That comparison requires recorded time ent=
+ries and an agreed mapping between functional tasks and shared technical work=
+.</p><p>Regards,<br>Adam</p></body></html>
+
+--===============7101800214061109038==--

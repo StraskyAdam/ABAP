@@ -4708,14 +4708,18 @@ INCLUDE zfi_das_replication_def.
 
 " Requires local ZFI_DAS_SRV in an isolated client with stable source data.
 " Refresh and mode switches are committed.
+" ABAP Unit run/client settings must permit risk level DANGEROUS.
+" If blocked by the client upper limit, check SAUNIT_CLIENT_SETUP.
 CLASS ltc_gateway_replication_parity DEFINITION FINAL FOR TESTING
   DURATION LONG
   RISK LEVEL DANGEROUS.
 
   PRIVATE SECTION.
+    CONSTANTS mc_page_size TYPE i VALUE 1000.
     DATA:
       mo_gateway       TYPE REF TO ltc_fi_das_gateway_parity,
       ms_original      TYPE zfi_das_conf_val,
+      mt_seen_keys     TYPE ltc_fi_das_gateway_parity=>tt_expected_index,
       mv_had_config    TYPE abap_bool,
       mv_locked        TYPE abap_bool,
       mv_restore       TYPE abap_bool.
@@ -4740,6 +4744,7 @@ CLASS ltc_gateway_replication_parity DEFINITION FINAL FOR TESTING
       IMPORTING
         i_live    TYPE string
         i_replica TYPE string
+        i_skip    TYPE i
       RAISING zcx_fi_das_error.
     METHODS next_properties
       IMPORTING i_json TYPE string
@@ -4794,16 +4799,21 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
   METHOD run_case.
     DATA:
       lv_live    TYPE string,
-      lv_replica TYPE string.
+      lv_replica TYPE string,
+      lv_skip    TYPE i,
+      lv_total   TYPE int8 VALUE -1.
 
     refresh_replication( ).
 
+    CLEAR mt_seen_keys.
     mo_gateway = NEW #( ).
     DATA(ls_case) = VALUE ltc_fi_das_gateway_parity=>ts_case(
-      email       = 'adam.strasky@takeda.com'
-      flow        = i_flow
-      pstype      = i_pstype
-      inlinecount = abap_true ).
+      email         = 'adam.strasky@takeda.com'
+      flow          = i_flow
+      pstype        = i_pstype
+      top           = mc_page_size
+      top_specified = abap_true
+      inlinecount   = abap_true ).
 
     zcl_fi_das_utility=>lock_table( 'ZFI_DAS_CONF_VAL' ).
     mv_locked = abap_true.
@@ -4817,25 +4827,55 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
         mv_had_config = xsdbool( sy-subrc = 0 ).
         mv_restore = abap_true.
 
-        " No fixture or $top: request the complete result once per mode.
-        force_mode( abap_false ).
-        mo_gateway->get_gateway_response(
-          EXPORTING is_case = ls_case
-          IMPORTING e_json  = lv_live ).
+        DO.
+          force_mode( abap_false ).
+          mo_gateway->get_gateway_response(
+            EXPORTING is_case = ls_case
+                      i_skip  = lv_skip
+            IMPORTING e_json  = lv_live ).
 
-        force_mode( abap_true ).
-        mo_gateway->get_gateway_response(
-          EXPORTING is_case = ls_case
-          IMPORTING e_json  = lv_replica ).
+          force_mode( abap_true ).
+          mo_gateway->get_gateway_response(
+            EXPORTING is_case = ls_case
+                      i_skip  = lv_skip
+            IMPORTING e_json  = lv_replica ).
+
+          compare_responses( i_live    = lv_live
+                             i_replica = lv_replica
+                             i_skip    = lv_skip ).
+          DATA(lv_page_total) = mo_gateway->read_inline_count( lv_live ).
+          IF lv_total < 0.
+            lv_total = lv_page_total.
+          ENDIF.
+          cl_abap_unit_assert=>assert_equals(
+            exp = lv_total
+            act = lv_page_total
+            msg = |Skip { lv_skip }: total changed while paging| ).
+
+          DATA(lv_rows) = mo_gateway->get_result_count( lv_live ).
+          cl_abap_unit_assert=>assert_true(
+            act = xsdbool( lv_rows <= mc_page_size
+                           AND CONV int8( lv_skip ) + lv_rows <= lv_total )
+            msg = |Skip { lv_skip }: page exceeds requested size or total| ).
+          IF lv_rows = 0.
+            cl_abap_unit_assert=>assert_equals(
+              exp = lv_total
+              act = CONV int8( lv_skip )
+              msg = |Skip { lv_skip }: empty page before all rows were read| ).
+            EXIT.
+          ENDIF.
+
+          " Advance by actual rows, even if the server caps pages below $top.
+          lv_skip = lv_skip + lv_rows.
+          FREE: lv_live, lv_replica.
+        ENDDO.
 
       CATCH cx_root INTO DATA(lx_error).
         restore_config( ).
         cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
     ENDTRY.
 
-    " Assertions cannot leave the shared mode configuration changed.
     restore_config( ).
-    compare_responses( i_live = lv_live i_replica = lv_replica ).
   ENDMETHOD.
 
   METHOD force_mode.
@@ -4907,7 +4947,7 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = lv_live_rows
       act = lv_replica_rows
-      msg = 'LIVE vs REPLICATION: missing/extra response rows' ).
+      msg = |Skip { i_skip }: LIVE vs REPLICATION missing/extra rows| ).
 
     FIND FIRST OCCURRENCE OF '"__count"' IN i_live.
     cl_abap_unit_assert=>assert_subrc(
@@ -4916,13 +4956,9 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
     cl_abap_unit_assert=>assert_subrc(
       msg = 'REPLICATION response is missing inline count' ).
     cl_abap_unit_assert=>assert_equals(
-      exp = CONV int8( lv_live_rows )
-      act = mo_gateway->read_inline_count( i_live )
-      msg = 'LIVE response is incomplete (server-side paging)' ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = CONV int8( lv_live_rows )
+      exp = mo_gateway->read_inline_count( i_live )
       act = mo_gateway->read_inline_count( i_replica )
-      msg = 'REPLICATION inline count differs from complete LIVE result' ).
+      msg = |Skip { i_skip }: LIVE vs REPLICATION total differs| ).
 
     mo_gateway->find_results_array_bounds(
       EXPORTING i_json = i_live
@@ -4934,7 +4970,7 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
     lv_replica_position = lv_replica_position + 1.
 
     DO lv_live_rows TIMES.
-      DATA(lv_row) = sy-index.
+      DATA(lv_row) = i_skip + sy-index.
       next_properties(
         EXPORTING i_json = i_live
         IMPORTING et_properties = DATA(lt_live)
@@ -4958,6 +4994,20 @@ CLASS ltc_gateway_replication_parity IMPLEMENTATION.
           act = ls_replica-token
           msg = |Row { lv_row }, field { ls_live-name }: LIVE vs REPLICATION| ).
       ENDLOOP.
+
+      " Reject repeated pages/keys, including duplicates across page boundaries.
+      READ TABLE lt_live WITH TABLE KEY name = 'PONUMBER'
+        INTO DATA(ls_po).
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: missing PONUMBER| ).
+      READ TABLE lt_live WITH TABLE KEY name = 'ITEMNO'
+        INTO DATA(ls_item).
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: missing ITEMNO| ).
+      INSERT VALUE #( ponumber = ls_po-token itemno = ls_item-token )
+        INTO TABLE mt_seen_keys.
+      cl_abap_unit_assert=>assert_subrc(
+        msg = |Row { lv_row }: duplicate key across paged results| ).
     ENDDO.
   ENDMETHOD.
 

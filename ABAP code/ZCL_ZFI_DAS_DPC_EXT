@@ -1,18 +1,19 @@
-CLASS zcl_zfi_das_dpc_ext DEFINITION
-  PUBLIC
-  INHERITING FROM zcl_zfi_das_dpc
-  CREATE PUBLIC .
+class ZCL_ZFI_DAS_DPC_EXT definition
+  public
+  inheriting from ZCL_ZFI_DAS_DPC
+  create public .
 
-  PUBLIC SECTION.
-  PROTECTED SECTION.
+public section.
+protected section.
 
-    METHODS openpotypeset_get_entityset
-        REDEFINITION.
-    METHODS thresholdset_get_entityset
-        REDEFINITION.
-    METHODS exclusionposet_get_entityset
-        REDEFINITION.
-
+  methods EXCLUSIONPOSET_GET_ENTITYSET
+    redefinition .
+  methods OPENPOTYPESET_GET_ENTITYSET
+    redefinition .
+  methods THRESHOLDSET_GET_ENTITYSET
+    redefinition .
+  methods METHOD_GET_ENTITYSET
+    redefinition .
   PRIVATE SECTION.
 
     CONSTANTS mc_order_descending TYPE string VALUE 'DESC'.
@@ -52,7 +53,10 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
         VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby .
 ENDCLASS.
 
-CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+
+
+CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
+
 
   METHOD build_request.
 
@@ -66,6 +70,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
                           orderby = get_orderby( io_tech_request_context ) ).
 
   ENDMETHOD.
+
 
   METHOD exclusionposet_get_entityset.
 
@@ -90,11 +95,13 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_dashboard.
 
     ro_dashboard = NEW zcl_fi_das_dashboard( ).
 
   ENDMETHOD.
+
 
   METHOD get_filter.
 
@@ -132,6 +139,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_orderby.
 
     LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
@@ -142,6 +150,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDLOOP.
 
   ENDMETHOD.
+
 
   METHOD get_paging.
 
@@ -157,6 +166,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_parameter.
 
     rs_parameter-email = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_email ]-value OPTIONAL ).
@@ -166,6 +176,49 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     rs_parameter-poowner = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_poowner ]-value OPTIONAL ).
 
   ENDMETHOD.
+
+
+METHOD method_get_entityset.
+
+  DATA ls_parameter TYPE zfi_das_method_param.
+
+  DATA(lo_messages) = mo_context->get_message_container( ).
+
+  IF io_tech_request_context IS NOT BOUND.
+    lo_messages->add_message_text_only(
+      iv_msg_type = 'E'
+      iv_msg_text = 'Missing request context' ).
+
+    RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+      EXPORTING
+        message_container = lo_messages.
+  ENDIF.
+
+  IF io_tech_request_context->get_source_entity_set_name( )
+       <> 'methodParameters'.
+    lo_messages->add_message_text_only(
+      iv_msg_type = 'E'
+      iv_msg_text = 'Use navigation methodParameters(...)/Results' ).
+
+    RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
+      EXPORTING
+        message_container = lo_messages.
+  ENDIF.
+
+  io_tech_request_context->get_converted_source_keys(
+    IMPORTING
+      es_key_values = ls_parameter ).
+
+  lo_messages->add_message_text_only(
+    iv_msg_type = 'E'
+    iv_msg_text = 'Accrual method calculation is not implemented yet' ).
+
+  RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+    EXPORTING
+      message_container = lo_messages.
+
+ENDMETHOD.
+
 
   METHOD openpotypeset_get_entityset.
 
@@ -190,6 +243,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD thresholdset_get_entityset.
 
     TRY.
@@ -212,5 +266,4 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
-
 ENDCLASS.

@@ -6,17 +6,13 @@ INTERFACE zif_fi_das_dashboard
          t_poowner TYPE c LENGTH 1,
          t_pstype  TYPE c LENGTH 1.
 
-  CONSTANTS: mc_parameter_email   TYPE string VALUE 'IP_EMAIL',
-             mc_parameter_pstype  TYPE string VALUE 'IP_PSTYPE',
-             mc_parameter_poowner TYPE string VALUE 'IP_POOWNER',
+  CONSTANTS: mc_pstype_material         TYPE t_pstype VALUE '0',
+             mc_pstype_service          TYPE t_pstype VALUE '9',
+             mc_pstype_all              TYPE t_pstype VALUE '*',
 
-             mc_pstype_material   TYPE t_pstype VALUE '0',
-             mc_pstype_service    TYPE t_pstype VALUE '9',
-             mc_pstype_all        TYPE t_pstype VALUE '*',
-
-             mc_over              TYPE t_mode VALUE '1',
-             mc_under             TYPE t_mode VALUE '2',
-             mc_exclude           TYPE t_mode VALUE '3'.
+             mc_over                    TYPE t_mode VALUE '1',
+             mc_under                   TYPE t_mode VALUE '2',
+             mc_exclude                 TYPE t_mode VALUE '3'.
 
   TYPES: BEGIN OF ts_orderby,
            property   TYPE string,

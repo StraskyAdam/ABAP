@@ -1,0 +1,15 @@
+@EndUserText.label : 'Accrual method input parameters'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_method_param {
+  iv_povalue       : abap.dec(13,3);
+  iv_pocurrency    : abap.char(3);
+  iv_wrkstrtdate   : abap.dats;
+  iv_wrkenddate    : abap.dats;
+  iv_accrualmethod : abap.char(50);
+  iv_totwrkcompamt : abap.char(20);
+  iv_totwrkcompper : abap.dec(13,1);
+  iv_edgewtdamt    : abap.dec(13,2);
+  iv_pstyp         : abap.char(13);
+  iv_company       : abap.char(13);
+
+}

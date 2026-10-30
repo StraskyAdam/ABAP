@@ -6,16 +6,32 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
   PUBLIC SECTION.
   PROTECTED SECTION.
 
-    METHODS openpotypeset_get_entityset
-        REDEFINITION.
-    METHODS thresholdset_get_entityset
-        REDEFINITION.
     METHODS exclusionposet_get_entityset
-        REDEFINITION.
-
+        REDEFINITION .
+    METHODS openpotypeset_get_entityset
+        REDEFINITION .
+    METHODS thresholdset_get_entityset
+        REDEFINITION .
+    METHODS method_get_entityset
+        REDEFINITION .
   PRIVATE SECTION.
 
-    CONSTANTS mc_order_descending TYPE string VALUE 'DESC'.
+    CONSTANTS: mc_parameter_email             TYPE string VALUE 'IP_EMAIL',
+               mc_parameter_pstype            TYPE string VALUE 'IP_PSTYPE',
+               mc_parameter_poowner           TYPE string VALUE 'IP_POOWNER',
+
+               mc_parameter_povalue           TYPE string VALUE 'IV_POVALUE',
+               mc_parameter_pocurrency        TYPE string VALUE 'IV_POCURRENCY',
+               mc_parameter_wrkstrtdate       TYPE string VALUE 'IV_WRKSTRTDATE',
+               mc_parameter_wrkenddate        TYPE string VALUE 'IV_WRKENDDATE',
+               mc_parameter_accrualmethod     TYPE string VALUE 'IV_ACCRUALMETHOD',
+               mc_parameter_totwrkcompamt     TYPE string VALUE 'IV_TOTWRKCOMPAMT',
+               mc_parameter_totwrkcompper     TYPE string VALUE 'IV_TOTWRKCOMPPER',
+               mc_parameter_edgewtdamt        TYPE string VALUE 'IV_EDGEWTDAMT',
+               mc_parameter_pstyp             TYPE string VALUE 'IV_PSTYP',
+               mc_parameter_company           TYPE string VALUE 'IV_COMPANY',
+
+               mc_order_descending            TYPE string VALUE 'DESC'.
 
     METHODS get_dashboard
       RETURNING
@@ -50,9 +66,21 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       RETURNING
         VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby .
+
+    METHODS get_method_parameter
+      IMPORTING
+        it_key_tab          TYPE /iwbep/t_mgw_name_value_pair
+      RETURNING
+        VALUE(rs_parameter) TYPE zfi_das_method_param
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_arithmetic_error.
+
 ENDCLASS.
 
-CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
+
 
   METHOD build_request.
 
@@ -66,6 +94,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
                           orderby = get_orderby( io_tech_request_context ) ).
 
   ENDMETHOD.
+
 
   METHOD exclusionposet_get_entityset.
 
@@ -90,11 +119,13 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_dashboard.
 
     ro_dashboard = NEW zcl_fi_das_dashboard( ).
 
   ENDMETHOD.
+
 
   METHOD get_filter.
 
@@ -132,6 +163,42 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
+  METHOD get_method_parameter.
+
+    TRY.
+
+        rs_parameter-iv_povalue = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_povalue ]-value ) ).
+
+        rs_parameter-iv_pocurrency = it_key_tab[ name = mc_parameter_pocurrency ]-value.
+
+        rs_parameter-iv_wrkstrtdate = zcl_fi_das_utility=>parse_iso_date( it_key_tab[ name = mc_parameter_wrkstrtdate ]-value ).
+
+        rs_parameter-iv_wrkenddate = zcl_fi_das_utility=>parse_iso_date( it_key_tab[ name = mc_parameter_wrkenddate ]-value ).
+
+        rs_parameter-iv_accrualmethod = it_key_tab[ name = mc_parameter_accrualmethod ]-value.
+
+        rs_parameter-iv_totwrkcompamt = it_key_tab[ name = mc_parameter_totwrkcompamt ]-value.
+
+        rs_parameter-iv_totwrkcompper = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_totwrkcompper ]-value ) ).
+
+        rs_parameter-iv_edgewtdamt = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_edgewtdamt ]-value ) ).
+
+        rs_parameter-iv_pstyp = it_key_tab[ name = mc_parameter_pstyp ]-value.
+
+        rs_parameter-iv_company = it_key_tab[ name = mc_parameter_company ]-value.
+
+      CATCH cx_sy_itab_line_not_found INTO DATA(lx_missing).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e034(zfi_das)
+          EXPORTING
+            previous = lx_missing.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD get_orderby.
 
     LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
@@ -142,6 +209,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDLOOP.
 
   ENDMETHOD.
+
 
   METHOD get_paging.
 
@@ -157,15 +225,45 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_parameter.
 
-    rs_parameter-email = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_email ]-value OPTIONAL ).
+    rs_parameter-email = VALUE #( it_key_tab[ name = mc_parameter_email ]-value OPTIONAL ).
 
-    rs_parameter-pstype = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_pstype  ]-value OPTIONAL ).
+    rs_parameter-pstype = VALUE #( it_key_tab[ name = mc_parameter_pstype  ]-value OPTIONAL ).
 
-    rs_parameter-poowner = VALUE #( it_key_tab[ name = zif_fi_das_dashboard=>mc_parameter_poowner ]-value OPTIONAL ).
+    rs_parameter-poowner = VALUE #( it_key_tab[ name = mc_parameter_poowner ]-value OPTIONAL ).
 
   ENDMETHOD.
+
+
+  METHOD method_get_entityset.
+
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
+
+    TRY.
+
+        get_dashboard( )->method_parameters(
+          EXPORTING
+            is_parameter = get_method_parameter( it_key_tab )
+          IMPORTING
+            et_result    = et_entityset ).
+
+      CATCH cx_sy_conversion_error
+            cx_sy_arithmetic_error
+            cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
 
   METHOD openpotypeset_get_entityset.
 
@@ -190,6 +288,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD thresholdset_get_entityset.
 
     TRY.
@@ -212,5 +311,4 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
-
 ENDCLASS.

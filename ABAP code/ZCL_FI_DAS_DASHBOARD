@@ -580,6 +580,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    METHODS convert_amount_to_usd
+      IMPORTING
+        i_amount          TYPE t_amount_precision
+        i_source_currency TYPE waers
+        i_exchange_rate   TYPE t_amount_precision
+      RETURNING
+        VALUE(r_amount)   TYPE t_amount
+      RAISING
+        cx_sy_conversion_error
+        cx_sy_arithmetic_error.
+
     METHODS get_exchange_rate
       IMPORTING
         i_source_currency TYPE waers
@@ -743,6 +754,23 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(rs_result)  TYPE ts_calculation
       RAISING
         zcx_fi_das_error.
+
+    METHODS get_stl_periods
+      IMPORTING
+        i_work_start_date TYPE d
+        i_work_end_date   TYPE d
+      EXPORTING
+        e_total_months    TYPE i
+        e_elapsed_months  TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS calculate_stl_result
+      IMPORTING
+        i_po_value         TYPE t_amount_precision
+        i_unrounded_amount TYPE decfloat34
+      RETURNING
+        VALUE(rs_result)   TYPE ts_calculation.
 
     METHODS get_review_action
       IMPORTING
@@ -1376,19 +1404,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    get_month_difference(
-      EXPORTING
-        i_work_start_date = i_work_start_date
-        i_work_end_date   = i_work_end_date
-      IMPORTING
-        e_total_months    = DATA(l_total_months)
-        e_elapsed_months  = DATA(l_elapsed_months) ).
-
-*   If all calculated service periods have elapsed, calculates the completed value as a 1 / 1 interval
-    IF l_total_months = l_elapsed_months.
-      l_total_months   = 1.
-      l_elapsed_months = 1.
-    ENDIF.
+    get_stl_periods(
+        EXPORTING
+            i_work_start_date = i_work_start_date
+            i_work_end_date   = i_work_end_date
+        IMPORTING
+            e_total_months    = DATA(l_total_months)
+            e_elapsed_months  = DATA(l_elapsed_months) ).
 
     IF l_total_months > 0.
 
@@ -1398,27 +1420,56 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                                               i_decimals = mc_calculation_decimals ) ).
       DATA(l_unrounded_amount) = CONV t_amount_high( l_monthly_amount * l_elapsed_months ).
 
-      DATA(l_amount) = CONV t_amount( round( val  = CONV decfloat34( l_unrounded_amount )
-                                             dec  = mc_amount_decimals
-                                             mode = cl_abap_math=>round_half_up ) ).
-
-*     Completed amount cannot exceed the original PO value
-      IF l_amount > CONV t_amount( i_po_value ).
-        l_amount = CONV t_amount( i_po_value ).
-      ENDIF.
+      rs_result = calculate_stl_result( i_po_value         = i_po_value
+                                        i_unrounded_amount = CONV decfloat34( l_unrounded_amount ) ).
     ENDIF.
 
-    rs_result-totwrkcompamt = l_amount.
-
-    rs_result-totwrkcompamt_usd = convert_to_usd( i_amount          = l_amount / get_currency_factor( i_po_currency )
+    rs_result-totwrkcompamt_usd = convert_to_usd( i_amount = CONV t_amount_precision( rs_result-totwrkcompamt / get_currency_factor( i_po_currency ) )
                                                   i_source_currency = i_po_currency ).
+
+  ENDMETHOD.
+
+  METHOD get_stl_periods.
+
+    get_month_difference(
+      EXPORTING
+        i_work_start_date = i_work_start_date
+        i_work_end_date   = i_work_end_date
+      IMPORTING
+        e_total_months    = e_total_months
+        e_elapsed_months  = e_elapsed_months ).
+
+*   If all calculated service periods have elapsed, calculates the completed value as a 1 / 1 interval
+    IF e_total_months = e_elapsed_months.
+      e_total_months   = 1.
+      e_elapsed_months = 1.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD calculate_stl_result.
+
+    DATA(l_amount) = CONV t_amount( round( val  = i_unrounded_amount
+                                           dec  = mc_amount_decimals
+                                           mode = cl_abap_math=>round_half_up ) ).
+
+*   Completed amount cannot exceed the original PO value
+    IF l_amount > CONV t_amount( i_po_value ).
+      l_amount = CONV t_amount( i_po_value ).
+    ENDIF.
+
+    rs_result-accrualmethod    = mc_accrual_stl.
+    rs_result-straightlinemthd = abap_true.
+    rs_result-totwrkcompamt    = l_amount.
+
     IF i_po_value > 0.
 
       DATA(l_percentage) = CONV decfloat34( l_amount ) / CONV decfloat34( i_po_value ) * 100.
 
-      rs_result-totwrkcompper =  CONV zcl_fi_das_dashboard=>t_percentage( round( val  = l_percentage
-                                                                                 dec  = mc_percentage_decimals
-                                                                                 mode = cl_abap_math=>round_half_up ) ).
+      rs_result-totwrkcompper = CONV t_percentage( round( val  = l_percentage
+                                                          dec  = mc_percentage_decimals
+                                                          mode = cl_abap_math=>round_half_up ) ).
+
     ENDIF.
 
   ENDMETHOD.
@@ -1497,8 +1548,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD convert_to_usd.
 
-    DATA: l_source_amount TYPE t_amount_precision,
-          l_usd_amount    TYPE decfloat34.
+    DATA l_source_amount TYPE t_amount_precision.
 
     CLEAR r_amount.
 
@@ -1506,23 +1556,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       l_source_amount = i_amount.
     ELSE.
       l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( i_amount )
-                                                              i_decimals = mc_amount_decimals  ).
+                                                              i_decimals = mc_amount_decimals ).
     ENDIF.
 
     IF l_source_amount IS INITIAL.
       RETURN.
     ENDIF.
 
-*   Apply the historical currency factor before conversion.
-    l_source_amount = l_source_amount * get_currency_factor( i_source_currency ).
-
     DATA(l_rate) = get_exchange_rate( i_source_currency ).
 
-    l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate ).
+    r_amount = convert_amount_to_usd(  i_amount          = l_source_amount
+                                       i_source_currency = i_source_currency
+                                       i_exchange_rate   = l_rate ).
+
+  ENDMETHOD.
+
+  METHOD convert_amount_to_usd.
+
+    DATA(l_source_amount) = CONV t_amount_precision( i_amount * get_currency_factor( i_source_currency ) ).
+
+    DATA(l_usd_amount) = CONV decfloat34( l_source_amount )  * CONV decfloat34( i_exchange_rate ).
 
     r_amount = round( val  = l_usd_amount
                       dec  = mc_amount_decimals
-                      mode = cl_abap_math=>round_half_up  ).
+                      mode = cl_abap_math=>round_half_up ).
 
   ENDMETHOD.
 
@@ -3322,6 +3379,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_use_replication.
 
+*    r_use_replication = abap_true.
+*    RETURN.
+
     r_use_replication = abap_false.
 
     DATA(l_day) = COND i( WHEN i_day IS SUPPLIED
@@ -3356,6 +3416,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
 
     r_use_replication = xsdbool( l_day <= l_to_day ).
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~method_parameters.
 
   ENDMETHOD.
 

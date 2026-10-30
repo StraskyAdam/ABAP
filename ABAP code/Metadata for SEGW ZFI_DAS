@@ -2,6 +2,42 @@ This XML file does not appear to have any style information associated with it. 
 <edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:sap="http://www.sap.com/Protocols/SAPData" Version="1.0">
 <edmx:DataServices m:DataServiceVersion="2.0">
 <Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="ZFI_DAS_SRV" xml:lang="en" sap:schema-version="1">
+<EntityType Name="methodType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="STRAIGHTLINEMTHD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:label="ACCRUALMETHOD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:label="TOTWRKCOMPPER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+</EntityType>
+<EntityType Name="methodParametersType" sap:content-version="1">
+<Key>
+<PropertyRef Name="IV_POVALUE"/>
+<PropertyRef Name="IV_POCURRENCY"/>
+<PropertyRef Name="IV_WRKSTRTDATE"/>
+<PropertyRef Name="IV_WRKENDDATE"/>
+<PropertyRef Name="IV_ACCRUALMETHOD"/>
+<PropertyRef Name="IV_TOTWRKCOMPAMT"/>
+<PropertyRef Name="IV_TOTWRKCOMPPER"/>
+<PropertyRef Name="IV_EDGEWTDAMT"/>
+<PropertyRef Name="IV_PSTYP"/>
+<PropertyRef Name="IV_COMPANY"/>
+</Key>
+<Property Name="IV_POVALUE" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_POCURRENCY" Type="Edm.String" Nullable="false" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_WRKSTRTDATE" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_WRKENDDATE" Type="Edm.String" Nullable="false" MaxLength="10" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_ACCRUALMETHOD" Type="Edm.String" Nullable="false" MaxLength="50" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_TOTWRKCOMPAMT" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_TOTWRKCOMPPER" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_EDGEWTDAMT" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_PSTYP" Type="Edm.String" Nullable="false" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IV_COMPANY" Type="Edm.String" Nullable="false" MaxLength="4" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.methodParameters_to_methodType" FromRole="FromRole_methodParameters_to_methodType" ToRole="ToRole_methodParameters_to_methodType"/>
+</EntityType>
 <EntityType Name="openPOType" sap:content-version="1">
 <Key>
 <PropertyRef Name="PONUMBER"/>
@@ -248,42 +284,6 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="IP_POOWNER" Type="Edm.String" Nullable="false" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.exclusionPOParameters_to_exclusionPOType" FromRole="FromRole_exclusionPOParameters_to_exclusionPOType" ToRole="ToRole_exclusionPOParameters_to_exclusionPOType"/>
 </EntityType>
-<EntityType Name="methodType" sap:content-version="1">
-<Key>
-<PropertyRef Name="ID"/>
-</Key>
-<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="STRAIGHTLINEMTHD" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="STRAIGHTLINEMTHD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="ACCRUALMETHOD" Type="Edm.String" MaxLength="50" sap:unicode="false" sap:label="ACCRUALMETHOD" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPAMT_COCDECURR" Type="Edm.Decimal" Precision="13" Scale="2" sap:unicode="false" sap:label="TOTWRKCOMPAMT_COCDECURR" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="TOTWRKCOMPPER" Type="Edm.Decimal" Precision="13" Scale="1" sap:unicode="false" sap:label="TOTWRKCOMPPER" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-</EntityType>
-<EntityType Name="methodParametersType" sap:content-version="1">
-<Key>
-<PropertyRef Name="IV_POVALUE"/>
-<PropertyRef Name="IV_POCURRENCY"/>
-<PropertyRef Name="IV_WRKSTRTDATE"/>
-<PropertyRef Name="IV_WRKENDDATE"/>
-<PropertyRef Name="IV_ACCRUALMETHOD"/>
-<PropertyRef Name="IV_TOTWRKCOMPAMT"/>
-<PropertyRef Name="IV_TOTWRKCOMPPER"/>
-<PropertyRef Name="IV_EDGEWTDAMT"/>
-<PropertyRef Name="IV_PSTYP"/>
-<PropertyRef Name="IV_COMPANY"/>
-</Key>
-<Property Name="IV_POVALUE" Type="Edm.Decimal" Nullable="false" Precision="13" Scale="3" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_POCURRENCY" Type="Edm.String" Nullable="false" MaxLength="3" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_WRKSTRTDATE" Type="Edm.DateTime" Nullable="false" Precision="0" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_WRKENDDATE" Type="Edm.DateTime" Nullable="false" Precision="0" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_ACCRUALMETHOD" Type="Edm.String" Nullable="false" MaxLength="50" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_TOTWRKCOMPAMT" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_TOTWRKCOMPPER" Type="Edm.Decimal" Nullable="false" Precision="13" Scale="1" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_EDGEWTDAMT" Type="Edm.Decimal" Nullable="false" Precision="13" Scale="2" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_PSTYP" Type="Edm.String" Nullable="false" MaxLength="13" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="IV_COMPANY" Type="Edm.String" Nullable="false" MaxLength="13" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.methodParameters_to_methodType" FromRole="FromRole_methodParameters_to_methodType" ToRole="ToRole_methodParameters_to_methodType"/>
-</EntityType>
 <Association Name="thresholdParameters_to_thresholdType" sap:content-version="1">
 <End Type="ZFI_DAS_SRV.thresholdParametersType" Multiplicity="1" Role="FromRole_thresholdParameters_to_thresholdType"/>
 <End Type="ZFI_DAS_SRV.thresholdType" Multiplicity="*" Role="ToRole_thresholdParameters_to_thresholdType"/>
@@ -301,14 +301,14 @@ This XML file does not appear to have any style information associated with it. 
 <End Type="ZFI_DAS_SRV.methodType" Multiplicity="*" Role="ToRole_methodParameters_to_methodType"/>
 </Association>
 <EntityContainer Name="ZFI_DAS_SRV_Entities" m:IsDefaultEntityContainer="true" sap:supported-formats="atom json xlsx">
+<EntitySet Name="method" EntityType="ZFI_DAS_SRV.methodType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
+<EntitySet Name="methodParameters" EntityType="ZFI_DAS_SRV.methodParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="openPO" EntityType="ZFI_DAS_SRV.openPOType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
 <EntitySet Name="threshold" EntityType="ZFI_DAS_SRV.thresholdType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
 <EntitySet Name="exclusionPO" EntityType="ZFI_DAS_SRV.exclusionPOType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
 <EntitySet Name="openPOParameters" EntityType="ZFI_DAS_SRV.openPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="thresholdParameters" EntityType="ZFI_DAS_SRV.thresholdParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="exclusionPOParameters" EntityType="ZFI_DAS_SRV.exclusionPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
-<EntitySet Name="method" EntityType="ZFI_DAS_SRV.methodType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
-<EntitySet Name="methodParameters" EntityType="ZFI_DAS_SRV.methodParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <AssociationSet Name="thresholdParameters_to_threshold" Association="ZFI_DAS_SRV.thresholdParameters_to_thresholdType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="thresholdParameters" Role="FromRole_thresholdParameters_to_thresholdType"/>
 <End EntitySet="threshold" Role="ToRole_thresholdParameters_to_thresholdType"/>

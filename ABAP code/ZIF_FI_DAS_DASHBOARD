@@ -60,9 +60,10 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_request,
 
-         tt_zfi_das_over TYPE STANDARD TABLE OF zfi_das_over,
-         tt_zfi_das_under TYPE STANDARD TABLE OF zfi_das_under,
-         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude.
+         tt_zfi_das_over    TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under   TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude,
+         tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method.
 
   METHODS over
     IMPORTING
@@ -95,6 +96,17 @@ INTERFACE zif_fi_das_dashboard
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS method_parameters
+    IMPORTING
+      !is_parameter TYPE zfi_das_method_param
+    EXPORTING
+      !et_result    TYPE tt_zfi_das_method
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_arithmetic_error
       cx_sy_open_sql_db.
 
 ENDINTERFACE.

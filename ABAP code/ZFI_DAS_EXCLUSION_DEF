@@ -941,11 +941,12 @@ CLASS lcl_exclusion IMPLEMENTATION.
     DATA lt_package  TYPE tt_result.
 
     DELETE FROM zfi_das_po_excl.
-    IF sy-subrc = 0.
-      m_deleted = sy-dbcnt.
-    ELSE.
+
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH mc_target.
     ENDIF.
+
+    m_deleted = sy-dbcnt.
 
     CLEAR m_inserted.
 

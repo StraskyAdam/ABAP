@@ -155,6 +155,7 @@ CLASS ltc_method_parameters DEFINITION FINAL FOR TESTING
     METHODS wtd_chf_rate_truncated FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS stl_ignores_wtd_amount FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS wtd_supplied FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS stl_po_value_truncated FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS wtd_zero_is_supplied FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS wtd_empty_uses_stl FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS non_service_initial FOR TESTING RAISING cx_static_check cx_dynamic_check.
@@ -10213,7 +10214,7 @@ CLASS ltc_method_parameters IMPLEMENTATION.
     DATA(ls_result) = run( ).
     cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).
     cl_abap_unit_assert=>assert_initial( act = ls_result-straightlinemthd ).
-    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '123.46' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt exp = '123.45' ).
     cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '134.56' ).
     cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompper exp = '12.3' ).
   ENDMETHOD.
@@ -10225,6 +10226,18 @@ CLASS ltc_method_parameters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_result-accrualmethod exp = 'WTD' ).
     cl_abap_unit_assert=>assert_initial( act = ls_result-totwrkcompamt ).
     cl_abap_unit_assert=>assert_initial( act = ls_result-straightlinemthd ).
+  ENDMETHOD.
+
+  METHOD stl_po_value_truncated.
+    ms_param-iv_povalue = '100.129'.
+    DATA(ls_result) = run( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-totwrkcompamt exp = '100.12' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-totwrkcompamt_cocdecurr exp = '100.12' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-totwrkcompper exp = '100.0' ).
   ENDMETHOD.
 
   METHOD wtd_empty_uses_stl.

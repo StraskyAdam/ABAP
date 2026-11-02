@@ -31,6 +31,7 @@ CLASS lcl_exclusion DEFINITION FINAL.
       mc_profit_low   TYPE string VALUE `00000000`,
       mc_profit_high  TYPE string VALUE `9999`,
 
+      mc_asterisk     TYPE c LENGTH 1 VALUE '*',
       mc_empty        TYPE string VALUE ``,
       mc_blank        TYPE string VALUE ` `,
       mc_zero         TYPE c LENGTH 1 VALUE '0',
@@ -510,7 +511,7 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
     lr_dashboard = NEW zcl_fi_das_dashboard( ).
 
-    DATA(ls_parameter) = VALUE zif_fi_das_dashboard=>ts_parameter( email   = '*'
+    DATA(ls_parameter) = VALUE zif_fi_das_dashboard=>ts_parameter( email   = mc_asterisk
                                                                    poowner = abap_false
                                                                    pstype  = i_pstype ).
 

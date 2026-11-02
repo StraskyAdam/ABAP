@@ -47,7 +47,9 @@ CLASS zcl_fi_das_utility DEFINITION
       mc_max_odata_decimals TYPE i VALUE 8,
       mc_group_size         TYPE i VALUE 3,
       mc_plus_sign          TYPE c LENGTH 1 VALUE '+',
-      mc_minus_sign         TYPE c LENGTH 1 VALUE '-'.
+      mc_minus_sign         TYPE c LENGTH 1 VALUE '-',
+
+      mc_iso_date_pattern   TYPE string VALUE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'.
 
     CLASS-METHODS normalize_email
       IMPORTING
@@ -164,6 +166,14 @@ CLASS zcl_fi_das_utility DEFINITION
     CLASS-METHODS unlock_table
       IMPORTING
         i_table TYPE tabname.
+
+    CLASS-METHODS parse_iso_date
+      IMPORTING
+        i_value       TYPE string
+      RETURNING
+        VALUE(r_date) TYPE d
+      RAISING
+        zcx_fi_das_error.
 
   PRIVATE SECTION.
 
@@ -641,6 +651,33 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
       EXPORTING
         tabname = i_table
         _scope  = mc_lock_scope.
+
+  ENDMETHOD.
+
+  METHOD parse_iso_date.
+
+    FIND REGEX mc_iso_date_pattern IN i_value.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e033(zfi_das) WITH i_value.
+    ENDIF.
+
+    r_date = i_value(4) && i_value+5(2) && i_value+8(2).
+
+    IF r_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e033(zfi_das) WITH i_value.
+    ENDIF.
+
+    CALL FUNCTION 'DATE_CHECK_PLAUSIBILITY'
+      EXPORTING
+        date                      = r_date
+      EXCEPTIONS
+        plausibility_check_failed = 1
+        OTHERS                    = 2.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e033(zfi_das) WITH i_value.
+    ENDIF.
 
   ENDMETHOD.
 

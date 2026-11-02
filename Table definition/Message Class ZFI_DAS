@@ -1,4 +1,4 @@
-28.10.2026     Dynamic List Display                                                              1
+02.11.2026     Dynamic List Display                                                              1
 --------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------
 |Language|AppAr  |MsgNo|Message Text                                                             |
@@ -35,4 +35,7 @@
 |EN      |ZFI_DAS|030  |Insert into table &1 failed                                              |
 |EN      |ZFI_DAS|031  |Commit failed for table &1                                               |
 |EN      |ZFI_DAS|032  |Error deleting data from table &1                                        |
+|EN      |ZFI_DAS|033  |Invalid ISO date: &1. Expected a valid date in YYYY-MM-DD format         |
+|EN      |ZFI_DAS|034	 |Required method parameter is missing                                     |
+|EN      |ZFI_DAS|035	 |Unable to generate result ID                                             |
 --------------------------------------------------------------------------------------------------

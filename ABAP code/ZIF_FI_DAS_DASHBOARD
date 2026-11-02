@@ -6,17 +6,13 @@ INTERFACE zif_fi_das_dashboard
          t_poowner TYPE c LENGTH 1,
          t_pstype  TYPE c LENGTH 1.
 
-  CONSTANTS: mc_parameter_email   TYPE string VALUE 'IP_EMAIL',
-             mc_parameter_pstype  TYPE string VALUE 'IP_PSTYPE',
-             mc_parameter_poowner TYPE string VALUE 'IP_POOWNER',
+  CONSTANTS: mc_pstype_material         TYPE t_pstype VALUE '0',
+             mc_pstype_service          TYPE t_pstype VALUE '9',
+             mc_pstype_all              TYPE t_pstype VALUE '*',
 
-             mc_pstype_material   TYPE t_pstype VALUE '0',
-             mc_pstype_service    TYPE t_pstype VALUE '9',
-             mc_pstype_all        TYPE t_pstype VALUE '*',
-
-             mc_over              TYPE t_mode VALUE '1',
-             mc_under             TYPE t_mode VALUE '2',
-             mc_exclude           TYPE t_mode VALUE '3'.
+             mc_over                    TYPE t_mode VALUE '1',
+             mc_under                   TYPE t_mode VALUE '2',
+             mc_exclude                 TYPE t_mode VALUE '3'.
 
   TYPES: BEGIN OF ts_orderby,
            property   TYPE string,
@@ -60,9 +56,10 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_request,
 
-         tt_zfi_das_over TYPE STANDARD TABLE OF zfi_das_over,
-         tt_zfi_das_under TYPE STANDARD TABLE OF zfi_das_under,
-         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude.
+         tt_zfi_das_over    TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under   TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude,
+         tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method.
 
   METHODS over
     IMPORTING
@@ -95,6 +92,17 @@ INTERFACE zif_fi_das_dashboard
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS method_parameters
+    IMPORTING
+      !is_parameter TYPE zfi_das_method_param
+    EXPORTING
+      !et_result    TYPE tt_zfi_das_method
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_arithmetic_error
       cx_sy_open_sql_db.
 
 ENDINTERFACE.

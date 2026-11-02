@@ -24,6 +24,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                mc_day_min               TYPE i VALUE 1,
                mc_day_max               TYPE i VALUE 31.
 
+    METHODS constructor.
+
     CLASS-METHODS get_use_replication
       IMPORTING
         i_day                    TYPE i OPTIONAL
@@ -580,6 +582,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    METHODS convert_amount_to_usd
+      IMPORTING
+        i_amount          TYPE t_amount_precision
+        i_source_currency TYPE waers
+        i_exchange_rate   TYPE t_amount_precision
+      RETURNING
+        VALUE(r_amount)   TYPE t_amount
+      RAISING
+        cx_sy_conversion_error
+        cx_sy_arithmetic_error.
+
     METHODS get_exchange_rate
       IMPORTING
         i_source_currency TYPE waers
@@ -741,6 +754,44 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_work_end_date   TYPE d
       RETURNING
         VALUE(rs_result)  TYPE ts_calculation
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_stl_periods
+      IMPORTING
+        i_work_start_date TYPE d
+        i_work_end_date   TYPE d
+      EXPORTING
+        e_total_months    TYPE i
+        e_elapsed_months  TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS calculate_stl_result
+      IMPORTING
+        i_po_value         TYPE t_amount_precision
+        i_unrounded_amount TYPE decfloat34
+      RETURNING
+        VALUE(rs_result)   TYPE ts_calculation.
+
+    METHODS calculate_method_stl
+      IMPORTING
+        is_parameter     TYPE zfi_das_method_param
+        i_exchange_rate  TYPE t_amount_precision
+      RETURNING
+        VALUE(rs_result) TYPE ts_calculation
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_arithmetic_error.
+
+    METHODS get_effective_pstype
+      IMPORTING
+        i_pstype          TYPE zif_fi_das_dashboard=>t_pstype
+        i_work_start_date TYPE d
+        i_company_code    TYPE bukrs
+      RETURNING
+        VALUE(r_pstype)   TYPE zif_fi_das_dashboard=>t_pstype
       RAISING
         zcx_fi_das_error.
 
@@ -1376,19 +1427,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    get_month_difference(
-      EXPORTING
-        i_work_start_date = i_work_start_date
-        i_work_end_date   = i_work_end_date
-      IMPORTING
-        e_total_months    = DATA(l_total_months)
-        e_elapsed_months  = DATA(l_elapsed_months) ).
-
-*   If all calculated service periods have elapsed, calculates the completed value as a 1 / 1 interval
-    IF l_total_months = l_elapsed_months.
-      l_total_months   = 1.
-      l_elapsed_months = 1.
-    ENDIF.
+    get_stl_periods(
+        EXPORTING
+            i_work_start_date = i_work_start_date
+            i_work_end_date   = i_work_end_date
+        IMPORTING
+            e_total_months    = DATA(l_total_months)
+            e_elapsed_months  = DATA(l_elapsed_months) ).
 
     IF l_total_months > 0.
 
@@ -1398,28 +1443,79 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                                               i_decimals = mc_calculation_decimals ) ).
       DATA(l_unrounded_amount) = CONV t_amount_high( l_monthly_amount * l_elapsed_months ).
 
-      DATA(l_amount) = CONV t_amount( round( val  = CONV decfloat34( l_unrounded_amount )
-                                             dec  = mc_amount_decimals
-                                             mode = cl_abap_math=>round_half_up ) ).
-
-*     Completed amount cannot exceed the original PO value
-      IF l_amount > CONV t_amount( i_po_value ).
-        l_amount = CONV t_amount( i_po_value ).
-      ENDIF.
+      rs_result = calculate_stl_result( i_po_value         = i_po_value
+                                        i_unrounded_amount = CONV decfloat34( l_unrounded_amount ) ).
     ENDIF.
 
-    rs_result-totwrkcompamt = l_amount.
-
-    rs_result-totwrkcompamt_usd = convert_to_usd( i_amount          = l_amount / get_currency_factor( i_po_currency )
+    rs_result-totwrkcompamt_usd = convert_to_usd( i_amount = CONV t_amount_precision( rs_result-totwrkcompamt / get_currency_factor( i_po_currency ) )
                                                   i_source_currency = i_po_currency ).
+
+  ENDMETHOD.
+
+  METHOD get_stl_periods.
+
+    get_month_difference(
+      EXPORTING
+        i_work_start_date = i_work_start_date
+        i_work_end_date   = i_work_end_date
+      IMPORTING
+        e_total_months    = e_total_months
+        e_elapsed_months  = e_elapsed_months ).
+
+*   If all calculated service periods have elapsed, calculates the completed value as a 1 / 1 interval
+    IF e_total_months = e_elapsed_months.
+      e_total_months   = 1.
+      e_elapsed_months = 1.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD calculate_stl_result.
+
+    DATA(l_amount) = CONV t_amount( round( val  = i_unrounded_amount
+                                           dec  = mc_amount_decimals
+                                           mode = cl_abap_math=>round_half_up ) ).
+
+*   Completed amount cannot exceed the original PO value
+    IF l_amount > CONV t_amount( i_po_value ).
+      l_amount = CONV t_amount( i_po_value ).
+    ENDIF.
+
+    rs_result-accrualmethod    = mc_accrual_stl.
+    rs_result-straightlinemthd = abap_true.
+    rs_result-totwrkcompamt    = l_amount.
+
     IF i_po_value > 0.
 
       DATA(l_percentage) = CONV decfloat34( l_amount ) / CONV decfloat34( i_po_value ) * 100.
 
-      rs_result-totwrkcompper =  CONV zcl_fi_das_dashboard=>t_percentage( round( val  = l_percentage
-                                                                                 dec  = mc_percentage_decimals
-                                                                                 mode = cl_abap_math=>round_half_up ) ).
+      rs_result-totwrkcompper = CONV t_percentage( round( val  = l_percentage
+                                                          dec  = mc_percentage_decimals
+                                                          mode = cl_abap_math=>round_half_up ) ).
+
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD calculate_method_stl.
+
+    DATA(l_po_value) = CONV t_amount( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_parameter-iv_povalue )
+                                                                            i_decimals = mc_amount_decimals ) ).
+
+    get_stl_periods(
+      EXPORTING
+        i_work_start_date = is_parameter-iv_wrkstrtdate
+        i_work_end_date   = is_parameter-iv_wrkenddate
+      IMPORTING
+        e_total_months    = DATA(l_total_months)
+        e_elapsed_months  = DATA(l_elapsed_months) ).
+
+    rs_result = calculate_stl_result( i_po_value         = CONV #( l_po_value )
+                                      i_unrounded_amount = CONV decfloat34( l_po_value ) / l_total_months * l_elapsed_months ).
+
+    rs_result-totwrkcompamt_usd = convert_amount_to_usd( i_amount          = CONV #( rs_result-totwrkcompamt )
+                                                         i_source_currency = CONV #( is_parameter-iv_pocurrency )
+                                                         i_exchange_rate   = i_exchange_rate ).
 
   ENDMETHOD.
 
@@ -1497,8 +1593,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD convert_to_usd.
 
-    DATA: l_source_amount TYPE t_amount_precision,
-          l_usd_amount    TYPE decfloat34.
+    DATA l_source_amount TYPE t_amount_precision.
 
     CLEAR r_amount.
 
@@ -1506,23 +1601,30 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       l_source_amount = i_amount.
     ELSE.
       l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( i_amount )
-                                                              i_decimals = mc_amount_decimals  ).
+                                                              i_decimals = mc_amount_decimals ).
     ENDIF.
 
     IF l_source_amount IS INITIAL.
       RETURN.
     ENDIF.
 
-*   Apply the historical currency factor before conversion.
-    l_source_amount = l_source_amount * get_currency_factor( i_source_currency ).
-
     DATA(l_rate) = get_exchange_rate( i_source_currency ).
 
-    l_usd_amount =  CONV decfloat34( l_source_amount ) * CONV decfloat34( l_rate ).
+    r_amount = convert_amount_to_usd(  i_amount          = l_source_amount
+                                       i_source_currency = i_source_currency
+                                       i_exchange_rate   = l_rate ).
+
+  ENDMETHOD.
+
+  METHOD convert_amount_to_usd.
+
+    DATA(l_source_amount) = CONV t_amount_precision( i_amount * get_currency_factor( i_source_currency ) ).
+
+    DATA(l_usd_amount) = CONV decfloat34( l_source_amount )  * CONV decfloat34( i_exchange_rate ).
 
     r_amount = round( val  = l_usd_amount
                       dec  = mc_amount_decimals
-                      mode = cl_abap_math=>round_half_up  ).
+                      mode = cl_abap_math=>round_half_up ).
 
   ENDMETHOD.
 
@@ -1771,8 +1873,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   METHOD get_context.
 
     DATA(lt_keys) = get_unique_keys( it_keys ).
-
-    get_exchrt( ).
 
     rs_context-details = get_details( it_keys    = lt_keys
                                       is_request = is_request ).
@@ -3322,6 +3422,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_use_replication.
 
+*    r_use_replication = abap_true.
+*    RETURN.
+
     r_use_replication = abap_false.
 
     DATA(l_day) = COND i( WHEN i_day IS SUPPLIED
@@ -3356,6 +3459,61 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
 
     r_use_replication = xsdbool( l_day <= l_to_day ).
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~method_parameters.
+
+    DATA(l_exchange_rate) = CONV t_amount( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( get_exchange_rate( CONV #( is_parameter-iv_pocurrency ) ) )
+                                                                                 i_decimals = mc_amount_decimals ) ).
+
+    DATA(ls_calculation) = COND ts_calculation(
+      WHEN get_effective_pstype( i_pstype          = is_parameter-iv_pstyp
+                                 i_work_start_date = is_parameter-iv_wrkstrtdate
+                                 i_company_code    = is_parameter-iv_company ) <> zif_fi_das_dashboard=>mc_pstype_service
+        THEN VALUE #( accrualmethod = mc_accrual_stl )
+
+      WHEN is_parameter-iv_accrualmethod = mc_accrual_stl OR ( is_parameter-iv_accrualmethod = mc_accrual_wtd AND is_parameter-iv_totwrkcompamt IS INITIAL )
+        THEN calculate_method_stl( is_parameter    = is_parameter
+                                   i_exchange_rate = CONV #( l_exchange_rate ) )
+
+      WHEN is_parameter-iv_accrualmethod = mc_accrual_wtd
+        THEN VALUE #( accrualmethod     = mc_accrual_wtd
+                      totwrkcompamt     = CONV #( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_parameter-iv_totwrkcompamt )
+                                                                                        i_decimals = mc_amount_decimals ) )
+                      totwrkcompamt_usd = convert_amount_to_usd( i_amount          = CONV #( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV #( is_parameter-iv_totwrkcompamt )
+                                                                                                                                   i_decimals = mc_amount_decimals ) )
+                                                                 i_source_currency = CONV #( is_parameter-iv_pocurrency )
+                                                                 i_exchange_rate   = CONV #( l_exchange_rate ) )
+                      totwrkcompper     = is_parameter-iv_totwrkcompper ) ).
+
+    DATA(ls_result) = CORRESPONDING zfi_das_method( ls_calculation MAPPING totwrkcompamt_cocdecurr = totwrkcompamt_usd ).
+
+    TRY.
+        ls_result-id = cl_system_uuid=>create_uuid_c32_static( ).
+      CATCH cx_uuid_error.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e035(zfi_das).
+    ENDTRY.
+
+    APPEND ls_result TO et_result.
+
+  ENDMETHOD.
+
+  METHOD constructor.
+
+    get_exchrt( ).
+
+  ENDMETHOD.
+
+  METHOD get_effective_pstype.
+
+    DATA(lt_japan_brazil) = get_japan_brazil( ).
+
+    r_pstype = COND #( WHEN i_pstype = zif_fi_das_dashboard=>mc_pstype_material AND
+                            i_work_start_date IS NOT INITIAL AND
+                            line_exists( lt_japan_brazil[ value = i_company_code ] )
+                          THEN zif_fi_das_dashboard=>mc_pstype_service
+                          ELSE i_pstype ).
 
   ENDMETHOD.
 

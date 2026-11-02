@@ -6,15 +6,24 @@ INTERFACE zif_fi_das_dashboard
          t_poowner TYPE c LENGTH 1,
          t_pstype  TYPE c LENGTH 1.
 
-  CONSTANTS: mc_pstype_material         TYPE t_pstype VALUE '0',
-             mc_pstype_service          TYPE t_pstype VALUE '9',
-             mc_pstype_all              TYPE t_pstype VALUE '*',
+  CONSTANTS: mc_pstype_material TYPE t_pstype VALUE '0',
+             mc_pstype_service  TYPE t_pstype VALUE '9',
+             mc_pstype_all      TYPE t_pstype VALUE '*',
 
-             mc_over                    TYPE t_mode VALUE '1',
-             mc_under                   TYPE t_mode VALUE '2',
-             mc_exclude                 TYPE t_mode VALUE '3'.
+             mc_over            TYPE t_mode VALUE '1',
+             mc_under           TYPE t_mode VALUE '2',
+             mc_exclude         TYPE t_mode VALUE '3'.
 
-  TYPES: BEGIN OF ts_orderby,
+  TYPES: BEGIN OF ts_key,
+           ponumber      TYPE ebeln,
+           itemno        TYPE ebelp,
+           pstype        TYPE t_pstype,
+           poowner_email TYPE t_email,
+         END OF ts_key,
+
+         tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+
+         BEGIN OF ts_orderby,
            property   TYPE string,
            descending TYPE abap_bool,
          END OF ts_orderby,
@@ -92,6 +101,17 @@ INTERFACE zif_fi_das_dashboard
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS get_po_keys
+    IMPORTING
+      i_mode             TYPE t_mode
+      is_parameter       TYPE ts_parameter
+      i_apply_exclusions TYPE abap_bool DEFAULT abap_true
+    RETURNING
+      VALUE(rt_keys)     TYPE tt_key
+    RAISING
+      zcx_fi_das_error
       cx_sy_open_sql_db.
 
   METHODS method_parameters

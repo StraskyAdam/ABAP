@@ -1499,7 +1499,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD calculate_method_stl.
 
-    DATA(l_po_value) = CONV t_amount( is_parameter-iv_povalue ).
+    DATA(l_po_value) = CONV t_amount( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_parameter-iv_povalue )
+                                                                            i_decimals = mc_amount_decimals ) ).
 
     get_stl_periods(
       EXPORTING
@@ -3478,7 +3479,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       WHEN is_parameter-iv_accrualmethod = mc_accrual_wtd
         THEN VALUE #( accrualmethod     = mc_accrual_wtd
-                      totwrkcompamt     = CONV #( is_parameter-iv_totwrkcompamt )
+                      totwrkcompamt     = CONV #( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( is_parameter-iv_totwrkcompamt )
+                                                                                        i_decimals = mc_amount_decimals ) )
                       totwrkcompamt_usd = convert_amount_to_usd( i_amount          = CONV #( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV #( is_parameter-iv_totwrkcompamt )
                                                                                                                                    i_decimals = mc_amount_decimals ) )
                                                                  i_source_currency = CONV #( is_parameter-iv_pocurrency )

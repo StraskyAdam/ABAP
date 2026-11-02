@@ -180,11 +180,11 @@ CLASS lcl_exchange_rate IMPLEMENTATION.
 
     DELETE FROM zfi_das_exchrt.
 
-    IF sy-subrc = 0.
-      m_deleted = sy-dbcnt.
-    ELSE.
+     IF sy-subrc <> 0 AND sy-subrc <> 4.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e032(zfi_das) WITH mc_target.
     ENDIF.
+
+    m_deleted = sy-dbcnt..
 
     IF it_result IS INITIAL.
       RETURN.

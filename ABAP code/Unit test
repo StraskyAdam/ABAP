@@ -152,6 +152,7 @@ CLASS ltc_method_parameters DEFINITION FINAL FOR TESTING
     METHODS stl_partial_xsa_formula FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS stl_rate_two_decimals FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS stl_jpy_factor FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS wtd_chf_rate_truncated FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS stl_ignores_wtd_amount FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS wtd_supplied FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS wtd_zero_is_supplied FOR TESTING RAISING cx_static_check cx_dynamic_check.
@@ -10115,10 +10116,12 @@ CLASS ltc_method_parameters IMPLEMENTATION.
 
   METHOD setup.
     mo_cut = NEW #( ).
+
     mo_cut->mt_exchrt = VALUE #(
       ( source_curr = 'USD' target_curr = 'USD' exchange_rate = '1' )
-      ( source_curr = 'EUR' target_curr = 'USD' exchange_rate = '1.086' )
-      ( source_curr = 'JPY' target_curr = 'USD' exchange_rate = '0.0067' ) ).
+      ( source_curr = 'EUR' target_curr = 'USD' exchange_rate = '1.095664' )
+      ( source_curr = 'CHF' target_curr = 'USD' exchange_rate = '1.166529' )
+      ( source_curr = 'JPY' target_curr = 'USD' exchange_rate = '0.006735' ) ).
     ms_param = VALUE #( iv_povalue       = '1604136.00'
                         iv_pocurrency    = 'USD'
                         iv_wrkstrtdate   = '20190401'
@@ -10175,12 +10178,21 @@ CLASS ltc_method_parameters IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '109.00' ).
   ENDMETHOD.
 
-  " JPY x100, rate 0.0067 -> 0.01
+" XSA truncates 0.006735 to 0.00 before applying the JPY factor
   METHOD stl_jpy_factor.
     ms_param-iv_povalue    = '1000.00'.
     ms_param-iv_pocurrency = 'JPY'.
     DATA(ls_result) = run( ).
-    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '1000.00' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_result-totwrkcompamt_cocdecurr exp = '0.00' ).
+  ENDMETHOD.
+
+  METHOD wtd_chf_rate_truncated.
+    ms_param-iv_accrualmethod = 'WTD'.
+    ms_param-iv_pocurrency    = 'CHF'.
+    ms_param-iv_totwrkcompamt = '100.00'.
+    DATA(ls_result) = run( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-totwrkcompamt_cocdecurr exp = '116.00' ).
   ENDMETHOD.
 
   METHOD stl_ignores_wtd_amount.

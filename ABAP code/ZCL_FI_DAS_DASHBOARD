@@ -3463,7 +3463,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~method_parameters.
 
-    DATA(l_exchange_rate) = CONV t_amount( get_exchange_rate( CONV #( is_parameter-iv_pocurrency ) ) ).
+    DATA(l_exchange_rate) = CONV t_amount( zcl_fi_das_utility=>truncate_decimal( i_value    = CONV decfloat34( get_exchange_rate( CONV #( is_parameter-iv_pocurrency ) ) )
+                                                                                 i_decimals = mc_amount_decimals ) ).
 
     DATA(ls_calculation) = COND ts_calculation(
       WHEN get_effective_pstype( i_pstype          = is_parameter-iv_pstyp

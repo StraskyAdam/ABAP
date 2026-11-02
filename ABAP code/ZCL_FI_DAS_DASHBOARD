@@ -51,8 +51,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       t_amount_high      TYPE p LENGTH 16 DECIMALS 14,
       t_amount           TYPE p LENGTH 7  DECIMALS 2,
 
-      t_method_rate      TYPE p LENGTH 7 DECIMALS 2,
-
       t_text_5000        TYPE c LENGTH 5000,
       t_text_500         TYPE c LENGTH 500,
       t_text_50          TYPE c LENGTH 50.
@@ -317,12 +315,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         straightlinemthd  TYPE abap_bool,
         accrualmethod     TYPE t_text_50,
       END OF ts_calculation,
-
-      BEGIN OF ts_method_wtd,
-        supplied   TYPE abap_bool,
-        amount     TYPE decfloat34,
-        amount_usd TYPE t_amount,
-      END OF ts_method_wtd,
 
       BEGIN OF ts_context,
         details       TYPE tt_detail,
@@ -781,17 +773,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         i_unrounded_amount TYPE decfloat34
       RETURNING
         VALUE(rs_result)   TYPE ts_calculation.
-
-    METHODS prepare_method_wtd
-      IMPORTING
-        is_parameter  TYPE zfi_das_method_param
-        i_rate        TYPE t_method_rate
-      RETURNING
-        VALUE(rs_wtd) TYPE ts_method_wtd
-      RAISING
-        zcx_fi_das_error
-        cx_sy_conversion_error
-        cx_sy_arithmetic_error.
 
     METHODS calculate_method_stl
       IMPORTING
@@ -1516,25 +1497,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD prepare_method_wtd.
-
-    DATA l_source_amount TYPE p LENGTH 8 DECIMALS 2.
-
-    rs_wtd-supplied = xsdbool( is_parameter-iv_totwrkcompamt IS NOT INITIAL ).
-
-    IF rs_wtd-supplied = abap_true.
-      rs_wtd-amount = CONV decfloat34( is_parameter-iv_totwrkcompamt ).
-    ENDIF.
-
-    l_source_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = rs_wtd-amount
-                                                            i_decimals = mc_amount_decimals ).
-
-    rs_wtd-amount_usd = convert_amount_to_usd( i_amount          = CONV t_amount_precision( l_source_amount )
-                                               i_source_currency = CONV waers( is_parameter-iv_pocurrency )
-                                               i_exchange_rate   = CONV t_amount_precision( i_rate ) ).
-
-  ENDMETHOD.
-
   METHOD calculate_method_stl.
 
     DATA(l_po_value) = CONV t_amount( is_parameter-iv_povalue ).
@@ -1548,8 +1510,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         e_elapsed_months  = DATA(l_elapsed_months) ).
 
     rs_result = calculate_stl_result( i_po_value         = CONV #( l_po_value )
-                                      i_unrounded_amount = COND #( WHEN l_total_months > 0
-                                                                   THEN CONV decfloat34( l_po_value ) / l_total_months * l_elapsed_months ) ).
+                                      i_unrounded_amount = CONV decfloat34( l_po_value ) / l_total_months * l_elapsed_months ).
 
     rs_result-totwrkcompamt_usd = convert_amount_to_usd( i_amount          = CONV #( rs_result-totwrkcompamt )
                                                          i_source_currency = CONV #( is_parameter-iv_pocurrency )

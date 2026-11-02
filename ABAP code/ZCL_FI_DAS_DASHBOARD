@@ -8,17 +8,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     INTERFACES zif_fi_das_dashboard.
     INTERFACES if_amdp_marker_hdb.
 
-    TYPES:
-      BEGIN OF ts_key,
-        ponumber      TYPE ebeln,
-        itemno        TYPE ebelp,
-        pstype        TYPE zif_fi_das_dashboard=>t_pstype,
-        poowner_email TYPE zif_fi_das_dashboard=>t_email,
-      END OF ts_key,
-
-      tt_key       TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
-
-      t_percentage TYPE p LENGTH 7 DECIMALS 1.
+    TYPES t_percentage TYPE p LENGTH 7 DECIMALS 1.
 
     CONSTANTS: mc_config_replication_to TYPE zfi_das_conf_val-config_name VALUE 'REPLICATION_TO',
                mc_day_min               TYPE i VALUE 1,
@@ -33,16 +23,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(r_use_replication) TYPE abap_bool
       RAISING
         zcx_fi_das_error.
-
-    METHODS get_exclusion_candidates
-      IMPORTING
-        i_mode         TYPE zif_fi_das_dashboard=>t_mode
-        i_pstype       TYPE zif_fi_das_dashboard=>t_pstype
-      RETURNING
-        VALUE(rt_keys) TYPE tt_key
-      RAISING
-        zcx_fi_das_error
-        cx_sy_open_sql_db.
 
   PRIVATE SECTION.
 
@@ -136,6 +116,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line'.
 
     TYPES:
+      ts_key TYPE zif_fi_das_dashboard=>ts_key,
+      tt_key TYPE zif_fi_das_dashboard=>tt_key,
+
       BEGIN OF ts_filter_for_amdp,
         ponumber     TYPE string,
         item         TYPE string,
@@ -1620,7 +1603,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(l_source_amount) = CONV t_amount_precision( i_amount * get_currency_factor( i_source_currency ) ).
 
-    DATA(l_usd_amount) = CONV decfloat34( l_source_amount )  * CONV decfloat34( i_exchange_rate ).
+    DATA(l_usd_amount) = CONV decfloat34( l_source_amount ) * CONV decfloat34( i_exchange_rate ).
 
     r_amount = round( val  = l_usd_amount
                       dec  = mc_amount_decimals
@@ -3403,27 +3386,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_exclusion_candidates.
-
-    DATA(ls_request) = VALUE ts_internal_request( mode = i_mode
-                                                  parameter = VALUE #( email = mc_asterisk
-                                                                       poowner = abap_false
-                                                                       pstype = i_pstype ) ).
-    ls_request = adjust_request( ls_request ).
-
-    get_required_keys(
-      EXPORTING
-        is_request         = ls_request
-        i_apply_exclusions = abap_false
-      IMPORTING
-        et_keys            = rt_keys ).
-
-  ENDMETHOD.
-
   METHOD get_use_replication.
-
-*    r_use_replication = abap_true.
-*    RETURN.
 
     r_use_replication = abap_false.
 
@@ -3514,6 +3477,24 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                             line_exists( lt_japan_brazil[ value = i_company_code ] )
                           THEN zif_fi_das_dashboard=>mc_pstype_service
                           ELSE i_pstype ).
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~get_po_keys.
+
+    DATA(ls_request) = VALUE ts_internal_request( mode      = i_mode
+                                                  parameter = is_parameter ).
+
+    validate_request( ls_request ).
+
+    ls_request = adjust_request( ls_request ).
+
+    get_required_keys(
+      EXPORTING
+        is_request         = ls_request
+        i_apply_exclusions = i_apply_exclusions
+      IMPORTING
+        et_keys            = rt_keys ).
 
   ENDMETHOD.
 

@@ -506,14 +506,21 @@ CLASS lcl_exclusion IMPLEMENTATION.
 
   METHOD get_keys.
 
-    DATA lr_dashboard TYPE REF TO zcl_fi_das_dashboard.
-    CREATE OBJECT lr_dashboard.
+    DATA lr_dashboard TYPE REF TO zif_fi_das_dashboard.
 
-    DATA(lt_candidates) = lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_over
-                                                                  i_pstype = i_pstype ).
+    lr_dashboard = NEW zcl_fi_das_dashboard( ).
 
-    APPEND LINES OF lr_dashboard->get_exclusion_candidates( i_mode   = zif_fi_das_dashboard=>mc_under
-                                                            i_pstype = i_pstype ) TO lt_candidates.
+    DATA(ls_parameter) = VALUE zif_fi_das_dashboard=>ts_parameter( email   = '*'
+                                                                   poowner = abap_false
+                                                                   pstype  = i_pstype ).
+
+    DATA(lt_candidates) = lr_dashboard->get_po_keys( i_mode             = zif_fi_das_dashboard=>mc_over
+                                                     is_parameter       = ls_parameter
+                                                     i_apply_exclusions = abap_false ).
+
+    APPEND LINES OF lr_dashboard->get_po_keys( i_mode             = zif_fi_das_dashboard=>mc_under
+                                               is_parameter       = ls_parameter
+                                               i_apply_exclusions = abap_false ) TO lt_candidates.
 
     LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<fs_candidate>).
 

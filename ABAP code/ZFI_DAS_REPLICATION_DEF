@@ -67,7 +67,6 @@ CLASS lcl_replication DEFINITION FINAL.
 
            tt_objects TYPE STANDARD TABLE OF ts_object WITH EMPTY KEY.
 
-
     CLASS-METHODS:
       get_objects
         RETURNING
@@ -324,7 +323,7 @@ CLASS lcl_replication IMPLEMENTATION.
 
     TRY.
 
-*       Only a target from the internal whitelist is used
+*       Only a target from the internal white list is used
         CREATE DATA lr_package TYPE STANDARD TABLE OF (m_target).
         ASSIGN lr_package->* TO <ft_package>.
 
@@ -570,7 +569,7 @@ CLASS lcl_replication IMPLEMENTATION.
 
     ENDCASE.
 
-    IF sy-subrc <> 0.
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH m_target.
     ENDIF.
 

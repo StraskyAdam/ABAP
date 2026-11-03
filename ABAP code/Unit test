@@ -9,6 +9,7 @@
 " - ltc_gateway_replication_parity: refresh + SEGW parity (LONG/DANGEROUS)
 " - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
+" - ltc_audit: audit reads on Open SQL doubles, mapping and paging (SHORT)
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
@@ -21,6 +22,7 @@ CLASS ltcl_review_grace_test DEFINITION DEFERRED.
 CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
 CLASS ltc_method_parameters DEFINITION DEFERRED.
+CLASS ltc_audit DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
@@ -28,7 +30,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltcl_review_grace_test
                 ltc_request_processing
                 ltc_amdp_filters
-                ltc_method_parameters.
+                ltc_method_parameters
+                ltc_audit.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -10311,4 +10314,312 @@ CLASS ltc_method_parameters IMPLEMENTATION.
       exp = '9' ).
   ENDMETHOD.
 
+ENDCLASS.
+
+CLASS ltc_audit DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+
+    CONSTANTS: mc_ponumber       TYPE ebeln VALUE '8000055868',
+               mc_lineitem       TYPE ebelp VALUE '00001',
+               mc_amount_accrued TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
+               mc_changedon      TYPE string VALUE 'CHANGEDON',
+               mc_timezone_cet   TYPE ttzz-tzone VALUE 'CET',
+               mc_zero           TYPE string VALUE '0',
+               mc_uuid_chars     TYPE string VALUE '0123456789ABCDEF',
+               mc_ui_top         TYPE i VALUE 1000.
+
+    DATA: mo_cut      TYPE REF TO zif_fi_das_dashboard,
+          ms_request  TYPE zif_fi_das_dashboard=>ts_audit_request,
+          mt_data     TYPE STANDARD TABLE OF zfi_das_auditlog WITH EMPTY KEY,
+          mt_expected TYPE zif_fi_das_dashboard=>tt_zfi_das_audit.
+
+    METHODS setup.
+    METHODS run
+      EXPORTING
+        et_result TYPE zif_fi_das_dashboard=>tt_zfi_das_audit
+      RAISING
+        cx_static_check
+        cx_dynamic_check.
+
+    METHODS empty_replaces_result FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS filters_both_keys FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS maps_all_fields FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS cet_fixed_cases FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS uuid_format_and_uniqueness FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS primary_key_order FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS descending_stable_order FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS sort_before_paging FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS top_and_ui_limit FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS skip_past_end FOR TESTING RAISING cx_static_check cx_dynamic_check.
+ENDCLASS.
+
+CLASS ltc_audit IMPLEMENTATION.
+
+  METHOD setup.
+
+    ms_request = VALUE #( parameter = VALUE #( ip_ponum   = mc_ponumber
+                                              ip_lineitem = mc_lineitem ) ).
+
+    SELECT *
+      FROM zfi_das_auditlog
+      WHERE ponumber = @ms_request-parameter-ip_ponum
+        AND lineitem = @ms_request-parameter-ip_lineitem
+      ORDER BY PRIMARY KEY
+      INTO TABLE @mt_data.
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lines( mt_data ) >= 3 )
+      msg = |At least 3 audit rows required for { mc_ponumber } / { mc_lineitem }| ).
+
+    mt_expected = CORRESPONDING #( mt_data ).
+
+    LOOP AT mt_expected ASSIGNING FIELD-SYMBOL(<fs_expected>).
+
+      IF <fs_expected>-fname = mc_amount_accrued.
+
+        IF <fs_expected>-oldvalue < mc_zero.
+          <fs_expected>-oldvalue = mc_zero.
+        ENDIF.
+
+        IF <fs_expected>-newvalue < mc_zero.
+          <fs_expected>-newvalue = mc_zero.
+        ENDIF.
+
+      ENDIF.
+
+*     Independent expected timestamp, without the production helper
+      DATA(l_whole) = CONV timestamp( trunc( CONV decfloat34( <fs_expected>-changedon ) ) ).
+
+      DATA(l_fraction) = CONV decfloat34( <fs_expected>-changedon ) - CONV decfloat34( l_whole ).
+
+      CONVERT TIME STAMP l_whole TIME ZONE mc_timezone_cet
+        INTO DATE DATA(l_date)
+             TIME DATA(l_time).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = sy-subrc exp = 0 msg = 'Audit timestamp and CET configuration must be valid' ).
+
+      <fs_expected>-changedon = CONV timestampl( |{ l_date DATE = RAW }{ l_time TIME = RAW }| )
+                               + CONV timestampl( l_fraction ).
+    ENDLOOP.
+
+    mo_cut = NEW zcl_fi_das_dashboard( ).
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    mo_cut->audit( EXPORTING is_request = ms_request
+                  IMPORTING et_result  = et_result ).
+
+  ENDMETHOD.
+
+  METHOD empty_replaces_result.
+
+    CLEAR ms_request-parameter.
+
+    SELECT COUNT(*)
+      FROM zfi_das_auditlog
+      WHERE ponumber = @ms_request-parameter-ip_ponum
+        AND lineitem = @ms_request-parameter-ip_lineitem
+      INTO @DATA(l_count).
+    cl_abap_unit_assert=>assert_equals(
+      act = l_count exp = 0 msg = 'The empty-key test requires no audit rows with both keys initial' ).
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_audit.
+    lt_result = VALUE #( ( fname = 'Previous result' ) ).
+
+    run( IMPORTING et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
+
+  ENDMETHOD.
+
+  METHOD filters_both_keys.
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = lines( mt_data ) ).
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      cl_abap_unit_assert=>assert_equals( act = <fs_result>-ponumber exp = ms_request-parameter-ip_ponum ).
+      cl_abap_unit_assert=>assert_equals( act = <fs_result>-lineitem exp = ms_request-parameter-ip_lineitem ).
+    ENDLOOP.
+
+    DO 2 TIMES.
+
+      ms_request-parameter = COND #(
+        WHEN sy-index = 1 THEN VALUE #( ip_ponum = mc_ponumber )
+        ELSE VALUE #( ip_lineitem = mc_lineitem ) ).
+
+      SELECT COUNT(*)
+        FROM zfi_das_auditlog
+        WHERE ponumber = @ms_request-parameter-ip_ponum
+          AND lineitem = @ms_request-parameter-ip_lineitem
+        INTO @DATA(l_count).
+      run( IMPORTING et_result = lt_result ).
+
+      cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = l_count ).
+      LOOP AT lt_result ASSIGNING <fs_result>.
+        cl_abap_unit_assert=>assert_equals( act = <fs_result>-ponumber exp = ms_request-parameter-ip_ponum ).
+        cl_abap_unit_assert=>assert_equals( act = <fs_result>-lineitem exp = ms_request-parameter-ip_lineitem ).
+      ENDLOOP.
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD maps_all_fields.
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      cl_abap_unit_assert=>assert_not_initial( act = <fs_result>-id ).
+      CLEAR <fs_result>-id.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result exp = mt_expected ).
+
+  ENDMETHOD.
+
+  METHOD cet_fixed_cases.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>utc_to_cet_timestamp( CONV timestampl( '20240115120000.1234567' ) )
+      exp = CONV timestampl( '20240115130000.1234567' ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>utc_to_cet_timestamp( CONV timestampl( '20240715120000.7654321' ) )
+      exp = CONV timestampl( '20240715140000.7654321' ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>utc_to_cet_timestamp( CONV timestampl( '20241231233000.9999999' ) )
+      exp = CONV timestampl( '20250101003000.9999999' ) ).
+
+  ENDMETHOD.
+
+  METHOD uuid_format_and_uniqueness.
+
+    DATA lt_ids TYPE HASHED TABLE OF char32 WITH UNIQUE KEY table_line.
+
+    DO 2 TIMES.
+
+      run( IMPORTING et_result = DATA(lt_result) ).
+
+      cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = lines( mt_data ) ).
+      LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+        cl_abap_unit_assert=>assert_equals(
+          act = strlen( <fs_result>-id ) exp = 32 ).
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( <fs_result>-id CO mc_uuid_chars ) ).
+        INSERT <fs_result>-id INTO TABLE lt_ids.
+        cl_abap_unit_assert=>assert_equals( act = sy-subrc exp = 0 ).
+      ENDLOOP.
+    ENDDO.
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_ids ) exp = 2 * lines( mt_data ) ).
+
+  ENDMETHOD.
+
+  METHOD primary_key_order.
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = lines( mt_data ) ).
+
+    LOOP AT mt_data ASSIGNING FIELD-SYMBOL(<fs_data>).
+      DATA(l_index) = sy-tabix.
+      cl_abap_unit_assert=>assert_equals( act = lt_result[ l_index ]-fname exp = <fs_data>-fname ).
+      cl_abap_unit_assert=>assert_equals( act = lt_result[ l_index ]-activeflag exp = <fs_data>-activeflag ).
+      cl_abap_unit_assert=>assert_equals(
+        act = lt_result[ l_index ]-changedon exp = mt_expected[ l_index ]-changedon ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD descending_stable_order.
+
+    ms_request-orderby = VALUE #( ( property = mc_changedon descending = abap_true ) ).
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    DATA(lt_expected) = mt_expected.
+
+    SORT lt_expected STABLE BY changedon DESCENDING.
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      CLEAR <fs_result>-id.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD sort_before_paging.
+
+    ms_request-orderby = VALUE #( ( property = mc_changedon descending = abap_true ) ).
+
+    ms_request-paging = VALUE #( skip = 1 top = 2 top_requested = abap_true ).
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    DATA(lt_expected) = mt_expected.
+
+    SORT lt_expected STABLE BY changedon DESCENDING.
+    DELETE lt_expected TO 1.
+    DELETE lt_expected FROM 3.
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      CLEAR <fs_result>-id.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD top_and_ui_limit.
+
+    ms_request-orderby = VALUE #( ( property = mc_changedon descending = abap_true ) ).
+
+    DO 2 TIMES.
+
+      ms_request-paging = VALUE #( top = COND #( WHEN sy-index = 1 THEN 2 ELSE mc_ui_top )
+                                  top_requested = abap_true ).
+
+      run( IMPORTING et_result = DATA(lt_result) ).
+
+      DATA(lt_expected) = mt_expected.
+
+      SORT lt_expected STABLE BY changedon DESCENDING.
+
+      IF lines( lt_expected ) > ms_request-paging-top.
+        DELETE lt_expected FROM ms_request-paging-top + 1.
+      ENDIF.
+
+      LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+        CLEAR <fs_result>-id.
+      ENDLOOP.
+
+      cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD skip_past_end.
+
+    ms_request-paging = VALUE #( skip = lines( mt_data ) ).
+
+    run( IMPORTING et_result = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
+
+    ms_request-paging-skip = lines( mt_data ) + 1.
+
+    run( IMPORTING et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
+
+  ENDMETHOD.
 ENDCLASS.

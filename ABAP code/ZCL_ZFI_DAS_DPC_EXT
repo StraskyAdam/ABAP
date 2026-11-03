@@ -8,30 +8,32 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
 
     METHODS exclusionposet_get_entityset
         REDEFINITION .
+    METHODS method_get_entityset
+        REDEFINITION .
     METHODS openpotypeset_get_entityset
         REDEFINITION .
     METHODS thresholdset_get_entityset
         REDEFINITION .
-    METHODS method_get_entityset
+    METHODS audit_get_entityset
         REDEFINITION .
   PRIVATE SECTION.
 
-    CONSTANTS: mc_parameter_email             TYPE string VALUE 'IP_EMAIL',
-               mc_parameter_pstype            TYPE string VALUE 'IP_PSTYPE',
-               mc_parameter_poowner           TYPE string VALUE 'IP_POOWNER',
-
-               mc_parameter_povalue           TYPE string VALUE 'IV_POVALUE',
-               mc_parameter_pocurrency        TYPE string VALUE 'IV_POCURRENCY',
-               mc_parameter_wrkstrtdate       TYPE string VALUE 'IV_WRKSTRTDATE',
-               mc_parameter_wrkenddate        TYPE string VALUE 'IV_WRKENDDATE',
-               mc_parameter_accrualmethod     TYPE string VALUE 'IV_ACCRUALMETHOD',
-               mc_parameter_totwrkcompamt     TYPE string VALUE 'IV_TOTWRKCOMPAMT',
-               mc_parameter_totwrkcompper     TYPE string VALUE 'IV_TOTWRKCOMPPER',
-               mc_parameter_edgewtdamt        TYPE string VALUE 'IV_EDGEWTDAMT',
-               mc_parameter_pstyp             TYPE string VALUE 'IV_PSTYP',
-               mc_parameter_company           TYPE string VALUE 'IV_COMPANY',
-
-               mc_order_descending            TYPE string VALUE 'DESC'.
+    CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
+    CONSTANTS mc_parameter_pstype TYPE string VALUE 'IP_PSTYPE' ##NO_TEXT.
+    CONSTANTS mc_parameter_poowner TYPE string VALUE 'IP_POOWNER' ##NO_TEXT.
+    CONSTANTS mc_parameter_povalue TYPE string VALUE 'IV_POVALUE' ##NO_TEXT.
+    CONSTANTS mc_parameter_pocurrency TYPE string VALUE 'IV_POCURRENCY' ##NO_TEXT.
+    CONSTANTS mc_parameter_wrkstrtdate TYPE string VALUE 'IV_WRKSTRTDATE' ##NO_TEXT.
+    CONSTANTS mc_parameter_wrkenddate TYPE string VALUE 'IV_WRKENDDATE' ##NO_TEXT.
+    CONSTANTS mc_parameter_accrualmethod TYPE string VALUE 'IV_ACCRUALMETHOD' ##NO_TEXT.
+    CONSTANTS mc_parameter_totwrkcompamt TYPE string VALUE 'IV_TOTWRKCOMPAMT' ##NO_TEXT.
+    CONSTANTS mc_parameter_totwrkcompper TYPE string VALUE 'IV_TOTWRKCOMPPER' ##NO_TEXT.
+    CONSTANTS mc_parameter_edgewtdamt TYPE string VALUE 'IV_EDGEWTDAMT' ##NO_TEXT.
+    CONSTANTS mc_parameter_pstyp TYPE string VALUE 'IV_PSTYP' ##NO_TEXT.
+    CONSTANTS mc_parameter_company TYPE string VALUE 'IV_COMPANY' ##NO_TEXT.
+    CONSTANTS mc_parameter_ponum TYPE string VALUE 'IP_PONUM' ##NO_TEXT.
+    CONSTANTS mc_parameter_lineitem TYPE string VALUE 'IP_LINEITEM' ##NO_TEXT.
+    CONSTANTS mc_order_descending TYPE string VALUE 'DESC' ##NO_TEXT.
 
     METHODS get_dashboard
       RETURNING
@@ -53,33 +55,69 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       RETURNING
-        VALUE(rs_paging)         TYPE zif_fi_das_dashboard=>ts_request-paging .
+        VALUE(rs_paging)         TYPE zif_fi_das_dashboard=>ts_paging .
     METHODS get_filter
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       RETURNING
-        VALUE(rs_filter)         TYPE zif_fi_das_dashboard=>ts_request-filter
+        VALUE(rs_filter)         TYPE zif_fi_das_dashboard=>ts_filter
       RAISING
         /iwbep/cx_mgw_tech_exception .
     METHODS get_orderby
       IMPORTING
         !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
       RETURNING
-        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>ts_request-orderby .
-
+        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>tt_orderby .
     METHODS get_method_parameter
       IMPORTING
-        it_key_tab          TYPE /iwbep/t_mgw_name_value_pair
+        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
       RETURNING
-        VALUE(rs_parameter) TYPE zfi_das_method_param
+        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_method_parameter
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
-        cx_sy_arithmetic_error.
-
+        cx_sy_arithmetic_error .
+    METHODS get_audit_parameter
+      IMPORTING
+        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
+      RETURNING
+        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_audit_parameter.
 ENDCLASS.
 
-CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
+
+
+CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+
+
+  METHOD audit_get_entityset.
+
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
+
+    TRY.
+
+        get_dashboard( )->audit_parameters(
+          EXPORTING
+            is_request = VALUE #(
+              parameter = get_audit_parameter( it_key_tab )
+              orderby   = get_orderby( io_tech_request_context )
+              paging    = get_paging( io_tech_request_context ) )
+          IMPORTING
+            et_result = et_entityset ).
+
+      CATCH cx_sy_itab_line_not_found
+            cx_sy_conversion_error
+            cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
 
 
   METHOD build_request.
@@ -116,6 +154,15 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
             previous = lx_error.
 
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD get_audit_parameter.
+
+    rs_parameter-ip_ponum = it_key_tab[ name = mc_parameter_ponum ]-value.
+
+    rs_parameter-ip_lineitem = it_key_tab[ name = mc_parameter_lineitem ]-value.
 
   ENDMETHOD.
 

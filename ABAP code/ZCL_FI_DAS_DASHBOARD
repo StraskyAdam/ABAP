@@ -113,7 +113,10 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_accrual_wtd              TYPE t_text_50 VALUE 'WTD',
       mc_accrual_stl              TYPE t_text_50 VALUE 'STL',
       mc_accrual_wtd_text         TYPE t_text_50 VALUE 'Work To Date',
-      mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line'.
+      mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line',
+
+      mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
+      mc_zero                     TYPE string VALUE '0'.
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
@@ -171,13 +174,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
       tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard is_null,
 
-      BEGIN OF ts_audit,
+      BEGIN OF ts_services_completed,
         ponumber TYPE ebeln,
         itemno   TYPE ebelp,
         amount   TYPE t_amount,
-      END OF ts_audit,
+      END OF ts_services_completed,
 
-      tt_audit TYPE HASHED TABLE OF ts_audit  WITH UNIQUE KEY ponumber itemno,
+      tt_services_completed TYPE HASHED TABLE OF ts_services_completed  WITH UNIQUE KEY ponumber itemno,
 
       BEGIN OF ts_management_scope,
         value    TYPE csks-zzrptun,
@@ -300,15 +303,15 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_calculation,
 
       BEGIN OF ts_context,
-        details       TYPE tt_detail,
-        accounts      TYPE tt_account_aggregate,
-        history       TYPE tt_history_aggregate,
-        statuses      TYPE tt_status,
-        notifications TYPE tt_notification,
-        exclusions    TYPE tt_exclusion_aggregate,
-        users         TYPE tt_user,
-        review_day    TYPE i,
-        audit         TYPE tt_audit,
+        details            TYPE tt_detail,
+        accounts           TYPE tt_account_aggregate,
+        history            TYPE tt_history_aggregate,
+        statuses           TYPE tt_status,
+        notifications      TYPE tt_notification,
+        exclusions         TYPE tt_exclusion_aggregate,
+        users              TYPE tt_user,
+        review_day         TYPE i,
+        services_completed TYPE tt_services_completed,
       END OF ts_context,
 
       tt_string_range TYPE RANGE OF string,
@@ -678,12 +681,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_status
       IMPORTING
-        is_status    TYPE ts_status
-        is_audit     TYPE ts_audit
-        i_mode       TYPE zif_fi_das_dashboard=>t_mode
-        i_review_day TYPE i
+        is_status             TYPE ts_status
+        is_services_completed TYPE ts_services_completed
+        i_mode                TYPE zif_fi_das_dashboard=>t_mode
+        i_review_day          TYPE i
       CHANGING
-        cs_result    TYPE ts_odata_result
+        cs_result             TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -759,7 +762,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_method_stl
       IMPORTING
-        is_parameter     TYPE zfi_das_method_param
+        is_parameter     TYPE zif_fi_das_dashboard=>ts_method_parameter
         i_exchange_rate  TYPE t_amount_precision
       RETURNING
         VALUE(rs_result) TYPE ts_calculation
@@ -840,11 +843,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_closed) TYPE abap_bool.
 
-    METHODS get_audit
+    METHODS get_services_completed
       IMPORTING
-        VALUE(it_keys)  TYPE tt_unique_key
+        VALUE(it_keys)               TYPE tt_unique_key
       EXPORTING
-        VALUE(et_audit) TYPE tt_audit
+        VALUE(et_services_completed) TYPE tt_services_completed
       RAISING
         cx_amdp_error.
 
@@ -884,13 +887,29 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_inline_count) TYPE string.
 
+    METHODS get_audit_records
+      IMPORTING
+        is_parameter TYPE zif_fi_das_dashboard=>ts_audit_parameter
+      EXPORTING
+        et_result    TYPE zif_fi_das_dashboard=>tt_zfi_das_audit
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
+    METHODS generate_id
+      RETURNING
+        VALUE(r_id) TYPE char32
+      RAISING
+        zcx_fi_das_error.
+
     DATA mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr.
 
 ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-  METHOD get_audit
+  METHOD get_services_completed
    BY DATABASE PROCEDURE
    FOR HDB
    LANGUAGE SQLSCRIPT
@@ -927,7 +946,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                GROUP BY _max.ponumber,
                         _max.lineitem );
 
-    et_audit =
+    et_services_completed =
       SELECT
         ponumber,
         itemno,
@@ -1222,7 +1241,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       ENDLOOP.
 
-      SORT ct_result BY (lt_sort_order).
+      SORT ct_result STABLE BY (lt_sort_order).
 
     ENDIF.
 
@@ -1262,8 +1281,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     CLEAR cs_result-markasreviewed.
 
     IF i_mode = zif_fi_das_dashboard=>mc_over.
-      IF is_audit-ponumber IS NOT INITIAL.
-        cs_result-lastmonthwrkcomp = is_audit-amount.
+      IF is_services_completed-ponumber IS NOT INITIAL.
+        cs_result-lastmonthwrkcomp = is_services_completed-amount.
       ENDIF.
     ELSE.
       cs_result-lastmonthwrkcomp = is_status-last_month_amount.
@@ -1871,14 +1890,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     rs_context-review_day = get_review_day( ).
 
-    get_users( EXPORTING it_details = rs_context-details
+    get_users( EXPORTING it_details        = rs_context-details
                          i_use_replication = is_request-use_replication
-               IMPORTING et_users   = rs_context-users ).
+               IMPORTING et_users          = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
 
-      get_audit( EXPORTING it_keys  = lt_keys
-                 IMPORTING et_audit = rs_context-audit ).
+      get_services_completed( EXPORTING it_keys               = lt_keys
+                              IMPORTING et_services_completed = rs_context-services_completed ).
 
       rs_context-notifications = get_notifications( lt_keys ).
 
@@ -3070,8 +3089,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
                                                                         itemno   = is_key-itemno ] OPTIONAL )
-                            is_audit    = VALUE #( is_context-audit[ ponumber = is_key-ponumber
-                                                                     itemno   = is_key-itemno ] OPTIONAL )
+
+                            is_services_completed  = VALUE #( is_context-services_completed[ ponumber = is_key-ponumber
+                                                                                             itemno   = is_key-itemno ] OPTIONAL )
                             i_mode       = is_request-mode
                             i_review_day = is_context-review_day
                    CHANGING cs_result    = rs_result ).
@@ -3452,11 +3472,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(ls_result) = CORRESPONDING zfi_das_method( ls_calculation MAPPING totwrkcompamt_cocdecurr = totwrkcompamt_usd ).
 
-    TRY.
-        ls_result-id = cl_system_uuid=>create_uuid_c32_static( ).
-      CATCH cx_uuid_error.
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e035(zfi_das).
-    ENDTRY.
+    ls_result-id = generate_id( ).
 
     APPEND ls_result TO et_result.
 
@@ -3495,6 +3511,65 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         i_apply_exclusions = i_apply_exclusions
       IMPORTING
         et_keys            = rt_keys ).
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~audit_parameters.
+
+    get_audit_records( EXPORTING is_parameter = is_request-parameter
+                       IMPORTING et_result    = et_result ).
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
+
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING  ct_result  = et_result ).
+
+  ENDMETHOD.
+
+  METHOD get_audit_records.
+
+    SELECT ponumber, lineitem, changedon, activeflag, fname,
+           oldvalue, newvalue, changedby
+      FROM zfi_das_auditlog
+    WHERE ponumber = @is_parameter-ip_ponum AND
+          lineitem = @is_parameter-ip_lineitem
+      ORDER BY PRIMARY KEY
+    INTO CORRESPONDING FIELDS OF TABLE @et_result.
+
+    LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_record>).
+
+      IF <fs_record>-fname = mc_audit_amount_accrued.
+
+        IF <fs_record>-oldvalue < mc_zero.
+          <fs_record>-oldvalue = mc_zero.
+        ENDIF.
+
+        IF <fs_record>-newvalue < mc_zero.
+          <fs_record>-newvalue = mc_zero.
+        ENDIF.
+
+      ENDIF.
+
+      <fs_record>-changedon = zcl_fi_das_utility=>utc_to_cet_timestamp( <fs_record>-changedon ).
+      <fs_record>-id = generate_id( ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD generate_id.
+
+    TRY.
+        r_id = cl_system_uuid=>create_uuid_c32_static( ).
+
+      CATCH cx_uuid_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e035(zfi_das)
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
 
   ENDMETHOD.
 

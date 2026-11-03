@@ -120,8 +120,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
-      tt_key   TYPE zif_fi_das_dashboard=>tt_key,
-      tt_audit_records TYPE STANDARD TABLE OF zfi_das_audit WITH DEFAULT KEY,
+      tt_key TYPE zif_fi_das_dashboard=>tt_key,
 
       BEGIN OF ts_filter_for_amdp,
         ponumber     TYPE string,
@@ -175,13 +174,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
       tt_cost_center_scope TYPE SORTED TABLE OF ts_cost_center_scope WITH UNIQUE KEY value wildcard is_null,
 
-      BEGIN OF ts_audit,
+      BEGIN OF ts_services_completed,
         ponumber TYPE ebeln,
         itemno   TYPE ebelp,
         amount   TYPE t_amount,
-      END OF ts_audit,
+      END OF ts_services_completed,
 
-      tt_audit TYPE HASHED TABLE OF ts_audit  WITH UNIQUE KEY ponumber itemno,
+      tt_services_completed TYPE HASHED TABLE OF ts_services_completed  WITH UNIQUE KEY ponumber itemno,
 
       BEGIN OF ts_management_scope,
         value    TYPE csks-zzrptun,
@@ -304,15 +303,15 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_calculation,
 
       BEGIN OF ts_context,
-        details       TYPE tt_detail,
-        accounts      TYPE tt_account_aggregate,
-        history       TYPE tt_history_aggregate,
-        statuses      TYPE tt_status,
-        notifications TYPE tt_notification,
-        exclusions    TYPE tt_exclusion_aggregate,
-        users         TYPE tt_user,
-        review_day    TYPE i,
-        audit         TYPE tt_audit,
+        details            TYPE tt_detail,
+        accounts           TYPE tt_account_aggregate,
+        history            TYPE tt_history_aggregate,
+        statuses           TYPE tt_status,
+        notifications      TYPE tt_notification,
+        exclusions         TYPE tt_exclusion_aggregate,
+        users              TYPE tt_user,
+        review_day         TYPE i,
+        services_completed TYPE tt_services_completed,
       END OF ts_context,
 
       tt_string_range TYPE RANGE OF string,
@@ -682,12 +681,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS apply_status
       IMPORTING
-        is_status    TYPE ts_status
-        is_audit     TYPE ts_audit
-        i_mode       TYPE zif_fi_das_dashboard=>t_mode
-        i_review_day TYPE i
+        is_status             TYPE ts_status
+        is_services_completed TYPE ts_services_completed
+        i_mode                TYPE zif_fi_das_dashboard=>t_mode
+        i_review_day          TYPE i
       CHANGING
-        cs_result    TYPE ts_odata_result
+        cs_result             TYPE ts_odata_result
       RAISING
         zcx_fi_das_error.
 
@@ -844,11 +843,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_closed) TYPE abap_bool.
 
-    METHODS get_audit
+    METHODS get_services_completed
       IMPORTING
-        VALUE(it_keys)  TYPE tt_unique_key
+        VALUE(it_keys)               TYPE tt_unique_key
       EXPORTING
-        VALUE(et_audit) TYPE tt_audit
+        VALUE(et_services_completed) TYPE tt_services_completed
       RAISING
         cx_amdp_error.
 
@@ -888,17 +887,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_inline_count) TYPE string.
 
-     METHODS get_audit_records
+    METHODS get_audit_records
       IMPORTING
-        is_parameter     TYPE zfi_das_audit_param
-      RETURNING
-        VALUE(rt_records) TYPE tt_audit_records
+        is_parameter TYPE zfi_das_audit_param
+      EXPORTING
+        et_result    TYPE zif_fi_das_dashboard=>tt_zfi_das_audit
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
         cx_sy_open_sql_db.
 
-     METHODS generate_id
+    METHODS generate_id
       RETURNING
         VALUE(r_id) TYPE char32
       RAISING
@@ -910,7 +909,7 @@ ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-  METHOD get_audit
+  METHOD get_services_completed
    BY DATABASE PROCEDURE
    FOR HDB
    LANGUAGE SQLSCRIPT
@@ -947,7 +946,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                GROUP BY _max.ponumber,
                         _max.lineitem );
 
-    et_audit =
+    et_services_completed =
       SELECT
         ponumber,
         itemno,
@@ -1282,8 +1281,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     CLEAR cs_result-markasreviewed.
 
     IF i_mode = zif_fi_das_dashboard=>mc_over.
-      IF is_audit-ponumber IS NOT INITIAL.
-        cs_result-lastmonthwrkcomp = is_audit-amount.
+      IF is_services_completed-ponumber IS NOT INITIAL.
+        cs_result-lastmonthwrkcomp = is_services_completed-amount.
       ENDIF.
     ELSE.
       cs_result-lastmonthwrkcomp = is_status-last_month_amount.
@@ -1897,8 +1896,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
 
-      get_audit( EXPORTING it_keys  = lt_keys
-                 IMPORTING et_audit = rs_context-audit ).
+      get_services_completed( EXPORTING it_keys  = lt_keys
+                 IMPORTING et_services_completed = rs_context-services_completed ).
 
       rs_context-notifications = get_notifications( lt_keys ).
 
@@ -3090,7 +3089,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
                                                                         itemno   = is_key-itemno ] OPTIONAL )
-                            is_audit    = VALUE #( is_context-audit[ ponumber = is_key-ponumber
+                            is_services_completed    = VALUE #( is_context-services_completed[ ponumber = is_key-ponumber
                                                                      itemno   = is_key-itemno ] OPTIONAL )
                             i_mode       = is_request-mode
                             i_review_day = is_context-review_day
@@ -3518,7 +3517,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     CLEAR et_result.
 
-    et_result = get_audit_records( is_request-parameter ).
+    get_audit_records( EXPORTING is_parameter = is_request-parameter
+                   IMPORTING et_result    = et_result ).
 
     apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
                 CHANGING  ct_result  = et_result ).
@@ -3536,9 +3536,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     WHERE ponumber = @is_parameter-ip_ponum AND
           lineitem = @is_parameter-ip_lineitem
       ORDER BY PRIMARY KEY
-    INTO CORRESPONDING FIELDS OF TABLE @rt_records.
+    INTO CORRESPONDING FIELDS OF TABLE @et_result.
 
-    LOOP AT rt_records ASSIGNING FIELD-SYMBOL(<fs_record>).
+    LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_record>).
 
       IF <fs_record>-fname = mc_audit_amount_accrued.
 

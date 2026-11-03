@@ -65,10 +65,17 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_request,
 
+         BEGIN OF ts_audit_request,
+           parameter TYPE zfi_das_audit_param,
+           orderby   TYPE tt_orderby,
+           paging    TYPE ts_paging,
+         END OF ts_audit_request,
+
          tt_zfi_das_over    TYPE STANDARD TABLE OF zfi_das_over,
          tt_zfi_das_under   TYPE STANDARD TABLE OF zfi_das_under,
          tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude,
-         tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method.
+         tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method,
+         tt_zfi_das_audit   TYPE STANDARD TABLE OF zfi_das_audit.
 
   METHODS over
     IMPORTING
@@ -123,6 +130,17 @@ INTERFACE zif_fi_das_dashboard
       zcx_fi_das_error
       cx_sy_conversion_error
       cx_sy_arithmetic_error
+      cx_sy_open_sql_db.
+
+   METHODS audit
+    IMPORTING
+      !is_request    TYPE ts_audit_request
+    EXPORTING
+      !et_result     TYPE tt_zfi_das_audit
+      !e_total_count TYPE string
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
       cx_sy_open_sql_db.
 
 ENDINTERFACE.

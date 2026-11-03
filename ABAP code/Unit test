@@ -144,7 +144,7 @@ CLASS ltc_method_parameters DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
     DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
-    DATA ms_param TYPE zfi_das_method_param.
+    DATA ms_param TYPE zif_fi_das_dashboard=>ts_method_parameter.
 
     METHODS setup.
     METHODS run
@@ -10411,7 +10411,7 @@ CLASS ltc_audit IMPLEMENTATION.
 
   METHOD run.
 
-    mo_cut->audit( EXPORTING is_request = ms_request
+    mo_cut->audit_parameters( EXPORTING is_request = ms_request
                   IMPORTING et_result  = et_result ).
 
   ENDMETHOD.

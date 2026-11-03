@@ -58,6 +58,24 @@ INTERFACE zif_fi_das_dashboard
            pstype  TYPE t_pstype,
          END OF ts_parameter,
 
+         BEGIN OF ts_method_parameter,
+           iv_povalue       TYPE p LENGTH 7 DECIMALS 3,
+           iv_pocurrency    TYPE c LENGTH 3,
+           iv_wrkstrtdate   TYPE d,
+           iv_wrkenddate    TYPE d,
+           iv_accrualmethod TYPE c LENGTH 50,
+           iv_totwrkcompamt TYPE c LENGTH 20,
+           iv_totwrkcompper TYPE p LENGTH 7 DECIMALS 1,
+           iv_edgewtdamt    TYPE p LENGTH 7 DECIMALS 2,
+           iv_pstyp         TYPE t_pstype,
+           iv_company       TYPE c LENGTH 4,
+         END OF ts_method_parameter,
+
+         BEGIN OF ts_audit_parameter,
+           ip_ponum    TYPE ebeln,
+           ip_lineitem TYPE ebelp,
+         END OF ts_audit_parameter,
+
          BEGIN OF ts_request,
            parameter TYPE ts_parameter,
            filter    TYPE ts_filter,
@@ -66,7 +84,7 @@ INTERFACE zif_fi_das_dashboard
          END OF ts_request,
 
          BEGIN OF ts_audit_request,
-           parameter TYPE zfi_das_audit_param,
+           parameter TYPE ts_audit_parameter,
            orderby   TYPE tt_orderby,
            paging    TYPE ts_paging,
          END OF ts_audit_request,
@@ -123,7 +141,7 @@ INTERFACE zif_fi_das_dashboard
 
   METHODS method_parameters
     IMPORTING
-      !is_parameter TYPE zfi_das_method_param
+      !is_parameter TYPE ts_method_parameter
     EXPORTING
       !et_result    TYPE tt_zfi_das_method
     RAISING
@@ -132,7 +150,7 @@ INTERFACE zif_fi_das_dashboard
       cx_sy_arithmetic_error
       cx_sy_open_sql_db.
 
-  METHODS audit
+  METHODS audit_parameters
     IMPORTING
       !is_request TYPE ts_audit_request
     EXPORTING

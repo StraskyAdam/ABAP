@@ -3498,4 +3498,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_fi_das_dashboard~audit.
+
+
+  ENDMETHOD.
+
 ENDCLASS.

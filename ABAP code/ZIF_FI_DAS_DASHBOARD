@@ -132,12 +132,11 @@ INTERFACE zif_fi_das_dashboard
       cx_sy_arithmetic_error
       cx_sy_open_sql_db.
 
-   METHODS audit
+  METHODS audit
     IMPORTING
-      !is_request    TYPE ts_audit_request
+      !is_request TYPE ts_audit_request
     EXPORTING
-      !et_result     TYPE tt_zfi_das_audit
-      !e_total_count TYPE string
+      !et_result  TYPE tt_zfi_das_audit
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error

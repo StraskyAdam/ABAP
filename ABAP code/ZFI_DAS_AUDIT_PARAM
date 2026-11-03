@@ -1,7 +1,0 @@
-@EndUserText.label : 'Audit parameters'
-@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
-define type zfi_das_audit_param {
-  ip_ponum    : ebeln;
-  ip_lineitem : ebelp;
-
-}

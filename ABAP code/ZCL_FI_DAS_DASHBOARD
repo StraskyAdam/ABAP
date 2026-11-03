@@ -1242,7 +1242,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
       ENDLOOP.
 
-      SORT ct_result BY (lt_sort_order).
+      SORT ct_result STABLE BY (lt_sort_order).
 
     ENDIF.
 
@@ -3516,6 +3516,15 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~audit.
 
+    CLEAR et_result.
+
+    et_result = get_audit_records( is_request-parameter ).
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
+
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING ct_result  = et_result ).
 
   ENDMETHOD.
 

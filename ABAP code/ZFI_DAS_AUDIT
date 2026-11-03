@@ -1,0 +1,14 @@
+@EndUserText.label : 'Audit result'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_audit {
+  id         : abap.char(32);
+  ponumber   : ebeln;
+  lineitem   : ebelp;
+  changedon  : timestampl;
+  activeflag : boole_d;
+  fname      : abap.sstring(50);
+  oldvalue   : abap.string(0);
+  newvalue   : abap.string(0);
+  changedby  : abap.sstring(100);
+
+}

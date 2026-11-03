@@ -9547,7 +9547,7 @@ CLASS ltc_dash_pure_branches IMPLEMENTATION.
       users = VALUE #(
         ( email = ms_detail-poowner_email username = 'OWNER'
           full_name = 'Fixture Owner' decimal_format = 'X' datfm = '1' ) )
-      audit = VALUE #(
+      services_completed = VALUE #(
         ( ponumber = ms_key-ponumber itemno = ms_key-itemno amount = '17.25' ) )
       exclusions = VALUE #(
         ( ponumber = ms_key-ponumber itemno = ms_key-itemno

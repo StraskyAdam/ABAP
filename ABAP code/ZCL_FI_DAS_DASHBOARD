@@ -762,7 +762,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS calculate_method_stl
       IMPORTING
-        is_parameter     TYPE zfi_das_method_param
+        is_parameter     TYPE zif_fi_das_dashboard=>ts_method_parameter
         i_exchange_rate  TYPE t_amount_precision
       RETURNING
         VALUE(rs_result) TYPE ts_calculation
@@ -889,7 +889,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     METHODS get_audit_records
       IMPORTING
-        is_parameter TYPE zfi_das_audit_param
+        is_parameter TYPE zif_fi_das_dashboard=>ts_audit_parameter
       EXPORTING
         et_result    TYPE zif_fi_das_dashboard=>tt_zfi_das_audit
       RAISING
@@ -1890,14 +1890,14 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     rs_context-review_day = get_review_day( ).
 
-    get_users( EXPORTING it_details = rs_context-details
+    get_users( EXPORTING it_details        = rs_context-details
                          i_use_replication = is_request-use_replication
-               IMPORTING et_users   = rs_context-users ).
+               IMPORTING et_users          = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
 
-      get_services_completed( EXPORTING it_keys  = lt_keys
-                 IMPORTING et_services_completed = rs_context-services_completed ).
+      get_services_completed( EXPORTING it_keys               = lt_keys
+                              IMPORTING et_services_completed = rs_context-services_completed ).
 
       rs_context-notifications = get_notifications( lt_keys ).
 
@@ -3089,8 +3089,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     apply_status( EXPORTING is_status   = VALUE #( is_context-statuses[ ponumber = is_key-ponumber
                                                                         itemno   = is_key-itemno ] OPTIONAL )
-                            is_services_completed    = VALUE #( is_context-services_completed[ ponumber = is_key-ponumber
-                                                                     itemno   = is_key-itemno ] OPTIONAL )
+
+                            is_services_completed  = VALUE #( is_context-services_completed[ ponumber = is_key-ponumber
+                                                                                             itemno   = is_key-itemno ] OPTIONAL )
                             i_mode       = is_request-mode
                             i_review_day = is_context-review_day
                    CHANGING cs_result    = rs_result ).
@@ -3513,18 +3514,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_fi_das_dashboard~audit.
-
-    CLEAR et_result.
+  METHOD zif_fi_das_dashboard~audit_parameters.
 
     get_audit_records( EXPORTING is_parameter = is_request-parameter
-                   IMPORTING et_result    = et_result ).
+                       IMPORTING et_result    = et_result ).
 
     apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
                 CHANGING  ct_result  = et_result ).
 
     apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
-                  CHANGING ct_result  = et_result ).
+                  CHANGING  ct_result  = et_result ).
 
   ENDMETHOD.
 

@@ -1,21 +1,23 @@
-CLASS zcl_zfi_das_dpc_ext DEFINITION
-  PUBLIC
-  INHERITING FROM zcl_zfi_das_dpc
-  CREATE PUBLIC .
+class ZCL_ZFI_DAS_DPC_EXT definition
+  public
+  inheriting from ZCL_ZFI_DAS_DPC
+  create public .
 
-  PUBLIC SECTION.
-  PROTECTED SECTION.
+public section.
+protected section.
 
-    METHODS exclusionposet_get_entityset
-        REDEFINITION .
-    METHODS method_get_entityset
-        REDEFINITION .
-    METHODS openpotypeset_get_entityset
-        REDEFINITION .
-    METHODS thresholdset_get_entityset
-        REDEFINITION .
-    METHODS audit_get_entityset
-        REDEFINITION .
+  methods AUDIT_GET_ENTITYSET
+    redefinition .
+  methods EXCLUSIONPOSET_GET_ENTITYSET
+    redefinition .
+  methods METHOD_GET_ENTITYSET
+    redefinition .
+  methods OPENPOTYPESET_GET_ENTITYSET
+    redefinition .
+  methods THRESHOLDSET_GET_ENTITYSET
+    redefinition .
+  methods CUTOFF_GET_ENTITYSET
+    redefinition .
   PRIVATE SECTION.
 
     CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
@@ -86,7 +88,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
 
   METHOD audit_get_entityset.
@@ -130,6 +132,25 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
                           paging = get_paging( io_tech_request_context )
                           filter = get_filter( io_tech_request_context )
                           orderby = get_orderby( io_tech_request_context ) ).
+
+  ENDMETHOD.
+
+
+  METHOD cutoff_get_entityset.
+
+    TRY.
+
+        get_dashboard( )->cutoff( IMPORTING et_result = et_entityset ).
+
+      CATCH cx_sy_conversion_error
+            cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
 
   ENDMETHOD.
 

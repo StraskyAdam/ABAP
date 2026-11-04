@@ -307,6 +307,13 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="IP_POOWNER" Type="Edm.String" Nullable="false" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.exclusionPOParameters_to_exclusionPOType" FromRole="FromRole_exclusionPOParameters_to_exclusionPOType" ToRole="ToRole_exclusionPOParameters_to_exclusionPOType"/>
 </EntityType>
+<EntityType Name="cutoffType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="FLAG" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+</EntityType>
 <Association Name="auditParameters_to_auditType" sap:content-version="1">
 <End Type="ZFI_DAS_SRV.auditParametersType" Multiplicity="1" Role="FromRole_auditParameters_to_auditType"/>
 <End Type="ZFI_DAS_SRV.auditType" Multiplicity="*" Role="ToRole_auditParameters_to_auditType"/>
@@ -338,6 +345,7 @@ This XML file does not appear to have any style information associated with it. 
 <EntitySet Name="openPOParameters" EntityType="ZFI_DAS_SRV.openPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="thresholdParameters" EntityType="ZFI_DAS_SRV.thresholdParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="exclusionPOParameters" EntityType="ZFI_DAS_SRV.exclusionPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
+<EntitySet Name="cutoff" EntityType="ZFI_DAS_SRV.cutoffType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <AssociationSet Name="thresholdParameters_to_threshold" Association="ZFI_DAS_SRV.thresholdParameters_to_thresholdType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="thresholdParameters" Role="FromRole_thresholdParameters_to_thresholdType"/>
 <End EntitySet="threshold" Role="ToRole_thresholdParameters_to_thresholdType"/>
@@ -350,7 +358,7 @@ This XML file does not appear to have any style information associated with it. 
 <End EntitySet="methodParameters" Role="FromRole_methodParameters_to_methodType"/>
 <End EntitySet="method" Role="ToRole_methodParameters_to_methodType"/>
 </AssociationSet>
-<AssociationSet Name="auditParameters_to_audit" Association="ZFI_DAS_SRV.auditParameters_to_auditType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
+<AssociationSet Name="auditParameters_to_auditType_AssocSet" Association="ZFI_DAS_SRV.auditParameters_to_auditType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="auditParameters" Role="FromRole_auditParameters_to_auditType"/>
 <End EntitySet="audit" Role="ToRole_auditParameters_to_auditType"/>
 </AssociationSet>

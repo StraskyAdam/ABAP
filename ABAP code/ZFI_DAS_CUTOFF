@@ -1,0 +1,7 @@
+@EndUserText.label : 'Cutoff result'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_cutoff {
+  id   : sysuuid_c32;
+  flag : abap.char(5);
+
+}

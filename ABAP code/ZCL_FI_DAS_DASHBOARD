@@ -116,7 +116,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line',
 
       mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
-      mc_zero                     TYPE string VALUE '0'.
+      mc_zero                     TYPE string VALUE '0',
+
+      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME'.
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
@@ -897,9 +899,24 @@ CLASS zcl_fi_das_dashboard DEFINITION
         cx_sy_conversion_error
         cx_sy_open_sql_db.
 
+    METHODS get_cutoff_time
+      RETURNING
+        VALUE(r_cutoff_time) TYPE zfi_das_conf_val-config_value
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS get_cutoff_flag
+      RETURNING
+        VALUE(r_flag) TYPE zfi_das_cutoff-flag
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+
     METHODS generate_id
       RETURNING
-        VALUE(r_id) TYPE char32
+        VALUE(r_id) TYPE sysuuid_c32
       RAISING
         zcx_fi_das_error.
 
@@ -3570,6 +3587,54 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             previous = lx_error.
 
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~cutoff.
+
+    CLEAR et_result.
+
+    APPEND VALUE #( id   = generate_id( )
+                    flag = get_cutoff_flag( ) ) TO et_result.
+
+  ENDMETHOD.
+
+  METHOD get_cutoff_time.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = @mc_config_cutoff_time
+      INTO @r_cutoff_time.
+
+    IF sy-subrc <> 0 OR r_cutoff_time IS INITIAL.
+
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e036(zfi_das) WITH mc_config_cutoff_time.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_cutoff_flag.
+
+    DATA(l_cutoff_time) = get_cutoff_time( ).
+
+    GET TIME STAMP FIELD DATA(l_timestamp).
+
+    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_cet INTO DATE DATA(l_date)
+                                                                                      TIME DATA(l_time).
+
+    r_flag = mc_boolean_true.
+
+    IF CONV i( l_date+6(2) ) BETWEEN mc_period_first_day AND mc_period_last_day.
+      r_flag = mc_boolean_false.
+      RETURN.
+    ENDIF.
+
+    DATA(l_next_day) = CONV d( l_date + 1 ).
+
+    IF l_next_day+6(2) = mc_first_day_of_month AND l_time(2) = l_cutoff_time(2) AND l_time+2(2) > l_cutoff_time+3(2).
+      r_flag = mc_boolean_false.
+    ENDIF.
 
   ENDMETHOD.
 

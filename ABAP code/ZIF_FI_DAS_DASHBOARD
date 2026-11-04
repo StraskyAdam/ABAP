@@ -93,7 +93,8 @@ INTERFACE zif_fi_das_dashboard
          tt_zfi_das_under   TYPE STANDARD TABLE OF zfi_das_under,
          tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude,
          tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method,
-         tt_zfi_das_audit   TYPE STANDARD TABLE OF zfi_das_audit.
+         tt_zfi_das_audit   TYPE STANDARD TABLE OF zfi_das_audit,
+         tt_zfi_das_cutoff  TYPE STANDARD TABLE OF zfi_das_cutoff.
 
   METHODS over
     IMPORTING
@@ -155,6 +156,14 @@ INTERFACE zif_fi_das_dashboard
       !is_request TYPE ts_audit_request
     EXPORTING
       !et_result  TYPE tt_zfi_das_audit
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS cutoff
+    EXPORTING
+      !et_result TYPE tt_zfi_das_cutoff
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error

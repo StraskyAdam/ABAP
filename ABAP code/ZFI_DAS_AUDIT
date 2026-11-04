@@ -1,7 +1,7 @@
 @EndUserText.label : 'Audit result'
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_audit {
-  id         : abap.char(32);
+  id         : sysuuid_c32;
   ponumber   : ebeln;
   lineitem   : ebelp;
   changedon  : timestampl;

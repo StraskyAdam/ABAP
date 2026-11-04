@@ -23,6 +23,7 @@ CLASS ltc_request_processing DEFINITION DEFERRED.
 CLASS ltc_amdp_filters DEFINITION DEFERRED.
 CLASS ltc_method_parameters DEFINITION DEFERRED.
 CLASS ltc_audit DEFINITION DEFERRED.
+CLASS ltc_cutoff DEFINITION DEFERRED.
 
 CLASS zcl_fi_das_dashboard DEFINITION
   LOCAL FRIENDS ltcl_invoice_null_propagation
@@ -31,7 +32,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltc_request_processing
                 ltc_amdp_filters
                 ltc_method_parameters
-                ltc_audit.
+                ltc_audit
+                ltc_cutoff.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -10622,4 +10624,148 @@ CLASS ltc_audit IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( act = lt_result ).
 
   ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_cutoff DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+
+    DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
+
+    METHODS setup.
+
+    METHODS get_expected_flag
+      RETURNING
+        VALUE(r_flag) TYPE zfi_das_cutoff-flag
+      RAISING
+        cx_sy_open_sql_db.
+
+    METHODS cutoff_time_configured FOR TESTING
+      RAISING cx_static_check cx_dynamic_check.
+
+    METHODS flag_matches_current_time FOR TESTING
+      RAISING cx_static_check cx_dynamic_check.
+
+    METHODS result_contract FOR TESTING
+      RAISING cx_static_check cx_dynamic_check.
+
+ENDCLASS.
+
+
+CLASS ltc_cutoff IMPLEMENTATION.
+
+  METHOD setup.
+
+    mo_cut = NEW zcl_fi_das_dashboard( ).
+
+  ENDMETHOD.
+
+
+  METHOD get_expected_flag.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = 'CUTOFF_TIME'
+      INTO @DATA(l_cutoff_time).
+
+    cl_abap_unit_assert=>assert_subrc( exp = 0 ).
+    cl_abap_unit_assert=>assert_not_initial( l_cutoff_time ).
+
+    GET TIME STAMP FIELD DATA(l_timestamp).
+
+    CONVERT TIME STAMP l_timestamp
+      TIME ZONE zcl_fi_das_utility=>mc_timezone_cet
+      INTO DATE DATA(l_date)
+           TIME DATA(l_time).
+
+    DATA l_next_month TYPE d.
+    DATA l_last_day TYPE d.
+
+    l_next_month = CONV d( l_date(6) && '01' ) + 31.
+    l_last_day = CONV d( l_next_month(6) && '01' ) - 1.
+
+    r_flag = 'true'.
+
+    IF l_date+6(2) BETWEEN '01' AND '06'.
+
+      r_flag = 'false'.
+
+    ELSEIF l_date = l_last_day.
+
+      IF l_time(2) = l_cutoff_time(2) AND
+         l_time+2(2) > l_cutoff_time+3(2).
+        r_flag = 'false'.
+      ENDIF.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD cutoff_time_configured.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = 'CUTOFF_TIME'
+      INTO @DATA(l_expected_time).
+
+    cl_abap_unit_assert=>assert_subrc( exp = 0 ).
+    cl_abap_unit_assert=>assert_not_initial( l_expected_time ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->get_cutoff_time( )
+      exp = l_expected_time ).
+
+  ENDMETHOD.
+
+
+  METHOD flag_matches_current_time.
+
+    DATA(l_expected_before) = get_expected_flag( ).
+
+    DATA(l_actual) = mo_cut->get_cutoff_flag( ).
+
+    DATA(l_expected_after) = get_expected_flag( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( l_actual = l_expected_before OR
+                     l_actual = l_expected_after )
+      msg = 'Cutoff flag does not match the current time' ).
+
+  ENDMETHOD.
+
+
+  METHOD result_contract.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_cutoff.
+
+    APPEND VALUE #( id = 'OLD' flag = 'true' ) TO lt_result.
+
+    DATA(l_expected_before) = get_expected_flag( ).
+
+    mo_cut->zif_fi_das_dashboard~cutoff(
+      IMPORTING et_result = lt_result ).
+
+    DATA(l_expected_after) = get_expected_flag( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lt_result[ 1 ]-flag = l_expected_before OR
+                     lt_result[ 1 ]-flag = l_expected_after )
+      msg = 'Endpoint flag does not match the current time' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = strlen( lt_result[ 1 ]-id )
+      exp = 32 ).
+
+    cl_abap_unit_assert=>assert_true(
+      xsdbool( lt_result[ 1 ]-id CO '0123456789ABCDEF' ) ).
+
+  ENDMETHOD.
+
 ENDCLASS.

@@ -38,4 +38,5 @@
 |EN      |ZFI_DAS|033  |Invalid ISO date: &1. Expected a valid date in YYYY-MM-DD format         |
 |EN      |ZFI_DAS|034	 |Required method parameter is missing                                     |
 |EN      |ZFI_DAS|035	 |Unable to generate result ID                                             |
+|EN      |ZFI_DAS|036	 |Missing configuration value for &1                                       |
 --------------------------------------------------------------------------------------------------

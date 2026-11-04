@@ -118,8 +118,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
       mc_zero                     TYPE string VALUE '0',
 
-      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
-      mc_time_separator           TYPE c LENGTH 1 VALUE ':'.
+      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME'.
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,

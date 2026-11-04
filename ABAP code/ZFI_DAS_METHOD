@@ -1,7 +1,7 @@
 @EndUserText.label : 'Accrual method calculation'
 @AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
 define type zfi_das_method {
-  id                      : abap.char(32);
+  id                      : sysuuid_c32;
   straightlinemthd        : abap.char(1);
   accrualmethod           : abap.char(50);
   totwrkcompamt           : abap.dec(13,2);

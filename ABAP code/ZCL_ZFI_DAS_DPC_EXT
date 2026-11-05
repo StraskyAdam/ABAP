@@ -8,15 +8,21 @@ protected section.
 
   methods AUDIT_GET_ENTITYSET
     redefinition .
+  methods CUTOFF_GET_ENTITYSET
+    redefinition .
   methods EXCLUSIONPOSET_GET_ENTITYSET
     redefinition .
   methods METHOD_GET_ENTITYSET
     redefinition .
   methods OPENPOTYPESET_GET_ENTITYSET
     redefinition .
+  methods ROLETYPESET_GET_ENTITYSET
+    redefinition .
   methods THRESHOLDSET_GET_ENTITYSET
     redefinition .
-  methods CUTOFF_GET_ENTITYSET
+  methods USERROLE_GET_ENTITYSET
+    redefinition .
+  methods USERTYPESET_GET_ENTITYSET
     redefinition .
   PRIVATE SECTION.
 
@@ -357,6 +363,27 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD roletypeset_get_entityset.
+
+    TRY.
+
+        get_dashboard( )->role_parameters(
+          EXPORTING
+            i_email   = get_parameter( it_key_tab )-email
+          IMPORTING
+            et_result = et_entityset ).
+
+      CATCH cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+  ENDMETHOD.
+
+
   METHOD thresholdset_get_entityset.
 
     TRY.
@@ -370,6 +397,54 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error
             cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD userrole_get_entityset.
+
+    TRY.
+
+        get_dashboard( )->user_role(
+          EXPORTING
+            is_request = build_request(
+              it_key_tab              = it_key_tab
+              io_tech_request_context = io_tech_request_context )
+          IMPORTING
+            et_result = et_entityset ).
+
+      CATCH cx_sy_open_sql_db
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD usertypeset_get_entityset.
+
+    TRY.
+
+        get_dashboard( )->user_details(
+          EXPORTING
+            is_request = build_request(
+              it_key_tab              = it_key_tab
+              io_tech_request_context = io_tech_request_context )
+          IMPORTING
+            et_result = et_entityset ).
+
+      CATCH cx_sy_open_sql_db
             zcx_fi_das_error INTO DATA(lx_error).
 
         RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception

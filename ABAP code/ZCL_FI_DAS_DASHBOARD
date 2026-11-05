@@ -121,7 +121,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
 
       mc_filter_emailaddr         TYPE string VALUE `EMAILADDR`,
-      mc_filter_user_emailid      TYPE string VALUE `USER_EMAILID`,
       mc_sign_include             TYPE ddsign VALUE 'I',
       mc_option_equal             TYPE ddoption VALUE 'EQ'.
 
@@ -3675,14 +3674,29 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~user_role.
 
-    DATA(lt_email) = get_user_email_filter( is_request = is_request
-                                            i_property = mc_filter_user_emailid ).
+    IF is_request-paging-skip < 0 OR is_request-paging-top < 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e009(zfi_das).
+    ENDIF.
 
-    SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
-      FROM zfi_das_roles
-      WHERE user_emailid IN @lt_email
-      ORDER BY PRIMARY KEY
-      INTO CORRESPONDING FIELDS OF TABLE @et_result.
+    DATA(l_where) = is_request-filter-filter_string.
+
+    TRY.
+        SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
+          FROM zfi_das_roles
+          WHERE (l_where)
+          ORDER BY PRIMARY KEY
+          INTO CORRESPONDING FIELDS OF TABLE @et_result.
+
+      CATCH cx_sy_dynamic_osql_error INTO DATA(lx_sql).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_sql.
+
+    ENDTRY.
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
 
     apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
                   CHANGING  ct_result  = et_result ).

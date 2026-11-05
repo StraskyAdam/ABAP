@@ -10954,6 +10954,7 @@ CLASS ltc_user_role DEFINITION FINAL FOR TESTING
     METHODS roles_map_all_fields FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS roles_without_filter FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS roles_paging FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS roles_filter_and_sort FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS unknown_and_empty_email FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS user_master_mapping FOR TESTING RAISING cx_static_check cx_dynamic_check.
     METHODS users_without_filter FOR TESTING RAISING cx_static_check cx_dynamic_check.
@@ -11091,6 +11092,36 @@ CLASS ltc_user_role IMPLEMENTATION.
       EXPORTING is_request = VALUE #( paging-top_requested = abap_true )
       IMPORTING et_result = lt_result ).
     cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD roles_filter_and_sort.
+
+    SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
+      FROM zfi_das_roles
+      ORDER BY PRIMARY KEY
+      INTO CORRESPONDING FIELDS OF TABLE @DATA(lt_roles).
+
+    cl_abap_unit_assert=>assert_not_initial( lt_roles ).
+
+    DATA(l_role) = lt_roles[ 1 ]-user_role.
+
+    DATA(lt_expected) = CORRESPONDING zif_fi_das_dashboard=>tt_zfi_das_user_role( lt_roles ).
+    DELETE lt_expected WHERE user_role <> l_role.
+    SORT lt_expected STABLE BY user_emailid DESCENDING.
+
+    mo_cut->zif_fi_das_dashboard~user_role(
+      EXPORTING is_request = VALUE #( filter-filter_string = |USER_ROLE = '{ l_role }'|
+                                      orderby = VALUE #( ( property = `USER_EMAILID` descending = abap_true ) ) )
+      IMPORTING et_result = DATA(lt_result) ).
+
+    assert_ids( lt_result ).
+
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      CLEAR <fs_result>-id.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 

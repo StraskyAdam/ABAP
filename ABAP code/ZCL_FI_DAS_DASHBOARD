@@ -3266,9 +3266,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               ON user_logon.mandt = user_data.mandt
              AND user_logon.bname = user_data.bname
 
-      INNER JOIN :lt_requested AS requested
-              ON requested.email = LOWER( TRIM( email.smtp_addr ) )
-
       WHERE user_data.mandt = SESSION_CONTEXT( :lc_client_context )
         AND ( :i_all_users = :lc_all_users OR LOWER( TRIM( email.smtp_addr ) ) IN ( SELECT email FROM :lt_requested ) )
         AND user_logon.ustyp = :lc_user_type_dialog

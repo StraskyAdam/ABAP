@@ -10,8 +10,6 @@
 " - ltc_scope_*: 5 scenarios x 62 scopes, live parity (LONG/HARMLESS)
 " - ltc_dash_pure_branches: currency, mapping, context, validation/status
 " - ltc_audit: audit reads on Open SQL doubles, mapping and paging (SHORT)
-" - ltc_user_request: user endpoint request validation (SHORT)
-" - ltc_user_role: live role and user master reads (MEDIUM)
 " SHORT tests use in-memory values; MEDIUM/LONG tests call runtime services.
 
 CLASS ltc_fi_das_gateway_parity DEFINITION DEFERRED.
@@ -10785,19 +10783,12 @@ CLASS ltc_user_request DEFINITION FINAL FOR TESTING
     DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
 
     METHODS setup.
-    METHODS no_filter FOR TESTING RAISING cx_static_check.
-    METHODS email_normalized FOR TESTING RAISING cx_static_check.
-    METHODS empty_email_is_filter FOR TESTING RAISING cx_static_check.
-    METHODS unsupported_filter FOR TESTING.
-    METHODS multiple_filters FOR TESTING.
-    METHODS expression_without_range FOR TESTING.
-    METHODS sorting_rejected FOR TESTING.
-    METHODS negative_paging FOR TESTING.
-    METHODS paging_zero_and_skip FOR TESTING RAISING cx_static_check.
-    METHODS assert_rejected
-      IMPORTING
-        is_request TYPE zif_fi_das_dashboard=>ts_request
-        i_msgno    TYPE symsgno.
+    METHODS paging_zero_and_skip FOR TESTING.
+    METHODS paging_without_top FOR TESTING.
+    METHODS skip_past_end FOR TESTING.
+    METHODS sorting_ascending FOR TESTING.
+    METHODS sorting_descending FOR TESTING.
+    METHODS sorting_not_requested FOR TESTING.
 
 ENDCLASS.
 
@@ -10807,132 +10798,156 @@ CLASS ltc_user_request IMPLEMENTATION.
     mo_cut = NEW #( ).
   ENDMETHOD.
 
-  METHOD no_filter.
-
-    DATA(lt_email) = mo_cut->get_user_email_filter(
-      is_request = VALUE #( )
-      i_property = `EMAILADDR` ).
-
-    cl_abap_unit_assert=>assert_initial( lt_email ).
-
-  ENDMETHOD.
-
-  METHOD email_normalized.
-
-    DATA(lt_email) = mo_cut->get_user_email_filter(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `USER_EMAILID` sign = 'I' option = 'EQ' low = ` User@Example.com ` ) ) )
-      i_property = `USER_EMAILID` ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_email ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lt_email[ 1 ]-low exp = 'user@example.com' ).
-    cl_abap_unit_assert=>assert_equals( act = lt_email[ 1 ]-sign exp = 'I' ).
-    cl_abap_unit_assert=>assert_equals( act = lt_email[ 1 ]-option exp = 'EQ' ).
-
-  ENDMETHOD.
-
-  METHOD empty_email_is_filter.
-
-    DATA(lt_email) = mo_cut->get_user_email_filter(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `EMAILADDR` sign = 'I' option = 'EQ' ) ) )
-      i_property = `EMAILADDR` ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_email ) exp = 1 ).
-    cl_abap_unit_assert=>assert_initial( lt_email[ 1 ]-low ).
-
-  ENDMETHOD.
-
-  METHOD assert_rejected.
-
-    TRY.
-
-        mo_cut->get_user_email_filter( is_request = is_request i_property = `EMAILADDR` ).
-        cl_abap_unit_assert=>fail( 'Unsupported user request must raise an error' ).
-
-      CATCH zcx_fi_das_error INTO DATA(lx_error).
-
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgid exp = 'ZFI_DAS' ).
-        cl_abap_unit_assert=>assert_equals(
-          act = lx_error->if_t100_message~t100key-msgno exp = i_msgno ).
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-  METHOD unsupported_filter.
-
-    assert_rejected(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `USERNAME` sign = 'I' option = 'EQ' low = 'USER' ) ) )
-      i_msgno = '037' ).
-
-    assert_rejected(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `EMAILADDR` sign = 'I' option = 'CP' low = '*@example.com' ) ) )
-      i_msgno = '037' ).
-
-    assert_rejected(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `EMAILADDR` sign = 'E' option = 'EQ' low = 'user@example.com' ) ) )
-      i_msgno = '037' ).
-
-  ENDMETHOD.
-
-  METHOD multiple_filters.
-
-    assert_rejected(
-      is_request = VALUE #( filter-filter_select_options = VALUE #(
-        ( property = `EMAILADDR` sign = 'I' option = 'EQ' low = 'a@example.com' )
-        ( property = `EMAILADDR` sign = 'I' option = 'EQ' low = 'b@example.com' ) ) )
-      i_msgno = '037' ).
-
-  ENDMETHOD.
-
-  METHOD expression_without_range.
-
-    assert_rejected(
-      is_request = VALUE #( filter-filter_string = `substringof('example', EMAILADDR)` )
-      i_msgno = '037' ).
-
-  ENDMETHOD.
-
-  METHOD sorting_rejected.
-
-    assert_rejected(
-      is_request = VALUE #( orderby = VALUE #( ( property = `USERNAME` ) ) )
-      i_msgno = '037' ).
-
-  ENDMETHOD.
-
-  METHOD negative_paging.
-
-    assert_rejected( is_request = VALUE #( paging-skip = -1 ) i_msgno = '009' ).
-    assert_rejected( is_request = VALUE #( paging-top = -1 ) i_msgno = '009' ).
-
-  ENDMETHOD.
-
   METHOD paging_zero_and_skip.
 
     DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_role.
 
-    lt_result = VALUE #( ( user_emailid = 'a@example.com' )
-                        ( user_emailid = 'b@example.com' )
-                        ( user_emailid = 'c@example.com' ) ).
+    lt_result = VALUE #(
+      ( user_emailid = 'a@example.com' )
+      ( user_emailid = 'b@example.com' )
+      ( user_emailid = 'c@example.com' ) ).
 
-    mo_cut->apply_paging( EXPORTING is_request = VALUE #( paging-skip = 1
-                                                         paging-top = 1
-                                                         paging-top_requested = abap_true )
-                         CHANGING ct_result = lt_result ).
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = VALUE #( paging-skip = 1
+                              paging-top = 1
+                              paging-top_requested = abap_true )
+      CHANGING
+        ct_result = lt_result ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-user_emailid exp = 'b@example.com' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result ) exp = 1 ).
 
-    mo_cut->apply_paging( EXPORTING is_request = VALUE #( paging-top_requested = abap_true )
-                         CHANGING ct_result = lt_result ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-user_emailid exp = 'b@example.com' ).
+
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = VALUE #( paging-top_requested = abap_true )
+      CHANGING
+        ct_result = lt_result ).
 
     cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD paging_without_top.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_result = VALUE #(
+      ( username = 'USER_A' )
+      ( username = 'USER_B' )
+      ( username = 'USER_C' ) ).
+
+    DATA(lt_expected) = lt_result.
+
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = VALUE #( )
+      CHANGING
+        ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = VALUE #( paging-skip = 1 )
+      CHANGING
+        ct_result = lt_result ).
+
+    DELETE lt_expected INDEX 1.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD skip_past_end.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_result = VALUE #( ( username = 'USER_A' ) ).
+
+    mo_cut->apply_paging(
+      EXPORTING
+        is_request = VALUE #( paging-skip = 1 )
+      CHANGING
+        ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD sorting_ascending.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_result = VALUE #(
+      ( username = 'USER_C' )
+      ( username = 'USER_A' )
+      ( username = 'USER_B' ) ).
+
+    DATA(lt_expected) = lt_result.
+    SORT lt_expected BY username.
+
+    mo_cut->apply_sort(
+      EXPORTING
+        is_request = VALUE #(
+          orderby = VALUE #( ( property = `USERNAME` ) ) )
+      CHANGING
+        ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD sorting_descending.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_result = VALUE #(
+      ( username = 'USER_C' )
+      ( username = 'USER_A' )
+      ( username = 'USER_B' ) ).
+
+    DATA(lt_expected) = lt_result.
+    SORT lt_expected BY username DESCENDING.
+
+    mo_cut->apply_sort(
+      EXPORTING
+        is_request = VALUE #(
+          orderby = VALUE #(
+            ( property = `USERNAME` descending = abap_true ) ) )
+      CHANGING
+        ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD sorting_not_requested.
+
+    DATA lt_result TYPE zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_result = VALUE #(
+      ( username = 'USER_C' )
+      ( username = 'USER_A' )
+      ( username = 'USER_B' ) ).
+
+    DATA(lt_expected) = lt_result.
+
+    mo_cut->apply_sort(
+      EXPORTING
+        is_request = VALUE #( )
+      CHANGING
+        ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 
@@ -10944,29 +10959,51 @@ CLASS ltc_user_role DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
 
-    CONSTANTS mc_unknown_email TYPE zif_fi_das_dashboard=>t_email
-      VALUE 'unit.test.unknown@invalid.invalid'.
+    CONSTANTS mc_unknown_email TYPE string
+      VALUE `unit.test.unknown@invalid.invalid`.
 
     DATA mo_cut TYPE REF TO zcl_fi_das_dashboard.
 
     METHODS setup.
-    METHODS role_flags FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS roles_map_all_fields FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS roles_without_filter FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS roles_paging FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS roles_filter_and_sort FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS unknown_and_empty_email FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS user_master_mapping FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS users_without_filter FOR TESTING RAISING cx_static_check cx_dynamic_check.
-    METHODS get_request
+
+    METHODS role_flags
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS roles_map_all_fields
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS roles_without_filter
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS roles_filter_sort_page
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS roles_paging
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_master_mapping
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_without_filter
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_filter_sort_page
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_empty_email
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_no_match
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_scoped_empty
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+    METHODS users_scoped_email
+      FOR TESTING RAISING cx_static_check cx_dynamic_check.
+
+    METHODS sql_literal
       IMPORTING
-        i_property TYPE string
-        i_email TYPE zif_fi_das_dashboard=>t_email
+        i_value        TYPE string
       RETURNING
-        VALUE(rs_request) TYPE zif_fi_das_dashboard=>ts_request.
+        VALUE(r_value) TYPE string.
+
     METHODS assert_ids
       IMPORTING
-        it_result TYPE ANY TABLE.
+        it_result TYPE STANDARD TABLE.
+
+    METHODS clear_ids
+      CHANGING
+        ct_result TYPE STANDARD TABLE.
 
 ENDCLASS.
 
@@ -10976,27 +11013,54 @@ CLASS ltc_user_role IMPLEMENTATION.
     mo_cut = NEW #( ).
   ENDMETHOD.
 
-  METHOD get_request.
+  METHOD sql_literal.
 
-    rs_request-filter-filter_select_options = VALUE #(
-      ( property = i_property sign = 'I' option = 'EQ' low = i_email ) ).
-    rs_request-filter-filter_string = |{ i_property } = '{ i_email }'|.
+    r_value = |'{ replace( val  = i_value
+                          sub  = `'`
+                          with = `''`
+                          occ  = 0 ) }'|.
 
   ENDMETHOD.
 
   METHOD assert_ids.
 
-    DATA lt_ids TYPE SORTED TABLE OF sysuuid_c32 WITH UNIQUE KEY table_line.
+    DATA lt_ids TYPE HASHED TABLE OF sysuuid_c32
+      WITH UNIQUE KEY table_line.
 
     LOOP AT it_result ASSIGNING FIELD-SYMBOL(<fs_result>).
 
-      ASSIGN COMPONENT 'ID' OF STRUCTURE <fs_result> TO FIELD-SYMBOL(<fs_id>).
-      cl_abap_unit_assert=>assert_equals( act = sy-subrc exp = 0 ).
-      cl_abap_unit_assert=>assert_equals( act = strlen( <fs_id> ) exp = 32 ).
-      cl_abap_unit_assert=>assert_true( xsdbool( <fs_id> CO '0123456789ABCDEF' ) ).
+      ASSIGN COMPONENT 'ID' OF STRUCTURE <fs_result>
+        TO FIELD-SYMBOL(<fs_id>).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = sy-subrc exp = 0 ).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = strlen( <fs_id> ) exp = 32 ).
+
+      cl_abap_unit_assert=>assert_true(
+        xsdbool( <fs_id> CO '0123456789ABCDEF' ) ).
 
       INSERT <fs_id> INTO TABLE lt_ids.
-      cl_abap_unit_assert=>assert_equals( act = sy-subrc exp = 0 ).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = sy-subrc exp = 0 ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD clear_ids.
+
+    LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+
+      ASSIGN COMPONENT 'ID' OF STRUCTURE <fs_result>
+        TO FIELD-SYMBOL(<fs_id>).
+
+      cl_abap_unit_assert=>assert_equals(
+        act = sy-subrc exp = 0 ).
+
+      CLEAR <fs_id>.
 
     ENDLOOP.
 
@@ -11004,229 +11068,495 @@ CLASS ltc_user_role IMPLEMENTATION.
 
   METHOD role_flags.
 
-    SELECT user_emailid FROM zfi_das_roles
-      ORDER BY PRIMARY KEY INTO TABLE @DATA(lt_roles).
+    SELECT user_emailid
+      FROM zfi_das_roles
+      ORDER BY PRIMARY KEY
+      INTO TABLE @DATA(lt_roles).
 
     cl_abap_unit_assert=>assert_not_initial(
-      act = lt_roles msg = 'At least one normalized e-mail is required in ZFI_DAS_ROLES' ).
+      act = lt_roles
+      msg = 'At least one normalized role e-mail is required' ).
 
-    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email( lt_roles[ 1 ]-user_emailid ).
+    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email(
+      lt_roles[ 1 ]-user_emailid ).
+
     cl_abap_unit_assert=>assert_equals(
-      act = l_email exp = zcl_fi_das_utility=>normalize_email( l_email ) ).
+      act = l_email
+      exp = zcl_fi_das_utility=>normalize_email( l_email ) ).
 
     mo_cut->zif_fi_das_dashboard~role_parameters(
-      EXPORTING i_email = | { to_upper( l_email ) } |
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        i_email = | { to_upper( l_email ) } |
+      IMPORTING
+        et_result = DATA(lt_result) ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-flag exp = 'X' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result ) exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-flag exp = abap_true ).
+
     assert_ids( lt_result ).
 
-    mo_cut->zif_fi_das_dashboard~role_parameters(
-      EXPORTING i_email = mc_unknown_email
-      IMPORTING et_result = lt_result ).
+    SELECT COUNT(*)
+      FROM zfi_das_roles
+      WHERE user_emailid = @mc_unknown_email
+      INTO @DATA(l_count).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = l_count exp = 0
+      msg = 'The negative-test e-mail must not have a role' ).
+
+    mo_cut->zif_fi_das_dashboard~role_parameters(
+      EXPORTING
+        i_email = CONV #( mc_unknown_email )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result ) exp = 1 ).
+
     cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-flag ).
+
     assert_ids( lt_result ).
 
   ENDMETHOD.
 
   METHOD roles_map_all_fields.
 
-    SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
-      FROM zfi_das_roles ORDER BY PRIMARY KEY INTO TABLE @DATA(lt_roles).
+    SELECT user_role, user_emailid, user_access,
+           company_code, management_unit, cost_center
+      FROM zfi_das_roles
+      ORDER BY PRIMARY KEY
+      INTO TABLE @DATA(lt_roles).
 
     cl_abap_unit_assert=>assert_not_initial( lt_roles ).
 
-    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email( lt_roles[ 1 ]-user_emailid ).
+    DATA(l_email) = lt_roles[ 1 ]-user_emailid.
+
     DELETE lt_roles WHERE user_emailid <> l_email.
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = get_request( i_property = `USER_EMAILID` i_email = l_email )
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string =
+            |USER_EMAILID = { sql_literal(  l_email  ) }| )
+      IMPORTING
+        et_result = DATA(lt_result) ).
 
     assert_ids( lt_result ).
+    clear_ids( CHANGING ct_result = lt_result ).
 
-    DATA(lt_expected) = CORRESPONDING zif_fi_das_dashboard=>tt_zfi_das_user_role( lt_roles ).
-    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-      CLEAR <fs_result>-id.
-    ENDLOOP.
+    DATA(lt_expected) =  lt_roles .
 
-    cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 
   METHOD roles_without_filter.
 
-    SELECT COUNT(*) FROM zfi_das_roles INTO @DATA(l_count).
+    SELECT COUNT(*)
+      FROM zfi_das_roles
+      INTO @DATA(l_count).
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( )
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = DATA(lt_result) ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = l_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result ) exp = l_count ).
+
     assert_ids( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD roles_filter_sort_page.
+
+    SELECT user_role, user_emailid, user_access,
+           company_code, management_unit, cost_center
+      FROM zfi_das_roles
+      ORDER BY PRIMARY KEY
+      INTO TABLE @DATA(lt_roles).
+
+    cl_abap_unit_assert=>assert_not_initial( lt_roles ).
+
+    DATA(l_role) = lt_roles[ 1 ]-user_role.
+
+    DATA(lt_expected) = lt_roles .
+
+    DELETE lt_expected WHERE user_role <> l_role.
+    SORT lt_expected STABLE BY user_emailid DESCENDING.
+
+    mo_cut->zif_fi_das_dashboard~user_role(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string =
+            |USER_ROLE = { sql_literal( l_role ) }|
+          orderby = VALUE #(
+            ( property = `USER_EMAILID` descending = abap_true ) ) )
+      IMPORTING
+        et_result = DATA(lt_result) ).
+
+    assert_ids( lt_result ).
+    clear_ids( CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+    mo_cut->zif_fi_das_dashboard~user_role(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string =
+            |USER_ROLE = { sql_literal(  l_role ) }|
+          orderby = VALUE #(
+            ( property = `USER_EMAILID` descending = abap_true ) )
+          paging-top = 1
+          paging-top_requested = abap_true )
+      IMPORTING
+        et_result = lt_result ).
+
+    DELETE lt_expected FROM 2.
+
+    clear_ids( CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 
   METHOD roles_paging.
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( )
-      IMPORTING et_result = DATA(lt_all) ).
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = DATA(lt_all) ).
+
+    DATA(lt_expected) = lt_all.
+
+    DELETE lt_expected FROM 2.
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( paging-top = 1 paging-top_requested = abap_true )
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        is_request = VALUE #( paging-top = 1
+                              paging-top_requested = abap_true )
+      IMPORTING
+        et_result = DATA(lt_result) ).
+
+    clear_ids( CHANGING ct_result = lt_expected ).
+    clear_ids( CHANGING ct_result = lt_result ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result ) exp = COND i( WHEN lt_all IS INITIAL THEN 0 ELSE 1 ) ).
+      act = lt_result exp = lt_expected ).
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( paging-skip = lines( lt_all ) )
-      IMPORTING et_result = lt_result ).
+      EXPORTING
+        is_request = VALUE #( paging-skip = lines( lt_all ) )
+      IMPORTING
+        et_result = lt_result ).
+
     cl_abap_unit_assert=>assert_initial( lt_result ).
 
     mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( paging-top_requested = abap_true )
-      IMPORTING et_result = lt_result ).
+      EXPORTING
+        is_request = VALUE #( paging-top_requested = abap_true )
+      IMPORTING
+        et_result = lt_result ).
+
     cl_abap_unit_assert=>assert_initial( lt_result ).
 
   ENDMETHOD.
 
-  METHOD roles_filter_and_sort.
+  METHOD users_master_mapping.
 
-    SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
-      FROM zfi_das_roles
-      ORDER BY PRIMARY KEY
-      INTO CORRESPONDING FIELDS OF TABLE @DATA(lt_roles).
+    DATA(l_use_replication) =
+      zcl_fi_das_dashboard=>get_use_replication( ).
 
-    cl_abap_unit_assert=>assert_not_initial( lt_roles ).
+    SELECT user_data~bname AS username,
+           user_defaults~dcpfm AS decimal_format,
+           user_defaults~datfm,
+           email~smtp_addr AS emailaddr_sap,
+           person~name_text AS full_name
+      FROM zi_fi_das_usr21(
+        p_use_replication = @l_use_replication ) AS user_data
 
-    DATA(l_role) = lt_roles[ 1 ]-user_role.
-
-    DATA(lt_expected) = CORRESPONDING zif_fi_das_dashboard=>tt_zfi_das_user_role( lt_roles ).
-    DELETE lt_expected WHERE user_role <> l_role.
-    SORT lt_expected STABLE BY user_emailid DESCENDING.
-
-    mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = VALUE #( filter-filter_string = |USER_ROLE = '{ l_role }'|
-                                      orderby = VALUE #( ( property = `USER_EMAILID` descending = abap_true ) ) )
-      IMPORTING et_result = DATA(lt_result) ).
-
-    assert_ids( lt_result ).
-
-    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-      CLEAR <fs_result>-id.
-    ENDLOOP.
-
-    cl_abap_unit_assert=>assert_equals( act = lt_result exp = lt_expected ).
-
-  ENDMETHOD.
-
-  METHOD unknown_and_empty_email.
-
-    mo_cut->zif_fi_das_dashboard~user_role(
-      EXPORTING is_request = get_request( i_property = `USER_EMAILID` i_email = mc_unknown_email )
-      IMPORTING et_result = DATA(lt_roles) ).
-    cl_abap_unit_assert=>assert_initial( lt_roles ).
-
-    mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = get_request( i_property = `EMAILADDR` i_email = mc_unknown_email )
-      IMPORTING et_result = DATA(lt_users) ).
-    cl_abap_unit_assert=>assert_initial( lt_users ).
-
-    mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = get_request( i_property = `EMAILADDR` i_email = space )
-      IMPORTING et_result = lt_users ).
-    cl_abap_unit_assert=>assert_initial( lt_users ).
-
-  ENDMETHOD.
-
-  METHOD user_master_mapping.
-
-    DATA(l_use_replication) = zcl_fi_das_dashboard=>get_use_replication( ).
-
-    SELECT user_data~bname AS username, user_defaults~dcpfm AS decimal_format,
-           user_defaults~datfm, email~smtp_addr AS emailaddr_sap, person~name_text AS full_name
-      FROM zi_fi_das_usr21( p_use_replication = @l_use_replication ) AS user_data
-      INNER JOIN zi_fi_das_adrp( p_use_replication = @l_use_replication ) AS person
+      INNER JOIN zi_fi_das_adrp(
+        p_use_replication = @l_use_replication ) AS person
         ON person~persnumber = user_data~persnumber
-      INNER JOIN zi_fi_das_adr6( p_use_replication = @l_use_replication ) AS email
-        ON email~persnumber = user_data~persnumber AND email~addrnumber = user_data~addrnumber
-      INNER JOIN zi_fi_das_usr01( p_use_replication = @l_use_replication ) AS user_defaults
+
+      INNER JOIN zi_fi_das_adr6(
+        p_use_replication = @l_use_replication ) AS email
+        ON email~persnumber = user_data~persnumber
+       AND email~addrnumber = user_data~addrnumber
+
+      INNER JOIN zi_fi_das_usr01(
+        p_use_replication = @l_use_replication ) AS user_defaults
         ON user_defaults~bname = user_data~bname
-      INNER JOIN zi_fi_das_usr02( p_use_replication = @l_use_replication ) AS logon_data
+
+      INNER JOIN zi_fi_das_usr02(
+        p_use_replication = @l_use_replication ) AS logon_data
         ON logon_data~bname = user_data~bname
-      WHERE logon_data~ustyp = 'A' AND logon_data~class NOT LIKE '%RPA%'
-        AND logon_data~gltgv < @sy-datum AND logon_data~gltgb >= @sy-datum
+
+      WHERE logon_data~ustyp = 'A'
+        AND logon_data~class NOT LIKE '%RPA%'
+        AND logon_data~gltgv < @sy-datum
+        AND logon_data~gltgb >= @sy-datum
       INTO TABLE @DATA(lt_master).
 
     DELETE lt_master WHERE emailaddr_sap IS INITIAL.
 
     LOOP AT lt_master ASSIGNING FIELD-SYMBOL(<fs_master>).
+
       IF <fs_master>-username+0(1) CA '0123456789'.
         DELETE lt_master.
       ENDIF.
+
     ENDLOOP.
 
     cl_abap_unit_assert=>assert_not_initial(
-      act = lt_master msg = 'At least one valid dialog user with e-mail is required' ).
+      act = lt_master
+      msg = 'At least one valid dialog user with e-mail is required' ).
 
-    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email(
-      to_lower( condense( CONV string( lt_master[ 1 ]-emailaddr_sap ) ) ) ).
+    DATA(l_email) = zcl_fi_das_utility=>normalize_email(
+      CONV #( lt_master[ 1 ]-emailaddr_sap ) ).
 
     mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = get_request( i_property = `EMAILADDR` i_email = l_email )
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string =
+            |EMAILADDR = { sql_literal( CONV #( l_email ) ) }| )
+      IMPORTING
+        et_result = DATA(lt_result) ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-emailaddr exp = l_email ).
     cl_abap_unit_assert=>assert_equals(
-      act = to_lower( condense( CONV string( lt_result[ 1 ]-emailaddr_sap ) ) )
-      exp = CONV string( l_email ) ).
+      act = lines( lt_result ) exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-emailaddr exp = l_email ).
+
     assert_ids( lt_result ).
 
     DATA(ls_actual) = lt_result[ 1 ].
-    cl_abap_unit_assert=>assert_true( xsdbool( line_exists( lt_master[
-      username = ls_actual-username
-      decimal_format = ls_actual-decimal_format
-      datfm = ls_actual-datfm
-      emailaddr_sap = ls_actual-emailaddr_sap
-      full_name = ls_actual-full_name ] ) ) ).
 
-    mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = VALUE #( paging-top_requested = abap_true )
-      IMPORTING et_result = lt_result ).
-    cl_abap_unit_assert=>assert_initial( lt_result ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>normalize_email(
+        CONV #( ls_actual-emailaddr_sap ) )
+      exp = l_email ).
+
+    cl_abap_unit_assert=>assert_true(
+      xsdbool( line_exists( lt_master[
+        username       = ls_actual-username
+        decimal_format = ls_actual-decimal_format
+        datfm          = ls_actual-datfm
+        emailaddr_sap  = ls_actual-emailaddr_sap
+        full_name      = ls_actual-full_name ] ) ) ).
 
   ENDMETHOD.
 
   METHOD users_without_filter.
 
-    mo_cut->get_users( EXPORTING it_details = VALUE #( )
-                                i_use_replication = zcl_fi_das_dashboard=>get_use_replication( )
-                                i_all_users = abap_true
-                      IMPORTING et_users = DATA(lt_expected) ).
+    mo_cut->get_users(
+      EXPORTING
+        it_details        = VALUE #( )
+        i_use_replication = zcl_fi_das_dashboard=>get_use_replication( )
+        i_all_users       = abap_true
+        i_filter          = ``
+      IMPORTING
+        et_users = DATA(lt_users) ).
+
+    DATA lt_expected TYPE
+      zif_fi_das_dashboard=>tt_zfi_das_user_details.
+
+    lt_expected = VALUE #(
+      FOR ls_user IN lt_users
+      ( username       = ls_user-username
+        decimal_format = ls_user-decimal_format
+        datfm          = ls_user-datfm
+        emailaddr_sap  = ls_user-emailaddr_sap
+        full_name      = ls_user-full_name
+        emailaddr      = ls_user-email ) ).
+
+    SORT lt_expected BY emailaddr username.
 
     mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = VALUE #( )
-      IMPORTING et_result = DATA(lt_result) ).
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = DATA(lt_result) ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = lines( lt_expected ) ).
+    assert_ids( lt_result ).
+    clear_ids( CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #( paging-top_requested = abap_true )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD users_filter_sort_page.
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = DATA(lt_expected) ).
+
+    cl_abap_unit_assert=>assert_not_initial( lt_expected ).
+
+    DATA(l_format) = lt_expected[ 1 ]-decimal_format.
+
+    DELETE lt_expected WHERE decimal_format <> l_format.
+    SORT lt_expected STABLE BY username DESCENDING.
+
+    DATA(l_filter) =
+      |DECIMAL_FORMAT = { sql_literal( CONV #( l_format ) ) }|.
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string = l_filter
+          orderby = VALUE #(
+            ( property = `USERNAME` descending = abap_true ) ) )
+      IMPORTING
+        et_result = DATA(lt_result) ).
+
     assert_ids( lt_result ).
 
-    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-      cl_abap_unit_assert=>assert_true(
-        xsdbool( line_exists( lt_expected[ email = <fs_result>-emailaddr ] ) ) ).
-    ENDLOOP.
+    clear_ids( CHANGING ct_result = lt_expected ).
+    clear_ids( CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+    DELETE lt_expected INDEX 1.
+    DELETE lt_expected FROM 3.
 
     mo_cut->zif_fi_das_dashboard~user_details(
-      EXPORTING is_request = VALUE #( paging-top = 1 paging-top_requested = abap_true )
-      IMPORTING et_result = lt_result ).
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string = l_filter
+          orderby = VALUE #(
+            ( property = `USERNAME` descending = abap_true ) )
+          paging-skip = 1
+          paging-top = 2
+          paging-top_requested = abap_true )
+      IMPORTING
+        et_result = lt_result ).
+
+    clear_ids( CHANGING ct_result = lt_result ).
+
     cl_abap_unit_assert=>assert_equals(
-      act = lines( lt_result ) exp = COND i( WHEN lt_expected IS INITIAL THEN 0 ELSE 1 ) ).
+      act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD users_empty_email.
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = DATA(lt_expected) ).
+
+    DELETE lt_expected WHERE emailaddr IS NOT INITIAL.
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string = `EMAILADDR = ''` )
+      IMPORTING
+        et_result = DATA(lt_result) ).
+
+    clear_ids( CHANGING ct_result = lt_expected ).
+    clear_ids( CHANGING ct_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
+
+  ENDMETHOD.
+
+  METHOD users_no_match.
+
+    mo_cut->zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string =
+            `USERNAME = 'UNIT_TEST' AND USERNAME <> 'UNIT_TEST'` )
+      IMPORTING
+        et_result = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD users_scoped_empty.
+
+    mo_cut->get_users(
+      EXPORTING
+        it_details        = VALUE #( )
+        i_use_replication = zcl_fi_das_dashboard=>get_use_replication( )
+        i_filter          = ``
+      IMPORTING
+        et_users = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result ).
+
+  ENDMETHOD.
+
+  METHOD users_scoped_email.
+
+    DATA(l_use_replication) =
+      zcl_fi_das_dashboard=>get_use_replication( ).
+
+    mo_cut->get_users(
+      EXPORTING
+        it_details        = VALUE #( )
+        i_use_replication = l_use_replication
+        i_all_users       = abap_true
+        i_filter          = ``
+      IMPORTING
+        et_users = DATA(lt_all) ).
+
+    cl_abap_unit_assert=>assert_not_initial( lt_all ).
+
+    DATA l_email TYPE ad_smtpadr.
+
+    LOOP AT lt_all ASSIGNING FIELD-SYMBOL(<fs_user>).
+
+      IF <fs_user>-email IS NOT INITIAL.
+        l_email = <fs_user>-email.
+        EXIT.
+      ENDIF.
+
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = l_email
+      msg = 'At least one user with a nonempty e-mail is required' ).
+
+    DATA(lt_expected) = lt_all.
+    DELETE lt_expected WHERE email <> l_email.
+
+    mo_cut->get_users(
+      EXPORTING
+        it_details = VALUE #( ( poowner_email = l_email ) )
+        i_use_replication = l_use_replication
+        i_filter = ``
+      IMPORTING
+        et_users = DATA(lt_result) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result exp = lt_expected ).
 
   ENDMETHOD.
 

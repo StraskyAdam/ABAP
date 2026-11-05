@@ -1,0 +1,12 @@
+@EndUserText.label : 'User details result'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_user_details {
+  id             : sysuuid_c32;
+  username       : xubname;
+  decimal_format : xudcpfm;
+  datfm          : xudatfm;
+  emailaddr_sap  : ad_smtpadr;
+  full_name      : ad_namtext;
+  emailaddr      : ad_smtpadr;
+
+}

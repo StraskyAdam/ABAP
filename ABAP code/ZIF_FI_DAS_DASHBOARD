@@ -89,6 +89,18 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_audit_request,
 
+          BEGIN OF ts_user_role_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_user_role_request,
+
+         BEGIN OF ts_user_details_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_user_details_request,
+
          tt_zfi_das_over         TYPE STANDARD TABLE OF zfi_das_over,
          tt_zfi_das_under        TYPE STANDARD TABLE OF zfi_das_under,
          tt_zfi_das_exclude      TYPE STANDARD TABLE OF zfi_das_exclude,
@@ -183,7 +195,7 @@ INTERFACE zif_fi_das_dashboard
 
   METHODS user_role
     IMPORTING
-      !is_request TYPE ts_request
+      !is_request TYPE ts_user_role_request
     EXPORTING
       !et_result  TYPE tt_zfi_das_user_role
     RAISING
@@ -192,7 +204,7 @@ INTERFACE zif_fi_das_dashboard
 
   METHODS user_details
     IMPORTING
-      !is_request TYPE ts_request
+      !is_request TYPE ts_user_details_request
     EXPORTING
       !et_result  TYPE tt_zfi_das_user_details
     RAISING

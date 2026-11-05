@@ -68,6 +68,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_asterisk                 TYPE c LENGTH 1 VALUE '*',
       mc_percent                  TYPE c LENGTH 1 VALUE '%',
       mc_space                    TYPE string VALUE ` `,
+      mc_empty                    TYPE string VALUE ``,
 
       mc_amount_decimals          TYPE i VALUE 2,
       mc_calculation_decimals     TYPE i VALUE 8,
@@ -118,11 +119,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
       mc_zero                     TYPE string VALUE '0',
 
-      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
-
-      mc_filter_emailaddr         TYPE string VALUE `EMAILADDR`,
-      mc_sign_include             TYPE ddsign VALUE 'I',
-      mc_option_equal             TYPE ddoption VALUE 'EQ'.
+      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME'.
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
@@ -300,8 +297,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_user,
 
       tt_user TYPE HASHED TABLE OF ts_user WITH UNIQUE KEY email,
-
-      tt_email_range TYPE RANGE OF ad_smtpadr,
 
       BEGIN OF ts_calculation,
         totwrkcompamt     TYPE t_amount,
@@ -553,6 +548,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(it_details)        TYPE tt_detail
         VALUE(i_use_replication) TYPE abap_bool
         VALUE(i_all_users)       TYPE abap_bool DEFAULT abap_false
+        VALUE(i_filter)          TYPE string
       EXPORTING
         VALUE(et_users)          TYPE tt_user
       RAISING
@@ -925,15 +921,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
     METHODS generate_id
       RETURNING
         VALUE(r_id) TYPE sysuuid_c32
-      RAISING
-        zcx_fi_das_error.
-
-    METHODS get_user_email_filter
-      IMPORTING
-        is_request      TYPE zif_fi_das_dashboard=>ts_request
-        i_property      TYPE string
-      RETURNING
-        VALUE(rt_email) TYPE tt_email_range
       RAISING
         zcx_fi_das_error.
 
@@ -1926,6 +1913,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     get_users( EXPORTING it_details        = rs_context-details
                          i_use_replication = is_request-use_replication
+                         i_filter          = mc_empty
                IMPORTING et_users          = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
@@ -3244,7 +3232,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     lt_candidates =
       SELECT
         LOWER( TRIM( email.smtp_addr ) ) AS email,
-        email.smtp_addr                 AS emailaddr_sap,
+        email.smtp_addr                  AS emailaddr_sap,
         user_data.bname                  AS username,
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
@@ -3278,9 +3266,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               ON user_logon.mandt = user_data.mandt
              AND user_logon.bname = user_data.bname
 
+      INNER JOIN :lt_requested AS requested
+              ON requested.email = LOWER( TRIM( email.smtp_addr ) )
+
       WHERE user_data.mandt = SESSION_CONTEXT( :lc_client_context )
-        AND ( :i_all_users = :lc_all_users OR
-              LOWER( TRIM( email.smtp_addr ) ) IN ( SELECT email FROM :lt_requested ) )
+        AND ( :i_all_users = :lc_all_users OR LOWER( TRIM( email.smtp_addr ) ) IN ( SELECT email FROM :lt_requested ) )
         AND user_logon.ustyp = :lc_user_type_dialog
         AND user_logon.class NOT LIKE :lc_rpa_pattern
         AND user_logon.gltgv < CURRENT_DATE
@@ -3313,6 +3303,32 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         FROM :lt_candidates
       )
       WHERE row_number_value = 1;
+
+    IF :i_filter <> :lc_empty_string THEN
+
+      lt_filter_input =
+        SELECT
+          username,
+          decimal_format,
+          datfm,
+          emailaddr_sap,
+          full_name,
+          email AS emailaddr
+        FROM :et_users;
+
+      lt_filtered = APPLY_FILTER( :lt_filter_input, :i_filter );
+
+      et_users =
+        SELECT
+          emailaddr AS email,
+          emailaddr_sap,
+          username,
+          full_name,
+          decimal_format,
+          datfm
+        FROM :lt_filtered;
+
+    END IF;
 
   ENDMETHOD.
 
@@ -3659,13 +3675,16 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~role_parameters.
 
-    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email(
-      zcl_fi_das_utility=>normalize_email( i_email ) ).
+    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email( zcl_fi_das_utility=>normalize_email( i_email ) ).
 
     SELECT SINGLE @abap_true
       FROM zfi_das_roles
-      WHERE user_emailid = @l_email
+    WHERE user_emailid = @l_email
       INTO @DATA(l_role_exists).
+
+    IF sy-subrc <> 0.
+      CLEAR l_role_exists.
+    ENDIF.
 
     et_result = VALUE #( ( id   = generate_id( )
                            flag = l_role_exists ) ).
@@ -3673,10 +3692,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~user_role.
-
-    IF is_request-paging-skip < 0 OR is_request-paging-top < 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e009(zfi_das).
-    ENDIF.
 
     DATA(l_where) = is_request-filter-filter_string.
 
@@ -3711,21 +3726,18 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     CLEAR et_result.
 
-    DATA(lt_email) = get_user_email_filter( is_request = is_request
-                                            i_property = mc_filter_emailaddr ).
-
     DATA lt_details TYPE tt_detail.
-
-    LOOP AT lt_email ASSIGNING FIELD-SYMBOL(<fs_email>).
-      APPEND VALUE #( poowner_email = <fs_email>-low ) TO lt_details.
-    ENDLOOP.
 
     TRY.
 
-        get_users( EXPORTING it_details        = lt_details
-                             i_use_replication = get_use_replication( )
-                             i_all_users       = xsdbool( lt_email IS INITIAL )
-                   IMPORTING et_users          = DATA(lt_users) ).
+        get_users(
+          EXPORTING
+            it_details        = lt_details
+            i_use_replication = get_use_replication( )
+            i_all_users       = abap_true
+            i_filter          = is_request-filter-filter_string
+          IMPORTING
+            et_users          = DATA(lt_users) ).
 
       CATCH cx_amdp_error INTO DATA(lx_amdp).
 
@@ -3735,67 +3747,31 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     ENDTRY.
 
-    LOOP AT lt_users ASSIGNING FIELD-SYMBOL(<fs_user>).
-
-      IF <fs_user>-email NOT IN lt_email.
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( username       = <fs_user>-username
-                      decimal_format = <fs_user>-decimal_format
-                      datfm          = <fs_user>-datfm
-                      emailaddr_sap  = <fs_user>-emailaddr_sap
-                      full_name      = <fs_user>-full_name
-                      emailaddr      = <fs_user>-email ) TO et_result.
-
-    ENDLOOP.
+    et_result = VALUE #( FOR ls_user IN lt_users
+                        ( username       = ls_user-username
+                          decimal_format = ls_user-decimal_format
+                          datfm          = ls_user-datfm
+                          emailaddr_sap  = ls_user-emailaddr_sap
+                          full_name      = ls_user-full_name
+                          emailaddr      = ls_user-email ) ).
 
     SORT et_result BY emailaddr username.
 
-    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
-                  CHANGING  ct_result  = et_result ).
+    apply_sort(
+      EXPORTING
+        is_request = VALUE #( orderby = is_request-orderby )
+      CHANGING
+        ct_result  = et_result ).
+
+    apply_paging(
+      EXPORTING
+        is_request = VALUE #( paging = is_request-paging )
+      CHANGING
+        ct_result  = et_result ).
 
     LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_result>).
       <fs_result>-id = generate_id( ).
     ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD get_user_email_filter.
-
-    IF is_request-paging-skip < 0 OR is_request-paging-top < 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e009(zfi_das).
-    ENDIF.
-
-    IF is_request-orderby IS NOT INITIAL.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das) WITH i_property.
-    ENDIF.
-
-    IF is_request-filter-filter_select_options IS INITIAL.
-
-      IF is_request-filter-filter_string IS NOT INITIAL.
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das) WITH i_property.
-      ENDIF.
-
-      RETURN.
-    ENDIF.
-
-    IF lines( is_request-filter-filter_select_options ) <> 1.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das) WITH i_property.
-    ENDIF.
-
-    READ TABLE is_request-filter-filter_select_options ASSIGNING FIELD-SYMBOL(<fs_option>)
-      WITH KEY property = i_property
-               sign     = mc_sign_include
-               option   = mc_option_equal.
-
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das) WITH i_property.
-    ENDIF.
-
-    APPEND VALUE #( sign   = mc_sign_include
-                    option = mc_option_equal
-                    low    = zcl_fi_das_utility=>normalize_email( <fs_option>-low ) ) TO rt_email.
 
   ENDMETHOD.
 

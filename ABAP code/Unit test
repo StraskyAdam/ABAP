@@ -11147,7 +11147,9 @@ CLASS ltc_user_role IMPLEMENTATION.
     assert_ids( lt_result ).
     clear_ids( CHANGING ct_result = lt_result ).
 
-    DATA(lt_expected) =  lt_roles .
+    DATA lt_expected TYPE STANDARD TABLE OF zfi_das_user_role WITH EMPTY KEY.
+
+    lt_expected = CORRESPONDING #( lt_roles ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lt_result exp = lt_expected ).
@@ -11185,7 +11187,9 @@ CLASS ltc_user_role IMPLEMENTATION.
 
     DATA(l_role) = lt_roles[ 1 ]-user_role.
 
-    DATA(lt_expected) = lt_roles .
+    DATA lt_expected TYPE STANDARD TABLE OF zfi_das_user_role  WITH EMPTY KEY.
+
+    lt_expected = CORRESPONDING #( lt_roles ).
 
     DELETE lt_expected WHERE user_role <> l_role.
     SORT lt_expected STABLE BY user_emailid DESCENDING.

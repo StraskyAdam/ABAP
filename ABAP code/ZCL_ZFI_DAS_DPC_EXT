@@ -410,6 +410,10 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   METHOD userrole_get_entityset.
 
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
+
     TRY.
 
         get_dashboard( )->user_role(
@@ -434,6 +438,10 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
 
   METHOD usertypeset_get_entityset.
+
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
 
     TRY.
 

@@ -89,12 +89,15 @@ INTERFACE zif_fi_das_dashboard
            paging    TYPE ts_paging,
          END OF ts_audit_request,
 
-         tt_zfi_das_over    TYPE STANDARD TABLE OF zfi_das_over,
-         tt_zfi_das_under   TYPE STANDARD TABLE OF zfi_das_under,
-         tt_zfi_das_exclude TYPE STANDARD TABLE OF zfi_das_exclude,
-         tt_zfi_das_method  TYPE STANDARD TABLE OF zfi_das_method,
-         tt_zfi_das_audit   TYPE STANDARD TABLE OF zfi_das_audit,
-         tt_zfi_das_cutoff  TYPE STANDARD TABLE OF zfi_das_cutoff.
+         tt_zfi_das_over         TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under        TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude      TYPE STANDARD TABLE OF zfi_das_exclude,
+         tt_zfi_das_method       TYPE STANDARD TABLE OF zfi_das_method,
+         tt_zfi_das_audit        TYPE STANDARD TABLE OF zfi_das_audit,
+         tt_zfi_das_cutoff       TYPE STANDARD TABLE OF zfi_das_cutoff,
+         tt_zfi_das_user_details TYPE STANDARD TABLE OF zfi_das_user_details,
+         tt_zfi_das_user_role    TYPE STANDARD TABLE OF zfi_das_user_role,
+         tt_zfi_das_role         TYPE STANDARD TABLE OF zfi_das_role.
 
   METHODS over
     IMPORTING
@@ -167,6 +170,33 @@ INTERFACE zif_fi_das_dashboard
     RAISING
       zcx_fi_das_error
       cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+   METHODS role_parameters
+    IMPORTING
+      !i_email   TYPE t_email
+    EXPORTING
+      !et_result TYPE tt_zfi_das_role
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS user_role
+    IMPORTING
+      !is_request TYPE ts_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_user_role
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS user_details
+    IMPORTING
+      !is_request TYPE ts_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_user_details
+    RAISING
+      zcx_fi_das_error
       cx_sy_open_sql_db.
 
 ENDINTERFACE.

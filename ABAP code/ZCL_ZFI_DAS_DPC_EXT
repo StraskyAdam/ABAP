@@ -373,8 +373,7 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
           IMPORTING
             et_result = et_entityset ).
 
-      CATCH cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
+      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
 
         RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
           EXPORTING
@@ -425,8 +424,7 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
           IMPORTING
             et_result = et_entityset ).
 
-      CATCH cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
+      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
 
         RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
           EXPORTING
@@ -454,8 +452,7 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
           IMPORTING
             et_result = et_entityset ).
 
-      CATCH cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
+      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
 
         RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
           EXPORTING

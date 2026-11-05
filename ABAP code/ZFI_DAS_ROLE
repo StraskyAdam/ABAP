@@ -1,0 +1,7 @@
+@EndUserText.label : 'User role flag result'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_role {
+  id   : sysuuid_c32;
+  flag : abap.char(1);
+
+}

@@ -1,0 +1,12 @@
+@EndUserText.label : 'User role result'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_user_role {
+  id              : sysuuid_c32;
+  user_role       : abap.char(10);
+  user_emailid    : ad_smtpadr;
+  user_access     : abap.char(10);
+  company_code    : abap.char(5000);
+  management_unit : abap.char(5000);
+  cost_center     : abap.string(0);
+
+}

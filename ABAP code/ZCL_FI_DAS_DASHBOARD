@@ -68,6 +68,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_asterisk                 TYPE c LENGTH 1 VALUE '*',
       mc_percent                  TYPE c LENGTH 1 VALUE '%',
       mc_space                    TYPE string VALUE ` `,
+      mc_empty                    TYPE string VALUE ``,
 
       mc_amount_decimals          TYPE i VALUE 2,
       mc_calculation_decimals     TYPE i VALUE 8,
@@ -288,6 +289,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
       BEGIN OF ts_user,
         email          TYPE ad_smtpadr,
+        emailaddr_sap  TYPE ad_smtpadr,
         username       TYPE xubname,
         full_name      TYPE ad_namtext,
         decimal_format TYPE xudcpfm,
@@ -545,6 +547,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         VALUE(it_details)        TYPE tt_detail
         VALUE(i_use_replication) TYPE abap_bool
+        VALUE(i_all_users)       TYPE abap_bool DEFAULT abap_false
+        VALUE(i_filter)          TYPE string
       EXPORTING
         VALUE(et_users)          TYPE tt_user
       RAISING
@@ -1909,6 +1913,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     get_users( EXPORTING it_details        = rs_context-details
                          i_use_replication = is_request-use_replication
+                         i_filter          = mc_empty
                IMPORTING et_users          = rs_context-users ).
 
     IF is_request-mode = zif_fi_das_dashboard=>mc_over.
@@ -3215,6 +3220,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DECLARE lc_rpa_pattern      CONSTANT NVARCHAR(5)  = '%RPA%';
     DECLARE lc_numeric_chars    CONSTANT NVARCHAR(10) = '0123456789';
     DECLARE lc_client_context   CONSTANT NVARCHAR(10) = 'CLIENT';
+    DECLARE lc_all_users        CONSTANT NVARCHAR(1)  = 'X';
 
     lt_requested =
       SELECT DISTINCT
@@ -3226,6 +3232,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     lt_candidates =
       SELECT
         LOWER( TRIM( email.smtp_addr ) ) AS email,
+        email.smtp_addr                  AS emailaddr_sap,
         user_data.bname                  AS username,
         person.name_text                 AS full_name,
         user_defaults.dcpfm              AS decimal_format,
@@ -3259,10 +3266,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               ON user_logon.mandt = user_data.mandt
              AND user_logon.bname = user_data.bname
 
-      INNER JOIN :lt_requested AS requested
-              ON requested.email = LOWER( TRIM( email.smtp_addr ) )
-
       WHERE user_data.mandt = SESSION_CONTEXT( :lc_client_context )
+        AND ( :i_all_users = :lc_all_users OR LOWER( TRIM( email.smtp_addr ) ) IN ( SELECT email FROM :lt_requested ) )
         AND user_logon.ustyp = :lc_user_type_dialog
         AND user_logon.class NOT LIKE :lc_rpa_pattern
         AND user_logon.gltgv < CURRENT_DATE
@@ -3270,11 +3275,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         AND LOCATE( :lc_numeric_chars, SUBSTRING( user_data.bname, 1, 1 ) ) = 0;
 
     et_users =
-      SELECT email, username, full_name, decimal_format, datfm
+      SELECT email, emailaddr_sap, username, full_name, decimal_format, datfm
       FROM
       (
         SELECT
           email,
+          emailaddr_sap,
           username,
           full_name,
           decimal_format,
@@ -3294,6 +3300,32 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         FROM :lt_candidates
       )
       WHERE row_number_value = 1;
+
+    IF :i_filter <> :lc_empty_string THEN
+
+      lt_filter_input =
+        SELECT
+          username,
+          decimal_format,
+          datfm,
+          emailaddr_sap,
+          full_name,
+          email AS emailaddr
+        FROM :et_users;
+
+      lt_filtered = APPLY_FILTER( :lt_filter_input, :i_filter );
+
+      et_users =
+        SELECT
+          emailaddr AS email,
+          emailaddr_sap,
+          username,
+          full_name,
+          decimal_format,
+          datfm
+        FROM :lt_filtered;
+
+    END IF;
 
   ENDMETHOD.
 
@@ -3635,6 +3667,100 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     IF l_next_day+6(2) = mc_first_day_of_month AND l_time(2) = l_cutoff_time(2) AND l_time+2(2) > l_cutoff_time+3(2).
       r_flag = mc_boolean_false.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~role_parameters.
+
+    DATA(l_email) = CONV zif_fi_das_dashboard=>t_email( zcl_fi_das_utility=>normalize_email( i_email ) ).
+
+    SELECT SINGLE @abap_true
+      FROM zfi_das_roles
+    WHERE user_emailid = @l_email
+      INTO @DATA(l_role_exists).
+
+    IF sy-subrc <> 0.
+      CLEAR l_role_exists.
+    ENDIF.
+
+    et_result = VALUE #( ( id   = generate_id( )
+                           flag = l_role_exists ) ).
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~user_role.
+
+    DATA(l_where) = is_request-filter-filter_string.
+
+    TRY.
+        SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
+          FROM zfi_das_roles
+        WHERE (l_where)
+          ORDER BY PRIMARY KEY
+        INTO CORRESPONDING FIELDS OF TABLE @et_result.
+
+      CATCH cx_sy_dynamic_osql_error INTO DATA(lx_sql).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_sql.
+
+    ENDTRY.
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
+
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING  ct_result  = et_result ).
+
+    LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      <fs_result>-id = generate_id( ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~user_details.
+
+    DATA lt_details TYPE tt_detail.
+
+    TRY.
+
+        get_users(
+          EXPORTING
+            it_details        = lt_details
+            i_use_replication = get_use_replication( )
+            i_all_users       = abap_true
+            i_filter          = is_request-filter-filter_string
+          IMPORTING
+            et_users          = DATA(lt_users) ).
+
+      CATCH cx_amdp_error INTO DATA(lx_amdp).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_amdp.
+
+    ENDTRY.
+
+    et_result = VALUE #( FOR ls_user IN lt_users
+                        ( username       = ls_user-username
+                          decimal_format = ls_user-decimal_format
+                          datfm          = ls_user-datfm
+                          emailaddr_sap  = ls_user-emailaddr_sap
+                          full_name      = ls_user-full_name
+                          emailaddr      = ls_user-email ) ).
+
+    SORT et_result BY emailaddr username.
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
+
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING  ct_result  = et_result ).
+
+    LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      <fs_result>-id = generate_id( ).
+    ENDLOOP.
 
   ENDMETHOD.
 

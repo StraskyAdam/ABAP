@@ -61,6 +61,51 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="IP_LINEITEM" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.auditParameters_to_auditType" FromRole="FromRole_auditParameters_to_auditType" ToRole="ToRole_auditParameters_to_auditType"/>
 </EntityType>
+<EntityType Name="cutoffType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="FLAG" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+</EntityType>
+<EntityType Name="roleType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="FLAG" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+</EntityType>
+<EntityType Name="userRoleType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="USER_ROLE" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="USER_ROLE" sap:creatable="false" sap:updatable="false"/>
+<Property Name="USER_EMAILID" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="USER_EMAILID" sap:creatable="false" sap:updatable="false"/>
+<Property Name="USER_ACCESS" Type="Edm.String" MaxLength="10" sap:unicode="false" sap:label="USER_ACCESS" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COMPANY_CODE" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="COMPANY_CODE" sap:creatable="false" sap:updatable="false"/>
+<Property Name="MANAGEMENT_UNIT" Type="Edm.String" MaxLength="5000" sap:unicode="false" sap:label="MANAGEMENT_UNIT" sap:creatable="false" sap:updatable="false"/>
+<Property Name="COST_CENTER" Type="Edm.String" sap:unicode="false" sap:label="COST_CENTER" sap:creatable="false" sap:updatable="false"/>
+</EntityType>
+<EntityType Name="userType" sap:content-version="1">
+<Key>
+<PropertyRef Name="ID"/>
+</Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="USERNAME" Type="Edm.String" MaxLength="12" sap:unicode="false" sap:label="USERNAME" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DECIMAL_FORMAT" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DECIMAL_FORMAT" sap:creatable="false" sap:updatable="false"/>
+<Property Name="DATFM" Type="Edm.String" MaxLength="1" sap:unicode="false" sap:label="DATFM" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EMAILADDR_SAP" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="EMAILADDR_SAP" sap:creatable="false" sap:updatable="false"/>
+<Property Name="FULL_NAME" Type="Edm.String" MaxLength="80" sap:unicode="false" sap:label="FULL_NAME" sap:creatable="false" sap:updatable="false"/>
+<Property Name="EMAILADDR" Type="Edm.String" MaxLength="241" sap:unicode="false" sap:label="EMAILADDR" sap:creatable="false" sap:updatable="false"/>
+</EntityType>
+<EntityType Name="roleParametersType" sap:content-version="1">
+<Key>
+<PropertyRef Name="IP_EMAIL"/>
+</Key>
+<Property Name="IP_EMAIL" Type="Edm.String" Nullable="false" MaxLength="225" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.roleParameters_to_roleType" FromRole="FromRole_roleParameters_to_roleType" ToRole="ToRole_roleParameters_to_roleType"/>
+</EntityType>
 <EntityType Name="openPOType" sap:content-version="1">
 <Key>
 <PropertyRef Name="PONUMBER"/>
@@ -307,16 +352,13 @@ This XML file does not appear to have any style information associated with it. 
 <Property Name="IP_POOWNER" Type="Edm.String" Nullable="false" MaxLength="1" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_SRV.exclusionPOParameters_to_exclusionPOType" FromRole="FromRole_exclusionPOParameters_to_exclusionPOType" ToRole="ToRole_exclusionPOParameters_to_exclusionPOType"/>
 </EntityType>
-<EntityType Name="cutoffType" sap:content-version="1">
-<Key>
-<PropertyRef Name="ID"/>
-</Key>
-<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32" sap:unicode="false" sap:label="ID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="FLAG" Type="Edm.String" MaxLength="5" sap:unicode="false" sap:label="FLAG" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-</EntityType>
 <Association Name="auditParameters_to_auditType" sap:content-version="1">
 <End Type="ZFI_DAS_SRV.auditParametersType" Multiplicity="1" Role="FromRole_auditParameters_to_auditType"/>
 <End Type="ZFI_DAS_SRV.auditType" Multiplicity="*" Role="ToRole_auditParameters_to_auditType"/>
+</Association>
+<Association Name="roleParameters_to_roleType" sap:content-version="1">
+<End Type="ZFI_DAS_SRV.roleParametersType" Multiplicity="1" Role="FromRole_roleParameters_to_roleType"/>
+<End Type="ZFI_DAS_SRV.roleType" Multiplicity="*" Role="ToRole_roleParameters_to_roleType"/>
 </Association>
 <Association Name="thresholdParameters_to_thresholdType" sap:content-version="1">
 <End Type="ZFI_DAS_SRV.thresholdParametersType" Multiplicity="1" Role="FromRole_thresholdParameters_to_thresholdType"/>
@@ -339,16 +381,24 @@ This XML file does not appear to have any style information associated with it. 
 <EntitySet Name="methodParameters" EntityType="ZFI_DAS_SRV.methodParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="audit" EntityType="ZFI_DAS_SRV.auditType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <EntitySet Name="auditParameters" EntityType="ZFI_DAS_SRV.auditParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
+<EntitySet Name="cutoff" EntityType="ZFI_DAS_SRV.cutoffType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
+<EntitySet Name="role" EntityType="ZFI_DAS_SRV.roleType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
+<EntitySet Name="userRole" EntityType="ZFI_DAS_SRV.userRoleType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
+<EntitySet Name="user" EntityType="ZFI_DAS_SRV.userType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
+<EntitySet Name="roleParameters" EntityType="ZFI_DAS_SRV.roleParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="openPO" EntityType="ZFI_DAS_SRV.openPOType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <EntitySet Name="threshold" EntityType="ZFI_DAS_SRV.thresholdType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <EntitySet Name="exclusionPO" EntityType="ZFI_DAS_SRV.exclusionPOType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <EntitySet Name="openPOParameters" EntityType="ZFI_DAS_SRV.openPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="thresholdParameters" EntityType="ZFI_DAS_SRV.thresholdParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="exclusionPOParameters" EntityType="ZFI_DAS_SRV.exclusionPOParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
-<EntitySet Name="cutoff" EntityType="ZFI_DAS_SRV.cutoffType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <AssociationSet Name="thresholdParameters_to_threshold" Association="ZFI_DAS_SRV.thresholdParameters_to_thresholdType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="thresholdParameters" Role="FromRole_thresholdParameters_to_thresholdType"/>
 <End EntitySet="threshold" Role="ToRole_thresholdParameters_to_thresholdType"/>
+</AssociationSet>
+<AssociationSet Name="roleParameters_to_roleType_AssocSet" Association="ZFI_DAS_SRV.roleParameters_to_roleType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
+<End EntitySet="roleParameters" Role="FromRole_roleParameters_to_roleType"/>
+<End EntitySet="role" Role="ToRole_roleParameters_to_roleType"/>
 </AssociationSet>
 <AssociationSet Name="openPOParameters_to_openPO" Association="ZFI_DAS_SRV.openPOParameters_to_openPOType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="openPOParameters" Role="FromRole_openPOParameters_to_openPOType"/>

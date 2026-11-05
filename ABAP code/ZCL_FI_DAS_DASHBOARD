@@ -3660,8 +3660,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~role_parameters.
 
-    CLEAR et_result.
-
     DATA(l_email) = CONV zif_fi_das_dashboard=>t_email(
       zcl_fi_das_utility=>normalize_email( i_email ) ).
 
@@ -3670,18 +3668,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       WHERE user_emailid = @l_email
       INTO @DATA(l_role_exists).
 
-    IF sy-subrc <> 0.
-      CLEAR l_role_exists.
-    ENDIF.
-
-    APPEND VALUE #( id   = generate_id( )
-                    flag = l_role_exists ) TO et_result.
+    et_result = VALUE #( ( id   = generate_id( )
+                           flag = l_role_exists ) ).
 
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~user_role.
-
-    CLEAR et_result.
 
     DATA(lt_email) = get_user_email_filter( is_request = is_request
                                             i_property = mc_filter_user_emailid ).
@@ -3691,10 +3683,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       WHERE user_emailid IN @lt_email
       ORDER BY PRIMARY KEY
       INTO CORRESPONDING FIELDS OF TABLE @et_result.
-
-    IF sy-subrc <> 0.
-      CLEAR et_result.
-    ENDIF.
 
     apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
                   CHANGING  ct_result  = et_result ).
@@ -3787,7 +3775,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                sign     = mc_sign_include
                option   = mc_option_equal.
 
-    IF sy-subrc <> 0 OR <fs_option>-high IS NOT INITIAL.
+    IF sy-subrc <> 0.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das) WITH i_property.
     ENDIF.
 

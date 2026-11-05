@@ -3695,9 +3695,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     TRY.
         SELECT user_role, user_emailid, user_access, company_code, management_unit, cost_center
           FROM zfi_das_roles
-          WHERE (l_where)
+        WHERE (l_where)
           ORDER BY PRIMARY KEY
-          INTO CORRESPONDING FIELDS OF TABLE @et_result.
+        INTO CORRESPONDING FIELDS OF TABLE @et_result.
 
       CATCH cx_sy_dynamic_osql_error INTO DATA(lx_sql).
 
@@ -3754,17 +3754,11 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     SORT et_result BY emailaddr username.
 
-    apply_sort(
-      EXPORTING
-        is_request = VALUE #( orderby = is_request-orderby )
-      CHANGING
-        ct_result  = et_result ).
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
 
-    apply_paging(
-      EXPORTING
-        is_request = VALUE #( paging = is_request-paging )
-      CHANGING
-        ct_result  = et_result ).
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING  ct_result  = et_result ).
 
     LOOP AT et_result ASSIGNING FIELD-SYMBOL(<fs_result>).
       <fs_result>-id = generate_id( ).

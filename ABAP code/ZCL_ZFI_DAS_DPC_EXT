@@ -414,9 +414,10 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
         get_dashboard( )->user_role(
           EXPORTING
-            is_request = build_request(
-              it_key_tab              = it_key_tab
-              io_tech_request_context = io_tech_request_context )
+            is_request = VALUE #(
+              filter  = get_filter(  io_tech_request_context )
+              orderby = get_orderby( io_tech_request_context )
+              paging  = get_paging(  io_tech_request_context ) )
           IMPORTING
             et_result = et_entityset ).
 
@@ -438,9 +439,10 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
         get_dashboard( )->user_details(
           EXPORTING
-            is_request = build_request(
-              it_key_tab              = it_key_tab
-              io_tech_request_context = io_tech_request_context )
+            is_request = VALUE #(
+              filter  = get_filter(  io_tech_request_context )
+              orderby = get_orderby( io_tech_request_context )
+              paging  = get_paging(  io_tech_request_context ) )
           IMPORTING
             et_result = et_entityset ).
 

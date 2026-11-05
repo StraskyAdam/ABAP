@@ -3721,8 +3721,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~user_details.
 
-    CLEAR et_result.
-
     DATA lt_details TYPE tt_detail.
 
     TRY.

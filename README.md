@@ -67,6 +67,32 @@ When analysing or comparing SAP DAS functionality:
 - Distinguish between implementation differences and data-scope differences caused by source-system filtering.
 - Document assumptions and unresolved findings.
 
+## User and Role Reads
+
+`ZFI_DAS_SRV` exposes the read-only application endpoints
+`roleParameters(IP_EMAIL='...')/Results`, `userRole`, and `user`.
+The generated DPC methods are `ROLETYPESET_GET_ENTITYSET`,
+`USERROLE_GET_ENTITYSET`, and `USERTYPESET_GET_ENTITYSET`; the technical
+method names are intentionally preserved after the Entity Set renames.
+
+Role reads use `ZFI_DAS_ROLES`. User details reuse `GET_USERS` and its
+local/replicated source selection. `EMAILADDR` is normalized for lookup;
+`EMAILADDR_SAP` retains the source SMTP address, including its case.
+The existing deterministic user-per-email selection is retained.
+
+`userRole` accepts a single `USER_EMAILID eq '...'` filter and `user`
+accepts a single `EMAILADDR eq '...'` filter. Both also support unfiltered
+reads and `$top`/`$skip`, including `$top=0`. Unsupported filters and sorting
+raise message 037 rather than returning an unfiltered success response.
+Email lookup normalization and deterministic ordering are intentional
+differences from XSA; IDs remain 32-character UUIDs.
+
+Add message 037 from `Table definition/Message Class ZFI_DAS` in SE91.
+Activate the interface, dashboard and DPC extension together in SAP.
+Run `LTC_USER_REQUEST` for request checks and `LTC_USER_ROLE` for live reads.
+The latter requires a normalized role email and a valid dialog user with
+an email in the selected source. No test writes business data.
+
 ## Objective
 
 The objective of this repository is to support:

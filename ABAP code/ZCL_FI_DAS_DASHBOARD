@@ -3764,4 +3764,17 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_fi_das_dashboard~update_user_language.
+
+    DATA(ls_user_language) = VALUE zfi_das_usr_lang( email_id = is_user_language-email_id
+                                                     language = is_user_language-language ).
+
+    MODIFY zfi_das_usr_lang FROM @ls_user_language.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e039(zfi_das).
+    ENDIF.
+
+  ENDMETHOD.
+
 ENDCLASS.

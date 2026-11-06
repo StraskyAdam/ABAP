@@ -20,9 +20,13 @@ protected section.
     redefinition .
   methods THRESHOLDSET_GET_ENTITYSET
     redefinition .
+  methods USERLANGUAGE_CREATE_ENTITY
+    redefinition .
   methods USERROLE_GET_ENTITYSET
     redefinition .
   methods USERTYPESET_GET_ENTITYSET
+    redefinition .
+  methods ROUNDINGTHRESHOL_GET_ENTITYSET
     redefinition .
   PRIVATE SECTION.
 
@@ -383,6 +387,36 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
   ENDMETHOD.
 
 
+METHOD roundingthreshol_get_entityset.
+
+  IF io_tech_request_context IS NOT BOUND.
+    RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+  ENDIF.
+
+  TRY.
+
+      get_dashboard( )->rounding_threshold(
+        EXPORTING
+          is_request = VALUE #(
+            filter  = get_filter( io_tech_request_context )
+            orderby = get_orderby( io_tech_request_context )
+            paging  = get_paging( io_tech_request_context ) )
+        IMPORTING
+          et_result = DATA(lt_result) ).
+
+      et_entityset = CORRESPONDING #( lt_result ).
+
+    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
+
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+        EXPORTING
+          previous = lx_error.
+
+  ENDTRY.
+
+ENDMETHOD.
+
+
   METHOD thresholdset_get_entityset.
 
     TRY.
@@ -405,6 +439,29 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
+
+
+METHOD userlanguage_create_entity.
+
+  DATA ls_user_language  TYPE zif_fi_das_dashboard=>ts_user_language.
+
+  io_data_provider->read_entry_data( IMPORTING es_data = ls_user_language ).
+
+  TRY.
+
+      get_dashboard( )->update_user_language( ls_user_language ).
+
+    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
+
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+        EXPORTING
+          previous = lx_error.
+
+  ENDTRY.
+
+  er_entity = CORRESPONDING #( ls_user_language ).
+
+ENDMETHOD.
 
 
   METHOD userrole_get_entityset.

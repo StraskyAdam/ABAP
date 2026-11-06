@@ -3764,4 +3764,45 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_fi_das_dashboard~update_user_language.
+
+    DATA(ls_user_language) = VALUE zfi_das_usr_lang( email_id = is_user_language-email_id
+                                                     language = is_user_language-language ).
+
+    MODIFY zfi_das_usr_lang FROM @ls_user_language.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~rounding_threshold.
+
+    DATA(l_where) = is_request-filter-filter_string.
+
+    TRY.
+
+        SELECT tr_id, thresholdvalue, delete_flag
+          FROM zfi_das_rnd_thr
+        WHERE (l_where)
+          ORDER BY PRIMARY KEY
+        INTO CORRESPONDING FIELDS OF TABLE @et_result.
+
+      CATCH cx_sy_dynamic_osql_error INTO DATA(lx_sql).
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_sql.
+
+    ENDTRY.
+
+    apply_sort( EXPORTING is_request = VALUE #( orderby = is_request-orderby )
+                CHANGING  ct_result  = et_result ).
+
+    apply_paging( EXPORTING is_request = VALUE #( paging = is_request-paging )
+                  CHANGING  ct_result  = et_result ).
+
+  ENDMETHOD.
+
 ENDCLASS.

@@ -498,6 +498,8 @@ def convert_file(
             source_file,
             delimiter=delimiter,
             quotechar='"',
+            escapechar="\\",
+            strict=True,
         )
 
         with output_file.open(

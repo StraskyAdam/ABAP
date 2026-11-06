@@ -1,166 +1,162 @@
-CLASS zcl_fi_das_config_util DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
+class ZCL_FI_DAS_CONFIG_UTIL definition
+  public
+  final
+  create public .
 
-  PUBLIC SECTION.
+public section.
 
-    TYPES:
-      tt_country  TYPE TABLE OF zfi_das_country WITH DEFAULT KEY .
-    TYPES:
-      tt_conf_val TYPE TABLE OF zfi_das_conf_val WITH DEFAULT KEY .
-    TYPES:
-      tt_roles TYPE TABLE OF zfi_das_roles WITH DEFAULT KEY .
-    TYPES:
-      tt_thresh TYPE TABLE OF  zfi_das_thresh WITH DEFAULT KEY .
-    TYPES:
-        tt_lang       TYPE TABLE OF zfi_das_lang       WITH DEFAULT KEY.
-    TYPES:
-      tt_email_tmpl TYPE TABLE OF zfi_das_email      WITH DEFAULT KEY,
-      tt_helplink   TYPE TABLE OF ZFI_DAS_HELPLINK   WITH DEFAULT KEY,
-      tt_videolink  TYPE TABLE OF ZFI_DAS_VIDEOLNK  WITH DEFAULT KEY.
+  types:
+    tt_country  TYPE TABLE OF zfi_das_country WITH DEFAULT KEY .
+  types:
+    tt_conf_val TYPE TABLE OF zfi_das_conf_val WITH DEFAULT KEY .
+  types:
+    tt_roles TYPE TABLE OF zfi_das_roles WITH DEFAULT KEY .
+  types:
+    tt_thresh TYPE TABLE OF  zfi_das_thresh WITH DEFAULT KEY .
+  types:
+    tt_lang       TYPE TABLE OF zfi_das_lang       WITH DEFAULT KEY .
+  types:
+    tt_email_tmpl TYPE TABLE OF zfi_das_email      WITH DEFAULT KEY .
+  types:
+    tt_helplink   TYPE TABLE OF ZFI_DAS_HELPLINK   WITH DEFAULT KEY .
+  types:
+    tt_videolink  TYPE TABLE OF ZFI_DAS_VIDEOLNK  WITH DEFAULT KEY .
 
-    CONSTANTS mc_message_class TYPE symsgid VALUE 'ZFI_DAS' ##NO_TEXT.
+  types:
+    tr_language   TYPE RANGE OF string.
 
-    CLASS-METHODS create_country
-      IMPORTING
-        !is_country TYPE zfi_das_country OPTIONAL
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS delete_country
-      IMPORTING
-        !is_country TYPE zfi_das_country
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS get_countries
-      RETURNING
-        VALUE(rt_country) TYPE tt_country .
-    CLASS-METHODS country_exists
-      IMPORTING
-        !is_country     TYPE zfi_das_country
-      RETURNING
-        VALUE(r_exists) TYPE abap_bool .
-    CLASS-METHODS create_config_value
-      IMPORTING
-        !is_conf_val TYPE zfi_das_conf_val
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS delete_config_value
-      IMPORTING
-        !is_conf_val TYPE zfi_das_conf_val
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS get_config_values
-      RETURNING
-        VALUE(rt_conf_val) TYPE tt_conf_val .
-    CLASS-METHODS create_userrole
-      IMPORTING
-        !is_role TYPE zfi_das_roles
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS update_userrole
-      IMPORTING
-        !is_role TYPE zfi_das_roles
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS delete_userrole
-      IMPORTING
-        !is_role TYPE zfi_das_roles
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS get_userroles
-      RETURNING
-        VALUE(rt_roles) TYPE tt_roles .
-    CLASS-METHODS create_threshold
-      IMPORTING
-        !is_threshold TYPE zfi_das_thresh
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS update_threshold
-      IMPORTING
-        !is_threshold TYPE zfi_das_thresh
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS delete_threshold
-      IMPORTING
-        !is_threshold TYPE zfi_das_thresh
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
-    CLASS-METHODS get_thresholds
-      RETURNING
-        VALUE(rt_threshold) TYPE tt_thresh .
-   CLASS-METHODS create_language
-      IMPORTING
-        is_lang TYPE zfi_das_lang
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
+  constants MC_MESSAGE_CLASS type SYMSGID value 'ZFI_DAS' ##NO_TEXT.
 
-    CLASS-METHODS delete_language
-      IMPORTING
-        is_lang TYPE zfi_das_lang
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-        CLASS-METHODS get_languages
-      RETURNING
-        VALUE(rt_lang) TYPE tt_lang.
-
-        CLASS-METHODS create_email_template
-      IMPORTING
-        is_email_tmpl TYPE zfi_das_email
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-    CLASS-METHODS delete_email_template
-      IMPORTING
-        is_email_tmpl TYPE zfi_das_email
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-   CLASS-METHODS get_email_templates
-      RETURNING
-        VALUE(rt_email_tmpl) TYPE tt_email_tmpl.
-
-
-   CLASS-METHODS create_help_link
-      IMPORTING
-        is_helplink TYPE zfi_das_helplink
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-    CLASS-METHODS delete_help_link
-      IMPORTING
-        is_helplink TYPE zfi_das_helplink
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-   CLASS-METHODS get_help_links
-      RETURNING
-        VALUE(rt_helplink) TYPE tt_helplink.
-
-
-   CLASS-METHODS create_video_link
-      IMPORTING
-        is_video_link TYPE ZFI_DAS_VIDEOLNK
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-    CLASS-METHODS delete_video_link
-      IMPORTING
-        is_video_link TYPE ZFI_DAS_VIDEOLNK
-      RAISING
-        /iwbep/cx_mgw_busi_exception.
-
-    CLASS-METHODS get_video_links
-      RETURNING
-        VALUE(rt_video_link) TYPE tt_videolink.
-
-    CLASS-METHODS raise_exception
-      IMPORTING
-        !i_msg_type   TYPE symsgty DEFAULT 'E'
-        !i_msg_id     TYPE symsgid DEFAULT mc_message_class
-        !i_msg_number TYPE symsgno
-      RAISING
-        /iwbep/cx_mgw_busi_exception .
+  class-methods CREATE_COUNTRY
+    importing
+      !IS_COUNTRY type ZFI_DAS_COUNTRY optional
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_COUNTRY
+    importing
+      !IS_COUNTRY type ZFI_DAS_COUNTRY
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_COUNTRIES
+    returning
+      value(RT_COUNTRY) type TT_COUNTRY .
+  class-methods COUNTRY_EXISTS
+    importing
+      !IS_COUNTRY type ZFI_DAS_COUNTRY
+    returning
+      value(R_EXISTS) type ABAP_BOOL .
+  class-methods CREATE_CONFIG_VALUE
+    importing
+      !IS_CONF_VAL type ZFI_DAS_CONF_VAL
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_CONFIG_VALUE
+    importing
+      !IS_CONF_VAL type ZFI_DAS_CONF_VAL
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_CONFIG_VALUES
+    returning
+      value(RT_CONF_VAL) type TT_CONF_VAL .
+  class-methods CREATE_USERROLE
+    importing
+      !IS_ROLE type ZFI_DAS_ROLES
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods UPDATE_USERROLE
+    importing
+      !IS_ROLE type ZFI_DAS_ROLES
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_USERROLE
+    importing
+      !IS_ROLE type ZFI_DAS_ROLES
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_USERROLES
+    returning
+      value(RT_ROLES) type TT_ROLES .
+  class-methods CREATE_THRESHOLD
+    importing
+      !IS_THRESHOLD type ZFI_DAS_THRESH
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods UPDATE_THRESHOLD
+    importing
+      !IS_THRESHOLD type ZFI_DAS_THRESH
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_THRESHOLD
+    importing
+      !IS_THRESHOLD type ZFI_DAS_THRESH
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_THRESHOLDS
+    returning
+      value(RT_THRESHOLD) type TT_THRESH .
+  class-methods CREATE_LANGUAGE
+    importing
+      !IS_LANG type ZFI_DAS_LANG
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_LANGUAGE
+    importing
+      !IS_LANG type ZFI_DAS_LANG
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_LANGUAGES
+    returning
+      value(RT_LANG) type TT_LANG .
+  class-methods CREATE_EMAIL_TEMPLATE
+    importing
+      !IS_EMAIL_TMPL type ZFI_DAS_EMAIL
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_EMAIL_TEMPLATE
+    importing
+      !IS_EMAIL_TMPL type ZFI_DAS_EMAIL
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_EMAIL_TEMPLATES
+    returning
+      value(RT_EMAIL_TMPL) type TT_EMAIL_TMPL .
+  class-methods CREATE_HELP_LINK
+    importing
+      !IS_HELPLINK type ZFI_DAS_HELPLINK
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_HELP_LINK
+    importing
+      !IS_HELPLINK type ZFI_DAS_HELPLINK
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_HELP_LINKS
+    importing
+      !I_LANGUAGE type STRING optional
+    returning
+      value(RT_HELPLINK) type TT_HELPLINK .
+  class-methods CREATE_VIDEO_LINK
+    importing
+      !IS_VIDEO_LINK type ZFI_DAS_VIDEOLNK
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods DELETE_VIDEO_LINK
+    importing
+      !IS_VIDEO_LINK type ZFI_DAS_VIDEOLNK
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
+  class-methods GET_VIDEO_LINKS
+    importing
+      !I_LANGUAGE type STRING optional
+    returning
+      value(RT_VIDEO_LINK) type TT_VIDEOLINK .
+  class-methods RAISE_EXCEPTION
+    importing
+      !I_MSG_TYPE type SYMSGTY default 'E'
+      !I_MSG_ID type SYMSGID default MC_MESSAGE_CLASS
+      !I_MSG_NUMBER type SYMSGNO
+    raising
+      /IWBEP/CX_MGW_BUSI_EXCEPTION .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -427,17 +423,25 @@ CLASS ZCL_FI_DAS_CONFIG_UTIL IMPLEMENTATION.
   ENDMETHOD.
 
 
-    METHOD get_help_links.
+METHOD get_help_links.
 
-      SELECT role, help_id, language, help_desc, help_link
-        FROM zfi_das_helplink
-      INTO CORRESPONDING FIELDS OF TABLE @rt_helplink.
+  IF i_language IS SUPPLIED.
 
-      IF sy-subrc <> 0.
-        CLEAR rt_helplink.
-      ENDIF.
+    DATA(lr_language) = VALUE tr_language( ( sign   = rsmds_c_sign-including
+                                             option = rsmds_c_option-equal
+                                             low    = i_language ) ).
+  ENDIF.
 
-    ENDMETHOD.
+  SELECT role, help_id, language, help_desc, help_link
+    FROM zfi_das_helplink
+  WHERE language IN @lr_language
+    INTO CORRESPONDING FIELDS OF TABLE @rt_helplink.
+
+  IF sy-subrc <> 0.
+    CLEAR rt_helplink.
+  ENDIF.
+
+ENDMETHOD.
 
 
   METHOD get_languages.
@@ -479,17 +483,25 @@ CLASS ZCL_FI_DAS_CONFIG_UTIL IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_video_links.
+METHOD get_video_links.
 
-    SELECT role, video_id, language, video_desc, video_link
-      FROM zfi_das_videolnk
+  IF i_language IS SUPPLIED.
+
+    DATA(lr_language) = VALUE tr_language( ( sign   = rsmds_c_sign-including
+                                             option = rsmds_c_option-equal
+                                             low    = i_language ) ).
+  ENDIF.
+
+  SELECT role, video_id, language, video_desc, video_link
+    FROM zfi_das_videolnk
+  WHERE language IN @lr_language
     INTO CORRESPONDING FIELDS OF TABLE @rt_video_link.
 
-    IF sy-subrc <> 0.
-      CLEAR rt_video_link.
-    ENDIF.
+  IF sy-subrc <> 0.
+    CLEAR rt_video_link.
+  ENDIF.
 
-  ENDMETHOD.
+ENDMETHOD.
 
 
   METHOD raise_exception.

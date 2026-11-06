@@ -1,9 +1,11 @@
-CLASS zcl_zfi_das_configurat_dpc_ext DEFINITION
-  PUBLIC
-  INHERITING FROM zcl_zfi_das_configurat_dpc
-  CREATE PUBLIC .
+class ZCL_ZFI_DAS_CONFIGURAT_DPC_EXT definition
+  public
+  inheriting from ZCL_ZFI_DAS_CONFIGURAT_DPC
+  create public .
 
-  PUBLIC SECTION.
+public section.
+
+  constants MC_PARAMETER_LANGUAGE type STRING value 'IP_LANG' ##NO_TEXT.
   PROTECTED SECTION.
 
     METHODS configlang_create_entity
@@ -66,7 +68,7 @@ CLASS zcl_zfi_das_configurat_dpc_ext DEFINITION
         REDEFINITION .
     METHODS videolinks_get_entityset
         REDEFINITION .
-  PRIVATE SECTION.
+private section.
 ENDCLASS.
 
 
@@ -222,11 +224,17 @@ CLASS ZCL_ZFI_DAS_CONFIGURAT_DPC_EXT IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD helplinks_get_entityset.
+METHOD helplinks_get_entityset.
 
+  READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<fs_key>) WITH KEY name = mc_parameter_language.
+
+  IF sy-subrc = 0.
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_help_links( i_language = <fs_key>-value ) ).
+  ELSE.
     et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_help_links( ) ).
+  ENDIF.
 
-  ENDMETHOD.
+ENDMETHOD.
 
 
   METHOD lang_get_entityset.
@@ -385,9 +393,15 @@ CLASS ZCL_ZFI_DAS_CONFIGURAT_DPC_EXT IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD videolinks_get_entityset.
+METHOD videolinks_get_entityset.
 
+  READ TABLE it_key_tab ASSIGNING FIELD-SYMBOL(<fs_key>) WITH KEY name = mc_parameter_language.
+
+  IF sy-subrc = 0.
+    et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_video_links( i_language = <fs_key>-value ) ).
+  ELSE.
     et_entityset = CORRESPONDING #( zcl_fi_das_config_util=>get_video_links( ) ).
+  ENDIF.
 
-  ENDMETHOD.
+ENDMETHOD.
 ENDCLASS.

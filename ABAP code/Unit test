@@ -27,6 +27,8 @@ CLASS ltc_cutoff DEFINITION DEFERRED.
 CLASS ltc_user_request DEFINITION DEFERRED.
 CLASS ltc_user_role DEFINITION DEFERRED.
 CLASS ltc_user_language DEFINITION DEFERRED.
+CLASS ltc_rounding_threshold DEFINITION DEFERRED.
+
 
 
 CLASS zcl_fi_das_dashboard DEFINITION
@@ -40,7 +42,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltc_cutoff
                 ltc_user_request
                 ltc_user_role
-                ltc_user_language.
+                ltc_user_language
+                ltc_rounding_threshold.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -11683,6 +11686,157 @@ CLASS ltc_user_language IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = l_count
       exp = 1 ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+CLASS ltc_rounding_threshold DEFINITION FINAL FOR TESTING
+  DURATION LONG
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+
+    DATA mo_cut TYPE REF TO zif_fi_das_dashboard.
+
+    DATA mt_expected
+      TYPE STANDARD TABLE OF zfi_das_rnd_threshold WITH EMPTY KEY.
+
+    METHODS setup.
+
+    METHODS maps_all_fields FOR TESTING RAISING cx_static_check.
+    METHODS filters_by_id   FOR TESTING RAISING cx_static_check.
+    METHODS sorts_by_id     FOR TESTING RAISING cx_static_check.
+    METHODS applies_paging  FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+
+CLASS ltc_rounding_threshold IMPLEMENTATION.
+
+  METHOD setup.
+
+    mo_cut = NEW zcl_fi_das_dashboard( ).
+
+    SELECT tr_id, thresholdvalue, delete_flag
+      FROM zfi_das_rnd_thr
+      ORDER BY PRIMARY KEY
+      INTO CORRESPONDING FIELDS OF TABLE @mt_expected.
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = mt_expected
+      msg = 'At least one rounding threshold record is required' ).
+
+  ENDMETHOD.
+
+
+  METHOD maps_all_fields.
+
+    DATA lt_result
+      TYPE STANDARD TABLE OF zfi_das_rnd_threshold WITH EMPTY KEY.
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #( )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result
+      exp = mt_expected ).
+
+  ENDMETHOD.
+
+
+  METHOD filters_by_id.
+
+    DATA lt_result
+      TYPE STANDARD TABLE OF zfi_das_rnd_threshold WITH EMPTY KEY.
+
+    DATA(ls_expected) = mt_expected[ 1 ].
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #(
+          filter = VALUE #(
+            filter_string = |TR_ID = { ls_expected-tr_id }| ) )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]
+      exp = ls_expected ).
+
+  ENDMETHOD.
+
+
+  METHOD sorts_by_id.
+
+    DATA lt_result
+      TYPE STANDARD TABLE OF zfi_das_rnd_threshold WITH EMPTY KEY.
+
+    SORT mt_expected BY tr_id DESCENDING.
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #(
+          orderby = VALUE #(
+            ( property   = 'TR_ID'
+              descending = abap_true ) ) )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result
+      exp = mt_expected ).
+
+  ENDMETHOD.
+
+
+  METHOD applies_paging.
+
+    DATA lt_result
+      TYPE STANDARD TABLE OF zfi_das_rnd_threshold WITH EMPTY KEY.
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #(
+          paging = VALUE #(
+            top           = 1
+            top_requested = abap_true ) )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]
+      exp = mt_expected[ 1 ] ).
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #(
+          paging = VALUE #(
+            top           = 0
+            top_requested = abap_true ) )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
+
+    mo_cut->rounding_threshold(
+      EXPORTING
+        is_request = VALUE #(
+          paging = VALUE #( skip = lines( mt_expected ) ) )
+      IMPORTING
+        et_result = lt_result ).
+
+    cl_abap_unit_assert=>assert_initial( act = lt_result ).
 
   ENDMETHOD.
 

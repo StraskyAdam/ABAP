@@ -3772,7 +3772,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     MODIFY zfi_das_usr_lang FROM @ls_user_language.
 
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e039(zfi_das).
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e037(zfi_das).
     ENDIF.
 
   ENDMETHOD.

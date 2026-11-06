@@ -1,0 +1,8 @@
+@EndUserText.label : 'PO closure rounding threshold'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define type zfi_das_rnd_threshold {
+  tr_id          : int4;
+  thresholdvalue : int4;
+  delete_flag    : abap.sstring(5);
+
+}

@@ -1,521 +1,242 @@
-class ZCL_ZFI_DAS_DPC_EXT definition
-  public
-  inheriting from ZCL_ZFI_DAS_DPC
-  create public .
-
-public section.
-protected section.
-
-  methods AUDIT_GET_ENTITYSET
-    redefinition .
-  methods CUTOFF_GET_ENTITYSET
-    redefinition .
-  methods EXCLUSIONPOSET_GET_ENTITYSET
-    redefinition .
-  methods METHOD_GET_ENTITYSET
-    redefinition .
-  methods OPENPOTYPESET_GET_ENTITYSET
-    redefinition .
-  methods ROLETYPESET_GET_ENTITYSET
-    redefinition .
-  methods THRESHOLDSET_GET_ENTITYSET
-    redefinition .
-  methods USERLANGUAGE_CREATE_ENTITY
-    redefinition .
-  methods USERROLE_GET_ENTITYSET
-    redefinition .
-  methods USERTYPESET_GET_ENTITYSET
-    redefinition .
-  methods ROUNDINGTHRESHOL_GET_ENTITYSET
-    redefinition .
-  PRIVATE SECTION.
-
-    CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
-    CONSTANTS mc_parameter_pstype TYPE string VALUE 'IP_PSTYPE' ##NO_TEXT.
-    CONSTANTS mc_parameter_poowner TYPE string VALUE 'IP_POOWNER' ##NO_TEXT.
-    CONSTANTS mc_parameter_povalue TYPE string VALUE 'IV_POVALUE' ##NO_TEXT.
-    CONSTANTS mc_parameter_pocurrency TYPE string VALUE 'IV_POCURRENCY' ##NO_TEXT.
-    CONSTANTS mc_parameter_wrkstrtdate TYPE string VALUE 'IV_WRKSTRTDATE' ##NO_TEXT.
-    CONSTANTS mc_parameter_wrkenddate TYPE string VALUE 'IV_WRKENDDATE' ##NO_TEXT.
-    CONSTANTS mc_parameter_accrualmethod TYPE string VALUE 'IV_ACCRUALMETHOD' ##NO_TEXT.
-    CONSTANTS mc_parameter_totwrkcompamt TYPE string VALUE 'IV_TOTWRKCOMPAMT' ##NO_TEXT.
-    CONSTANTS mc_parameter_totwrkcompper TYPE string VALUE 'IV_TOTWRKCOMPPER' ##NO_TEXT.
-    CONSTANTS mc_parameter_edgewtdamt TYPE string VALUE 'IV_EDGEWTDAMT' ##NO_TEXT.
-    CONSTANTS mc_parameter_pstyp TYPE string VALUE 'IV_PSTYP' ##NO_TEXT.
-    CONSTANTS mc_parameter_company TYPE string VALUE 'IV_COMPANY' ##NO_TEXT.
-    CONSTANTS mc_parameter_ponum TYPE string VALUE 'IP_PONUM' ##NO_TEXT.
-    CONSTANTS mc_parameter_lineitem TYPE string VALUE 'IP_LINEITEM' ##NO_TEXT.
-    CONSTANTS mc_order_descending TYPE string VALUE 'DESC' ##NO_TEXT.
-
-    METHODS get_dashboard
-      RETURNING
-        VALUE(ro_dashboard) TYPE REF TO zif_fi_das_dashboard .
-    METHODS build_request
-      IMPORTING
-        !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-        !it_key_tab              TYPE /iwbep/t_mgw_name_value_pair OPTIONAL
-      RETURNING
-        VALUE(rs_request)        TYPE zif_fi_das_dashboard=>ts_request
-      RAISING
-        /iwbep/cx_mgw_tech_exception .
-    METHODS get_parameter
-      IMPORTING
-        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
-      RETURNING
-        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_request-parameter .
-    METHODS get_paging
-      IMPORTING
-        !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      RETURNING
-        VALUE(rs_paging)         TYPE zif_fi_das_dashboard=>ts_paging .
-    METHODS get_filter
-      IMPORTING
-        !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      RETURNING
-        VALUE(rs_filter)         TYPE zif_fi_das_dashboard=>ts_filter
-      RAISING
-        /iwbep/cx_mgw_tech_exception .
-    METHODS get_orderby
-      IMPORTING
-        !io_tech_request_context TYPE REF TO /iwbep/if_mgw_req_entityset
-      RETURNING
-        VALUE(rs_orderby)        TYPE zif_fi_das_dashboard=>tt_orderby .
-    METHODS get_method_parameter
-      IMPORTING
-        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
-      RETURNING
-        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_method_parameter
-      RAISING
-        zcx_fi_das_error
-        cx_sy_conversion_error
-        cx_sy_arithmetic_error .
-    METHODS get_audit_parameter
-      IMPORTING
-        !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
-      RETURNING
-        VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_audit_parameter.
-ENDCLASS.
-
-
-
-CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
-
-
-  METHOD audit_get_entityset.
-
-    IF io_tech_request_context IS NOT BOUND.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-    ENDIF.
-
-    TRY.
-
-        get_dashboard( )->audit_parameters(
-          EXPORTING
-            is_request = VALUE #(
-              parameter = get_audit_parameter( it_key_tab )
-              orderby   = get_orderby( io_tech_request_context )
-              paging    = get_paging( io_tech_request_context ) )
-          IMPORTING
-            et_result = et_entityset ).
-
-      CATCH cx_sy_itab_line_not_found
-            cx_sy_conversion_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD build_request.
-
-    IF io_tech_request_context IS NOT BOUND.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-    ENDIF.
-
-    rs_request = VALUE #( parameter = get_parameter( it_key_tab )
-                          paging = get_paging( io_tech_request_context )
-                          filter = get_filter( io_tech_request_context )
-                          orderby = get_orderby( io_tech_request_context ) ).
-
-  ENDMETHOD.
-
-
-  METHOD cutoff_get_entityset.
-
-    TRY.
-
-        get_dashboard( )->cutoff( IMPORTING et_result = et_entityset ).
-
-      CATCH cx_sy_conversion_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD exclusionposet_get_entityset.
-
-    TRY.
-        get_dashboard( )->exclude(
-          EXPORTING
-            is_request    = build_request( it_key_tab              = it_key_tab
-                                           io_tech_request_context = io_tech_request_context )
-          IMPORTING
-            et_result     = et_entityset
-            e_total_count = es_response_context-inlinecount ).
-
-      CATCH cx_sy_conversion_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD get_audit_parameter.
-
-    rs_parameter-ip_ponum = it_key_tab[ name = mc_parameter_ponum ]-value.
-
-    rs_parameter-ip_lineitem = it_key_tab[ name = mc_parameter_lineitem ]-value.
-
-  ENDMETHOD.
-
-
-  METHOD get_dashboard.
-
-    ro_dashboard = NEW zcl_fi_das_dashboard( ).
-
-  ENDMETHOD.
-
-
-  METHOD get_filter.
-
-    TRY.
-        DATA(lo_filter) = io_tech_request_context->get_filter( ).
-
-        IF lo_filter IS NOT BOUND.
-          RETURN.
-        ENDIF.
-
-        rs_filter-filter_select_options = VALUE #( FOR ls_filter IN lo_filter->get_filter_select_options( )
-                                                     FOR ls_option IN ls_filter-select_options (
-                                                       property = to_upper( ls_filter-property )
-                                                       sign = ls_option-sign
-                                                       option = ls_option-option
-                                                       low = ls_option-low
-                                                       high = ls_option-high ) ).
-
-        rs_filter-filter_string = lo_filter->get_filter_string( ).
-
-*       Raise an exception to avoid processing an unsupported filter
-        IF rs_filter-filter_string IS INITIAL AND io_tech_request_context->get_filter_expression_tree( ) IS BOUND.
-          RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-        ENDIF.
-
-      CATCH cx_root INTO DATA(lx_error).
-
-        CLEAR rs_filter.
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD get_method_parameter.
-
-    TRY.
-
-        rs_parameter-iv_povalue = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_povalue ]-value ) ).
-
-        rs_parameter-iv_pocurrency = it_key_tab[ name = mc_parameter_pocurrency ]-value.
-
-        rs_parameter-iv_wrkstrtdate = zcl_fi_das_utility=>parse_iso_date( it_key_tab[ name = mc_parameter_wrkstrtdate ]-value ).
-
-        rs_parameter-iv_wrkenddate = zcl_fi_das_utility=>parse_iso_date( it_key_tab[ name = mc_parameter_wrkenddate ]-value ).
-
-        rs_parameter-iv_accrualmethod = it_key_tab[ name = mc_parameter_accrualmethod ]-value.
-
-        rs_parameter-iv_totwrkcompamt = it_key_tab[ name = mc_parameter_totwrkcompamt ]-value.
-
-        rs_parameter-iv_totwrkcompper = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_totwrkcompper ]-value ) ).
-
-        rs_parameter-iv_edgewtdamt = EXACT #( CONV decfloat34( it_key_tab[ name = mc_parameter_edgewtdamt ]-value ) ).
-
-        rs_parameter-iv_pstyp = it_key_tab[ name = mc_parameter_pstyp ]-value.
-
-        rs_parameter-iv_company = it_key_tab[ name = mc_parameter_company ]-value.
-
-      CATCH cx_sy_itab_line_not_found INTO DATA(lx_missing).
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e034(zfi_das)
-          EXPORTING
-            previous = lx_missing.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD get_orderby.
-
-    LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
-
-      APPEND VALUE #( property   = to_upper( CONV string( <fs_orderby>-property ) )
-                      descending = xsdbool( to_upper( <fs_orderby>-order ) = mc_order_descending ) ) TO rs_orderby.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD get_paging.
-
-    DATA(l_top) = io_tech_request_context->get_top( ).
-
-    rs_paging-top_requested = xsdbool( l_top IS NOT INITIAL ).
-
-    rs_paging-top = l_top.
-
-    rs_paging-skip = io_tech_request_context->get_skip( ).
-
-    rs_paging-count_requested = io_tech_request_context->has_inlinecount( ).
-
-  ENDMETHOD.
-
-
-  METHOD get_parameter.
-
-    rs_parameter-email = VALUE #( it_key_tab[ name = mc_parameter_email ]-value OPTIONAL ).
-
-    rs_parameter-pstype = VALUE #( it_key_tab[ name = mc_parameter_pstype  ]-value OPTIONAL ).
-
-    rs_parameter-poowner = VALUE #( it_key_tab[ name = mc_parameter_poowner ]-value OPTIONAL ).
-
-  ENDMETHOD.
-
-
-  METHOD method_get_entityset.
-
-    IF io_tech_request_context IS NOT BOUND.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-    ENDIF.
-
-    TRY.
-
-        get_dashboard( )->method_parameters(
-          EXPORTING
-            is_parameter = get_method_parameter( it_key_tab )
-          IMPORTING
-            et_result    = et_entityset ).
-
-      CATCH cx_sy_conversion_error
-            cx_sy_arithmetic_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD openpotypeset_get_entityset.
-
-    TRY.
-        get_dashboard( )->over(
-          EXPORTING
-            is_request    = build_request( it_key_tab              = it_key_tab
-                                           io_tech_request_context = io_tech_request_context )
-          IMPORTING
-            et_result     = et_entityset
-            e_total_count = es_response_context-inlinecount ).
-
-      CATCH cx_sy_conversion_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD roletypeset_get_entityset.
-
-    TRY.
-
-        get_dashboard( )->role_parameters(
-          EXPORTING
-            i_email   = get_parameter( it_key_tab )-email
-          IMPORTING
-            et_result = et_entityset ).
-
-      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-  ENDMETHOD.
-
-
-METHOD roundingthreshol_get_entityset.
-
-  IF io_tech_request_context IS NOT BOUND.
-    RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-  ENDIF.
-
-  TRY.
-
-      get_dashboard( )->rounding_threshold(
-        EXPORTING
-          is_request = VALUE #(
-            filter  = get_filter( io_tech_request_context )
-            orderby = get_orderby( io_tech_request_context )
-            paging  = get_paging( io_tech_request_context ) )
-        IMPORTING
-          et_result = DATA(lt_result) ).
-
-      et_entityset = CORRESPONDING #( lt_result ).
-
-    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
-
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-        EXPORTING
-          previous = lx_error.
-
-  ENDTRY.
-
-ENDMETHOD.
-
-
-  METHOD thresholdset_get_entityset.
-
-    TRY.
-        get_dashboard( )->under(
-          EXPORTING
-            is_request    = build_request( it_key_tab              = it_key_tab
-                                           io_tech_request_context = io_tech_request_context )
-          IMPORTING
-            et_result     = et_entityset
-            e_total_count = es_response_context-inlinecount ).
-
-      CATCH cx_sy_conversion_error
-            cx_sy_open_sql_db
-            zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-METHOD userlanguage_create_entity.
-
-  DATA ls_user_language  TYPE zif_fi_das_dashboard=>ts_user_language.
-
-  io_data_provider->read_entry_data( IMPORTING es_data = ls_user_language ).
-
-  TRY.
-
-      get_dashboard( )->update_user_language( ls_user_language ).
-
-    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
-
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-        EXPORTING
-          previous = lx_error.
-
-  ENDTRY.
-
-  er_entity = CORRESPONDING #( ls_user_language ).
-
-ENDMETHOD.
-
-
-  METHOD userrole_get_entityset.
-
-    IF io_tech_request_context IS NOT BOUND.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-    ENDIF.
-
-    TRY.
-
-        get_dashboard( )->user_role(
-          EXPORTING
-            is_request = VALUE #(
-              filter  = get_filter(  io_tech_request_context )
-              orderby = get_orderby( io_tech_request_context )
-              paging  = get_paging(  io_tech_request_context ) )
-          IMPORTING
-            et_result = et_entityset ).
-
-      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD usertypeset_get_entityset.
-
-    IF io_tech_request_context IS NOT BOUND.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-    ENDIF.
-
-    TRY.
-
-        get_dashboard( )->user_details(
-          EXPORTING
-            is_request = VALUE #(
-              filter  = get_filter(  io_tech_request_context )
-              orderby = get_orderby( io_tech_request_context )
-              paging  = get_paging(  io_tech_request_context ) )
-          IMPORTING
-            et_result = et_entityset ).
-
-      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
-
-        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-          EXPORTING
-            previous = lx_error.
-
-    ENDTRY.
-
-  ENDMETHOD.
-ENDCLASS.
+INTERFACE zif_fi_das_dashboard
+  PUBLIC.
+
+  TYPES: t_mode    TYPE c LENGTH 1,
+         t_email   TYPE c LENGTH 255,
+         t_poowner TYPE c LENGTH 1,
+         t_pstype  TYPE c LENGTH 1.
+
+  CONSTANTS: mc_pstype_material TYPE t_pstype VALUE '0',
+             mc_pstype_service  TYPE t_pstype VALUE '9',
+             mc_pstype_all      TYPE t_pstype VALUE '*',
+
+             mc_over            TYPE t_mode VALUE '1',
+             mc_under           TYPE t_mode VALUE '2',
+             mc_exclude         TYPE t_mode VALUE '3'.
+
+  TYPES: BEGIN OF ts_key,
+           ponumber      TYPE ebeln,
+           itemno        TYPE ebelp,
+           pstype        TYPE t_pstype,
+           poowner_email TYPE t_email,
+         END OF ts_key,
+
+         tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
+
+         BEGIN OF ts_orderby,
+           property   TYPE string,
+           descending TYPE abap_bool,
+         END OF ts_orderby,
+
+         tt_orderby TYPE STANDARD TABLE OF ts_orderby WITH EMPTY KEY,
+
+         BEGIN OF ts_paging,
+           skip            TYPE i,
+           top             TYPE i,
+           top_requested   TYPE abap_bool,
+           count_requested TYPE abap_bool,
+         END OF ts_paging,
+
+         BEGIN OF ts_filter_select_options,
+           property TYPE string,
+           sign     TYPE ddsign,
+           option   TYPE ddoption,
+           low      TYPE string,
+           high     TYPE string,
+         END OF ts_filter_select_options,
+
+         tt_filter_select_options TYPE STANDARD TABLE OF ts_filter_select_options WITH EMPTY KEY,
+
+         BEGIN OF ts_filter,
+           filter_select_options TYPE tt_filter_select_options,
+           filter_string         TYPE string,
+         END OF ts_filter,
+
+         BEGIN OF ts_parameter,
+           email   TYPE t_email,
+           poowner TYPE t_poowner,
+           pstype  TYPE t_pstype,
+         END OF ts_parameter,
+
+         BEGIN OF ts_method_parameter,
+           iv_povalue       TYPE p LENGTH 7 DECIMALS 3,
+           iv_pocurrency    TYPE c LENGTH 3,
+           iv_wrkstrtdate   TYPE d,
+           iv_wrkenddate    TYPE d,
+           iv_accrualmethod TYPE c LENGTH 50,
+           iv_totwrkcompamt TYPE c LENGTH 20,
+           iv_totwrkcompper TYPE p LENGTH 7 DECIMALS 1,
+           iv_edgewtdamt    TYPE p LENGTH 7 DECIMALS 2,
+           iv_pstyp         TYPE t_pstype,
+           iv_company       TYPE c LENGTH 4,
+         END OF ts_method_parameter,
+
+         BEGIN OF ts_audit_parameter,
+           ip_ponum    TYPE ebeln,
+           ip_lineitem TYPE ebelp,
+         END OF ts_audit_parameter,
+
+         BEGIN OF ts_request,
+           parameter TYPE ts_parameter,
+           filter    TYPE ts_filter,
+           orderby   TYPE tt_orderby,
+           paging    TYPE ts_paging,
+         END OF ts_request,
+
+         BEGIN OF ts_audit_request,
+           parameter TYPE ts_audit_parameter,
+           orderby   TYPE tt_orderby,
+           paging    TYPE ts_paging,
+         END OF ts_audit_request,
+
+         BEGIN OF ts_user_role_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_user_role_request,
+
+         BEGIN OF ts_user_details_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_user_details_request,
+
+         BEGIN OF ts_user_language,
+           email_id TYPE zfi_das_usr_lang-email_id,
+           language TYPE zfi_das_usr_lang-language,
+         END OF ts_user_language,
+
+         BEGIN OF ts_rounding_threshold_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_rounding_threshold_request,
+
+         tt_zfi_das_over          TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under         TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude       TYPE STANDARD TABLE OF zfi_das_exclude,
+         tt_zfi_das_method        TYPE STANDARD TABLE OF zfi_das_method,
+         tt_zfi_das_audit         TYPE STANDARD TABLE OF zfi_das_audit,
+         tt_zfi_das_cutoff        TYPE STANDARD TABLE OF zfi_das_cutoff,
+         tt_zfi_das_user_details  TYPE STANDARD TABLE OF zfi_das_user_details,
+         tt_zfi_das_user_role     TYPE STANDARD TABLE OF zfi_das_user_role,
+         tt_zfi_das_role          TYPE STANDARD TABLE OF zfi_das_role,
+         tt_zfi_das_rnd_threshold TYPE STANDARD TABLE OF zfi_das_rnd_threshold.
+
+  METHODS over
+    IMPORTING
+      !is_request    TYPE ts_request
+    EXPORTING
+      !et_result     TYPE tt_zfi_das_over
+      !e_total_count TYPE string
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS under
+    IMPORTING
+      !is_request    TYPE ts_request
+    EXPORTING
+      !et_result     TYPE tt_zfi_das_under
+      !e_total_count TYPE string
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS exclude
+    IMPORTING
+      !is_request    TYPE ts_request
+    EXPORTING
+      !et_result     TYPE tt_zfi_das_exclude
+      !e_total_count TYPE string
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS get_po_keys
+    IMPORTING
+      i_mode             TYPE t_mode
+      is_parameter       TYPE ts_parameter
+      i_apply_exclusions TYPE abap_bool DEFAULT abap_true
+    RETURNING
+      VALUE(rt_keys)     TYPE tt_key
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS method_parameters
+    IMPORTING
+      !is_parameter TYPE ts_method_parameter
+    EXPORTING
+      !et_result    TYPE tt_zfi_das_method
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_arithmetic_error
+      cx_sy_open_sql_db.
+
+  METHODS audit_parameters
+    IMPORTING
+      !is_request TYPE ts_audit_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_audit
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS cutoff
+    EXPORTING
+      !et_result TYPE tt_zfi_das_cutoff
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db.
+
+  METHODS role_parameters
+    IMPORTING
+      !i_email   TYPE t_email
+    EXPORTING
+      !et_result TYPE tt_zfi_das_role
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS user_role
+    IMPORTING
+      !is_request TYPE ts_user_role_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_user_role
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS user_details
+    IMPORTING
+      !is_request TYPE ts_user_details_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_user_details
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS update_user_language
+    IMPORTING
+      !is_user_language TYPE ts_user_language
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS rounding_threshold
+    IMPORTING
+      !is_request TYPE ts_rounding_threshold_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_rnd_threshold
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+ENDINTERFACE.

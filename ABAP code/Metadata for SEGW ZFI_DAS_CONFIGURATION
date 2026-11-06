@@ -84,15 +84,9 @@ This XML file does not appear to have any style information associated with it. 
 </EntityType>
 <EntityType Name="helpLinksParametersType" sap:content-version="1">
 <Key>
-<PropertyRef Name="ROLE"/>
-<PropertyRef Name="HELP_ID"/>
-<PropertyRef Name="LANGUAGE"/>
+<PropertyRef Name="IP_LANG"/>
 </Key>
-<Property Name="ROLE" Type="Edm.String" Nullable="false" MaxLength="100" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="HELP_ID" Type="Edm.String" Nullable="false" MaxLength="20" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="HELP_DESC" Type="Edm.String" Nullable="false" MaxLength="255" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="HELP_LINK" Type="Edm.String" Nullable="false" MaxLength="5000" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
-<Property Name="LANGUAGE" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+<Property Name="IP_LANG" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_CONFIGURATION_SRV.helpLinksParameters_to_helpLinksType" FromRole="FromRole_helpLinksParameters_to_helpLinksType" ToRole="ToRole_helpLinksParameters_to_helpLinksType"/>
 </EntityType>
 <EntityType Name="langType" sap:content-version="1">
@@ -118,7 +112,7 @@ This XML file does not appear to have any style information associated with it. 
 <Key>
 <PropertyRef Name="IP_LANG"/>
 </Key>
-<Property Name="IP_LANG" Type="Edm.String" Nullable="false" MaxLength="13" sap:unicode="false"/>
+<Property Name="IP_LANG" Type="Edm.String" Nullable="false" MaxLength="5" sap:unicode="false"/>
 <NavigationProperty Name="Results" Relationship="ZFI_DAS_CONFIGURATION_SRV.videoLinksParameters_to_videoLinksType" FromRole="FromRole_videoLinksParameters_to_videoLinksType" ToRole="ToRole_videoLinksParameters_to_videoLinksType"/>
 </EntityType>
 <Association Name="helpLinksParameters_to_helpLinksType" sap:content-version="1">

@@ -132,10 +132,10 @@ This XML file does not appear to have any style information associated with it. 
 <EntitySet Name="threshold" EntityType="ZFI_DAS_CONFIGURATION_SRV.thresholdType" sap:content-version="1"/>
 <EntitySet Name="helpLinks" EntityType="ZFI_DAS_CONFIGURATION_SRV.helpLinksType" sap:content-version="1"/>
 <EntitySet Name="link" EntityType="ZFI_DAS_CONFIGURATION_SRV.linkType" sap:content-version="1"/>
-<EntitySet Name="helpLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.helpLinksParametersType" sap:content-version="1"/>
+<EntitySet Name="helpLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.helpLinksParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <EntitySet Name="lang" EntityType="ZFI_DAS_CONFIGURATION_SRV.langType" sap:content-version="1"/>
 <EntitySet Name="videoLinks" EntityType="ZFI_DAS_CONFIGURATION_SRV.videoLinksType" sap:content-version="1"/>
-<EntitySet Name="videoLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.videoLinksParametersType" sap:content-version="1"/>
+<EntitySet Name="videoLinksParameters" EntityType="ZFI_DAS_CONFIGURATION_SRV.videoLinksParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>
 <AssociationSet Name="videoLinksParameters_to_videoLinks" Association="ZFI_DAS_CONFIGURATION_SRV.videoLinksParameters_to_videoLinksType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
 <End EntitySet="videoLinksParameters" Role="FromRole_videoLinksParameters_to_videoLinksType"/>
 <End EntitySet="videoLinks" Role="ToRole_videoLinksParameters_to_videoLinksType"/>

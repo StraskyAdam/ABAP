@@ -106,15 +106,22 @@ INTERFACE zif_fi_das_dashboard
            language TYPE zfi_das_usr_lang-language,
          END OF ts_user_language,
 
-         tt_zfi_das_over         TYPE STANDARD TABLE OF zfi_das_over,
-         tt_zfi_das_under        TYPE STANDARD TABLE OF zfi_das_under,
-         tt_zfi_das_exclude      TYPE STANDARD TABLE OF zfi_das_exclude,
-         tt_zfi_das_method       TYPE STANDARD TABLE OF zfi_das_method,
-         tt_zfi_das_audit        TYPE STANDARD TABLE OF zfi_das_audit,
-         tt_zfi_das_cutoff       TYPE STANDARD TABLE OF zfi_das_cutoff,
-         tt_zfi_das_user_details TYPE STANDARD TABLE OF zfi_das_user_details,
-         tt_zfi_das_user_role    TYPE STANDARD TABLE OF zfi_das_user_role,
-         tt_zfi_das_role         TYPE STANDARD TABLE OF zfi_das_role.
+         BEGIN OF ts_rounding_threshold_request,
+           filter  TYPE ts_filter,
+           orderby TYPE tt_orderby,
+           paging  TYPE ts_paging,
+         END OF ts_rounding_threshold_request,
+
+         tt_zfi_das_over          TYPE STANDARD TABLE OF zfi_das_over,
+         tt_zfi_das_under         TYPE STANDARD TABLE OF zfi_das_under,
+         tt_zfi_das_exclude       TYPE STANDARD TABLE OF zfi_das_exclude,
+         tt_zfi_das_method        TYPE STANDARD TABLE OF zfi_das_method,
+         tt_zfi_das_audit         TYPE STANDARD TABLE OF zfi_das_audit,
+         tt_zfi_das_cutoff        TYPE STANDARD TABLE OF zfi_das_cutoff,
+         tt_zfi_das_user_details  TYPE STANDARD TABLE OF zfi_das_user_details,
+         tt_zfi_das_user_role     TYPE STANDARD TABLE OF zfi_das_user_role,
+         tt_zfi_das_role          TYPE STANDARD TABLE OF zfi_das_role,
+         tt_zfi_das_rnd_threshold TYPE STANDARD TABLE OF zfi_das_rnd_threshold.
 
   METHODS over
     IMPORTING
@@ -219,6 +226,15 @@ INTERFACE zif_fi_das_dashboard
   METHODS update_user_language
     IMPORTING
       !is_user_language TYPE ts_user_language
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS rounding_threshold
+    IMPORTING
+      !is_request TYPE ts_rounding_threshold_request
+    EXPORTING
+      !et_result  TYPE tt_zfi_das_rnd_threshold
     RAISING
       zcx_fi_das_error
       cx_sy_open_sql_db.

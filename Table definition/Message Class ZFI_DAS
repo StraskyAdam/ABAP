@@ -39,4 +39,5 @@
 |EN      |ZFI_DAS|034	 |Required method parameter is missing                                     |
 |EN      |ZFI_DAS|035	 |Unable to generate result ID                                             |
 |EN      |ZFI_DAS|036	 |Missing configuration value for &1                                       |
+|EN      |ZFI_DAS|037	 |User language could not be saved/updated                                 |
 --------------------------------------------------------------------------------------------------

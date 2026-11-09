@@ -7,7 +7,7 @@ $email = "adam.strasky@takeda.com"
 
 $requests = @(
 
-# All data without owner
+    # All data without owner
 
     @{
         Name = "xsa-over-material.json"
@@ -35,7 +35,7 @@ $requests = @(
         PageSize = 1000
     },
 
-# Specific owner
+    # Specific owner
 
     @{
         Name = "xsa-over-material-owner.json"
@@ -63,7 +63,7 @@ $requests = @(
         PageSize = 1000
     },
 
-# Filter for Company code, Cost center & Management unit
+    # Filter for Company code, Cost center & Management unit
 
     @{
         Name = "xsa-filter.json"
@@ -71,7 +71,7 @@ $requests = @(
         PageSize = 1000
     },
 
-# Selection via PO number, item & Supplier
+    # Selection via PO number, item & Supplier
 
     @{
         Name = "xsa-selection.json"
@@ -79,7 +79,7 @@ $requests = @(
         PageSize = 1000
     },
 
-# Decimal format
+    # Decimal format
 
     @{
         Name = "xsa-y_format.json"
@@ -102,18 +102,39 @@ $requests = @(
 # Users xsa-null-01..62@takeda.com must exist in XSA and ABAP
 # with identical COMPANY_CODE / MANAGEMENT_UNIT / COST_CENTER.
 # All scenarios use no owner; exclusion has no IP_PSTYPE parameter.
+
 $scopeScenarios = @(
-    @{ Name = "over-service"; Endpoint = "openOwnerPO.xsodata/openPOParameters"; Pstype = "9" },
-    @{ Name = "over-material"; Endpoint = "openOwnerPO.xsodata/openPOParameters"; Pstype = "0" },
-    @{ Name = "under-service"; Endpoint = "thresholdPO.xsodata/thresholdParameters"; Pstype = "9" },
-    @{ Name = "under-material"; Endpoint = "thresholdPO.xsodata/thresholdParameters"; Pstype = "0" },
-    @{ Name = "exclude"; Endpoint = "exclusionPO.xsodata/exclusionPOParameters" }
+    @{
+        Name = "over-service"
+        Endpoint = "openOwnerPO.xsodata/openPOParameters"
+        Pstype = "9"
+    },
+    @{
+        Name = "over-material"
+        Endpoint = "openOwnerPO.xsodata/openPOParameters"
+        Pstype = "0"
+    },
+    @{
+        Name = "under-service"
+        Endpoint = "thresholdPO.xsodata/thresholdParameters"
+        Pstype = "9"
+    },
+    @{
+        Name = "under-material"
+        Endpoint = "thresholdPO.xsodata/thresholdParameters"
+        Pstype = "0"
+    },
+    @{
+        Name = "exclude"
+        Endpoint = "exclusionPO.xsodata/exclusionPOParameters"
+    }
 )
 
 foreach ($scenario in $scopeScenarios) {
     1..62 | ForEach-Object {
         $number = "{0:D2}" -f $_
         $parameters = "IP_EMAIL='xsa-null-$number@takeda.com',IP_POOWNER=''"
+
         if ($scenario.ContainsKey("Pstype")) {
             $parameters = "IP_PSTYPE='$($scenario.Pstype)',$parameters"
         }
@@ -133,22 +154,40 @@ if ($ListRequests) {
 
 function Get-XsaAllPages {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$BaseUrl,
+
+        [Parameter(Mandatory = $true)]
         [string]$OutputFile,
-        [int]$Top
+
+        [ValidateRange(1, 2147483647)]
+        [int]$Top = 1000
     )
 
     $skip = 0
-    $allRows = @()
+    $expectedCount = $null
+    $countAvailable = $null
+
+    $allRows = [System.Collections.Generic.List[object]]::new()
+
+    $seenKeys = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+
+    $separator = "?"
+    if ($BaseUrl.Contains("?")) {
+        $separator = "&"
+    }
 
     do {
-        $separator = "?"
-
-        if ($BaseUrl.Contains("?")) {
-            $separator = "&"
-        }
-
-        $url = "$BaseUrl$separator`$format=json&`$skip=$skip&`$top=$Top"
+        $url = (
+            "$BaseUrl$separator" +
+            "`$format=json" +
+            "&`$orderby=PONUMBER%20asc%2CITEMNO%20asc" +
+            "&`$inlinecount=allpages" +
+            "&`$skip=$skip" +
+            "&`$top=$Top"
+        )
 
         Write-Host "Downloading $OutputFile : skip=$skip, top=$Top"
 
@@ -157,41 +196,142 @@ function Get-XsaAllPages {
                 -Uri $url `
                 -Method Get `
                 -UseDefaultCredentials `
-                -Headers @{
-                    Accept = "application/json"
-                }
+                -Headers @{ Accept = "application/json" } `
+                -ErrorAction Stop
         }
         catch {
             Write-Host "Failed URL: $url"
-
-            if ($null -ne $_.Exception.Response) {
-                $reader = New-Object System.IO.StreamReader(
-                    $_.Exception.Response.GetResponseStream()
-                )
-
-                Write-Host $reader.ReadToEnd()
-                $reader.Close()
-            }
-
             throw
+        }
+
+        if (
+            $null -eq $response.d -or
+            $null -eq $response.d.results
+        ) {
+            throw (
+                "Invalid OData response for ${OutputFile}: " +
+                "d.results is missing. URL: $url"
+            )
         }
 
         $rows = @($response.d.results)
 
-        $allRows += $rows
+        if ($rows.Count -gt $Top) {
+            throw (
+                "Invalid page for ${OutputFile}: " +
+                "XSA returned $($rows.Count) rows for top=$Top."
+            )
+        }
+
+        $hasCount = $null -ne $response.d.__count
+
+        if ($null -eq $countAvailable) {
+            $countAvailable = $hasCount
+
+            if (-not $hasCount) {
+                Write-Warning (
+                    "XSA did not return __count for $OutputFile. " +
+                    "Total-count validation is unavailable."
+                )
+            }
+        }
+        elseif ($hasCount -ne $countAvailable) {
+            throw (
+                "Inconsistent OData response for ${OutputFile}: " +
+                "__count availability changed at skip=$skip."
+            )
+        }
+
+        if ($hasCount) {
+            $currentCount = [long]$response.d.__count
+
+            if ($currentCount -lt 0) {
+                throw (
+                    "Invalid XSA inline count for ${OutputFile}: " +
+                    "$currentCount."
+                )
+            }
+
+            if ($null -eq $expectedCount) {
+                $expectedCount = $currentCount
+            }
+            elseif ($currentCount -ne $expectedCount) {
+                throw (
+                    "XSA count changed during export of ${OutputFile}: " +
+                    "$expectedCount -> $currentCount. Export aborted."
+                )
+            }
+        }
+
+        foreach ($row in $rows) {
+            if (
+                [string]::IsNullOrWhiteSpace([string]$row.PONUMBER) -or
+                [string]::IsNullOrWhiteSpace([string]$row.ITEMNO)
+            ) {
+                throw (
+                    "Row without PONUMBER or ITEMNO in $OutputFile " +
+                    "at skip=$skip."
+                )
+            }
+
+            $key = "$($row.PONUMBER)|$($row.ITEMNO)"
+
+            if (-not $seenKeys.Add($key)) {
+                throw (
+                    "Duplicate PO + ITEMNO: $key; " +
+                    "file=$OutputFile; page skip=$skip. " +
+                    "Export aborted; output file was not overwritten."
+                )
+            }
+
+            $allRows.Add($row)
+        }
+
+        if (
+            $null -ne $expectedCount -and
+            $allRows.Count -gt $expectedCount
+        ) {
+            throw (
+                "Invalid export of ${OutputFile}: " +
+                "downloaded $($allRows.Count) rows, " +
+                "but XSA reports $expectedCount."
+            )
+        }
+
         $skip += $rows.Count
     }
     while ($rows.Count -eq $Top)
 
+    if (
+        $null -ne $expectedCount -and
+        $allRows.Count -ne $expectedCount
+    ) {
+        throw (
+            "Incomplete export of ${OutputFile}: " +
+            "downloaded $($allRows.Count) rows, " +
+            "XSA reports $expectedCount. " +
+            "Output file was not overwritten."
+        )
+    }
+
+    $data = @{
+        results = $allRows.ToArray()
+    }
+
+    if ($null -ne $expectedCount) {
+        $data["__count"] = [string]$expectedCount
+    }
+
     @{
-        d = @{
-            results = $allRows
-        }
+        d = $data
     } |
         ConvertTo-Json -Depth 100 |
-        Set-Content -Path $OutputFile -Encoding UTF8
+        Set-Content -LiteralPath $OutputFile -Encoding UTF8
 
-    Write-Host "Saved $($allRows.Count) rows to $OutputFile"
+    Write-Host (
+        "Saved $($allRows.Count) rows to $OutputFile; " +
+        "unique PO + ITEMNO keys: $($seenKeys.Count)."
+    )
 }
 
 foreach ($request in $requests) {

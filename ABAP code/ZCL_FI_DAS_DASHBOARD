@@ -119,10 +119,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
       mc_zero                     TYPE string VALUE '0',
 
-      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
-
-      mc_recon_material_text      TYPE zfi_das_recon-pstype_text VALUE 'Material PO',
-      mc_recon_service_text       TYPE zfi_das_recon-pstype_text VALUE 'Services PO'.
+      mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME'.
 
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
@@ -323,32 +320,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
       tt_string_range TYPE RANGE OF string,
 
-      ts_string_range TYPE LINE OF tt_string_range,
-
-      BEGIN OF ts_reconciliation_account,
-        ponumber       TYPE ebeln,
-        itemno         TYPE ebelp,
-        glaccount      TYPE ekkn-sakto,
-        costcenter     TYPE ekkn-kostl,
-        manageunit     TYPE csks-zzrptun,
-        internalorder  TYPE ekkn-aufnr,
-        assetid        TYPE ekkn-anln1,
-        profitcenter   TYPE ekkn-prctr,
-        bbp_acc_no     TYPE ekkn-zekkn,
-        distpercentage TYPE ekkn-vproz,
-        quantity       TYPE ekkn-menge,
-      END OF ts_reconciliation_account,
-
-      tt_reconciliation_account TYPE SORTED TABLE OF ts_reconciliation_account
-        WITH NON-UNIQUE KEY ponumber itemno bbp_acc_no,
-
-      BEGIN OF ts_reconciliation_source.
-        INCLUDE TYPE ts_odata_result.
-      TYPES:
-        section TYPE zfi_das_recon-po_dashboard_section,
-        exclude TYPE abap_bool,
-      END OF ts_reconciliation_source.
-
+      ts_string_range TYPE LINE OF tt_string_range.
+      
     METHODS execute_request
       IMPORTING
         is_request    TYPE ts_internal_request

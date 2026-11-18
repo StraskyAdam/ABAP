@@ -1,0 +1,21 @@
+REPORT zfi_das_reconciliation.
+
+INCLUDE zfi_das_reconciliation_def.
+
+PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
+
+START-OF-SELECTION.
+
+  TRY.
+      NEW lcl_reconciliation( )->run( p_test ).
+
+    CATCH zcx_fi_das_error INTO DATA(lx_error).
+
+      IF sy-batch = abap_true.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_abort.
+      ELSE.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_success
+          DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
+      ENDIF.
+
+  ENDTRY.

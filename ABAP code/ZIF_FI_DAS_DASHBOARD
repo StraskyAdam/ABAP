@@ -121,7 +121,8 @@ INTERFACE zif_fi_das_dashboard
          tt_zfi_das_user_details  TYPE STANDARD TABLE OF zfi_das_user_details,
          tt_zfi_das_user_role     TYPE STANDARD TABLE OF zfi_das_user_role,
          tt_zfi_das_role          TYPE STANDARD TABLE OF zfi_das_role,
-         tt_zfi_das_rnd_threshold TYPE STANDARD TABLE OF zfi_das_rnd_threshold.
+         tt_zfi_das_rnd_threshold TYPE STANDARD TABLE OF zfi_das_rnd_threshold,
+         tt_zfi_das_recon         TYPE STANDARD TABLE OF zfi_das_recon.
 
   METHODS over
     IMPORTING
@@ -237,6 +238,14 @@ INTERFACE zif_fi_das_dashboard
       !et_result  TYPE tt_zfi_das_rnd_threshold
     RAISING
       zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS reconciliation
+    EXPORTING
+      !et_result TYPE tt_zfi_das_recon
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
       cx_sy_open_sql_db.
 
 ENDINTERFACE.

@@ -43,6 +43,11 @@ CLASS zcl_fi_das_utility DEFINITION
       mc_boolean_true       TYPE c LENGTH 5 VALUE 'true',
       mc_boolean_false      TYPE c LENGTH 5 VALUE 'false',
 
+      mc_accrual_wtd               TYPE c LENGTH 50 VALUE 'WTD',
+      mc_accrual_stl               TYPE c LENGTH 50 VALUE 'STL',
+      mc_accrual_wtd_text          TYPE c LENGTH 50 VALUE 'Work To Date',
+      mc_accrual_stl_text          TYPE c LENGTH 50 VALUE 'Straight Line',
+
       mc_min_odata_decimals TYPE i VALUE 0,
       mc_max_odata_decimals TYPE i VALUE 8,
       mc_group_size         TYPE i VALUE 3,
@@ -106,6 +111,12 @@ CLASS zcl_fi_das_utility DEFINITION
         i_value        TYPE char5
       RETURNING
         VALUE(r_value) TYPE char5.
+
+    CLASS-METHODS get_accrual_method_text
+      IMPORTING
+        i_method      TYPE char50
+      RETURNING
+        VALUE(r_text) TYPE char50.
 
     CLASS-METHODS truncate_decimal
       IMPORTING
@@ -612,6 +623,19 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
     r_value = COND #( WHEN i_value = abap_true
                         THEN mc_boolean_true
                         ELSE mc_boolean_false ).
+
+  ENDMETHOD.
+
+  METHOD get_accrual_method_text.
+
+    CASE i_method.
+      WHEN mc_accrual_stl.
+        r_text = mc_accrual_stl_text.
+      WHEN mc_accrual_wtd.
+        r_text = mc_accrual_wtd_text.
+      WHEN OTHERS.
+        r_text = i_method.
+    ENDCASE.
 
   ENDMETHOD.
 

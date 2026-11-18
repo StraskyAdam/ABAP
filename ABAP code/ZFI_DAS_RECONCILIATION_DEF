@@ -179,6 +179,9 @@ CLASS lcl_reconciliation IMPLEMENTATION.
 
     TRY.
 
+        DELETE FROM ZFI_DAS_RECON.
+      COMMIT WORK AND WAIT.
+
         zcl_fi_das_utility=>check_table_authority( mc_target ).
 
         mr_dashboard = NEW zcl_fi_das_dashboard( ).
@@ -441,7 +444,7 @@ CLASS lcl_reconciliation IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD append_row.
+   METHOD append_row.
 
     DATA:
       l_changed_on  TYPE dats,
@@ -450,17 +453,20 @@ CLASS lcl_reconciliation IMPLEMENTATION.
 
     IF is_source-changed_on IS NOT INITIAL.
 
-      CONVERT TIME STAMP is_source-changed_on TIME ZONE zcl_fi_das_utility=>mc_timezone_utc
+      CONVERT TIME STAMP is_source-changed_on
+        TIME ZONE zcl_fi_das_utility=>mc_timezone_utc
         INTO DATE l_changed_on.
 
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e000(zfi_das) WITH 'Cannot convert reconciliation changed-on date'.
+          MESSAGE e000(zfi_das)
+          WITH 'Cannot convert reconciliation changed-on date'.
       ENDIF.
 
     ENDIF.
 
-    DATA(l_service) = xsdbool( is_source-pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+    DATA(l_service) = xsdbool(
+      is_source-pstype = zif_fi_das_dashboard=>mc_pstype_service ).
 
     DATA(ls_result) = VALUE zfi_das_recon(
       mandt                        = sy-mandt
@@ -493,9 +499,10 @@ CLASS lcl_reconciliation IMPLEMENTATION.
       goods_receipt_to_date        = is_source-grvalue
       accrual_method               = is_source-accrualmethod
       po_preparer                  = is_source-po_preparer
-      pstype_text                  = COND #( WHEN l_service = abap_true
-                                              THEN mc_service_text
-                                              ELSE mc_material_text )
+      pstype_text                  = COND #(
+                                       WHEN l_service = abap_true
+                                       THEN mc_service_text
+                                       ELSE mc_material_text )
       status                       = is_source-status
       goods_receipt_to_date_usd    = is_source-grvalue_usd
       management_unit              = is_account-manageunit
@@ -510,14 +517,40 @@ CLASS lcl_reconciliation IMPLEMENTATION.
       service_completed_amount_usd = is_source-totwrkcompamt_usd
       pr_number                    = is_source-epnumber ).
 
+    IF i_mode = zif_fi_das_dashboard=>mc_under OR
+       i_mode = zif_fi_das_dashboard=>mc_exclude.
+
+      ls_result-accrual_method =
+        zcl_fi_das_utility=>get_accrual_method_text(
+          is_source-accrualmethod ).
+
+    ENDIF.
+
+    IF i_mode = zif_fi_das_dashboard=>mc_under.
+
+      ls_result-straight_line_mthd =
+        zcl_fi_das_utility=>bool_to_text(
+          is_source-straightlinemthd ).
+
+    ENDIF.
+
     ls_result-po_dashboard_section = SWITCH #(
       i_mode
       WHEN zif_fi_das_dashboard=>mc_over
-        THEN COND #( WHEN l_service = abap_true THEN mc_over_service ELSE mc_over_material )
+        THEN COND #(
+          WHEN l_service = abap_true
+          THEN mc_over_service
+          ELSE mc_over_material )
       WHEN zif_fi_das_dashboard=>mc_under
-        THEN COND #( WHEN l_service = abap_true THEN mc_under_service ELSE mc_under_material )
+        THEN COND #(
+          WHEN l_service = abap_true
+          THEN mc_under_service
+          ELSE mc_under_material )
       WHEN zif_fi_das_dashboard=>mc_exclude
-        THEN COND #( WHEN l_service = abap_true THEN mc_excl_service ELSE mc_excl_material ) ).
+        THEN COND #(
+          WHEN l_service = abap_true
+          THEN mc_excl_service
+          ELSE mc_excl_material ) ).
 
     IF i_mode = zif_fi_das_dashboard=>mc_exclude.
 
@@ -525,29 +558,45 @@ CLASS lcl_reconciliation IMPLEMENTATION.
              ls_result-exchange_rate,
              ls_result-reviewed_by.
 
-      SPLIT is_source-ruletype AT zcl_fi_das_utility=>mc_semicolon INTO TABLE lt_rule_types.
-      SPLIT is_source-ruletypetext AT zcl_fi_das_utility=>mc_semicolon INTO TABLE lt_rule_texts.
+      SPLIT is_source-ruletype
+        AT zcl_fi_das_utility=>mc_semicolon
+        INTO TABLE lt_rule_types.
 
-      IF is_source-ruletype IS INITIAL OR lines( lt_rule_types ) <> lines( lt_rule_texts ).
+      SPLIT is_source-ruletypetext
+        AT zcl_fi_das_utility=>mc_semicolon
+        INTO TABLE lt_rule_texts.
+
+      IF is_source-ruletype IS INITIAL OR
+         lines( lt_rule_types ) <> lines( lt_rule_texts ).
+
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e000(zfi_das) WITH 'Invalid reconciliation exclusion rules'
-                                    is_source-ponumber is_source-itemno.
+          MESSAGE e000(zfi_das)
+          WITH 'Invalid reconciliation exclusion rules'
+               is_source-ponumber
+               is_source-itemno.
+
       ENDIF.
 
       LOOP AT lt_rule_types INTO DATA(l_rule_type).
 
         DATA(l_rule_index) = sy-tabix.
         DATA(l_rule_text) = lt_rule_texts[ l_rule_index ].
+
         CONDENSE: l_rule_type, l_rule_text.
 
         IF l_rule_type IS INITIAL OR l_rule_text IS INITIAL.
+
           RAISE EXCEPTION TYPE zcx_fi_das_error
-            MESSAGE e000(zfi_das) WITH 'Empty reconciliation exclusion rule'
-                                      is_source-ponumber is_source-itemno.
+            MESSAGE e000(zfi_das)
+            WITH 'Empty reconciliation exclusion rule'
+                 is_source-ponumber
+                 is_source-itemno.
+
         ENDIF.
 
         ls_result-rule_type = l_rule_type.
         ls_result-rule_type_text = l_rule_text.
+
         APPEND ls_result TO ct_result.
 
       ENDLOOP.
@@ -566,7 +615,8 @@ CLASS lcl_reconciliation IMPLEMENTATION.
       i_account_count  = i_account_count ).
 
     IF is_source-amountaccrued_cocdecurr > 0.
-      ls_result-amount_to_be_accrued_doc = is_source-amountaccrued_cocdecurr.
+      ls_result-amount_to_be_accrued_doc =
+        is_source-amountaccrued_cocdecurr.
     ENDIF.
 
     APPEND ls_result TO ct_result.

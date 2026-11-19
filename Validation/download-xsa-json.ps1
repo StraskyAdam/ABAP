@@ -63,7 +63,7 @@ $requests = @(
         PageSize = 1000
     },
 
-    # Filter for Company code, Cost center & Management unit
+    # Filter for company code, cost center and management unit
 
     @{
         Name = "xsa-filter.json"
@@ -71,7 +71,7 @@ $requests = @(
         PageSize = 1000
     },
 
-    # Selection via PO number, item & Supplier
+    # Selection via PO number, item and supplier
 
     @{
         Name = "xsa-selection.json"
@@ -98,10 +98,9 @@ $requests = @(
     }
 )
 
-# Scope NULL / wildcard matrix: 5 scenarios x 62 scopes = 310 fixtures.
+# Scope NULL / wildcard matrix: 5 scenarios x 62 scopes.
 # Users xsa-null-01..62@takeda.com must exist in XSA and ABAP
 # with identical COMPANY_CODE / MANAGEMENT_UNIT / COST_CENTER.
-# All scenarios use no owner; exclusion has no IP_PSTYPE parameter.
 
 $scopeScenarios = @(
     @{
@@ -152,6 +151,101 @@ if ($ListRequests) {
     return
 }
 
+function Get-XsaPage {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputFile,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Skip,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Cookie
+    )
+
+    $request = [System.Net.HttpWebRequest]::Create($Url)
+    $request.Method = "GET"
+    $request.Accept = "application/json"
+    $request.AllowAutoRedirect = $false
+    $request.Timeout = 60000
+    $request.Headers[[System.Net.HttpRequestHeader]::Cookie] = $Cookie
+
+    $httpResponse = $null
+
+    try {
+        try {
+            $httpResponse = $request.GetResponse()
+        }
+        catch [System.Net.WebException] {
+            $httpResponse = $_.Exception.Response
+
+            if ($null -eq $httpResponse) {
+                throw (
+                    "Request failed for ${OutputFile} at skip=${Skip}. " +
+                    "Network status: $($_.Exception.Status)."
+                )
+            }
+        }
+
+        $status = [int]$httpResponse.StatusCode
+
+        if ($status -lt 200 -or $status -ge 300) {
+            throw (
+                "Request failed for ${OutputFile} at skip=${Skip}. " +
+                "HTTP status: $status. Redirects are not followed."
+            )
+        }
+
+        $contentType = [string]$httpResponse.ContentType
+
+        if ($contentType -notmatch '(?i)\bjson\b') {
+            throw (
+                "Expected JSON for ${OutputFile} at skip=${Skip}, " +
+                "but received Content-Type '$contentType'."
+            )
+        }
+
+        $stream = $httpResponse.GetResponseStream()
+
+        if ($null -eq $stream) {
+            throw "Response for ${OutputFile} has no body."
+        }
+
+        $reader = [System.IO.StreamReader]::new(
+            $stream,
+            [System.Text.Encoding]::UTF8,
+            $true
+        )
+
+        try {
+            $content = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+
+        try {
+            $result = $content | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            throw (
+                "Response for ${OutputFile} at skip=${Skip} " +
+                "is not valid JSON."
+            )
+        }
+
+        return $result
+    }
+    finally {
+        if ($null -ne $httpResponse) {
+            $httpResponse.Close()
+        }
+    }
+}
+
 function Get-XsaAllPages {
     param(
         [Parameter(Mandatory = $true)]
@@ -159,6 +253,9 @@ function Get-XsaAllPages {
 
         [Parameter(Mandatory = $true)]
         [string]$OutputFile,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Cookie,
 
         [ValidateRange(1, 2147483647)]
         [int]$Top = 1000
@@ -191,26 +288,28 @@ function Get-XsaAllPages {
 
         Write-Host "Downloading $OutputFile : skip=$skip, top=$Top"
 
-        try {
-            $response = Invoke-RestMethod `
-                -Uri $url `
-                -Method Get `
-                -UseDefaultCredentials `
-                -Headers @{ Accept = "application/json" } `
-                -ErrorAction Stop
-        }
-        catch {
-            Write-Host "Failed URL: $url"
-            throw
-        }
+        $response = Get-XsaPage `
+            -Url $url `
+            -OutputFile $OutputFile `
+            -Skip $skip `
+            -Cookie $Cookie
 
         if (
+            $null -eq $response -or
             $null -eq $response.d -or
+            $null -eq $response.d.PSObject.Properties["results"] -or
             $null -eq $response.d.results
         ) {
             throw (
                 "Invalid OData response for ${OutputFile}: " +
-                "d.results is missing. URL: $url"
+                "d.results is missing or null."
+            )
+        }
+
+        if ($response.d.results -isnot [array]) {
+            throw (
+                "Invalid OData response for ${OutputFile}: " +
+                "d.results is not an array."
             )
         }
 
@@ -334,9 +433,48 @@ function Get-XsaAllPages {
     )
 }
 
-foreach ($request in $requests) {
-    Get-XsaAllPages `
-        -BaseUrl "$root$($request.Path)" `
-        -OutputFile $request.Name `
-        -Top $request.PageSize
+Write-Host "Paste the Cookie header value from the successful browser request."
+Write-Host "The value will not be displayed."
+
+$secureCookie = Read-Host "Cookie" -AsSecureString
+$cookiePointer = [IntPtr]::Zero
+$cookie = $null
+
+try {
+    $cookiePointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR(
+        $secureCookie
+    )
+
+    $cookie = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+        $cookiePointer
+    )
+
+    if ([string]::IsNullOrWhiteSpace($cookie)) {
+        throw "No cookie was provided."
+    }
+
+    if ($cookie -match '[\r\n]') {
+        throw "Cookie must be a single line."
+    }
+
+    foreach ($request in $requests) {
+        Get-XsaAllPages `
+            -BaseUrl "$root$($request.Path)" `
+            -OutputFile $request.Name `
+            -Cookie $cookie `
+            -Top $request.PageSize
+    }
+
+    Write-Host "All exports completed."
+}
+finally {
+    if ($cookiePointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($cookiePointer)
+    }
+
+    if ($null -ne $secureCookie) {
+        $secureCookie.Dispose()
+    }
+
+    $cookie = $null
 }

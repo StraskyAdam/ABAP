@@ -40,4 +40,6 @@
 |EN      |ZFI_DAS|035	 |Unable to generate result ID                                             |
 |EN      |ZFI_DAS|036	 |Missing configuration value for &1                                       |
 |EN      |ZFI_DAS|037	 |User language could not be saved/updated                                 |
+|EN      |ZFI_DAS|038	 |Invalid exclusion rules for PO &1 item &2                                |
+|EN      |ZFI_DAS|039	 |Empty exclusion rule for PO &1 item &2                                   |
 --------------------------------------------------------------------------------------------------

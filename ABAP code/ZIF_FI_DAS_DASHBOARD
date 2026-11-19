@@ -76,11 +76,16 @@ INTERFACE zif_fi_das_dashboard
            ip_lineitem TYPE ebelp,
          END OF ts_audit_parameter,
 
+         BEGIN OF ts_options,
+           without_formatting TYPE abap_bool,
+         END OF ts_options,
+
          BEGIN OF ts_request,
            parameter TYPE ts_parameter,
            filter    TYPE ts_filter,
            orderby   TYPE tt_orderby,
            paging    TYPE ts_paging,
+           options   TYPE ts_options,
          END OF ts_request,
 
          BEGIN OF ts_audit_request,

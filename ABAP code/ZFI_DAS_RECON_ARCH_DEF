@@ -1,0 +1,115 @@
+CLASS lcl_reconciliation_archive DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    METHODS run
+      IMPORTING
+        i_test_mode TYPE abap_bool DEFAULT abap_true
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CONSTANTS: mc_target   TYPE tabname VALUE 'ZFI_DAS_RECON',
+               mc_archived TYPE zfi_das_recon-archive_flag VALUE 'Yes'.
+
+    DATA m_rows TYPE int8.
+
+    METHODS:
+
+      get_archive_date
+        RETURNING
+          VALUE(r_date) TYPE dats
+        RAISING
+          zcx_fi_das_error,
+
+      archive
+        IMPORTING
+          i_date TYPE dats,
+
+      summary
+        IMPORTING
+          i_test_mode TYPE abap_bool
+          i_date      TYPE dats.
+
+ENDCLASS.
+
+CLASS lcl_reconciliation_archive IMPLEMENTATION.
+
+  METHOD run.
+
+    TRY.
+
+        zcl_fi_das_utility=>check_table_authority( mc_target ).
+
+        DATA(l_date) = get_archive_date( ).
+
+        archive( l_date ).
+
+        IF i_test_mode = abap_true.
+          ROLLBACK WORK.
+        ELSE.
+          COMMIT WORK AND WAIT.
+
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
+          ENDIF.
+
+        ENDIF.
+
+      CATCH zcx_fi_das_error INTO DATA(lx_das_error).
+
+        ROLLBACK WORK.
+        RAISE EXCEPTION lx_das_error.
+
+      CATCH cx_root INTO DATA(lx_unexpected_error).
+
+        ROLLBACK WORK.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_unexpected_error
+            i_text   = lx_unexpected_error->get_text( ).
+
+    ENDTRY.
+
+    summary( i_test_mode = i_test_mode
+             i_date      = l_date ).
+
+  ENDMETHOD.
+
+  METHOD get_archive_date.
+
+    GET TIME STAMP FIELD DATA(l_timestamp).
+
+    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_cet INTO DATE r_date.
+
+  ENDMETHOD.
+
+  METHOD archive.
+
+    UPDATE zfi_das_recon
+      SET archive_flag = @mc_archived,
+          archived_on  = @i_date
+      WHERE archive_flag = @space OR archive_flag IS NULL.
+
+    IF sy-subrc = 0.
+      m_rows = sy-dbcnt.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD summary.
+
+    IF i_test_mode = abap_true.
+      WRITE / TEXT-001.
+    ELSE.
+      WRITE / TEXT-002.
+    ENDIF.
+
+    WRITE: / |{ TEXT-003 } { i_date DATE = USER }|,
+           / |{ TEXT-004 } { m_rows NUMBER = USER }|.
+
+  ENDMETHOD.
+
+ENDCLASS.

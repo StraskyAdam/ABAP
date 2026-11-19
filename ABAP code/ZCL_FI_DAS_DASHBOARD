@@ -113,8 +113,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_status_reviewed          TYPE c LENGTH 20 VALUE 'Reviewed',
       mc_accrual_wtd              TYPE t_text_50 VALUE 'WTD',
       mc_accrual_stl              TYPE t_text_50 VALUE 'STL',
-      mc_accrual_wtd_text         TYPE t_text_50 VALUE 'Work To Date',
-      mc_accrual_stl_text         TYPE t_text_50 VALUE 'Straight Line',
 
       mc_audit_amount_accrued     TYPE zfi_das_auditlog-fname VALUE 'Amount to be Accrued',
       mc_zero                     TYPE string VALUE '0',
@@ -828,12 +826,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         e_elapsed_months  TYPE i
       RAISING
         zcx_fi_das_error.
-
-    METHODS get_accrual_method_text
-      IMPORTING
-        i_method      TYPE t_text_50
-      RETURNING
-        VALUE(r_text) TYPE t_text_50.
 
     METHODS determine_review
       IMPORTING
@@ -1856,19 +1848,6 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_accrual_method_text.
-
-    CASE i_method.
-      WHEN mc_accrual_stl.
-        r_text = zcl_fi_das_dashboard=>mc_accrual_stl_text.
-      WHEN zcl_fi_das_dashboard=>mc_accrual_wtd.
-        r_text = zcl_fi_das_dashboard=>mc_accrual_wtd_text.
-      WHEN OTHERS.
-        r_text = i_method.
-    ENDCASE.
-
-  ENDMETHOD.
-
   METHOD get_company_codes.
 
     DATA(lt_values) = zcl_fi_das_utility=>split_list( i_value ).
@@ -2818,7 +2797,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     cs_result-pstype_text = get_pstype_text( cs_result-pstype ).
 
-    cs_result-accrualmethod = get_accrual_method_text( cs_result-accrualmethod ).
+    cs_result-accrualmethod = zcl_fi_das_utility=>get_accrual_method_text( cs_result-accrualmethod ).
 
     cs_result-exchangerate =
      zcl_fi_das_utility=>format_odata_amount(
@@ -3141,9 +3120,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     ENDIF.
 
-    apply_odata_format( EXPORTING i_mode           = is_request-mode
-                                  i_decimal_format = i_decimal_format
-                        CHANGING  cs_result        = rs_result ).
+    IF is_request-options-without_formatting = abap_false.
+
+      apply_odata_format( EXPORTING i_mode           = is_request-mode
+                                    i_decimal_format = i_decimal_format
+                          CHANGING  cs_result        = rs_result ).
+
+    ENDIF.
 
   ENDMETHOD.
 

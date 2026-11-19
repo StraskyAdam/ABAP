@@ -232,9 +232,6 @@ CLASS lcl_reconciliation IMPLEMENTATION.
 
     TRY.
 
-        DELETE FROM zfi_das_recon.
-        COMMIT WORK AND WAIT.
-
         get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_over
                             i_pstype    = zif_fi_das_dashboard=>mc_pstype_service
                             i_test_mode = i_test_mode ).

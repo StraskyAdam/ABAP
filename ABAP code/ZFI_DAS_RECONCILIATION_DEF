@@ -1,10 +1,6 @@
-CLASS lcl_reconciliation DEFINITION FINAL.
+CLASS lcl_reconciliation_archive DEFINITION FINAL.
 
   PUBLIC SECTION.
-
-    METHODS constructor
-      RAISING
-        zcx_fi_das_error.
 
     METHODS run
       IMPORTING
@@ -14,250 +10,49 @@ CLASS lcl_reconciliation DEFINITION FINAL.
 
   PRIVATE SECTION.
 
-    CONSTANTS: mc_target          TYPE tabname VALUE 'ZFI_DAS_RECON',
-               mc_asterisk        TYPE c LENGTH 1 VALUE '*',
-               mc_first_day       TYPE c LENGTH 2 VALUE '01',
-               mc_next_month      TYPE i VALUE 32,
-               mc_amount_decimals TYPE i VALUE 2,
-               mc_package_size    TYPE i VALUE 50000,
+    CONSTANTS: mc_target   TYPE tabname VALUE 'ZFI_DAS_RECON',
+               mc_archived TYPE zfi_das_recon-archive_flag VALUE 'Yes'.
 
-               mc_material_text   TYPE zfi_das_recon-pstype_text VALUE 'Material PO',
-               mc_service_text    TYPE zfi_das_recon-pstype_text VALUE 'Services PO',
-               mc_over_material   TYPE zfi_das_recon-po_dashboard_section VALUE 'Indirect Material',
-               mc_over_service    TYPE zfi_das_recon-po_dashboard_section VALUE 'Indirect Services',
-               mc_under_material  TYPE zfi_das_recon-po_dashboard_section VALUE 'Below Threshold PO Material',
-               mc_under_service   TYPE zfi_das_recon-po_dashboard_section VALUE 'Below Threshold PO Service',
-               mc_excl_material   TYPE zfi_das_recon-po_dashboard_section VALUE 'Exclusion Indirect Material',
-               mc_excl_service    TYPE zfi_das_recon-po_dashboard_section VALUE 'Exclusion Indirect Service'.
-
-    TYPES:
-      tt_result TYPE STANDARD TABLE OF zfi_das_recon WITH EMPTY KEY,
-
-      BEGIN OF ts_source,
-        companycode             TYPE zfi_das_shared-companycode,
-        poowner_email           TYPE zfi_das_recon-po_owner,
-        ponumber                TYPE zfi_das_shared-ponumber,
-        itemno                  TYPE zfi_das_shared-itemno,
-        documentdate            TYPE zfi_das_shared-documentdate,
-        polinedesc              TYPE zfi_das_recon-po_line_description,
-        supplierid              TYPE zfi_das_shared-supplierid,
-        suppliername            TYPE zfi_das_recon-supplier_name,
-        wrkstrtdate             TYPE zfi_das_shared-wrkstrtdate,
-        wrkenddate              TYPE zfi_das_shared-wrkenddate,
-        cocdecurr               TYPE zfi_das_shared-cocdecurr,
-        pocurrency              TYPE zfi_das_shared-pocurrency,
-        orderquantity           TYPE zfi_das_over_under-orderquantity,
-        povalue                 TYPE zfi_das_shared-povalue,
-        invvalue                TYPE zfi_das_shared-invvalue,
-        exchangerate_dec        TYPE zfi_das_shared-exchangerate_dec,
-        totwrkcompamt           TYPE zfi_das_shared-totwrkcompamt,
-        grvalue                 TYPE zfi_das_shared-grvalue,
-        accrualmethod           TYPE zfi_das_shared-accrualmethod,
-        po_preparer             TYPE zfi_das_recon-po_preparer,
-        pstype                  TYPE zfi_das_shared-pstype,
-        status                  TYPE zfi_das_shared-status,
-        grvalue_usd             TYPE zfi_das_shared-grvalue_usd,
-        straightlinemthd        TYPE zfi_das_shared-straightlinemthd,
-        reviwed_by              TYPE zfi_das_recon-reviewed_by,
-        changed_on              TYPE zfi_das_shared-changed_on,
-        region                  TYPE zfi_das_shared-region,
-        pocreatedat             TYPE zfi_das_shared-pocreatedat,
-        invvalue_usd            TYPE zfi_das_shared-invvalue_usd,
-        totwrkcompper           TYPE zfi_das_shared-totwrkcompper,
-        povalue_usd             TYPE zfi_das_shared-povalue_usd,
-        totwrkcompamt_usd       TYPE zfi_das_shared-totwrkcompamt_usd,
-        epnumber                TYPE zfi_das_shared-epnumber,
-        amountaccrued           TYPE zfi_das_over_under-amountaccrued,
-        amountaccrued_usd       TYPE zfi_das_over_under-amountaccrued_usd,
-        amountaccrued_cocdecurr TYPE zfi_das_over_under-amountaccrued_cocdecurr,
-        ruletype                TYPE string,
-        ruletypetext            TYPE string,
-      END OF ts_source,
-
-      tt_source TYPE STANDARD TABLE OF ts_source WITH EMPTY KEY,
-
-      BEGIN OF ts_account,
-        ponumber       TYPE ebeln,
-        itemno         TYPE ebelp,
-        glaccount      TYPE ekkn-sakto,
-        costcenter     TYPE ekkn-kostl,
-        manageunit     TYPE csks-zzrptun,
-        internalorder  TYPE ekkn-aufnr,
-        assetid        TYPE ekkn-anln1,
-        profitcenter   TYPE ekkn-prctr,
-        bbp_acc_no     TYPE ekkn-zekkn,
-        distpercentage TYPE ekkn-vproz,
-        quantity       TYPE ekkn-menge,
-      END OF ts_account,
-
-      tt_account TYPE SORTED TABLE OF ts_account WITH NON-UNIQUE KEY ponumber itemno bbp_acc_no,
-
-      BEGIN OF ts_account_count,
-        ponumber TYPE ebeln,
-        itemno   TYPE ebelp,
-        count    TYPE i,
-      END OF ts_account_count,
-
-      tt_account_count TYPE HASHED TABLE OF ts_account_count WITH UNIQUE KEY ponumber itemno.
-
-    DATA: mr_dashboard       TYPE REF TO zif_fi_das_dashboard,
-          m_used_replication TYPE abap_bool,
-          m_posting_date     TYPE dats,
-          m_inserted         TYPE int8.
+    DATA m_rows TYPE int8.
 
     METHODS:
-      get_posting_date
+
+      get_archive_date
         RETURNING
-          VALUE(r_date) TYPE dats,
-
-      get_reconciliation
-        IMPORTING
-          i_mode      TYPE zif_fi_das_dashboard=>t_mode
-          i_pstype    TYPE zif_fi_das_dashboard=>t_pstype
-          i_test_mode TYPE abap_bool
-        RAISING
-          zcx_fi_das_error
-          cx_sy_conversion_error
-          cx_sy_open_sql_db,
-
-      get_source
-        IMPORTING
-          i_mode        TYPE zif_fi_das_dashboard=>t_mode
-          i_pstype      TYPE zif_fi_das_dashboard=>t_pstype
-          i_skip        TYPE i
-        EXPORTING
-          et_source     TYPE tt_source
-          e_total_count TYPE int8
-        RAISING
-          zcx_fi_das_error
-          cx_sy_conversion_error,
-
-      get_results
-        IMPORTING
-          it_source        TYPE tt_source
-          i_mode           TYPE zif_fi_das_dashboard=>t_mode
-        RETURNING
-          VALUE(rt_result) TYPE tt_result
+          VALUE(r_date) TYPE dats
         RAISING
           zcx_fi_das_error,
 
-      get_accounts
+      archive
         IMPORTING
-          it_source          TYPE tt_source
-        RETURNING
-          VALUE(rt_accounts) TYPE tt_account,
-
-      get_account_counts
-        IMPORTING
-          it_accounts      TYPE tt_account
-        RETURNING
-          VALUE(rt_counts) TYPE tt_account_count,
-
-      save
-        CHANGING
-          ct_result TYPE tt_result
-        RAISING
-          zcx_fi_das_error,
-
-      append_row
-        IMPORTING
-          is_source       TYPE ts_source
-          is_account      TYPE ts_account
-          i_mode          TYPE zif_fi_das_dashboard=>t_mode
-          i_account_count TYPE i
-        CHANGING
-          ct_result       TYPE tt_result
-        RAISING
-          zcx_fi_das_error,
-
-      get_dashboard_section
-        IMPORTING
-          i_mode           TYPE zif_fi_das_dashboard=>t_mode
-          i_service        TYPE abap_bool
-        RETURNING
-          VALUE(r_section) TYPE zfi_das_recon-po_dashboard_section,
-
-      append_exclusion_rows
-        IMPORTING
-          is_source TYPE ts_source
-          is_result TYPE zfi_das_recon
-        CHANGING
-          ct_result TYPE tt_result
-        RAISING
-          zcx_fi_das_error,
-
-      calculate_recon_accrued
-        IMPORTING
-          i_amount         TYPE zfi_das_over_under-amountaccrued
-          i_distpercentage TYPE ekkn-vproz
-          i_quantity       TYPE ekkn-menge
-          i_account_count  TYPE i
-        RETURNING
-          VALUE(r_amount)  TYPE zfi_das_recon-amount_to_be_accrued_ccode
-        RAISING
-          zcx_fi_das_error,
+          i_date TYPE dats,
 
       summary
         IMPORTING
-          i_test_mode TYPE abap_bool.
+          i_test_mode TYPE abap_bool
+          i_date      TYPE dats.
 
 ENDCLASS.
 
-CLASS lcl_reconciliation IMPLEMENTATION.
-
-  METHOD constructor.
-
-    zcl_fi_das_utility=>check_table_authority( mc_target ).
-
-    m_posting_date = get_posting_date( ).
-    mr_dashboard = NEW zcl_fi_das_dashboard( ).
-    m_used_replication = zcl_fi_das_dashboard=>get_use_replication( ).
-
-  ENDMETHOD.
-
-  METHOD get_posting_date.
-
-    GET TIME STAMP FIELD DATA(l_timestamp).
-
-    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_utc INTO DATE DATA(l_date).
-
-    DATA(l_first_of_month) = CONV d( l_date(6) && mc_first_day ).
-    DATA(l_next_month) = CONV d( l_first_of_month + mc_next_month ).
-
-    r_date = CONV d( l_next_month(6) && mc_first_day ) - 1.
-
-  ENDMETHOD.
+CLASS lcl_reconciliation_archive IMPLEMENTATION.
 
   METHOD run.
 
     TRY.
 
-        get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_over
-                            i_pstype    = zif_fi_das_dashboard=>mc_pstype_service
-                            i_test_mode = i_test_mode ).
+        zcl_fi_das_utility=>check_table_authority( mc_target ).
 
-        get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_over
-                            i_pstype    = zif_fi_das_dashboard=>mc_pstype_material
-                            i_test_mode = i_test_mode ).
+        DATA(l_date) = get_archive_date( ).
 
-        get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_under
-                            i_pstype    = zif_fi_das_dashboard=>mc_pstype_service
-                            i_test_mode = i_test_mode ).
+        archive( l_date ).
 
-        get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_under
-                            i_pstype    = zif_fi_das_dashboard=>mc_pstype_material
-                            i_test_mode = i_test_mode ).
-
-        get_reconciliation( i_mode      = zif_fi_das_dashboard=>mc_exclude
-                            i_pstype    = zif_fi_das_dashboard=>mc_pstype_all
-                            i_test_mode = i_test_mode ).
-
-        IF i_test_mode = abap_false.
-
+        IF i_test_mode = abap_true.
+          ROLLBACK WORK.
+        ELSE.
           COMMIT WORK AND WAIT.
 
           IF sy-subrc <> 0.
-            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
+             RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
           ENDIF.
 
         ENDIF.
@@ -278,404 +73,27 @@ CLASS lcl_reconciliation IMPLEMENTATION.
 
     ENDTRY.
 
-    summary( i_test_mode ).
+    summary( i_test_mode = i_test_mode
+             i_date      = l_date ).
 
   ENDMETHOD.
 
-  METHOD get_reconciliation.
+  METHOD get_archive_date.
 
-    DATA l_skip TYPE i.
+    GET TIME STAMP FIELD DATA(l_timestamp).
 
-    DO.
-
-*     Get source data in packages due to limit memory consumption
-      get_source( EXPORTING i_mode        = i_mode
-                            i_pstype      = i_pstype
-                            i_skip        = l_skip
-                  IMPORTING et_source     = DATA(lt_source)
-                            e_total_count = DATA(l_total_count) ).
-
-      DATA(lt_result) = get_results( it_source = lt_source
-                                     i_mode    = i_mode ).
-
-      FREE lt_source.
-
-*     Remove identical reconciliation rows before assigning unique IDs
-      SORT lt_result BY table_line.
-      DELETE ADJACENT DUPLICATES FROM lt_result COMPARING ALL FIELDS.
-
-      IF i_test_mode = abap_true.
-        m_inserted = m_inserted + lines( lt_result ).
-      ELSE.
-        save( CHANGING ct_result = lt_result ).
-      ENDIF.
-
-      FREE lt_result.
-
-      l_skip = l_skip + mc_package_size.
-
-      IF l_skip >= l_total_count.
-        EXIT.
-      ENDIF.
-
-    ENDDO.
+    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_cet INTO DATE r_date.
 
   ENDMETHOD.
 
-  METHOD get_source.
+  METHOD archive.
 
-    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      parameter = VALUE #( email   = mc_asterisk
-                           poowner = abap_false
-                           pstype  = i_pstype )
-      paging    = VALUE #( skip            = i_skip
-                           top             = mc_package_size
-                           top_requested   = abap_true
-                           count_requested = abap_true )
-      options   = VALUE #( without_formatting = abap_true ) ).
+    UPDATE zfi_das_recon
+      SET archive_flag = @mc_archived,
+          archived_on  = @i_date
+      WHERE archive_flag = @space OR archive_flag IS NULL.
 
-    CASE i_mode.
-
-      WHEN zif_fi_das_dashboard=>mc_over.
-
-        mr_dashboard->over( EXPORTING is_request    = ls_request
-                            IMPORTING et_result     = DATA(lt_over)
-                                      e_total_count = DATA(l_total_count) ).
-
-        et_source = CORRESPONDING #( lt_over ).
-
-      WHEN zif_fi_das_dashboard=>mc_under.
-
-        mr_dashboard->under( EXPORTING is_request    = ls_request
-                             IMPORTING et_result     = DATA(lt_under)
-                                       e_total_count = l_total_count ).
-
-        et_source = CORRESPONDING #( lt_under ).
-
-      WHEN zif_fi_das_dashboard=>mc_exclude.
-
-        mr_dashboard->exclude( EXPORTING is_request    = ls_request
-                               IMPORTING et_result     = DATA(lt_exclude)
-                                         e_total_count = l_total_count ).
-
-        et_source = CORRESPONDING #( lt_exclude ).
-
-      WHEN OTHERS.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
-
-    ENDCASE.
-
-    e_total_count = l_total_count.
-
-  ENDMETHOD.
-
-  METHOD get_results.
-
-    DATA(lt_accounts) = get_accounts( it_source ).
-    DATA(lt_account_counts) = get_account_counts( lt_accounts ).
-
-    LOOP AT it_source ASSIGNING FIELD-SYMBOL(<fs_source>).
-
-      DATA(l_account_count) = 0.
-
-      READ TABLE lt_account_counts ASSIGNING FIELD-SYMBOL(<fs_account_count>) WITH TABLE KEY ponumber = <fs_source>-ponumber
-                                                                                             itemno   = <fs_source>-itemno.
-
-      IF <fs_account_count> IS ASSIGNED AND sy-subrc = 0.
-        l_account_count = <fs_account_count>-count.
-      ENDIF.
-
-      IF l_account_count = 0.
-
-        append_row( EXPORTING is_source       = <fs_source>
-                              is_account      = VALUE #( )
-                              i_mode          = i_mode
-                              i_account_count = l_account_count
-                    CHANGING  ct_result       = rt_result ).
-
-        CONTINUE.
-
-      ENDIF.
-
-      LOOP AT lt_accounts ASSIGNING FIELD-SYMBOL(<fs_account>) WHERE ponumber = <fs_source>-ponumber AND
-                                                                     itemno   = <fs_source>-itemno.
-
-        append_row( EXPORTING is_source       = <fs_source>
-                              is_account      = <fs_account>
-                              i_mode          = i_mode
-                              i_account_count = l_account_count
-                    CHANGING  ct_result       = rt_result ).
-
-      ENDLOOP.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD get_accounts.
-
-    DATA(lt_source) = it_source.
-
-    SORT lt_source BY ponumber itemno.
-    DELETE ADJACENT DUPLICATES FROM lt_source COMPARING ponumber itemno.
-
-    IF lt_source IS NOT INITIAL.
-
-      SELECT ekkn~ebeln   AS ponumber,
-             ekkn~ebelp   AS itemno,
-             ekkn~sakto   AS glaccount,
-             ekkn~kostl   AS costcenter,
-             csks~zzrptun AS manageunit,
-             ekkn~aufnr   AS internalorder,
-             ekkn~anln1   AS assetid,
-             ekkn~prctr   AS profitcenter,
-             ekkn~zekkn   AS bbp_acc_no,
-             ekkn~vproz   AS distpercentage,
-             ekkn~menge   AS quantity
-        FROM zi_fi_das_ekkn( p_use_replication = @m_used_replication ) AS ekkn
-
-        LEFT OUTER JOIN zi_fi_das_csks( p_use_replication = @m_used_replication ) AS csks ON csks~kokrs = ekkn~kokrs AND
-                                                                                             csks~kostl = ekkn~kostl AND
-                                                                                             csks~datbi >= @sy-datum
-        FOR ALL ENTRIES IN @lt_source
-        WHERE ekkn~ebeln = @lt_source-ponumber AND
-              ekkn~ebelp = @lt_source-itemno
-        INTO TABLE @rt_accounts.
-
-      IF sy-subrc <> 0.
-        CLEAR rt_accounts.
-      ENDIF.
-    ENDIF.
-
-  ENDMETHOD.
-
-  METHOD get_account_counts.
-
-    LOOP AT it_accounts ASSIGNING FIELD-SYMBOL(<fs_account>) GROUP BY ( ponumber   = <fs_account>-ponumber
-                                                                        itemno     = <fs_account>-itemno
-                                                                        bbp_acc_no = <fs_account>-bbp_acc_no )
-                                                             WITHOUT MEMBERS INTO DATA(ls_group).
-
-      READ TABLE rt_counts ASSIGNING FIELD-SYMBOL(<fs_count>) WITH TABLE KEY ponumber = ls_group-ponumber
-                                                                             itemno   = ls_group-itemno.
-
-      IF <fs_count> IS ASSIGNED AND sy-subrc = 0.
-        <fs_count>-count = <fs_count>-count + 1.
-      ELSE.
-        INSERT VALUE #(  ponumber = ls_group-ponumber
-                         itemno   = ls_group-itemno
-                         count    = 1  ) INTO TABLE rt_counts.
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD append_row.
-
-    IF is_source-changed_on IS NOT INITIAL.
-      CONVERT TIME STAMP is_source-changed_on TIME ZONE zcl_fi_das_utility=>mc_timezone_utc INTO DATE DATA(l_changed_on).
-    ENDIF.
-
-    DATA(l_service) = xsdbool( is_source-pstype = zif_fi_das_dashboard=>mc_pstype_service ).
-
-    DATA(ls_result) = VALUE zfi_das_recon(
-      mandt                        = sy-mandt
-      company_code                 = is_source-companycode
-      cost_center                  = zcl_fi_das_utility=>alpha_output( CONV string( is_account-costcenter ) )
-      gl_account                   = zcl_fi_das_utility=>alpha_output( CONV string( is_account-glaccount ) )
-      po_owner                     = is_source-poowner_email
-      posting_date                 = m_posting_date
-      split_accounting_number      = is_account-bbp_acc_no
-      po_number                    = is_source-ponumber
-      po_lineitem                  = is_source-itemno
-      internal_order               = zcl_fi_das_utility=>alpha_output( CONV string( is_account-internalorder ) )
-      purchase_order_date          = is_source-documentdate
-      po_line_description          = is_source-polinedesc
-      supplier_code                = is_source-supplierid
-      supplier_name                = is_source-suppliername
-      sap_vendor_number            = is_source-supplierid
-      asset_id                     = zcl_fi_das_utility=>alpha_output( CONV string( is_account-assetid ) )
-      profit_center                = is_account-profitcenter
-      service_start_date           = is_source-wrkstrtdate
-      service_end_date             = is_source-wrkenddate
-      companycode_currency         = is_source-cocdecurr
-      document_currency            = is_source-pocurrency
-      order_quantity               = CONV #( trunc( is_source-orderquantity ) )
-      net_price                    = is_source-povalue
-      invoice_amount               = is_source-invvalue
-      exchange_rate                = is_source-exchangerate_dec
-      po_value                     = is_source-povalue
-      services_completed_amount    = is_source-totwrkcompamt
-      goods_receipt_to_date        = is_source-grvalue
-      accrual_method               = is_source-accrualmethod
-      po_preparer                  = is_source-po_preparer
-      pstype_text                  = COND #( WHEN l_service = abap_true
-                                              THEN mc_service_text
-                                              ELSE mc_material_text )
-      status                       = is_source-status
-      goods_receipt_to_date_usd    = is_source-grvalue_usd
-      management_unit              = is_account-manageunit
-      straight_line_mthd           = is_source-straightlinemthd
-      reviewed_by                  = is_source-reviwed_by
-      changed_on                   = l_changed_on
-      region                       = is_source-region
-      pocreatedat                  = is_source-pocreatedat
-      invoice_amount_to_date_usd   = is_source-invvalue_usd
-      percentage_service_completed = is_source-totwrkcompper
-      povalue_usd                  = is_source-povalue_usd
-      service_completed_amount_usd = is_source-totwrkcompamt_usd
-      pr_number                    = is_source-epnumber
-      amount_accrued               = is_source-amountaccrued
-      amount_accrued_usd           = is_source-amountaccrued_usd
-      po_dashboard_section         = get_dashboard_section( i_mode    = i_mode
-                                                            i_service = l_service ) ).
-
-    CASE i_mode.
-
-      WHEN zif_fi_das_dashboard=>mc_under.
-
-        ls_result-accrual_method = zcl_fi_das_utility=>get_accrual_method_text( is_source-accrualmethod ).
-
-        ls_result-straight_line_mthd = zcl_fi_das_utility=>bool_to_text( is_source-straightlinemthd ).
-
-      WHEN zif_fi_das_dashboard=>mc_exclude.
-
-        ls_result-accrual_method = zcl_fi_das_utility=>get_accrual_method_text( is_source-accrualmethod ).
-
-        append_exclusion_rows( EXPORTING is_source = is_source
-                                         is_result = ls_result
-                               CHANGING  ct_result = ct_result ).
-
-        RETURN.
-
-    ENDCASE.
-
-    ls_result-amount_to_be_accrued_ccode = calculate_recon_accrued( i_amount         = is_source-amountaccrued
-                                                                    i_distpercentage = is_account-distpercentage
-                                                                    i_quantity       = is_account-quantity
-                                                                    i_account_count  = i_account_count ).
-
-    IF is_source-amountaccrued_cocdecurr > 0.
-      ls_result-amount_to_be_accrued_doc = is_source-amountaccrued_cocdecurr.
-    ENDIF.
-
-    APPEND ls_result TO ct_result.
-
-  ENDMETHOD.
-
-  METHOD get_dashboard_section.
-
-    r_section = SWITCH #( i_mode
-      WHEN zif_fi_das_dashboard=>mc_over
-        THEN COND #(
-          WHEN i_service = abap_true
-          THEN mc_over_service
-          ELSE mc_over_material )
-      WHEN zif_fi_das_dashboard=>mc_under
-        THEN COND #(
-          WHEN i_service = abap_true
-          THEN mc_under_service
-          ELSE mc_under_material )
-      WHEN zif_fi_das_dashboard=>mc_exclude
-        THEN COND #(
-          WHEN i_service = abap_true
-          THEN mc_excl_service
-          ELSE mc_excl_material ) ).
-
-  ENDMETHOD.
-
-  METHOD append_exclusion_rows.
-
-    DATA(ls_result) = is_result.
-
-    SPLIT is_source-ruletype AT zcl_fi_das_utility=>mc_semicolon INTO TABLE DATA(lt_rule_types).
-    SPLIT is_source-ruletypetext AT zcl_fi_das_utility=>mc_semicolon INTO TABLE DATA(lt_rule_texts).
-
-    IF is_source-ruletype IS INITIAL OR lines( lt_rule_types ) <> lines( lt_rule_texts ).
-
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e038(zfi_das) WITH is_source-ponumber
-                                                                       is_source-itemno.
-
-    ENDIF.
-
-    LOOP AT lt_rule_types ASSIGNING FIELD-SYMBOL(<f_rule_type>).
-
-      DATA(l_rule_text) = VALUE #( lt_rule_texts[ sy-tabix ] OPTIONAL ).
-
-      CONDENSE: <f_rule_type>, l_rule_text.
-
-      IF <f_rule_type> IS INITIAL OR l_rule_text IS INITIAL.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e039(zfi_das) WITH is_source-ponumber
-                                                                         is_source-itemno.
-      ENDIF.
-
-      ls_result-rule_type = <f_rule_type>.
-      ls_result-rule_type_text = l_rule_text.
-
-      APPEND CORRESPONDING #( ls_result EXCEPT order_quantity
-                                               exchange_rate
-                                               reviewed_by
-                                               amount_accrued
-                                               amount_accrued_usd ) TO ct_result.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD calculate_recon_accrued.
-
-    IF i_amount <= 0.
-      RETURN.
-    ENDIF.
-
-    DATA(l_amount) = CONV decfloat34( i_amount ).
-
-    IF i_distpercentage > 0 AND i_quantity >= 0.
-      l_amount = l_amount * i_distpercentage / 100.
-    ELSEIF i_distpercentage = 0 AND i_quantity >= 0.
-      IF i_quantity < 1 AND i_account_count > 1.
-        l_amount = l_amount * i_quantity.
-      ELSEIF i_quantity < 1 AND i_account_count <> 1.
-        RETURN.
-      ENDIF.
-    ELSE.
-      RETURN.
-    ENDIF.
-
-    r_amount = zcl_fi_das_utility=>truncate_decimal( i_value    = l_amount
-                                                     i_decimals = mc_amount_decimals ).
-
-  ENDMETHOD.
-
-  METHOD save.
-
-    IF ct_result IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    TRY.
-        LOOP AT ct_result ASSIGNING FIELD-SYMBOL(<fs_result>).
-          <fs_result>-guuid = cl_system_uuid=>create_uuid_c32_static( ).
-        ENDLOOP.
-
-      CATCH cx_uuid_error INTO DATA(lx_uuid_error).
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            previous = lx_uuid_error
-            i_text   = lx_uuid_error->get_text( ).
-
-    ENDTRY.
-
-    INSERT zfi_das_recon FROM TABLE @ct_result.
-
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e030(zfi_das) WITH mc_target.
-    ENDIF.
-
-    m_inserted = m_inserted + sy-dbcnt.
+    m_rows = sy-dbcnt.
 
   ENDMETHOD.
 
@@ -687,8 +105,8 @@ CLASS lcl_reconciliation IMPLEMENTATION.
       WRITE / TEXT-002.
     ENDIF.
 
-    WRITE: / |{ TEXT-003 } { m_posting_date DATE = USER }|,
-           / |{ TEXT-004 } { m_inserted NUMBER = USER }|.
+    WRITE: / |{ TEXT-003 } { i_date DATE = USER }|,
+           / |{ TEXT-004 } { m_rows NUMBER = USER }|.
 
   ENDMETHOD.
 

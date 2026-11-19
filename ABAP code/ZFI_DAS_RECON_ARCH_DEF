@@ -52,7 +52,7 @@ CLASS lcl_reconciliation_archive IMPLEMENTATION.
           COMMIT WORK AND WAIT.
 
           IF sy-subrc <> 0.
-             RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
+            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_target.
           ENDIF.
 
         ENDIF.
@@ -82,7 +82,7 @@ CLASS lcl_reconciliation_archive IMPLEMENTATION.
 
     GET TIME STAMP FIELD DATA(l_timestamp).
 
-    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_utc INTO DATE r_date.
+    CONVERT TIME STAMP l_timestamp TIME ZONE zcl_fi_das_utility=>mc_timezone_cet INTO DATE r_date.
 
   ENDMETHOD.
 
@@ -93,7 +93,9 @@ CLASS lcl_reconciliation_archive IMPLEMENTATION.
           archived_on  = @i_date
       WHERE archive_flag = @space OR archive_flag IS NULL.
 
-    m_rows = sy-dbcnt.
+    IF sy-subrc = 0.
+      m_rows = sy-dbcnt.
+    ENDIF.
 
   ENDMETHOD.
 

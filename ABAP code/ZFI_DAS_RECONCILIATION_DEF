@@ -490,7 +490,7 @@ CLASS lcl_reconciliation IMPLEMENTATION.
       service_end_date             = is_source-wrkenddate
       companycode_currency         = is_source-cocdecurr
       document_currency            = is_source-pocurrency
-      order_quantity               = is_source-orderquantity
+       order_quantity = CONV #( trunc( is_source-orderquantity ) )
       net_price                    = is_source-povalue
       invoice_amount               = is_source-invvalue
       exchange_rate                = is_source-exchangerate_dec

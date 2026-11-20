@@ -290,19 +290,15 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     DATA lt_header TYPE soli_tab.
     DATA l_header TYPE soli.
     DATA l_short_subject TYPE so_obj_des VALUE 'DAS email'.
-    DATA l_body_size TYPE so_obj_len.
     DATA l_attachment_size TYPE so_obj_len.
     DATA l_address TYPE adr6-smtp_addr.
 
-    DATA(l_body) = zif_fi_das_email~prepare_text(
-      i_text = i_body i_encoding = 'UTF-8' i_bom = abap_true ).
-    l_body_size = xstrlen( l_body ).
+    DATA(lt_body) = cl_bcs_convert=>string_to_soli( iv_string = i_body ).
     TRY.
         DATA(lo_request) = cl_bcs=>create_persistent( ).
         DATA(lo_document) = cl_document_bcs=>create_document(
-          i_type = 'HTM' i_subject = l_short_subject
-          i_hex = cl_bcs_convert=>xstring_to_solix( iv_xstring = l_body )
-          i_length = l_body_size ).
+          i_type = 'RAW' i_subject = l_short_subject
+          i_text = lt_body ).
         LOOP AT it_attachments INTO DATA(ls_attachment).
           CLEAR lt_header.
           l_header-line = |&SO_FILENAME={ ls_attachment-name }|.

@@ -118,14 +118,16 @@ function addStubs(reg) {
     CLASS-METHODS uccp IMPORTING uccp TYPE any RETURNING VALUE(char) TYPE ty_char.`);
   classStub(reg, 'cl_bcs_convert', `
     CLASS-METHODS xstring_to_solix IMPORTING iv_xstring TYPE xstring
-      RETURNING VALUE(et_solix) TYPE solix_tab.`);
+      RETURNING VALUE(et_solix) TYPE solix_tab.
+    CLASS-METHODS string_to_soli IMPORTING iv_string TYPE string
+      RETURNING VALUE(et_soli) TYPE soli_tab.`);
   classStub(reg, 'cl_cam_address_bcs', `
     CLASS-METHODS create_internet_address IMPORTING i_address TYPE adr6-smtp_addr
       RETURNING VALUE(result) TYPE REF TO cl_cam_address_bcs RAISING cx_bcs.`);
   classStub(reg, 'cl_document_bcs', `
     CLASS-METHODS create_document
       IMPORTING i_type TYPE so_obj_tp i_subject TYPE so_obj_des
-                i_hex TYPE solix_tab i_length TYPE so_obj_len
+                i_text TYPE soli_tab
       RETURNING VALUE(result) TYPE REF TO cl_document_bcs RAISING cx_bcs.
     METHODS add_attachment
       IMPORTING i_attachment_type TYPE so_obj_tp i_attachment_subject TYPE so_obj_des

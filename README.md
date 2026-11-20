@@ -135,10 +135,9 @@ lo_email->send(
   inserted values are never scanned again. Unknown tokens (including Spanish
   names) remain unchanged. Empty values are allowed. Unicode, trailing text
   spaces and existing line breaks are not reformatted.
-- Bodies are trusted HTML, matching the XSA mail templates. Replacement is
-  literal, not HTML/URL escaping. Callers must escape untrusted names/text for
-  their HTML context and validate links; do not put untrusted markup into params.
-  The service rejects control characters in the rendered subject and headers.
+- Bodies are plain text, matching the XSA mail templates. Parameter replacement
+  is literal; the service rejects control characters in the rendered subject
+  and headers.
 - Addresses must be individual bare SMTP addresses (no display names or lists),
   maximum 241 characters, with one `@` and no spaces/control characters.
   BCS still performs its own address validation; this is not a complete RFC
@@ -161,10 +160,10 @@ lo_email->send(
 
 ### BCS, transactions and deployment limits
 
-The adapter passes UTF-8 BOM HTML as `I_HEX` with its exact byte length, avoiding
-SOLI body-line wrapping/truncation at 255 characters. Each attachment likewise
-uses binary SOLIX content and its original XSTRING byte length, independent of
-padding in the final SOLIX row. No per-recipient personalization is attempted.
+The adapter passes a plain-text `RAW` document using
+`CL_BCS_CONVERT=>STRING_TO_SOLI`. Each attachment uses binary SOLIX content
+and its original XSTRING byte length, independent of padding in the final
+SOLIX row. No per-recipient personalization is attempted.
 
 `SET_MESSAGE_SUBJECT( IP_SUBJECT = string )` receives the complete rendered
 subject. The document's short internal title is only `DAS email`. The service
@@ -200,9 +199,9 @@ Before productive manual deployment, verify in the target SAP system:
    The latter's STRING parameter was checked in SE24; end-to-end MIME length
    remains unverified. Parser/stub checks cannot verify installed SAP APIs.
 3. SAPconnect node, sender authorization/address, codepages 4110/4103/4102,
-   UTF-8 HTML charset rendering, Unicode filenames and document-type MIME
+   plain-text charset rendering, Unicode filenames and document-type MIME
    mappings. Inspect the received MIME, not only the SOST preview.
-4. Multiple TO/CC/BCC, subject >255 characters, HTML >255 characters/line with
+4. Multiple TO/CC/BCC, subject >255 characters, text >255 characters/line with
    Unicode and CRLF, and byte-for-byte attachment hashes after receipt.
    The real ~22 MB UTF-8 BOM CSV and 50,000 records have **not** been sent here;
    SAPconnect/SMTP size limits, memory and delivery remain unverified.

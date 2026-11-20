@@ -2,7 +2,7 @@
 CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
   PUBLIC SECTION.
     DATA subject TYPE string VALUE '&USER& / &MONTH&'.
-    DATA body TYPE string VALUE '<p>&USER& &OTHER&</p>'.
+    DATA body TYPE string VALUE 'Dear &USER& &OTHER&'.
     DATA status TYPE string VALUE 'X'.
     DATA sender TYPE string VALUE 'sender@example.org'.
     DATA language TYPE string.

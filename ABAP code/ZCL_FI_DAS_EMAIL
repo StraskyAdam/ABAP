@@ -1,0 +1,336 @@
+CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES zif_fi_das_email.
+    CLASS-METHODS render
+      IMPORTING
+        i_text    TYPE string
+        it_params TYPE zif_fi_das_email=>tt_params
+      RETURNING VALUE(r_text) TYPE string
+      RAISING zcx_fi_das_error.
+
+  PROTECTED SECTION.
+    TYPES:
+      BEGIN OF ts_template,
+        subject TYPE string,
+        body    TYPE string,
+        status  TYPE string,
+      END OF ts_template.
+
+    METHODS read_template
+      IMPORTING i_template TYPE string
+                i_language TYPE string
+      RETURNING VALUE(rs_template) TYPE ts_template
+      RAISING zcx_fi_das_error.
+    METHODS read_sender
+      RETURNING VALUE(r_sender) TYPE string
+      RAISING zcx_fi_das_error.
+    METHODS read_language
+      IMPORTING i_email TYPE string
+      EXPORTING e_found TYPE abap_bool
+                e_language TYPE string
+      RAISING zcx_fi_das_error.
+    METHODS dispatch
+      IMPORTING
+        i_sender       TYPE string
+        i_subject      TYPE string
+        i_body         TYPE string
+        it_recipients  TYPE zif_fi_das_email=>tt_recipients
+        it_attachments TYPE zif_fi_das_email=>tt_attachments
+      RETURNING VALUE(r_sent) TYPE abap_bool
+      RAISING zcx_fi_das_error.
+
+  PRIVATE SECTION.
+    CLASS-METHODS check_header
+      IMPORTING i_value TYPE string
+      RAISING zcx_fi_das_error.
+    CLASS-METHODS check_address
+      IMPORTING i_email TYPE string
+      RAISING zcx_fi_das_error.
+ENDCLASS.
+
+CLASS zcl_fi_das_email IMPLEMENTATION.
+  METHOD check_header.
+    FIND REGEX '[[:cntrl:]]' IN i_value.
+    IF sy-subrc = 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Email header contains control characters'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD check_address.
+    check_header( i_email ).
+    IF i_email IS INITIAL OR strlen( i_email ) > 241
+        OR i_email CS space OR i_email CS ',' OR i_email CS ';'
+        OR i_email CS '<' OR i_email CS '>'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Expected one SMTP address (maximum 241 characters)'.
+    ENDIF.
+    FIND REGEX '^[^@]+@[^@]+$' IN i_email.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'SMTP address must contain one @ with a local part and domain'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD render.
+    DATA lt_params TYPE SORTED TABLE OF zif_fi_das_email=>ts_param
+                   WITH UNIQUE KEY name.
+    LOOP AT it_params INTO DATA(ls_param).
+      IF ls_param-name IS INITIAL OR ls_param-name CS '&'
+          OR ls_param-name CS space.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Parameter name must be nonempty without spaces or ampersands'.
+      ENDIF.
+      check_header( ls_param-name ).
+      INSERT ls_param INTO TABLE lt_params.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Duplicate email parameter name'.
+      ENDIF.
+    ENDLOOP.
+
+    TYPES:
+      BEGIN OF ts_replacement,
+        offset TYPE i,
+        length TYPE i,
+        value  TYPE string,
+      END OF ts_replacement.
+    DATA lt_replacements TYPE STANDARD TABLE OF ts_replacement WITH EMPTY KEY.
+    DATA lt_matches TYPE match_result_tab.
+    LOOP AT lt_params INTO ls_param.
+      DATA(l_token) = |&{ ls_param-name }&|.
+      CLEAR lt_matches.
+      FIND ALL OCCURRENCES OF l_token IN i_text RESULTS lt_matches.
+      LOOP AT lt_matches INTO DATA(ls_match).
+        APPEND VALUE #( offset = ls_match-offset length = ls_match-length
+                        value = ls_param-value ) TO lt_replacements.
+      ENDLOOP.
+    ENDLOOP.
+    SORT lt_replacements BY offset.
+    DATA l_position TYPE i VALUE 0.
+    LOOP AT lt_replacements INTO DATA(ls_replacement).
+      IF ls_replacement-offset < l_position.
+        CONTINUE.
+      ENDIF.
+      DATA(l_length) = ls_replacement-offset - l_position.
+      r_text = r_text && substring( val = i_text off = l_position len = l_length ).
+      r_text = r_text && ls_replacement-value.
+      l_position = ls_replacement-offset + ls_replacement-length.
+    ENDLOOP.
+    r_text = r_text && substring( val = i_text off = l_position ).
+  ENDMETHOD.
+
+  METHOD zif_fi_das_email~get_language.
+    check_address( i_email ).
+    read_language( EXPORTING i_email = i_email
+                   IMPORTING e_found = DATA(l_found) e_language = r_language ).
+    IF l_found = abap_false.
+      r_language = 'EN'.
+    ELSEIF r_language IS INITIAL OR strlen( r_language ) > 5.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'User language is empty or invalid; no implicit fallback'.
+    ENDIF.
+    check_header( r_language ).
+    IF r_language CS space.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'User language contains spaces'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_fi_das_email~prepare_text.
+    DATA l_codepage TYPE abap_encoding.
+    DATA l_bom TYPE xstring.
+    IF i_bom <> abap_true AND i_bom <> abap_false.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Invalid BOM flag'.
+    ENDIF.
+    CASE i_encoding.
+      WHEN 'UTF-8'.
+        l_codepage = 'UTF-8'.
+        l_bom = 'EFBBBF'.
+      WHEN 'UTF-16LE'.
+        l_codepage = '4103'.
+        l_bom = 'FFFE'.
+      WHEN 'UTF-16BE'.
+        l_codepage = '4102'.
+        l_bom = 'FEFF'.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Supported encodings: UTF-8, UTF-16LE, UTF-16BE'.
+    ENDCASE.
+    TRY.
+        DATA(lo_converter) = cl_abap_conv_out_ce=>create(
+          encoding = l_codepage ignore_cerr = abap_false ).
+        lo_converter->write( data = i_text ).
+        r_content = lo_converter->get_buffer( ).
+      CATCH cx_sy_codepage_converter_init cx_sy_conversion_codepage
+            cx_parameter_invalid_range cx_parameter_invalid_type INTO DATA(lx_encoding).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_encoding i_text = 'Email text encoding failed'.
+    ENDTRY.
+
+    DATA(l_bom_length) = xstrlen( l_bom ).
+    WHILE xstrlen( r_content ) >= l_bom_length.
+      IF r_content(l_bom_length) <> l_bom.
+        EXIT.
+      ENDIF.
+      r_content = r_content+l_bom_length.
+    ENDWHILE.
+    IF i_bom = abap_true.
+      CONCATENATE l_bom r_content INTO r_content IN BYTE MODE.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_fi_das_email~send.
+    IF i_template IS INITIAL OR strlen( i_template ) > 100
+        OR i_language IS INITIAL OR strlen( i_language ) > 5
+        OR i_language CS space.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Explicit template (1..100) and language (1..5) are required'.
+    ENDIF.
+    check_header( i_template ).
+    check_header( i_language ).
+    IF i_require_active <> abap_true AND i_require_active <> abap_false.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Invalid require_active flag'.
+    ENDIF.
+    IF it_recipients IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'At least one email recipient is required'.
+    ENDIF.
+    LOOP AT it_recipients INTO DATA(ls_recipient).
+      check_address( ls_recipient-email ).
+      IF ls_recipient-kind <> zif_fi_das_email=>gc_to
+          AND ls_recipient-kind <> zif_fi_das_email=>gc_cc
+          AND ls_recipient-kind <> zif_fi_das_email=>gc_bcc.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Recipient kind must be TO, CC or BCC'.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT it_attachments INTO DATA(ls_attachment).
+      check_header( ls_attachment-name ).
+      check_header( CONV string( ls_attachment-document_type ) ).
+      IF ls_attachment-name IS INITIAL OR strlen( ls_attachment-name ) > 242
+          OR ls_attachment-name CS '/' OR ls_attachment-name CS '\'
+          OR ls_attachment-name CS '"' OR ls_attachment-name CS ';'
+          OR ls_attachment-document_type IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Invalid attachment name/type; filename maximum is 242 characters'.
+      ENDIF.
+      IF substring( val = ls_attachment-name len = 1 ) = space
+          OR substring( val = ls_attachment-name off = strlen( ls_attachment-name ) - 1 ) = space.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Attachment filename must not start or end with a space'.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(ls_template) = read_template( i_template = i_template i_language = i_language ).
+    IF i_require_active = abap_true AND ls_template-status <> 'X'.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Email template is not active'.
+    ENDIF.
+    DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
+    DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
+    check_header( l_subject ).
+    IF l_subject IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'Email subject is empty'.
+    ENDIF.
+    DATA(l_sender) = read_sender( ).
+    check_address( l_sender ).
+    IF dispatch( i_sender = l_sender i_subject = l_subject i_body = l_body
+                 it_recipients = it_recipients it_attachments = it_attachments ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD read_template.
+    TRY.
+        SELECT SINGLE subject, body, status FROM zfi_das_email
+          WHERE template_name = @i_template AND language = @i_language
+          INTO CORRESPONDING FIELDS OF @rs_template.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_text = 'Email template not found for the exact requested language'.
+        ENDIF.
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_sql i_text = 'Email template read failed'.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD read_sender.
+    TRY.
+        SELECT SINGLE config_value FROM zfi_das_conf_val
+          WHERE config_name = 'EMAIL_FROM' INTO @r_sender.
+        IF sy-subrc <> 0 OR r_sender IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING i_text = 'EMAIL_FROM configuration is missing or empty'.
+        ENDIF.
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_sql i_text = 'EMAIL_FROM read failed'.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD read_language.
+    CLEAR: e_found, e_language.
+    TRY.
+        SELECT SINGLE language FROM zfi_das_usr_lang
+          WHERE email_id = @i_email INTO @e_language.
+        e_found = xsdbool( sy-subrc = 0 ).
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_sql i_text = 'User language read failed'.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD dispatch.
+    DATA lt_header TYPE soli_tab.
+    DATA l_header TYPE soli.
+    DATA l_short_subject TYPE so_obj_des VALUE 'DAS email'.
+    DATA l_body_size TYPE so_obj_len.
+    DATA l_attachment_size TYPE so_obj_len.
+    DATA l_address TYPE adr6-smtp_addr.
+
+    DATA(l_body) = zif_fi_das_email~prepare_text(
+      i_text = i_body i_encoding = 'UTF-8' i_bom = abap_true ).
+    l_body_size = xstrlen( l_body ).
+    TRY.
+        DATA(lo_request) = cl_bcs=>create_persistent( ).
+        DATA(lo_document) = cl_document_bcs=>create_document(
+          i_type = 'HTM' i_subject = l_short_subject
+          i_hex = cl_bcs_convert=>xstring_to_solix( iv_xstring = l_body )
+          i_length = l_body_size ).
+        LOOP AT it_attachments INTO DATA(ls_attachment).
+          CLEAR lt_header.
+          l_header-line = |&SO_FILENAME={ ls_attachment-name }|.
+          APPEND l_header TO lt_header.
+          l_attachment_size = xstrlen( ls_attachment-content ).
+          lo_document->add_attachment(
+            i_attachment_type = ls_attachment-document_type
+            i_attachment_subject = 'Attachment'
+            i_attachment_size = l_attachment_size
+            i_attachment_header = lt_header
+            i_att_content_hex = cl_bcs_convert=>xstring_to_solix(
+              iv_xstring = ls_attachment-content ) ).
+        ENDLOOP.
+        lo_request->set_document( lo_document ).
+        lo_request->set_message_subject( ip_subject = i_subject ).
+        l_address = i_sender.
+        lo_request->set_sender( cl_cam_address_bcs=>create_internet_address( l_address ) ).
+        LOOP AT it_recipients INTO DATA(ls_recipient).
+          l_address = ls_recipient-email.
+          lo_request->add_recipient(
+            i_recipient = cl_cam_address_bcs=>create_internet_address( l_address )
+            i_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>gc_cc )
+            i_blind_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>gc_bcc ) ).
+        ENDLOOP.
+        r_sent = lo_request->send( i_with_error_screen = abap_false ).
+      CATCH cx_bcs INTO DATA(lx_bcs).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_bcs i_text = 'BCS email request failed; caller must resolve its LUW'.
+    ENDTRY.
+  ENDMETHOD.
+ENDCLASS.

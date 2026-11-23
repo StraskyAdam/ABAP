@@ -26,7 +26,7 @@ INTERFACE zif_fi_das_email PUBLIC.
     IMPORTING
       i_template       TYPE string
       i_language       TYPE string
-      i_require_active TYPE abap_bool
+      i_require_active TYPE abap_bool DEFAULT abap_true
       it_recipients    TYPE tt_recipients
       it_params        TYPE tt_params OPTIONAL
       it_attachments   TYPE tt_attachments OPTIONAL
@@ -34,14 +34,6 @@ INTERFACE zif_fi_das_email PUBLIC.
 
   METHODS get_language
     IMPORTING i_email TYPE string
-    RETURNING VALUE(r_language) TYPE string
-    RAISING zcx_fi_das_error.
-
-  METHODS prepare_text
-    IMPORTING
-      i_text     TYPE string
-      i_encoding TYPE string
-      i_bom      TYPE abap_bool DEFAULT abap_false
-    RETURNING VALUE(r_content) TYPE xstring
+    RETURNING VALUE(r_language) TYPE zfi_das_email-language
     RAISING zcx_fi_das_error.
 ENDINTERFACE.

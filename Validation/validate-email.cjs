@@ -64,7 +64,7 @@ function classStub(reg, name, definition) {
 function addStubs(reg) {
   for (const [name, type, length] of [
     ['so_obj_tp', 'CHAR', 3], ['so_obj_des', 'CHAR', 50],
-    ['so_obj_len', 'NUMC', 12], ['abap_encoding', 'CHAR', 20],
+    ['so_obj_len', 'NUMC', 12],
   ]) dataElement(reg, name, type, length);
   table(reg, 'adr6', [['smtp_addr', 'CHAR', 241]], 'INTTAB');
   table(reg, 'soli', [['line', 'CHAR', 255]], 'INTTAB');
@@ -94,8 +94,7 @@ function addStubs(reg) {
     add(reg, `${name}.clas.abap`, `CLASS ${name} DEFINITION PUBLIC INHERITING FROM cx_root. ENDCLASS.
       CLASS ${name} IMPLEMENTATION. ENDCLASS.`);
   }
-  for (const name of ['cx_bcs', 'cx_sy_open_sql_db', 'cx_sy_codepage_converter_init',
-    'cx_sy_conversion_codepage', 'cx_parameter_invalid_range', 'cx_parameter_invalid_type']) {
+  for (const name of ['cx_bcs', 'cx_sy_open_sql_db']) {
     add(reg, `${name}.clas.abap`, `CLASS ${name} DEFINITION PUBLIC INHERITING FROM cx_dynamic_check. ENDCLASS.
       CLASS ${name} IMPLEMENTATION. ENDCLASS.`);
   }
@@ -106,16 +105,6 @@ function addStubs(reg) {
   classStub(reg, 'cl_abap_char_utilities', `
     CONSTANTS cr_lf TYPE c LENGTH 2 VALUE %_CR_LF.
     CONSTANTS newline TYPE c LENGTH 1 VALUE %_NEWLINE.`);
-  classStub(reg, 'cl_abap_conv_out_ce', `
-    CLASS-METHODS create
-      IMPORTING encoding TYPE abap_encoding ignore_cerr TYPE abap_bool
-      RETURNING VALUE(ret) TYPE REF TO cl_abap_conv_out_ce
-      RAISING cx_sy_codepage_converter_init cx_parameter_invalid_range cx_parameter_invalid_type.
-    METHODS write IMPORTING data TYPE string RAISING cx_sy_conversion_codepage.
-    METHODS get_buffer RETURNING VALUE(ret) TYPE xstring.`);
-  classStub(reg, 'cl_abap_conv_in_ce', `
-    TYPES ty_char TYPE c LENGTH 1.
-    CLASS-METHODS uccp IMPORTING uccp TYPE any RETURNING VALUE(char) TYPE ty_char.`);
   classStub(reg, 'cl_bcs_convert', `
     CLASS-METHODS xstring_to_solix IMPORTING iv_xstring TYPE xstring
       RETURNING VALUE(et_solix) TYPE solix_tab.

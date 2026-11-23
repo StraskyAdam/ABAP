@@ -93,14 +93,13 @@ are implemented here. The service never commits or rolls back.
 
 ```abap
 DATA lo_email TYPE REF TO zif_fi_das_email.
+DATA l_csv TYPE xstring.
 lo_email = NEW zcl_fi_das_email( ).
 DATA(l_language) = lo_email->get_language( 'manager@example.org' ).
-DATA(l_csv) = lo_email->prepare_text(
-  i_text = l_report_text i_encoding = 'UTF-8' i_bom = abap_true ).
+" l_csv contains the already encoded XSTRING supplied by the caller.
 lo_email->send(
   i_template = 'MANAGER_REMINDER'
-  i_language = l_language
-  i_require_active = abap_true
+  i_language = CONV string( l_language )
   it_recipients = VALUE #(
     ( email = 'manager@example.org' kind = zif_fi_das_email=>gc_to )
     ( email = 'owner1@example.org' kind = zif_fi_das_email=>gc_cc )
@@ -116,7 +115,7 @@ lo_email->send(
 ### Data and rendering contracts
 
 - Current-client Open SQL reads `ZFI_DAS_EMAIL` by exact template/language;
-  `require_active = abap_true` additionally requires `STATUS = 'X'`, as in XSA.
+  `i_require_active` defaults to `abap_true` and requires `STATUS = 'X'`.
   False deliberately permits inactive templates; there is no silent skip or
   template fallback. Template/language inputs are strings checked against the
   100/5-character DDIC limits before selection (no parameter truncation).
@@ -125,10 +124,12 @@ lo_email->send(
   field `CONFIG_VALUE`. Missing/empty/invalid configuration raises
   `ZCX_FI_DAS_ERROR`. The configuration utility exposes bulk/UI CRUD reads,
   not a lightweight checked single-value contract, so it is not a dependency.
-- `get_language` reads `ZFI_DAS_USR_LANG` by exact `EMAIL_ID`, preserving XSA's
+- `get_language` returns `ZFI_DAS_EMAIL-LANGUAGE` and reads `ZFI_DAS_USR_LANG`
+  by exact `EMAIL_ID`, preserving XSA's
   key matching. Only a missing record yields `EN`. An existing empty, oversized,
   whitespace/control-containing language is an error. Callers may instead pass
-  their own explicit language; no locale remapping is performed.
+  their own explicit language; no locale remapping is performed. Convert the
+  fixed-length return to `string` when passing it to `send`, as in the example.
 - Parameter names are case-sensitive bare names (`USER`, not `&USER&`).
   Empty names, whitespace, ampersands and duplicates are errors, even when
   unused. Every matching occurrence in the **original** subject/body is replaced;
@@ -151,14 +152,10 @@ lo_email->send(
   separators, quotes, semicolons and leading/trailing spaces are rejected.
   Filename and extension handling must still be verified per document type in
   the target SAPconnect environment. Empty binary attachments are allowed.
-- `prepare_text` accepts explicit `UTF-8`, `UTF-16LE` (SAP 4103) or `UTF-16BE`
-  (4102), with strict converter errors wrapped with their original cause.
-  It removes any leading encoded U+FEFF markers and emits exactly one BOM if
-  requested, otherwise none. A leading U+FEFF is therefore treated as metadata,
-  not business text. Interior U+FEFF, CR/LF and all other text stay unchanged.
-  No guessed encoding, newline normalization or MIME/base64 encoding occurs.
-  UTF-8 BOM matches the observed Excel CSV; an XSA declaration of UTF16BE is
-  not evidence of the exported bytes.
+- The caller prepares the attachment bytes, including text encoding and BOM
+  when applicable. A shared export utility is not implemented here. UTF-8 BOM
+  matches the observed Excel CSV; an XSA declaration of UTF16BE is not evidence
+  of the exported bytes.
 
 ### BCS, transactions and deployment limits
 
@@ -200,8 +197,8 @@ Before productive manual deployment, verify in the target SAP system:
    `CL_BCS_CONVERT=>XSTRING_TO_SOLIX`, and `SET_MESSAGE_SUBJECT`.
    The latter's STRING parameter was checked in SE24; end-to-end MIME length
    remains unverified. Parser/stub checks cannot verify installed SAP APIs.
-3. SAPconnect node, sender authorization/address, codepages 4110/4103/4102,
-   plain-text charset rendering, Unicode filenames and document-type MIME
+3. SAPconnect node, sender authorization/address, plain-text charset rendering,
+   Unicode filenames and document-type MIME
    mappings. Inspect the received MIME, not only the SOST preview.
 4. Multiple TO/CC/BCC, subject >255 characters, text >255 characters/line with
    Unicode and CRLF, and byte-for-byte attachment hashes after receipt.
@@ -222,8 +219,8 @@ second syntax/type pass using explicitly labelled in-memory SAP/DDIC stubs.
 Stubs only check internal consistency against assumed shapes, not SAP API
 availability. No dependency download or SAP connection occurs.
 
-Run ABAP Unit class `LTC_EMAIL` after activation in SAP. Its pure renderer/
-encoding tests and subclass doubles cover language fallback, empty language,
+Run ABAP Unit class `LTC_EMAIL` after activation in SAP. Its renderer tests
+and subclass doubles cover language fallback, empty language,
 exact-language template failure, active policy, manager TO/CC/BCC, binary
 attachment forwarding, long Unicode content, invalid headers/configuration,
 false BCS results and propagated errors. These tests are supplied but cannot

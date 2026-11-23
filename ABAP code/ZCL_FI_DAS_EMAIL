@@ -123,62 +123,19 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   METHOD zif_fi_das_email~get_language.
     check_address( i_email ).
     read_language( EXPORTING i_email = i_email
-                   IMPORTING e_found = DATA(l_found) e_language = r_language ).
+                   IMPORTING e_found = DATA(l_found) e_language = DATA(l_language) ).
     IF l_found = abap_false.
-      r_language = 'EN'.
-    ELSEIF r_language IS INITIAL OR strlen( r_language ) > 5.
+      l_language = 'EN'.
+    ELSEIF l_language IS INITIAL OR strlen( l_language ) > 5.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'User language is empty or invalid; no implicit fallback'.
     ENDIF.
-    check_header( r_language ).
-    IF r_language CA space.
+    check_header( l_language ).
+    IF l_language CA space.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'User language contains spaces'.
     ENDIF.
-  ENDMETHOD.
-
-  METHOD zif_fi_das_email~prepare_text.
-    DATA l_codepage TYPE abap_encoding.
-    DATA l_bom TYPE xstring.
-    IF i_bom <> abap_true AND i_bom <> abap_false.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Invalid BOM flag'.
-    ENDIF.
-    CASE i_encoding.
-      WHEN 'UTF-8'.
-        l_codepage = 'UTF-8'.
-        l_bom = 'EFBBBF'.
-      WHEN 'UTF-16LE'.
-        l_codepage = '4103'.
-        l_bom = 'FFFE'.
-      WHEN 'UTF-16BE'.
-        l_codepage = '4102'.
-        l_bom = 'FEFF'.
-      WHEN OTHERS.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Supported encodings: UTF-8, UTF-16LE, UTF-16BE'.
-    ENDCASE.
-    TRY.
-        DATA(lo_converter) = cl_abap_conv_out_ce=>create(
-          encoding = l_codepage ignore_cerr = abap_false ).
-        lo_converter->write( data = i_text ).
-        r_content = lo_converter->get_buffer( ).
-      CATCH cx_sy_codepage_converter_init cx_sy_conversion_codepage
-            cx_parameter_invalid_range cx_parameter_invalid_type INTO DATA(lx_encoding).
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING previous = lx_encoding i_text = 'Email text encoding failed'.
-    ENDTRY.
-
-    DATA(l_bom_length) = xstrlen( l_bom ).
-    WHILE xstrlen( r_content ) >= l_bom_length.
-      IF r_content(l_bom_length) <> l_bom.
-        EXIT.
-      ENDIF.
-      r_content = r_content+l_bom_length.
-    ENDWHILE.
-    IF i_bom = abap_true.
-      CONCATENATE l_bom r_content INTO r_content IN BYTE MODE.
-    ENDIF.
+    r_language = l_language.
   ENDMETHOD.
 
   METHOD zif_fi_das_email~send.

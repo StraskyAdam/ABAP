@@ -65,9 +65,6 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS render_single_pass FOR TESTING RAISING cx_static_check.
     METHODS render_empty_unknown FOR TESTING RAISING cx_static_check.
     METHODS invalid_parameters FOR TESTING.
-    METHODS encoding_bytes FOR TESTING RAISING cx_static_check.
-    METHODS encoding_bom FOR TESTING RAISING cx_static_check.
-    METHODS encoding_invalid FOR TESTING.
     METHODS language_contract FOR TESTING RAISING cx_static_check.
     METHODS language_empty FOR TESTING.
     METHODS space_validation FOR TESTING.
@@ -136,63 +133,6 @@ CLASS ltc_email IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
-  METHOD encoding_bytes.
-    DATA l_expected TYPE xstring.
-    l_expected = 'C5BDC48D0D0A'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = |Žč{ cl_abap_char_utilities=>cr_lf }| i_encoding = 'UTF-8' )
-      exp = l_expected ).
-    l_expected = '7D010D010D000A00'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = |Žč{ cl_abap_char_utilities=>cr_lf }| i_encoding = 'UTF-16LE' )
-      exp = l_expected ).
-    l_expected = '017D010D000D000A'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = |Žč{ cl_abap_char_utilities=>cr_lf }| i_encoding = 'UTF-16BE' )
-      exp = l_expected ).
-  ENDMETHOD.
-
-  METHOD encoding_bom.
-    DATA l_expected TYPE xstring.
-    DATA l_bom_text TYPE string.
-    l_bom_text = cl_abap_conv_in_ce=>uccp( 'FEFF' ).
-    l_expected = 'EFBBBF41'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = l_bom_text && l_bom_text && 'A' i_encoding = 'UTF-8' i_bom = abap_true )
-      exp = l_expected ).
-    l_expected = '41'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = l_bom_text && 'A' i_encoding = 'UTF-8' ) exp = l_expected ).
-    l_expected = 'FFFE'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = '' i_encoding = 'UTF-16LE' i_bom = abap_true ) exp = l_expected ).
-    l_expected = 'FEFF0041'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~prepare_text(
-        i_text = l_bom_text && 'A' i_encoding = 'UTF-16BE' i_bom = abap_true )
-      exp = l_expected ).
-  ENDMETHOD.
-
-  METHOD encoding_invalid.
-    TRY.
-        mo_email->zif_fi_das_email~prepare_text( i_text = 'A' i_encoding = 'guess' ).
-        cl_abap_unit_assert=>fail( 'Unknown encoding accepted' ).
-      CATCH zcx_fi_das_error.
-    ENDTRY.
-    TRY.
-        mo_email->zif_fi_das_email~prepare_text(
-          i_text = 'A' i_encoding = 'UTF-8' i_bom = 'Y' ).
-        cl_abap_unit_assert=>fail( 'Invalid BOM flag accepted' ).
-      CATCH zcx_fi_das_error.
-    ENDTRY.
-  ENDMETHOD.
-
   METHOD language_contract.
     cl_abap_unit_assert=>assert_equals(
       act = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ) exp = 'EN' ).
@@ -200,6 +140,11 @@ CLASS ltc_email IMPLEMENTATION.
     mo_email->language = 'ES'.
     cl_abap_unit_assert=>assert_equals(
       act = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ) exp = 'ES' ).
+    DATA(l_language) = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ).
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = CONV string( l_language )
+      it_recipients = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->requested_language exp = 'ES' ).
   ENDMETHOD.
 
   METHOD language_empty.
@@ -208,6 +153,14 @@ CLASS ltc_email IMPLEMENTATION.
         mo_email->zif_fi_das_email~get_language( 'owner@example.org' ).
         cl_abap_unit_assert=>fail( 'Stored empty language fell back to EN' ).
       CATCH zcx_fi_das_error.
+    ENDTRY.
+    mo_email->language = 'TOOLONG'.
+    TRY.
+        mo_email->zif_fi_das_email~get_language( 'owner@example.org' ).
+        cl_abap_unit_assert=>fail( 'Oversized language was truncated' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'User language is empty or invalid; no implicit fallback' ).
     ENDTRY.
   ENDMETHOD.
 
@@ -303,16 +256,23 @@ CLASS ltc_email IMPLEMENTATION.
     mo_email->status = ''.
     TRY.
         mo_email->zif_fi_das_email~send(
-          i_template = 'T' i_language = 'EN' i_require_active = abap_true
+          i_template = 'T' i_language = 'EN'
           it_recipients = mt_recipients ).
-        cl_abap_unit_assert=>fail( 'Inactive template accepted' ).
-      CATCH zcx_fi_das_error.
+        cl_abap_unit_assert=>fail( 'Inactive template accepted by default' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'Email template is not active' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    mo_email->status = 'X'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+    mo_email->status = ''.
     mo_email->zif_fi_das_email~send(
       i_template = 'T' i_language = 'EN' i_require_active = abap_false
       it_recipients = mt_recipients ).
-    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 2 ).
   ENDMETHOD.
 
   METHOD missing_template.

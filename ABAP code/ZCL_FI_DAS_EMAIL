@@ -160,9 +160,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     ENDIF.
     LOOP AT it_recipients INTO DATA(ls_recipient).
       check_address( ls_recipient-email ).
-      IF ls_recipient-kind <> zif_fi_das_email=>gc_to
-          AND ls_recipient-kind <> zif_fi_das_email=>gc_cc
-          AND ls_recipient-kind <> zif_fi_das_email=>gc_bcc.
+      IF ls_recipient-kind <> zif_fi_das_email=>mc_to
+          AND ls_recipient-kind <> zif_fi_das_email=>mc_cc
+          AND ls_recipient-kind <> zif_fi_das_email=>mc_bcc.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Recipient kind must be TO, CC or BCC'.
       ENDIF.
@@ -286,8 +286,8 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
           l_address = ls_recipient-email.
           lo_request->add_recipient(
             i_recipient = cl_cam_address_bcs=>create_internet_address( l_address )
-            i_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>gc_cc )
-            i_blind_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>gc_bcc ) ).
+            i_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>mc_cc )
+            i_blind_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>mc_bcc ) ).
         ENDLOOP.
         r_sent = lo_request->send( i_with_error_screen = abap_false ).
       CATCH cx_bcs INTO DATA(lx_bcs).

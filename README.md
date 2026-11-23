@@ -101,9 +101,9 @@ lo_email->send(
   i_template = 'MANAGER_REMINDER'
   i_language = CONV string( l_language )
   it_recipients = VALUE #(
-    ( email = 'manager@example.org' kind = zif_fi_das_email=>gc_to )
-    ( email = 'owner1@example.org' kind = zif_fi_das_email=>gc_cc )
-    ( email = 'owner2@example.org' kind = zif_fi_das_email=>gc_cc ) )
+    ( email = 'manager@example.org' kind = zif_fi_das_email=>mc_to )
+    ( email = 'owner1@example.org' kind = zif_fi_das_email=>mc_cc )
+    ( email = 'owner2@example.org' kind = zif_fi_das_email=>mc_cc ) )
   it_params = VALUE #( ( name = 'USER' value = l_manager_name )
                       ( name = 'MONTH' value = l_month_description ) )
   it_attachments = VALUE #( ( name = 'Open POs.csv'

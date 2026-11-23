@@ -37,10 +37,20 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                 i_body         TYPE string
                 it_recipients  TYPE zif_fi_das_email=>tt_recipients
                 it_attachments TYPE zif_fi_das_email=>tt_attachments
-      RETURNING VALUE(r_sent)  TYPE abap_bool
       RAISING   zcx_fi_das_error.
 
   PRIVATE SECTION.
+    CONSTANTS mc_document_type_raw TYPE so_obj_tp VALUE 'RAW'.
+    CONSTANTS mc_default_subject TYPE so_obj_des VALUE 'DAS email'.
+
+    METHODS add_attachments
+      IMPORTING io_document    TYPE REF TO cl_document_bcs
+                it_attachments TYPE zif_fi_das_email=>tt_attachments
+      RAISING   cx_bcs.
+    METHODS add_recipients
+      IMPORTING io_request    TYPE REF TO cl_bcs
+                it_recipients TYPE zif_fi_das_email=>tt_recipients
+      RAISING   cx_bcs.
     METHODS get_content_for_template
       IMPORTING i_template         TYPE string
                 i_language         TYPE string
@@ -80,29 +90,12 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
                                                   i_language       = i_language
                                                   i_require_active = i_require_active ).
 
-    DATA(l_subject) = replace_placeholders( i_text = ls_template-subject  it_params = it_params ).
-
-    DATA(l_body) = replace_placeholders( i_text = ls_template-body it_params = it_params ).
-
-    DATA(l_sender) = get_sender( ).
-
-    IF send_email( i_sender  = get_sender( )
-                   i_subject = replace_placeholders( i_text    = ls_template-subject  
-                                                     it_params = it_params )
-                   i_body   =  replace_placeholders( i_text    = ls_template-body
-                                                     it_params = it_params )
-                   it_recipients = it_recipients
-                   it_attachments = it_attachments 
-                 ) <> abap_true.
-                 
-                 
-                 
-                 
-                 
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
-    ENDIF.
+    send_email(
+      i_sender = get_sender( )
+      i_subject = replace_placeholders( i_text = ls_template-subject it_params = it_params )
+      i_body = replace_placeholders( i_text = ls_template-body it_params = it_params )
+      it_recipients = it_recipients
+      it_attachments = it_attachments ).
   ENDMETHOD.
 
   METHOD get_content_for_template.
@@ -158,45 +151,24 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD send_email.
-  
-    DATA lt_header TYPE soli_tab.
-    DATA l_header TYPE soli.
-    DATA l_short_subject TYPE so_obj_des VALUE 'DAS email'.
-    DATA l_attachment_size TYPE so_obj_len.
-    DATA l_address TYPE adr6-smtp_addr.
-
     DATA(lt_body) = cl_bcs_convert=>string_to_soli( iv_string = i_body ).
-    
+
     TRY.
         DATA(lo_request) = cl_bcs=>create_persistent( ).
         DATA(lo_document) = cl_document_bcs=>create_document(
-          i_type = 'RAW' i_subject = l_short_subject
+          i_type = mc_document_type_raw i_subject = mc_default_subject
           i_text = lt_body ).
-        LOOP AT it_attachments INTO DATA(ls_attachment).
-          CLEAR lt_header.
-          l_header-line = |&SO_FILENAME={ ls_attachment-name }|.
-          APPEND l_header TO lt_header.
-          l_attachment_size = xstrlen( ls_attachment-content ).
-          lo_document->add_attachment(
-            i_attachment_type = ls_attachment-document_type
-            i_attachment_subject = CONV so_obj_des( ls_attachment-name )
-            i_attachment_size = l_attachment_size
-            i_attachment_header = lt_header
-            i_att_content_hex = cl_bcs_convert=>xstring_to_solix(
-              iv_xstring = ls_attachment-content ) ).
-        ENDLOOP.
+        add_attachments( io_document = lo_document it_attachments = it_attachments ).
         lo_request->set_document( lo_document ).
         lo_request->set_message_subject( ip_subject = i_subject ).
-        l_address = i_sender.
-        lo_request->set_sender( cl_cam_address_bcs=>create_internet_address( l_address ) ).
-        LOOP AT it_recipients INTO DATA(ls_recipient).
-          l_address = ls_recipient-email.
-          lo_request->add_recipient(
-            i_recipient = cl_cam_address_bcs=>create_internet_address( l_address )
-            i_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>mc_cc )
-            i_blind_copy = xsdbool( ls_recipient-kind = zif_fi_das_email=>mc_bcc ) ).
-        ENDLOOP.
-        r_sent = lo_request->send( i_with_error_screen = abap_false ).
+        lo_request->set_sender( cl_cam_address_bcs=>create_internet_address(
+          CONV adr6-smtp_addr( i_sender ) ) ).
+        add_recipients( io_request = lo_request it_recipients = it_recipients ).
+        IF lo_request->send( i_with_error_screen = abap_false ) <> abap_true.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
+        ENDIF.
       CATCH cx_bcs INTO DATA(lx_bcs).
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING
@@ -205,7 +177,29 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+  METHOD add_attachments.
+    LOOP AT it_attachments ASSIGNING FIELD-SYMBOL(<fs_attachment>).
+      DATA(lt_header) = VALUE soli_tab(
+        ( line = |&SO_FILENAME={ <fs_attachment>-name }| ) ).
+      io_document->add_attachment(
+        i_attachment_type = <fs_attachment>-document_type
+        i_attachment_subject = CONV so_obj_des( <fs_attachment>-name )
+        i_attachment_size = CONV so_obj_len( xstrlen( <fs_attachment>-content ) )
+        i_attachment_header = lt_header
+        i_att_content_hex = cl_bcs_convert=>xstring_to_solix(
+          iv_xstring = <fs_attachment>-content ) ).
+    ENDLOOP.
+  ENDMETHOD.
 
+  METHOD add_recipients.
+    LOOP AT it_recipients ASSIGNING FIELD-SYMBOL(<fs_recipient>).
+      io_request->add_recipient(
+        i_recipient = cl_cam_address_bcs=>create_internet_address(
+          CONV adr6-smtp_addr( <fs_recipient>-email ) )
+        i_copy = xsdbool( <fs_recipient>-kind = zif_fi_das_email=>mc_cc )
+        i_blind_copy = xsdbool( <fs_recipient>-kind = zif_fi_das_email=>mc_bcc ) ).
+    ENDLOOP.
+  ENDMETHOD.
 
 *******************************************
 

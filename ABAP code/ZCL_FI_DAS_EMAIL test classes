@@ -9,7 +9,6 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA found TYPE abap_bool.
     DATA template_missing TYPE abap_bool.
     DATA bcs_error TYPE abap_bool.
-    DATA accepted TYPE abap_bool VALUE abap_true.
     DATA calls TYPE i.
     DATA requested_template TYPE string.
     DATA requested_language TYPE string.
@@ -20,9 +19,9 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA attachments TYPE zif_fi_das_email=>tt_attachments.
   PROTECTED SECTION.
     METHODS get_template_data REDEFINITION.
-    METHODS read_sender REDEFINITION.
+    METHODS get_sender REDEFINITION.
     METHODS read_language REDEFINITION.
-    METHODS dispatch REDEFINITION.
+    METHODS send_email REDEFINITION.
 ENDCLASS.
 
 CLASS lcl_email_fake IMPLEMENTATION.
@@ -34,14 +33,14 @@ CLASS lcl_email_fake IMPLEMENTATION.
     ENDIF.
     rs_template = VALUE #( subject = subject body = body status = status ).
   ENDMETHOD.
-  METHOD read_sender.
+  METHOD get_sender.
     r_sender = sender.
   ENDMETHOD.
   METHOD read_language.
     e_found = found.
     e_language = language.
   ENDMETHOD.
-  METHOD dispatch.
+  METHOD send_email.
     calls = calls + 1.
     IF bcs_error = abap_true.
       RAISE EXCEPTION TYPE zcx_fi_das_error EXPORTING i_text = 'BCS test error'.
@@ -51,7 +50,6 @@ CLASS lcl_email_fake IMPLEMENTATION.
     sent_sender = i_sender.
     recipients = it_recipients.
     attachments = it_attachments.
-    r_sent = accepted.
   ENDMETHOD.
 ENDCLASS.
 
@@ -62,7 +60,7 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     DATA mt_recipients TYPE zif_fi_das_email=>tt_recipients.
     METHODS setup.
     METHODS reset_fixture.
-    METHODS replace_single_pass FOR TESTING RAISING cx_static_check.
+    METHODS replace_in_parameter_order FOR TESTING RAISING cx_static_check.
     METHODS replace_empty_unknown FOR TESTING RAISING cx_static_check.
     METHODS language_contract FOR TESTING RAISING cx_static_check.
     METHODS manager_message FOR TESTING RAISING cx_static_check.
@@ -70,7 +68,7 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS missing_template FOR TESTING.
     METHODS recipient_kind FOR TESTING.
     METHODS filename_length FOR TESTING.
-    METHODS send_results FOR TESTING.
+    METHODS send_error_propagation FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_email IMPLEMENTATION.
@@ -83,7 +81,7 @@ CLASS ltc_email IMPLEMENTATION.
     mt_recipients = VALUE #( ( email = 'manager@example.org' kind = 'TO' ) ).
   ENDMETHOD.
 
-  METHOD replace_single_pass.
+  METHOD replace_in_parameter_order.
     DATA(l_text) = |Žluťoučký &USER& / &MONTH& &USER&{ cl_abap_char_utilities=>cr_lf }fin|.
     mo_email->body = l_text.
     mo_email->zif_fi_das_email~send(
@@ -92,7 +90,7 @@ CLASS ltc_email IMPLEMENTATION.
                            ( name = 'MONTH' value = 'november' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_email->sent_body
-      exp = |Žluťoučký &MONTH& / november &MONTH&{ cl_abap_char_utilities=>cr_lf }fin| ).
+      exp = |Žluťoučký november / november november{ cl_abap_char_utilities=>cr_lf }fin| ).
   ENDMETHOD.
 
   METHOD replace_empty_unknown.
@@ -224,23 +222,17 @@ CLASS ltc_email IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
   ENDMETHOD.
 
-  METHOD send_results.
-    mo_email->accepted = abap_false.
-    TRY.
-        mo_email->zif_fi_das_email~send(
-          i_template = 'T' i_language = 'EN' i_require_active = abap_true
-          it_recipients = mt_recipients ).
-        cl_abap_unit_assert=>fail( 'False BCS result ignored' ).
-      CATCH zcx_fi_das_error.
-    ENDTRY.
+  METHOD send_error_propagation.
     mo_email->bcs_error = abap_true.
     TRY.
         mo_email->zif_fi_das_email~send(
           i_template = 'T' i_language = 'EN' i_require_active = abap_true
           it_recipients = mt_recipients ).
         cl_abap_unit_assert=>fail( 'BCS exception ignored' ).
-      CATCH zcx_fi_das_error.
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'BCS test error' ).
     ENDTRY.
-    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
   ENDMETHOD.
 ENDCLASS.

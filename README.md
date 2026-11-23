@@ -117,8 +117,7 @@ lo_email->send(
 - Current-client Open SQL reads `ZFI_DAS_EMAIL` by exact template/language;
   `i_require_active` defaults to `abap_true` and requires `STATUS = 'X'`.
   False deliberately permits inactive templates; there is no silent skip or
-  template fallback. Template/language inputs are strings checked against the
-  100/5-character DDIC limits before selection (no parameter truncation).
+  template fallback. Missing template/language combinations raise an error.
   Deployment must confirm a unique client/template/language key.
 - Sender comes from `ZFI_DAS_CONF_VAL`, `CONFIG_NAME = 'EMAIL_FROM'`,
   field `CONFIG_VALUE`. Missing/empty/invalid configuration raises
@@ -126,29 +125,27 @@ lo_email->send(
   not a lightweight checked single-value contract, so it is not a dependency.
 - `get_language` returns `ZFI_DAS_EMAIL-LANGUAGE` and reads `ZFI_DAS_USR_LANG`
   by exact `EMAIL_ID`, preserving XSA's
-  key matching. Only a missing record yields `EN`. An existing empty, oversized,
-  whitespace-containing language is an error. Callers may instead pass
+  key matching. Only a missing record yields `EN`. A stored language is returned
+  unchanged. Callers may instead pass
   their own explicit language; no locale remapping is performed. Convert the
   fixed-length return to `string` when passing it to `send`, as in the example.
 - Parameter names are case-sensitive bare names (`USER`, not `&USER&`).
-  Empty names, whitespace, ampersands and duplicates are errors, even when
-  unused. Every matching occurrence in the **original** subject/body is replaced;
+  Every matching occurrence in the **original** subject/body is replaced;
   inserted values are never scanned again. Unknown tokens (including Spanish
-  names) remain unchanged. Empty values are allowed. Unicode, trailing text
-  spaces and existing line breaks are not reformatted.
+  names) remain unchanged. Empty values are allowed. Duplicate names use the
+  first value. Unicode, trailing text spaces and existing line breaks are not
+  reformatted.
 - Bodies are plain text, matching the XSA mail templates. Parameter replacement
   is literal. Header validation is delegated to BCS, matching the XSA behavior.
-- Addresses must be individual bare SMTP addresses (no display names or lists),
-  maximum 241 characters, with one `@` and no spaces.
-  BCS still performs its own address validation; this is not a complete RFC
-  mailbox validator or proof that a mailbox exists.
+- Recipient addresses are passed to BCS without additional address validation.
+  Recipient kind must be `TO`, `CC`, or `BCC` so the visibility mapping is
+  unambiguous.
 - Attachments contain raw XSTRING bytes, unchanged, plus an explicit three-character
   BCS/SAPoffice document type (for example `CSV` or `BIN`; not a MIME type).
   There is no CSV formatter or implicit decoding. Full names are carried in
   `&SO_FILENAME=` and the BCS attachment subject. Names exceeding the installed
-  `SO_OBJ_DES` character length or the 242-character header limit are rejected,
-  never silently truncated. Controls, path
-  separators, quotes, semicolons and leading/trailing spaces are rejected.
+  A filename longer than `SO_OBJ_DES` is rejected to avoid truncating the name
+  when passed to BCS. Other filename validation is delegated to BCS.
   Filename and extension handling must still be verified per document type in
   the target SAPconnect environment. Empty binary attachments are allowed.
 - The caller prepares the attachment bytes, including text encoding and BOM
@@ -221,7 +218,7 @@ availability. No dependency download or SAP connection occurs.
 Run ABAP Unit class `LTC_EMAIL` after activation in SAP. Its renderer tests
 and subclass doubles cover language fallback, empty language,
 exact-language template failure, active policy, manager TO/CC/BCC, binary
-attachment forwarding, long Unicode content, invalid parameters/configuration,
+attachment forwarding, long Unicode content, invalid recipient kind/filename length,
 false BCS results and propagated errors. These tests are supplied but cannot
 execute without an ABAP runtime; the doubled dispatch does not test real BCS.
 Existing dashboard tests are not modified and need SAP/HANA to run.

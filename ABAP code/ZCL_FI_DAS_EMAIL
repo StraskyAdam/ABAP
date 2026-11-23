@@ -1,12 +1,6 @@
 CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_fi_das_email.
-    CLASS-METHODS render
-      IMPORTING
-        i_text    TYPE string
-        it_params TYPE zif_fi_das_email=>tt_params
-      RETURNING VALUE(r_text) TYPE string
-      RAISING zcx_fi_das_error.
 
   PROTECTED SECTION.
     TYPES:
@@ -40,40 +34,19 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       RAISING zcx_fi_das_error.
 
   PRIVATE SECTION.
-    CLASS-METHODS check_address
-      IMPORTING i_email TYPE string
-      RAISING zcx_fi_das_error.
+    CLASS-METHODS render
+      IMPORTING
+        i_text    TYPE string
+        it_params TYPE zif_fi_das_email=>tt_params
+      RETURNING VALUE(r_text) TYPE string.
 ENDCLASS.
 
 CLASS zcl_fi_das_email IMPLEMENTATION.
-  METHOD check_address.
-    IF i_email IS INITIAL OR strlen( i_email ) > 241
-        OR i_email CA space OR i_email CS ',' OR i_email CS ';'
-        OR i_email CS '<' OR i_email CS '>'.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Expected one SMTP address (maximum 241 characters)'.
-    ENDIF.
-    FIND REGEX '^[^@]+@[^@]+$' IN i_email.
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'SMTP address must contain one @ with a local part and domain'.
-    ENDIF.
-  ENDMETHOD.
-
   METHOD render.
     DATA lt_params TYPE SORTED TABLE OF zif_fi_das_email=>ts_param
                    WITH UNIQUE KEY name.
     LOOP AT it_params INTO DATA(ls_param).
-      IF ls_param-name IS INITIAL OR ls_param-name CS '&'
-          OR ls_param-name CA space.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Parameter name must be nonempty without spaces or ampersands'.
-      ENDIF.
       INSERT ls_param INTO TABLE lt_params.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Duplicate email parameter name'.
-      ENDIF.
     ENDLOOP.
 
     TYPES:
@@ -108,18 +81,10 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_fi_das_email~get_language.
-    check_address( i_email ).
     read_language( EXPORTING i_email = i_email
                    IMPORTING e_found = DATA(l_found) e_language = DATA(l_language) ).
     IF l_found = abap_false.
       l_language = 'EN'.
-    ELSEIF l_language IS INITIAL OR strlen( l_language ) > 5.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'User language is empty or invalid; no implicit fallback'.
-    ENDIF.
-    IF l_language CA space.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'User language contains spaces'.
     ENDIF.
     r_language = l_language.
   ENDMETHOD.
@@ -128,22 +93,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     DATA l_attachment_subject TYPE so_obj_des.
     DATA l_attachment_subject_length TYPE i.
     DESCRIBE FIELD l_attachment_subject LENGTH l_attachment_subject_length IN CHARACTER MODE.
-    IF i_template IS INITIAL OR strlen( i_template ) > 100
-        OR i_language IS INITIAL OR strlen( i_language ) > 5
-        OR i_language CA space.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Explicit template (1..100) and language (1..5) are required'.
-    ENDIF.
-    IF i_require_active <> abap_true AND i_require_active <> abap_false.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Invalid require_active flag'.
-    ENDIF.
-    IF it_recipients IS INITIAL.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'At least one email recipient is required'.
-    ENDIF.
     LOOP AT it_recipients INTO DATA(ls_recipient).
-      check_address( ls_recipient-email ).
       IF ls_recipient-kind <> zif_fi_das_email=>mc_to
           AND ls_recipient-kind <> zif_fi_das_email=>mc_cc
           AND ls_recipient-kind <> zif_fi_das_email=>mc_bcc.
@@ -152,23 +102,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
     LOOP AT it_attachments INTO DATA(ls_attachment).
-      IF ls_attachment-name IS INITIAL
-          OR strlen( ls_attachment-name ) > l_attachment_subject_length
-          OR strlen( ls_attachment-name ) > 242
-          OR ls_attachment-name CS '/' OR ls_attachment-name CS '\'
-          OR ls_attachment-name CS '"' OR ls_attachment-name CS ';'
-          OR ls_attachment-document_type IS INITIAL.
+      IF strlen( ls_attachment-name ) > l_attachment_subject_length.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Invalid attachment name/type or filename exceeds BCS subject length'.
-      ENDIF.
-      DATA(l_last_offset) = strlen( ls_attachment-name ) - 1.
-      DATA l_first_char TYPE c LENGTH 1.
-      DATA l_last_char TYPE c LENGTH 1.
-      l_first_char = ls_attachment-name+0(1).
-      l_last_char = ls_attachment-name+l_last_offset(1).
-      IF l_first_char = space OR l_last_char = space.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Attachment filename must not start or end with a space'.
+          EXPORTING i_text = 'Attachment filename exceeds SO_OBJ_DES length'.
       ENDIF.
     ENDLOOP.
 
@@ -179,12 +115,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     ENDIF.
     DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
     DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
-    IF l_subject IS INITIAL.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Email subject is empty'.
-    ENDIF.
     DATA(l_sender) = read_sender( ).
-    check_address( l_sender ).
     IF dispatch( i_sender = l_sender i_subject = l_subject i_body = l_body
                  it_recipients = it_recipients it_attachments = it_attachments ) <> abap_true.
       RAISE EXCEPTION TYPE zcx_fi_das_error

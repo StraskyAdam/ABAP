@@ -46,7 +46,7 @@
 |EN      |ZFI_DAS|041	 |Attachment filename exceeds maximum allowed length                       |
 |EN      |ZFI_DAS|042	 |Email template not found for the requested language                      |
 |EN      |ZFI_DAS|043	 |Email template is not active                                             |
-|EN      |ZFI_DAS|044  |EMAIL_FROM configuration is missing or empty                            |
-|EN      |ZFI_DAS|045  |BCS did not accept the email request                                     |
-|EN      |ZFI_DAS|046  |BCS email request failed                                                 |
+|EN      |ZFI_DAS|044	 |Email sender configuration is missing                                    |
+|EN      |ZFI_DAS|045	 |Email request was not accepted                                           |
+|EN      |ZFI_DAS|046	 |Email processing failed                                                  |
 --------------------------------------------------------------------------------------------------

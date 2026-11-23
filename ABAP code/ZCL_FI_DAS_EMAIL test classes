@@ -70,6 +70,7 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS encoding_invalid FOR TESTING.
     METHODS language_contract FOR TESTING RAISING cx_static_check.
     METHODS language_empty FOR TESTING.
+    METHODS space_validation FOR TESTING.
     METHODS manager_message FOR TESTING RAISING cx_static_check.
     METHODS active_contract FOR TESTING RAISING cx_static_check.
     METHODS missing_template FOR TESTING.
@@ -210,6 +211,59 @@ CLASS ltc_email IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+  METHOD space_validation.
+    DO 6 TIMES.
+      DATA(l_index) = sy-index.
+      reset_fixture( ).
+      DATA(l_language) = CONV string( 'EN' ).
+      DATA lt_params TYPE zif_fi_das_email=>tt_params.
+      DATA lt_attachments TYPE zif_fi_das_email=>tt_attachments.
+      CLEAR: lt_params, lt_attachments.
+      DATA l_expected TYPE string.
+      CASE l_index.
+        WHEN 1.
+          l_language = |E N|.
+          l_expected = 'Explicit template (1..100) and language (1..5) are required'.
+        WHEN 2.
+          mt_recipients[ 1 ]-email = |owner @example.org|.
+          l_expected = 'Expected one SMTP address (maximum 241 characters)'.
+        WHEN 3.
+          mo_email->sender = |sender @example.org|.
+          l_expected = 'Expected one SMTP address (maximum 241 characters)'.
+        WHEN 4.
+          lt_params = VALUE #( ( name = |US ER| value = 'X' ) ).
+          l_expected = 'Parameter name must be nonempty without spaces or ampersands'.
+        WHEN 5.
+          lt_attachments = VALUE #( ( name = | report.csv| document_type = 'CSV' ) ).
+          l_expected = 'Attachment filename must not start or end with a space'.
+        WHEN 6.
+          lt_attachments = VALUE #( ( name = |report.csv | document_type = 'CSV' ) ).
+          l_expected = 'Attachment filename must not start or end with a space'.
+      ENDCASE.
+      TRY.
+          mo_email->zif_fi_das_email~send(
+            i_template = 'T' i_language = l_language i_require_active = abap_true
+            it_recipients = mt_recipients it_params = lt_params
+            it_attachments = lt_attachments ).
+          cl_abap_unit_assert=>fail( |Space accepted: { l_index }| ).
+        CATCH zcx_fi_das_error INTO DATA(lx_error).
+          cl_abap_unit_assert=>assert_equals( act = lx_error->get_text( ) exp = l_expected ).
+      ENDTRY.
+      cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    ENDDO.
+
+    reset_fixture( ).
+    mo_email->found = abap_true.
+    mo_email->language = |E N|.
+    TRY.
+        mo_email->zif_fi_das_email~get_language( 'owner@example.org' ).
+        cl_abap_unit_assert=>fail( 'Space in stored language accepted' ).
+      CATCH zcx_fi_das_error INTO lx_error.
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'User language contains spaces' ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD manager_message.
     mt_recipients = VALUE #( BASE mt_recipients
       ( email = 'other.manager@example.org' kind = 'TO' )
@@ -315,7 +369,7 @@ CLASS ltc_email IMPLEMENTATION.
         WHEN 16.
           lt_attachments = VALUE #( ( name = '' document_type = 'CSV' ) ).
         WHEN 17.
-          lt_attachments = VALUE #( ( name = 'report.csv ' document_type = 'CSV' ) ).
+          lt_attachments = VALUE #( ( name = |report.csv | document_type = 'CSV' ) ).
       ENDCASE.
       TRY.
           mo_email->zif_fi_das_email~send(

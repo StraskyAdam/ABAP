@@ -60,7 +60,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   METHOD check_address.
     check_header( i_email ).
     IF i_email IS INITIAL OR strlen( i_email ) > 241
-        OR i_email CS space OR i_email CS ',' OR i_email CS ';'
+        OR i_email CA space OR i_email CS ',' OR i_email CS ';'
         OR i_email CS '<' OR i_email CS '>'.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'Expected one SMTP address (maximum 241 characters)'.
@@ -77,7 +77,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
                    WITH UNIQUE KEY name.
     LOOP AT it_params INTO DATA(ls_param).
       IF ls_param-name IS INITIAL OR ls_param-name CS '&'
-          OR ls_param-name CS space.
+          OR ls_param-name CA space.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Parameter name must be nonempty without spaces or ampersands'.
       ENDIF.
@@ -131,7 +131,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         EXPORTING i_text = 'User language is empty or invalid; no implicit fallback'.
     ENDIF.
     check_header( r_language ).
-    IF r_language CS space.
+    IF r_language CA space.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'User language contains spaces'.
     ENDIF.
@@ -184,7 +184,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   METHOD zif_fi_das_email~send.
     IF i_template IS INITIAL OR strlen( i_template ) > 100
         OR i_language IS INITIAL OR strlen( i_language ) > 5
-        OR i_language CS space.
+        OR i_language CA space.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'Explicit template (1..100) and language (1..5) are required'.
     ENDIF.
@@ -217,8 +217,8 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Invalid attachment name/type; filename maximum is 242 characters'.
       ENDIF.
-      IF substring( val = ls_attachment-name len = 1 ) = space
-          OR substring( val = ls_attachment-name off = strlen( ls_attachment-name ) - 1 ) = space.
+      IF substring( val = ls_attachment-name len = 1 ) CA space
+          OR substring( val = ls_attachment-name off = strlen( ls_attachment-name ) - 1 ) CA space.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Attachment filename must not start or end with a space'.
       ENDIF.

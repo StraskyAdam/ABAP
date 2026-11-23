@@ -42,4 +42,8 @@
 |EN      |ZFI_DAS|037	 |User language could not be saved/updated                                 |
 |EN      |ZFI_DAS|038	 |Invalid exclusion rules for PO &1 item &2                                |
 |EN      |ZFI_DAS|039	 |Empty exclusion rule for PO &1 item &2                                   |
+|EN      |ZFI_DAS|040	 |Recipient type is not supported                                          |
+|EN      |ZFI_DAS|041	 |Attachment filename exceeds maximum allowed length                       |
+|EN      |ZFI_DAS|042	 |Email template not found for the requested language                      |
+|EN      |ZFI_DAS|043	 |Email template is not active                                             |
 --------------------------------------------------------------------------------------------------

@@ -34,6 +34,15 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       RAISING
         zcx_fi_das_error.
 
+    METHODS get_user_language
+      IMPORTING
+        i_email    TYPE string
+      EXPORTING
+        e_found    TYPE abap_bool
+        e_language TYPE string
+      RAISING
+        zcx_fi_das_error.
+
     METHODS send_email
       IMPORTING
         i_sender       TYPE string
@@ -74,6 +83,20 @@ ENDCLASS.
 CLASS zcl_fi_das_email IMPLEMENTATION.
 
   METHOD zif_fi_das_email~send.
+
+    LOOP AT it_recipients ASSIGNING FIELD-SYMBOL(<fs_recipient>).
+      IF <fs_recipient>-kind <> zif_fi_das_email=>mc_to AND
+         <fs_recipient>-kind <> zif_fi_das_email=>mc_cc AND
+         <fs_recipient>-kind <> zif_fi_das_email=>mc_bcc.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e040(zfi_das).
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_attachments ASSIGNING FIELD-SYMBOL(<fs_attachment>).
+      IF strlen( <fs_attachment>-name ) > mc_max_attachment_name_length.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e041(zfi_das).
+      ENDIF.
+    ENDLOOP.
 
     DATA(ls_template) = get_template( i_template = i_template
                                       i_language = i_language ).
@@ -166,14 +189,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   METHOD add_attachments.
 
     LOOP AT it_attachments ASSIGNING FIELD-SYMBOL(<fs_attachment>).
-
-      IF strlen( <fs_attachment>-name ) > mc_max_attachment_name_length.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          MESSAGE e041(zfi_das).
-
-      ENDIF.
-
       DATA(lt_header) = VALUE soli_tab( ( line = |{ mc_attachment_header_prefix }{ <fs_attachment>-name }| ) ).
 
       io_document->add_attachment( i_attachment_type = <fs_attachment>-document_type
@@ -188,15 +203,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   METHOD add_recipients.
 
     LOOP AT it_recipients ASSIGNING FIELD-SYMBOL(<fs_recipient>).
-
-      IF <fs_recipient>-kind <> zif_fi_das_email=>mc_to AND
-         <fs_recipient>-kind <> zif_fi_das_email=>mc_cc AND
-         <fs_recipient>-kind <> zif_fi_das_email=>mc_bcc.
-
-        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e040(zfi_das).
-
-      ENDIF.
-
       io_request->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( CONV adr6-smtp_addr( <fs_recipient>-email ) )
                                  i_copy = xsdbool( <fs_recipient>-kind = zif_fi_das_email=>mc_cc )
                                  i_blind_copy = xsdbool( <fs_recipient>-kind = zif_fi_das_email=>mc_bcc ) ).
@@ -205,16 +211,34 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_fi_das_email~get_language.
+    get_user_language(
+      EXPORTING
+        i_email = i_email
+      IMPORTING
+        e_found = DATA(l_found)
+        e_language = DATA(l_language) ).
 
-    SELECT SINGLE language
-      FROM zfi_das_usr_lang
-    WHERE email_id = @i_email
-      INTO @r_language.
-
-    IF r_language IS INITIAL.
-      r_language = mc_default_language.
+    IF l_found = abap_false.
+      l_language = mc_default_language.
     ENDIF.
+    r_language = l_language.
 
+  ENDMETHOD.
+
+  METHOD get_user_language.
+    CLEAR: e_found, e_language.
+    TRY.
+        SELECT SINGLE language
+          FROM zfi_das_usr_lang
+          WHERE email_id = @i_email
+          INTO @e_language.
+        e_found = xsdbool( sy-subrc = 0 ).
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_sql
+            i_text   = 'User language read failed'.
+    ENDTRY.
   ENDMETHOD.
 
 ENDCLASS.

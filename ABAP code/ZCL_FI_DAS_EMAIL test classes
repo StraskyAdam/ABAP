@@ -18,14 +18,14 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA recipients TYPE zif_fi_das_email=>tt_recipients.
     DATA attachments TYPE zif_fi_das_email=>tt_attachments.
   PROTECTED SECTION.
-    METHODS get_template_data REDEFINITION.
+    METHODS get_template REDEFINITION.
     METHODS get_sender REDEFINITION.
-    METHODS read_language REDEFINITION.
+    METHODS get_user_language REDEFINITION.
     METHODS send_email REDEFINITION.
 ENDCLASS.
 
 CLASS lcl_email_fake IMPLEMENTATION.
-  METHOD get_template_data.
+  METHOD get_template.
     requested_template = i_template.
     requested_language = i_language.
     IF template_missing = abap_true.
@@ -36,7 +36,7 @@ CLASS lcl_email_fake IMPLEMENTATION.
   METHOD get_sender.
     r_sender = sender.
   ENDMETHOD.
-  METHOD read_language.
+  METHOD get_user_language.
     e_found = found.
     e_language = language.
   ENDMETHOD.

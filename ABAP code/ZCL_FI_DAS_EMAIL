@@ -2,7 +2,12 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_fi_das_email.
 
+
+
   PROTECTED SECTION.
+
+    CONSTANTS mc_max_attachment_name_length TYPE i VALUE 50.
+
     TYPES:
       BEGIN OF ts_template,
         subject TYPE string,
@@ -10,38 +15,99 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
         status  TYPE string,
       END OF ts_template.
 
-    METHODS read_template
-      IMPORTING i_template TYPE string
-                i_language TYPE string
+    METHODS get_template
+      IMPORTING i_template         TYPE string
+                i_language         TYPE string
       RETURNING VALUE(rs_template) TYPE ts_template
-      RAISING zcx_fi_das_error.
+      RAISING   zcx_fi_das_error.
     METHODS read_sender
       RETURNING VALUE(r_sender) TYPE string
-      RAISING zcx_fi_das_error.
+      RAISING   zcx_fi_das_error.
     METHODS read_language
-      IMPORTING i_email TYPE string
-      EXPORTING e_found TYPE abap_bool
+      IMPORTING i_email    TYPE string
+      EXPORTING e_found    TYPE abap_bool
                 e_language TYPE string
-      RAISING zcx_fi_das_error.
+      RAISING   zcx_fi_das_error.
     METHODS dispatch
       IMPORTING
-        i_sender       TYPE string
-        i_subject      TYPE string
-        i_body         TYPE string
-        it_recipients  TYPE zif_fi_das_email=>tt_recipients
-        it_attachments TYPE zif_fi_das_email=>tt_attachments
-      RETURNING VALUE(r_sent) TYPE abap_bool
-      RAISING zcx_fi_das_error.
+                i_sender       TYPE string
+                i_subject      TYPE string
+                i_body         TYPE string
+                it_recipients  TYPE zif_fi_das_email=>tt_recipients
+                it_attachments TYPE zif_fi_das_email=>tt_attachments
+      RETURNING VALUE(r_sent)  TYPE abap_bool
+      RAISING   zcx_fi_das_error.
 
   PRIVATE SECTION.
     CLASS-METHODS render
       IMPORTING
-        i_text    TYPE string
-        it_params TYPE zif_fi_das_email=>tt_params
+                i_text        TYPE string
+                it_params     TYPE zif_fi_das_email=>tt_params
       RETURNING VALUE(r_text) TYPE string.
 ENDCLASS.
 
 CLASS zcl_fi_das_email IMPLEMENTATION.
+
+  METHOD zif_fi_das_email~send.
+
+    LOOP AT it_recipients ASSIGNING FIELD-SYMBOL(<fs_recipient>).
+
+      IF <fs_recipient>-kind <> zif_fi_das_email=>mc_to AND
+         <fs_recipient>-kind <> zif_fi_das_email=>mc_cc AND
+         <fs_recipient>-kind <> zif_fi_das_email=>mc_bcc.
+
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e040(zfi_das).
+
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_attachments ASSIGNING FIELD-SYMBOL(<fs_attachment>).
+
+      IF strlen( <fs_attachment>-name ) > mc_max_attachment_name_length.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e041(zfi_das).
+      ENDIF.
+
+    ENDLOOP.
+
+    DATA(ls_template) = get_template( i_template = i_template i_language = i_language ).
+    
+    IF i_require_active = abap_true AND ls_template-status <> abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_text = 'Email template is not active'.
+    ENDIF.
+
+    DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
+
+    DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
+
+    DATA(l_sender) = read_sender( ).
+
+    IF dispatch( i_sender = l_sender i_subject = l_subject i_body = l_body
+                 it_recipients = it_recipients it_attachments = it_attachments ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING
+          i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_template.
+
+    SELECT SINGLE subject, body, status
+       FROM zfi_das_email
+    WHERE template_name = @i_template AND
+          language = @i_language
+       INTO @rs_template.
+
+    IF sy-subrc <> 0.
+       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e042(zfi_das).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+
+
   METHOD render.
     DATA lt_params TYPE SORTED TABLE OF zif_fi_das_email=>ts_param
                    WITH UNIQUE KEY name.
@@ -89,54 +155,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     r_language = l_language.
   ENDMETHOD.
 
-  METHOD zif_fi_das_email~send.
-    DATA l_attachment_subject TYPE so_obj_des.
-    DATA l_attachment_subject_length TYPE i.
-    DESCRIBE FIELD l_attachment_subject LENGTH l_attachment_subject_length IN CHARACTER MODE.
-    LOOP AT it_recipients INTO DATA(ls_recipient).
-      IF ls_recipient-kind <> zif_fi_das_email=>mc_to
-          AND ls_recipient-kind <> zif_fi_das_email=>mc_cc
-          AND ls_recipient-kind <> zif_fi_das_email=>mc_bcc.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Recipient kind must be TO, CC or BCC'.
-      ENDIF.
-    ENDLOOP.
-    LOOP AT it_attachments INTO DATA(ls_attachment).
-      IF strlen( ls_attachment-name ) > l_attachment_subject_length.
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Attachment filename exceeds SO_OBJ_DES length'.
-      ENDIF.
-    ENDLOOP.
 
-    DATA(ls_template) = read_template( i_template = i_template i_language = i_language ).
-    IF i_require_active = abap_true AND ls_template-status <> 'X'.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Email template is not active'.
-    ENDIF.
-    DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
-    DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
-    DATA(l_sender) = read_sender( ).
-    IF dispatch( i_sender = l_sender i_subject = l_subject i_body = l_body
-                 it_recipients = it_recipients it_attachments = it_attachments ) <> abap_true.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
-    ENDIF.
-  ENDMETHOD.
 
-  METHOD read_template.
-    TRY.
-        SELECT SINGLE subject, body, status FROM zfi_das_email
-          WHERE template_name = @i_template AND language = @i_language
-          INTO CORRESPONDING FIELDS OF @rs_template.
-        IF sy-subrc <> 0.
-          RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING i_text = 'Email template not found for the exact requested language'.
-        ENDIF.
-      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING previous = lx_sql i_text = 'Email template read failed'.
-    ENDTRY.
-  ENDMETHOD.
+
 
   METHOD read_sender.
     TRY.
@@ -144,11 +165,14 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
           WHERE config_name = 'EMAIL_FROM' INTO @r_sender.
         IF sy-subrc <> 0 OR r_sender IS INITIAL.
           RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING i_text = 'EMAIL_FROM configuration is missing or empty'.
+            EXPORTING
+              i_text = 'EMAIL_FROM configuration is missing or empty'.
         ENDIF.
       CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING previous = lx_sql i_text = 'EMAIL_FROM read failed'.
+          EXPORTING
+            previous = lx_sql
+            i_text   = 'EMAIL_FROM read failed'.
     ENDTRY.
   ENDMETHOD.
 
@@ -160,7 +184,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         e_found = xsdbool( sy-subrc = 0 ).
       CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING previous = lx_sql i_text = 'User language read failed'.
+          EXPORTING
+            previous = lx_sql
+            i_text   = 'User language read failed'.
     ENDTRY.
   ENDMETHOD.
 
@@ -204,7 +230,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         r_sent = lo_request->send( i_with_error_screen = abap_false ).
       CATCH cx_bcs INTO DATA(lx_bcs).
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING previous = lx_bcs i_text = 'BCS email request failed; caller must resolve its LUW'.
+          EXPORTING
+            previous = lx_bcs
+            i_text   = 'BCS email request failed; caller must resolve its LUW'.
     ENDTRY.
   ENDMETHOD.
 ENDCLASS.

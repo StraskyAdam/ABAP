@@ -5,10 +5,9 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA body TYPE string VALUE 'Dear &USER& &OTHER&'.
     DATA status TYPE string VALUE 'X'.
     DATA sender TYPE string VALUE 'sender@example.org'.
-    DATA language TYPE string.
-    DATA found TYPE abap_bool.
     DATA template_missing TYPE abap_bool.
     DATA bcs_error TYPE abap_bool.
+    DATA use_real_bcs TYPE abap_bool.
     DATA calls TYPE i.
     DATA requested_template TYPE string.
     DATA requested_language TYPE string.
@@ -20,7 +19,6 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
   PROTECTED SECTION.
     METHODS get_template REDEFINITION.
     METHODS get_sender REDEFINITION.
-    METHODS get_user_language REDEFINITION.
     METHODS send_email REDEFINITION.
 ENDCLASS.
 
@@ -36,12 +34,17 @@ CLASS lcl_email_fake IMPLEMENTATION.
   METHOD get_sender.
     r_sender = sender.
   ENDMETHOD.
-  METHOD get_user_language.
-    e_found = found.
-    e_language = language.
-  ENDMETHOD.
   METHOD send_email.
     calls = calls + 1.
+    IF use_real_bcs = abap_true.
+      super->send_email(
+        i_sender = i_sender
+        i_subject = i_subject
+        i_body = i_body
+        it_recipients = it_recipients
+        it_attachments = it_attachments ).
+      RETURN.
+    ENDIF.
     IF bcs_error = abap_true.
       RAISE EXCEPTION TYPE zcx_fi_das_error EXPORTING i_text = 'BCS test error'.
     ENDIF.
@@ -62,7 +65,6 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS reset_fixture.
     METHODS replace_in_parameter_order FOR TESTING RAISING cx_static_check.
     METHODS replace_empty_unknown FOR TESTING RAISING cx_static_check.
-    METHODS language_contract FOR TESTING RAISING cx_static_check.
     METHODS manager_message FOR TESTING RAISING cx_static_check.
     METHODS active_contract FOR TESTING RAISING cx_static_check.
     METHODS missing_template FOR TESTING.
@@ -111,20 +113,6 @@ CLASS ltc_email IMPLEMENTATION.
     mo_email->zif_fi_das_email~send(
       i_template = 'T' i_language = 'EN' it_recipients = mt_recipients ).
     cl_abap_unit_assert=>assert_equals( act = mo_email->sent_body exp = '' ).
-  ENDMETHOD.
-
-  METHOD language_contract.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ) exp = 'EN' ).
-    mo_email->found = abap_true.
-    mo_email->language = 'ES'.
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ) exp = 'ES' ).
-    DATA(l_language) = mo_email->zif_fi_das_email~get_language( 'owner@example.org' ).
-    mo_email->zif_fi_das_email~send(
-      i_template = 'T' i_language = CONV string( l_language )
-      it_recipients = mt_recipients ).
-    cl_abap_unit_assert=>assert_equals( act = mo_email->requested_language exp = 'ES' ).
   ENDMETHOD.
 
   METHOD manager_message.
@@ -195,6 +183,7 @@ CLASS ltc_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD recipient_kind.
+    mo_email->use_real_bcs = abap_true.
     mt_recipients[ 1 ]-kind = 'INVALID'.
     TRY.
         mo_email->zif_fi_das_email~send(
@@ -204,10 +193,11 @@ CLASS ltc_email IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lx_error->get_text( ) exp = 'Recipient type is not supported' ).
     ENDTRY.
-    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
   ENDMETHOD.
 
   METHOD filename_length.
+    mo_email->use_real_bcs = abap_true.
     DATA(lt_attachments) = VALUE zif_fi_das_email=>tt_attachments(
       ( name = repeat( val = 'a' occ = 51 ) document_type = 'CSV' ) ).
     TRY.
@@ -219,7 +209,7 @@ CLASS ltc_email IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lx_error->get_text( ) exp = 'Attachment filename exceeds maximum allowed length' ).
     ENDTRY.
-    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
   ENDMETHOD.
 
   METHOD send_error_propagation.

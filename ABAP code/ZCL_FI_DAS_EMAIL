@@ -7,6 +7,8 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
   PROTECTED SECTION.
 
     CONSTANTS mc_max_attachment_name_length TYPE i VALUE 50.
+    CONSTANTS mc_placeholder_delimiter TYPE c LENGTH 1 VALUE '&'.
+    CONSTANTS mc_config_email_from TYPE zfi_das_conf_val-config_name   VALUE 'EMAIL_FROM'.
 
     TYPES:
       BEGIN OF ts_template,
@@ -20,7 +22,7 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                 i_language         TYPE string
       RETURNING VALUE(rs_template) TYPE ts_template
       RAISING   zcx_fi_das_error.
-    METHODS read_sender
+    METHODS get_sender
       RETURNING VALUE(r_sender) TYPE string
       RAISING   zcx_fi_das_error.
     METHODS read_language
@@ -28,7 +30,7 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       EXPORTING e_found    TYPE abap_bool
                 e_language TYPE string
       RAISING   zcx_fi_das_error.
-    METHODS dispatch
+    METHODS send_email
       IMPORTING
                 i_sender       TYPE string
                 i_subject      TYPE string
@@ -61,10 +63,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
       IF <fs_recipient>-kind <> zif_fi_das_email=>mc_to AND
          <fs_recipient>-kind <> zif_fi_das_email=>mc_cc AND
          <fs_recipient>-kind <> zif_fi_das_email=>mc_bcc.
-
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e040(zfi_das).
-
       ENDIF.
+
     ENDLOOP.
 
     LOOP AT it_attachments ASSIGNING FIELD-SYMBOL(<fs_attachment>).
@@ -75,19 +76,29 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
 
     ENDLOOP.
 
-    DATA(ls_template) = get_content_for_template(
-      i_template = i_template
-      i_language = i_language
-      i_require_active = i_require_active ).
+    DATA(ls_template) = get_content_for_template( i_template       = i_template
+                                                  i_language       = i_language
+                                                  i_require_active = i_require_active ).
 
-    DATA(l_subject) = replace_placeholders( i_text = ls_template-subject it_params = it_params ).
+    DATA(l_subject) = replace_placeholders( i_text = ls_template-subject  it_params = it_params ).
 
     DATA(l_body) = replace_placeholders( i_text = ls_template-body it_params = it_params ).
 
-    DATA(l_sender) = read_sender( ).
+    DATA(l_sender) = get_sender( ).
 
-    IF dispatch( i_sender = l_sender i_subject = l_subject i_body = l_body
-                 it_recipients = it_recipients it_attachments = it_attachments ) <> abap_true.
+    IF send_email( i_sender  = get_sender( )
+                   i_subject = replace_placeholders( i_text    = ls_template-subject  
+                                                     it_params = it_params )
+                   i_body   =  replace_placeholders( i_text    = ls_template-body
+                                                     it_params = it_params )
+                   it_recipients = it_recipients
+                   it_attachments = it_attachments 
+                 ) <> abap_true.
+                 
+                 
+                 
+                 
+                 
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING
           i_text = 'BCS did not accept the request for all recipients; caller must resolve its LUW'.
@@ -95,10 +106,14 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_content_for_template.
-    rs_template = get_template_data( i_template = i_template i_language = i_language ).
+
+    rs_template = get_template_data( i_template = i_template
+                                     i_language = i_language ).
+
     IF i_require_active = abap_true AND rs_template-status <> abap_true.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e043(zfi_das).
     ENDIF.
+
   ENDMETHOD.
 
   METHOD get_template_data.
@@ -110,97 +125,40 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
        INTO @rs_template.
 
     IF sy-subrc <> 0.
-       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e042(zfi_das).
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e042(zfi_das).
     ENDIF.
 
   ENDMETHOD.
-
-
-
 
   METHOD replace_placeholders.
-    DATA lt_params TYPE SORTED TABLE OF zif_fi_das_email=>ts_param
-                   WITH UNIQUE KEY name.
-    LOOP AT it_params INTO DATA(ls_param).
-      INSERT ls_param INTO TABLE lt_params.
+
+    r_text = i_text.
+
+    LOOP AT it_params ASSIGNING FIELD-SYMBOL(<fs_param>).
+
+      REPLACE ALL OCCURRENCES OF |{ mc_placeholder_delimiter }{ <fs_param>-name }{ mc_placeholder_delimiter }|
+        IN r_text
+      WITH <fs_param>-value.
+
     ENDLOOP.
 
-    TYPES:
-      BEGIN OF ts_replacement,
-        offset TYPE i,
-        length TYPE i,
-        value  TYPE string,
-      END OF ts_replacement.
-    DATA lt_replacements TYPE STANDARD TABLE OF ts_replacement WITH EMPTY KEY.
-    DATA lt_matches TYPE match_result_tab.
-    LOOP AT lt_params INTO ls_param.
-      DATA(l_token) = |&{ ls_param-name }&|.
-      CLEAR lt_matches.
-      FIND ALL OCCURRENCES OF l_token IN i_text RESULTS lt_matches.
-      LOOP AT lt_matches INTO DATA(ls_match).
-        APPEND VALUE #( offset = ls_match-offset length = ls_match-length
-                        value = ls_param-value ) TO lt_replacements.
-      ENDLOOP.
-    ENDLOOP.
-    SORT lt_replacements BY offset.
-    DATA l_position TYPE i VALUE 0.
-    LOOP AT lt_replacements INTO DATA(ls_replacement).
-      IF ls_replacement-offset < l_position.
-        CONTINUE.
-      ENDIF.
-      DATA(l_length) = ls_replacement-offset - l_position.
-      r_text = r_text && substring( val = i_text off = l_position len = l_length ).
-      r_text = r_text && ls_replacement-value.
-      l_position = ls_replacement-offset + ls_replacement-length.
-    ENDLOOP.
-    r_text = r_text && substring( val = i_text off = l_position ).
   ENDMETHOD.
 
-  METHOD zif_fi_das_email~get_language.
-    read_language( EXPORTING i_email = i_email
-                   IMPORTING e_found = DATA(l_found) e_language = DATA(l_language) ).
-    IF l_found = abap_false.
-      l_language = 'EN'.
+  METHOD get_sender.
+
+    SELECT SINGLE config_value
+      FROM zfi_das_conf_val
+    WHERE config_name = @mc_config_email_from
+      INTO @r_sender.
+
+    IF sy-subrc <> 0 OR r_sender IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e044(zfi_das).
     ENDIF.
-    r_language = l_language.
+
   ENDMETHOD.
 
-
-
-
-
-  METHOD read_sender.
-    TRY.
-        SELECT SINGLE config_value FROM zfi_das_conf_val
-          WHERE config_name = 'EMAIL_FROM' INTO @r_sender.
-        IF sy-subrc <> 0 OR r_sender IS INITIAL.
-          RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING
-              i_text = 'EMAIL_FROM configuration is missing or empty'.
-        ENDIF.
-      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            previous = lx_sql
-            i_text   = 'EMAIL_FROM read failed'.
-    ENDTRY.
-  ENDMETHOD.
-
-  METHOD read_language.
-    CLEAR: e_found, e_language.
-    TRY.
-        SELECT SINGLE language FROM zfi_das_usr_lang
-          WHERE email_id = @i_email INTO @e_language.
-        e_found = xsdbool( sy-subrc = 0 ).
-      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
-        RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING
-            previous = lx_sql
-            i_text   = 'User language read failed'.
-    ENDTRY.
-  ENDMETHOD.
-
-  METHOD dispatch.
+  METHOD send_email.
+  
     DATA lt_header TYPE soli_tab.
     DATA l_header TYPE soli.
     DATA l_short_subject TYPE so_obj_des VALUE 'DAS email'.
@@ -208,6 +166,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     DATA l_address TYPE adr6-smtp_addr.
 
     DATA(lt_body) = cl_bcs_convert=>string_to_soli( iv_string = i_body ).
+    
     TRY.
         DATA(lo_request) = cl_bcs=>create_persistent( ).
         DATA(lo_document) = cl_document_bcs=>create_document(
@@ -245,4 +204,39 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
             i_text   = 'BCS email request failed; caller must resolve its LUW'.
     ENDTRY.
   ENDMETHOD.
+
+
+
+*******************************************
+
+  METHOD zif_fi_das_email~get_language.
+    read_language( EXPORTING i_email = i_email
+                   IMPORTING e_found = DATA(l_found) e_language = DATA(l_language) ).
+    IF l_found = abap_false.
+      l_language = 'EN'.
+    ENDIF.
+    r_language = l_language.
+  ENDMETHOD.
+
+
+
+
+
+
+
+  METHOD read_language.
+    CLEAR: e_found, e_language.
+    TRY.
+        SELECT SINGLE language FROM zfi_das_usr_lang
+          WHERE email_id = @i_email INTO @e_language.
+        e_found = xsdbool( sy-subrc = 0 ).
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING
+            previous = lx_sql
+            i_text   = 'User language read failed'.
+    ENDTRY.
+  ENDMETHOD.
+
+
 ENDCLASS.

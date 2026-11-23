@@ -235,9 +235,13 @@ CLASS ltc_email IMPLEMENTATION.
           l_expected = 'Parameter name must be nonempty without spaces or ampersands'.
         WHEN 5.
           lt_attachments = VALUE #( ( name = | report.csv| document_type = 'CSV' ) ).
+          cl_abap_unit_assert=>assert_equals(
+            act = strlen( lt_attachments[ 1 ]-name ) exp = 11 ).
           l_expected = 'Attachment filename must not start or end with a space'.
         WHEN 6.
           lt_attachments = VALUE #( ( name = |report.csv | document_type = 'CSV' ) ).
+          cl_abap_unit_assert=>assert_equals(
+            act = strlen( lt_attachments[ 1 ]-name ) exp = 11 ).
           l_expected = 'Attachment filename must not start or end with a space'.
       ENDCASE.
       TRY.
@@ -370,6 +374,8 @@ CLASS ltc_email IMPLEMENTATION.
           lt_attachments = VALUE #( ( name = '' document_type = 'CSV' ) ).
         WHEN 17.
           lt_attachments = VALUE #( ( name = |report.csv | document_type = 'CSV' ) ).
+          cl_abap_unit_assert=>assert_equals(
+            act = strlen( lt_attachments[ 1 ]-name ) exp = 11 ).
       ENDCASE.
       TRY.
           mo_email->zif_fi_das_email~send(

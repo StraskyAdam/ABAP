@@ -217,8 +217,12 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Invalid attachment name/type; filename maximum is 242 characters'.
       ENDIF.
-      IF substring( val = ls_attachment-name len = 1 ) CA space
-          OR substring( val = ls_attachment-name off = strlen( ls_attachment-name ) - 1 ) CA space.
+      DATA(l_last_offset) = strlen( ls_attachment-name ) - 1.
+      DATA l_first_char TYPE c LENGTH 1.
+      DATA l_last_char TYPE c LENGTH 1.
+      l_first_char = ls_attachment-name+0(1).
+      l_last_char = ls_attachment-name+l_last_offset(1).
+      IF l_first_char = space OR l_last_char = space.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Attachment filename must not start or end with a space'.
       ENDIF.

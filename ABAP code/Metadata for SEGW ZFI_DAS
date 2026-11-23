@@ -433,6 +433,10 @@ This XML file does not appear to have any style information associated with it. 
 <End EntitySet="exclusionPOParameters" Role="FromRole_exclusionPOParameters_to_exclusionPOType"/>
 <End EntitySet="exclusionPO" Role="ToRole_exclusionPOParameters_to_exclusionPOType"/>
 </AssociationSet>
+<FunctionImport Name="EmailExcelReport" ReturnType="Edm.String" m:HttpMethod="POST">
+<Parameter Name="EMAIL" Type="Edm.String" Mode="In" MaxLength="255" Nullable="false"/>
+<Parameter Name="POOWNER" Type="Edm.String" Mode="In" MaxLength="1" Nullable="false"/>
+</FunctionImport>
 </EntityContainer>
 <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="self" href="https://vhtakcusci.sap.onetakeda.com:44300/sap/opu/odata/sap/ZFI_DAS_SRV/$metadata"/>
 <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="latest-version" href="https://vhtakcusci.sap.onetakeda.com:44300/sap/opu/odata/sap/ZFI_DAS_SRV/$metadata"/>

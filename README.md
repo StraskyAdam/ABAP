@@ -78,3 +78,11 @@ The objective of this repository is to support:
 - understanding of data replication and source-system limitations
 
 For all validation and comparison activities, the XSA implementation remains the authoritative source of truth.
+
+## Dashboard Email Excel Report
+
+The ABAP artifacts expose the `EmailExcelReport` POST function import in `ZFI_DAS_SRV`. It accepts `EMAIL` and `POOWNER`, gathers the open, below-threshold, and exclusion rows, and sends CSV attachments through the shared email framework in batches of 50,000 rows. No email is sent when the combined result is empty.
+
+The action intentionally preserves the XSA contract and trusts the caller-supplied `EMAIL` and `POOWNER`; Gateway/service authorization must be verified before exposing it.
+
+The metadata snapshot and DPC extension are repository artifacts; SEGW activation, service registration, and runtime validation still need to be completed in SAP before the endpoint is considered deployable.

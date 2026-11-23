@@ -1,0 +1,411 @@
+CLASS zcl_fi_das_email_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    METHODS send_open_po_report
+      IMPORTING
+        i_email   TYPE zif_fi_das_dashboard=>t_email
+        i_poowner TYPE zif_fi_das_dashboard=>t_poowner
+      RETURNING
+        VALUE(r_status) TYPE string
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db
+        cx_sy_codepage_converter_init
+        cx_sy_conversion_codepage.
+
+  PRIVATE SECTION.
+    CONSTANTS mc_rows_per_email TYPE i VALUE 50000.
+    CONSTANTS mc_template TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO'.
+    CONSTANTS mc_document_type_csv TYPE so_obj_tp VALUE 'CSV'.
+
+    TYPES:
+      BEGIN OF ts_report_row,
+        dashboard_section TYPE string,
+        INCLUDE TYPE zfi_das_shared,
+        INCLUDE TYPE zfi_das_over_under,
+        ruletype       TYPE zfi_das_exclude-ruletype,
+        ruletypetext   TYPE zfi_das_exclude-ruletypetext,
+        costcenterdesc TYPE zfi_das_exclude-costcenterdesc,
+      END OF ts_report_row,
+      tt_report_rows TYPE STANDARD TABLE OF ts_report_row WITH EMPTY KEY,
+      tt_csv_lines TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+    METHODS append_over_rows
+      IMPORTING
+        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_over
+      CHANGING
+        ct_rows TYPE tt_report_rows.
+    METHODS append_under_rows
+      IMPORTING
+        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_under
+      CHANGING
+        ct_rows TYPE tt_report_rows.
+    METHODS append_exclusion_rows
+      IMPORTING
+        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude
+      CHANGING
+        ct_rows TYPE tt_report_rows.
+    METHODS get_csv_header
+      RETURNING
+        VALUE(r_header) TYPE string.
+    METHODS get_csv_row
+      IMPORTING
+        is_row TYPE ts_report_row
+      RETURNING
+        VALUE(r_csv_row) TYPE string.
+    METHODS csv_cell
+      IMPORTING
+        i_value TYPE string
+      RETURNING
+        VALUE(r_cell) TYPE string.
+    METHODS format_date
+      IMPORTING
+        i_date TYPE d
+      RETURNING
+        VALUE(r_date) TYPE string.
+    METHODS format_timestamp
+      IMPORTING
+        i_timestamp TYPE timestampl
+      RETURNING
+        VALUE(r_timestamp) TYPE string.
+    METHODS encode_csv
+      IMPORTING
+        i_csv TYPE string
+      RETURNING
+        VALUE(r_content) TYPE xstring
+      RAISING
+        cx_sy_codepage_converter_init
+        cx_sy_conversion_codepage.
+    METHODS get_month_and_year
+      EXPORTING
+        e_month TYPE string
+        e_year  TYPE string.
+ENDCLASS.
+
+CLASS zcl_fi_das_email_report IMPLEMENTATION.
+  METHOD send_open_po_report.
+    DATA(lo_dashboard) = NEW zcl_fi_das_dashboard( ).
+    DATA(lt_rows) = VALUE tt_report_rows( ).
+    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+      parameter-email = i_email
+      parameter-poowner = i_poowner
+      parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+
+    lo_dashboard->over(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_over_service) ).
+    append_over_rows(
+      EXPORTING
+        it_rows = lt_over_service
+      CHANGING
+        ct_rows = lt_rows ).
+
+    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    lo_dashboard->over(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_over_material) ).
+    append_over_rows(
+      EXPORTING
+        it_rows = lt_over_material
+      CHANGING
+        ct_rows = lt_rows ).
+
+    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    lo_dashboard->under(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_under_service) ).
+    append_under_rows(
+      EXPORTING
+        it_rows = lt_under_service
+      CHANGING
+        ct_rows = lt_rows ).
+
+    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    lo_dashboard->under(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_under_material) ).
+    append_under_rows(
+      EXPORTING
+        it_rows = lt_under_material
+      CHANGING
+        ct_rows = lt_rows ).
+
+    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    lo_dashboard->exclude(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_exclusions_service) ).
+    append_exclusion_rows(
+      EXPORTING
+        it_rows = lt_exclusions_service
+      CHANGING
+        ct_rows = lt_rows ).
+
+    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    lo_dashboard->exclude(
+      EXPORTING
+        is_request = ls_request
+      IMPORTING
+        et_result = DATA(lt_exclusions_material) ).
+    append_exclusion_rows(
+      EXPORTING
+        it_rows = lt_exclusions_material
+      CHANGING
+        ct_rows = lt_rows ).
+
+    IF lt_rows IS INITIAL.
+      r_status = 'No report rows; no email sent'.
+      RETURN.
+    ENDIF.
+
+    DATA(lo_email) = NEW zcl_fi_das_email( ).
+    DATA(l_email) = CONV string( i_email ).
+    SHIFT l_email RIGHT DELETING TRAILING space.
+    DATA(l_language) = lo_email->zif_fi_das_email~get_language( l_email ).
+    DATA(l_filter_email) = l_email.
+    l_filter_email = to_lower( l_filter_email ).
+    REPLACE ALL OCCURRENCES OF '''' IN l_filter_email WITH ''''''.
+    lo_dashboard->user_details(
+      EXPORTING
+        is_request = VALUE #(
+          filter-filter_string = |EMAILADDR = '{ l_filter_email }'|
+          paging-top_requested = abap_true
+          paging-top = 1 )
+      IMPORTING
+        et_result = DATA(lt_user_details) ).
+    DATA(l_user_name) = l_email.
+    IF lt_user_details IS NOT INITIAL AND lt_user_details[ 1 ]-full_name IS NOT INITIAL.
+      l_user_name = lt_user_details[ 1 ]-full_name.
+    ENDIF.
+    DATA(l_timestamp) = |{ sy-datum }{ sy-uzeit }|.
+    DATA(l_suffix) = 1.
+    DATA(l_start) = 1.
+    DATA(l_total) = lines( lt_rows ).
+    get_month_and_year(
+      IMPORTING
+        e_month = DATA(l_month)
+        e_year = DATA(l_year) ).
+
+    WHILE l_start <= l_total.
+      DATA(l_end) = l_start + mc_rows_per_email - 1.
+      IF l_end > l_total.
+        l_end = l_total.
+      ENDIF.
+      DATA(lt_csv_lines) = VALUE tt_csv_lines( ( get_csv_header( ) ) ).
+
+      LOOP AT lt_rows ASSIGNING FIELD-SYMBOL(<fs_row>) FROM l_start TO l_end.
+        APPEND get_csv_row( <fs_row> ) TO lt_csv_lines.
+      ENDLOOP.
+
+      DATA(l_csv) = concat_lines_of(
+        table = lt_csv_lines
+        sep = cl_abap_char_utilities=>cr_lf ) && cl_abap_char_utilities=>cr_lf.
+      DATA(l_filename) = |Digital_PO_Accruals_Dashboard_{ l_timestamp }_{ l_suffix }.csv|.
+      IF strlen( l_filename ) > 50.
+        l_filename = |DAS_{ l_timestamp }_{ l_suffix }.csv|.
+      ENDIF.
+
+      lo_email->zif_fi_das_email~send(
+        i_template = mc_template
+        i_language = CONV string( l_language )
+        it_recipients = VALUE #(
+          ( email = l_email
+            kind = zif_fi_das_email=>mc_to ) )
+        it_params = VALUE #(
+          ( name = 'USER' value = l_user_name )
+          ( name = 'MONTH' value = l_month )
+          ( name = 'YEAR' value = l_year ) )
+        it_attachments = VALUE #(
+          ( name = l_filename
+            document_type = mc_document_type_csv
+            content = encode_csv( l_csv ) ) ) ).
+
+      l_start = l_end + 1.
+      l_suffix = l_suffix + 1.
+    ENDWHILE.
+
+    r_status = 'Email request accepted'.
+  ENDMETHOD.
+
+  METHOD append_over_rows.
+    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
+      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
+      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
+      <fs_report_row>-dashboard_section =
+        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                THEN 'Indirect Services'
+                ELSE 'Indirect Material' ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD append_under_rows.
+    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
+      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
+      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
+      <fs_report_row>-dashboard_section =
+        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                THEN 'Below $50k Indirect Service'
+                ELSE 'Below $50k Indirect Material' ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD append_exclusion_rows.
+    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
+      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
+      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
+      <fs_report_row>-dashboard_section =
+        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                THEN 'Exclusion Indirect Service'
+                ELSE 'Exclusion Indirect Material' ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_csv_header.
+    " Preserve XSA's empty trailing column in the CSV.
+    r_header = 'PO Dashboard Section,Company Code,PO Number,Line Item,PO line Description,'
+      && 'Supplier Code,Supplier Name,Document Currency,PO Value,PO Value(USD),Status,'
+      && 'Service Start Date,Service End Date,Services Completed Amount,'
+      && 'Services Completed Amount(USD),% of Services Completed,Goods Reciept to date,'
+      && 'Goods Reciept to date(USD),Invoice Amount to Date,Invoice Amount to Date(USD),'
+      && 'Amount to be Accrued,Amount to be Accrued(USD),Straight Line Method,Accrual Method,'
+      && 'PO Owner,PO Preparer,Reviewed By,Last Update On,GL Account,Cost Center,Management Unit,'
+      && 'Internal Order,Profit Center,Asset Id,Region,PR Number,PO Creation Date,Rule Type Text,'
+      && 'Rule Type,PSTYPE Text,Exchange Rate,Eligible for Closure,Activity Number,Split Accounting %,'.
+  ENDMETHOD.
+
+  METHOD get_csv_row.
+    DATA lt_cells TYPE tt_csv_lines.
+    DATA(l_description) = CONV string( is_row-polinedesc ).
+    DATA(l_supplier_name) = CONV string( is_row-suppliername ).
+    REPLACE ALL OCCURRENCES OF '–' IN l_description WITH '-'.
+    REPLACE ALL OCCURRENCES OF '–' IN l_supplier_name WITH '-'.
+
+    APPEND csv_cell( is_row-dashboard_section ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-companycode ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-ponumber ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-itemno ) ) TO lt_cells.
+    APPEND csv_cell( l_description ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-supplierid ) ) TO lt_cells.
+    APPEND csv_cell( l_supplier_name ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-pocurrency ) ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-povalue NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-povalue_usd NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-status ) ) TO lt_cells.
+    APPEND csv_cell( format_date( is_row-wrkstrtdate ) ) TO lt_cells.
+    APPEND csv_cell( format_date( is_row-wrkenddate ) ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-totwrkcompamt NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-totwrkcompamt_usd NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-totwrkcompper NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-grvalue NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-grvalue_usd NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-invvalue NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-invvalue_usd NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-amountaccrued NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( |{ is_row-amountaccrued_usd NUMBER = RAW }| ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-straightlinemthd ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-accrualmethod ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-poowner_email ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-po_preparer ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-reviwed_by ) ) TO lt_cells.
+    APPEND csv_cell( format_timestamp( is_row-changed_on ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-glaccount ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-costcenter ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-manageunit ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-internalorder ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-profitcenter ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-assetid ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-region ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-epnumber ) ) TO lt_cells.
+    APPEND csv_cell( format_date( is_row-pocreatedat ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-ruletype ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-ruletypetext ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-pstype ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-exchangerate ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-po_closure ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-zactivitynbr ) ) TO lt_cells.
+    APPEND csv_cell( CONV string( is_row-distpercentage ) ) TO lt_cells.
+    r_csv_row = concat_lines_of( table = lt_cells sep = ',' ) && ','.
+  ENDMETHOD.
+
+  METHOD csv_cell.
+    DATA(l_value) = i_value.
+    IF l_value IS INITIAL.
+      l_value = ` `.
+    ENDIF.
+    REPLACE ALL OCCURRENCES OF '"' IN l_value WITH '""'.
+    r_cell = |"{ l_value }"|.
+  ENDMETHOD.
+
+  METHOD format_date.
+    IF i_date IS INITIAL.
+      r_date = ` `.
+      RETURN.
+    ENDIF.
+
+    DATA(l_month_index) = CONV i( i_date+4(2) ).
+    DATA(lt_months) = VALUE tt_csv_lines(
+      ( `Jan` ) ( `Feb` ) ( `Mar` ) ( `Apr` ) ( `May` ) ( `Jun` )
+      ( `Jul` ) ( `Aug` ) ( `Sep` ) ( `Oct` ) ( `Nov` ) ( `Dec` ) ).
+    IF l_month_index < 1 OR l_month_index > lines( lt_months ).
+      r_date = ` `.
+      RETURN.
+    ENDIF.
+    r_date = |{ i_date+6(2) } { lt_months[ l_month_index ] } { i_date(4) }|.
+  ENDMETHOD.
+
+  METHOD format_timestamp.
+    IF i_timestamp IS INITIAL.
+      r_timestamp = ` `.
+      RETURN.
+    ENDIF.
+
+    CONVERT TIME STAMP i_timestamp TIME ZONE 'CET'
+      INTO DATE DATA(l_date) TIME DATA(l_time).
+
+    DATA(l_hour) = CONV i( l_time(2) ).
+    DATA(l_meridiem) = COND string( WHEN l_hour < 12 THEN 'am' ELSE 'pm' ).
+    DATA(l_hour_12) = l_hour MOD 12.
+    IF l_hour_12 = 0.
+      l_hour_12 = 12.
+    ENDIF.
+    r_timestamp = |{ l_hour_12 }:{ l_time+2(2) }:{ l_time+4(2) } { l_meridiem }|.
+  ENDMETHOD.
+
+  METHOD encode_csv.
+    DATA(lo_converter) = cl_abap_conv_out_ce=>create( encoding = 'UTF-8' ).
+    lo_converter->write( data = i_csv ).
+    DATA(l_utf8) = lo_converter->get_buffer( ).
+    CONCATENATE x'EFBBBF' l_utf8 INTO r_content IN BYTE MODE.
+  ENDMETHOD.
+
+  METHOD get_month_and_year.
+    DATA(l_date) = sy-datlo.
+    IF l_date+6(2) < '07'.
+      DATA(l_month_number) = CONV i( l_date+4(2) ).
+      IF l_month_number = 1.
+        DATA(l_year_number) = CONV i( l_date(4) ) - 1.
+        l_date(4) = |{ l_year_number WIDTH = 4 PAD = '0' }|.
+        l_date+4(2) = '12'.
+      ELSE.
+        l_month_number = l_month_number - 1.
+        l_date+4(2) = |{ l_month_number WIDTH = 2 PAD = '0' }|.
+      ENDIF.
+    ENDIF.
+
+    DATA(l_month_index) = CONV i( l_date+4(2) ).
+    DATA(lt_months) = VALUE tt_csv_lines(
+      ( `January` ) ( `February` ) ( `March` ) ( `April` ) ( `May` ) ( `June` )
+      ( `July` ) ( `August` ) ( `September` ) ( `October` ) ( `November` ) ( `December` ) ).
+    e_month = lt_months[ l_month_index ].
+    e_year = l_date(4).
+  ENDMETHOD.
+ENDCLASS.

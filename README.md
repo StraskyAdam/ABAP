@@ -145,10 +145,12 @@ lo_email->send(
 - Attachments contain raw XSTRING bytes, unchanged, plus an explicit three-character
   BCS/SAPoffice document type (for example `CSV` or `BIN`; not a MIME type).
   There is no CSV formatter or implicit decoding. Full names are carried in
-  `&SO_FILENAME=`; the 255-character SOLI header permits at most 242 name
-  characters. Longer names are rejected, never truncated. Controls, path
-  separators, quotes, semicolons and leading/trailing spaces are rejected. The generic attachment title
-  does not replace the filename header. Empty binary attachments are allowed.
+  `&SO_FILENAME=` and the BCS attachment subject. Names exceeding the installed
+  `SO_OBJ_DES` character length or the 242-character header limit are rejected,
+  never silently truncated. Controls, path
+  separators, quotes, semicolons and leading/trailing spaces are rejected.
+  Filename and extension handling must still be verified per document type in
+  the target SAPconnect environment. Empty binary attachments are allowed.
 - `prepare_text` accepts explicit `UTF-8`, `UTF-16LE` (SAP 4103) or `UTF-16BE`
   (4102), with strict converter errors wrapped with their original cause.
   It removes any leading encoded U+FEFF markers and emits exactly one BOM if

@@ -277,7 +277,7 @@ CLASS ltc_email IMPLEMENTATION.
     DATA(lt_attachments) = VALUE zif_fi_das_email=>tt_attachments(
       ( name = 'Prehľad november.csv' document_type = 'CSV' content = 'EFBBBF00FF0D0A' )
       ( name = 'binary.xlsx' document_type = 'BIN' content = '504B0000FF' )
-      ( name = repeat( val = 'Ž' occ = 238 ) && '.csv'
+      ( name = repeat( val = 'Ž' occ = 46 ) && '.csv'
         document_type = 'CSV' content = '' ) ).
     mo_email->body = repeat( val = 'Ž' occ = 600 ) && cl_abap_char_utilities=>cr_lf && '&USER&'.
     mo_email->subject = repeat( val = 'S' occ = 300 ) && '&USER&'.
@@ -358,7 +358,7 @@ CLASS ltc_email IMPLEMENTATION.
           lt_attachments = VALUE #( ( name = |bad{ cl_abap_char_utilities=>newline }name|
                                      document_type = 'BIN' ) ).
         WHEN 10.
-          lt_attachments = VALUE #( ( name = repeat( val = 'a' occ = 243 )
+          lt_attachments = VALUE #( ( name = repeat( val = 'a' occ = 51 )
                                      document_type = 'BIN' ) ).
         WHEN 11.
           lt_attachments = VALUE #( ( name = 'ok.csv' ) ).

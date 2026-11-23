@@ -182,6 +182,9 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_fi_das_email~send.
+    DATA l_attachment_subject TYPE so_obj_des.
+    DATA l_attachment_subject_length TYPE i.
+    DESCRIBE FIELD l_attachment_subject LENGTH l_attachment_subject_length IN CHARACTER MODE.
     IF i_template IS INITIAL OR strlen( i_template ) > 100
         OR i_language IS INITIAL OR strlen( i_language ) > 5
         OR i_language CA space.
@@ -210,12 +213,14 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     LOOP AT it_attachments INTO DATA(ls_attachment).
       check_header( ls_attachment-name ).
       check_header( CONV string( ls_attachment-document_type ) ).
-      IF ls_attachment-name IS INITIAL OR strlen( ls_attachment-name ) > 242
+      IF ls_attachment-name IS INITIAL
+          OR strlen( ls_attachment-name ) > l_attachment_subject_length
+          OR strlen( ls_attachment-name ) > 242
           OR ls_attachment-name CS '/' OR ls_attachment-name CS '\'
           OR ls_attachment-name CS '"' OR ls_attachment-name CS ';'
           OR ls_attachment-document_type IS INITIAL.
         RAISE EXCEPTION TYPE zcx_fi_das_error
-          EXPORTING i_text = 'Invalid attachment name/type; filename maximum is 242 characters'.
+          EXPORTING i_text = 'Invalid attachment name/type or filename exceeds BCS subject length'.
       ENDIF.
       DATA(l_last_offset) = strlen( ls_attachment-name ) - 1.
       DATA l_first_char TYPE c LENGTH 1.
@@ -310,7 +315,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
           l_attachment_size = xstrlen( ls_attachment-content ).
           lo_document->add_attachment(
             i_attachment_type = ls_attachment-document_type
-            i_attachment_subject = 'Attachment'
+            i_attachment_subject = CONV so_obj_des( ls_attachment-name )
             i_attachment_size = l_attachment_size
             i_attachment_header = lt_header
             i_att_content_hex = cl_bcs_convert=>xstring_to_solix(

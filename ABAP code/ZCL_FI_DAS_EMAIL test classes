@@ -19,14 +19,14 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA recipients TYPE zif_fi_das_email=>tt_recipients.
     DATA attachments TYPE zif_fi_das_email=>tt_attachments.
   PROTECTED SECTION.
-    METHODS read_template REDEFINITION.
+    METHODS get_template_data REDEFINITION.
     METHODS read_sender REDEFINITION.
     METHODS read_language REDEFINITION.
     METHODS dispatch REDEFINITION.
 ENDCLASS.
 
 CLASS lcl_email_fake IMPLEMENTATION.
-  METHOD read_template.
+  METHOD get_template_data.
     requested_template = i_template.
     requested_language = i_language.
     IF template_missing = abap_true.
@@ -62,8 +62,8 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     DATA mt_recipients TYPE zif_fi_das_email=>tt_recipients.
     METHODS setup.
     METHODS reset_fixture.
-    METHODS render_single_pass FOR TESTING RAISING cx_static_check.
-    METHODS render_empty_unknown FOR TESTING RAISING cx_static_check.
+    METHODS replace_single_pass FOR TESTING RAISING cx_static_check.
+    METHODS replace_empty_unknown FOR TESTING RAISING cx_static_check.
     METHODS language_contract FOR TESTING RAISING cx_static_check.
     METHODS manager_message FOR TESTING RAISING cx_static_check.
     METHODS active_contract FOR TESTING RAISING cx_static_check.
@@ -83,7 +83,7 @@ CLASS ltc_email IMPLEMENTATION.
     mt_recipients = VALUE #( ( email = 'manager@example.org' kind = 'TO' ) ).
   ENDMETHOD.
 
-  METHOD render_single_pass.
+  METHOD replace_single_pass.
     DATA(l_text) = |Žluťoučký &USER& / &MONTH& &USER&{ cl_abap_char_utilities=>cr_lf }fin|.
     mo_email->body = l_text.
     mo_email->zif_fi_das_email~send(
@@ -95,7 +95,7 @@ CLASS ltc_email IMPLEMENTATION.
       exp = |Žluťoučký &MONTH& / november &MONTH&{ cl_abap_char_utilities=>cr_lf }fin| ).
   ENDMETHOD.
 
-  METHOD render_empty_unknown.
+  METHOD replace_empty_unknown.
     mo_email->body = '&MES& &USER&&USER& & lonely &'.
     mo_email->zif_fi_das_email~send(
       i_template = 'T' i_language = 'EN' it_recipients = mt_recipients
@@ -204,7 +204,7 @@ CLASS ltc_email IMPLEMENTATION.
         cl_abap_unit_assert=>fail( 'Invalid recipient kind accepted' ).
       CATCH zcx_fi_das_error INTO DATA(lx_error).
         cl_abap_unit_assert=>assert_equals(
-          act = lx_error->get_text( ) exp = 'Recipient kind must be TO, CC or BCC' ).
+          act = lx_error->get_text( ) exp = 'Recipient type is not supported' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
   ENDMETHOD.
@@ -219,7 +219,7 @@ CLASS ltc_email IMPLEMENTATION.
         cl_abap_unit_assert=>fail( 'Filename beyond SO_OBJ_DES length accepted' ).
       CATCH zcx_fi_das_error INTO DATA(lx_error).
         cl_abap_unit_assert=>assert_equals(
-          act = lx_error->get_text( ) exp = 'Attachment filename exceeds SO_OBJ_DES length' ).
+          act = lx_error->get_text( ) exp = 'Attachment filename exceeds maximum allowed length' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
   ENDMETHOD.

@@ -15,7 +15,7 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
         status  TYPE string,
       END OF ts_template.
 
-    METHODS get_template
+    METHODS get_template_data
       IMPORTING i_template         TYPE string
                 i_language         TYPE string
       RETURNING VALUE(rs_template) TYPE ts_template
@@ -39,7 +39,13 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       RAISING   zcx_fi_das_error.
 
   PRIVATE SECTION.
-    CLASS-METHODS render
+    METHODS get_content_for_template
+      IMPORTING i_template         TYPE string
+                i_language         TYPE string
+                i_require_active   TYPE abap_bool
+      RETURNING VALUE(rs_template) TYPE ts_template
+      RAISING   zcx_fi_das_error.
+    CLASS-METHODS replace_placeholders
       IMPORTING
                 i_text        TYPE string
                 it_params     TYPE zif_fi_das_email=>tt_params
@@ -69,17 +75,14 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
 
     ENDLOOP.
 
-    DATA(ls_template) = get_template( i_template = i_template i_language = i_language ).
-    
-    IF i_require_active = abap_true AND ls_template-status <> abap_true.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING
-          i_text = 'Email template is not active'.
-    ENDIF.
+    DATA(ls_template) = get_content_for_template(
+      i_template = i_template
+      i_language = i_language
+      i_require_active = i_require_active ).
 
-    DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
+    DATA(l_subject) = replace_placeholders( i_text = ls_template-subject it_params = it_params ).
 
-    DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
+    DATA(l_body) = replace_placeholders( i_text = ls_template-body it_params = it_params ).
 
     DATA(l_sender) = read_sender( ).
 
@@ -91,7 +94,14 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD get_template.
+  METHOD get_content_for_template.
+    rs_template = get_template_data( i_template = i_template i_language = i_language ).
+    IF i_require_active = abap_true AND rs_template-status <> abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e043(zfi_das).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_template_data.
 
     SELECT SINGLE subject, body, status
        FROM zfi_das_email
@@ -108,7 +118,7 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
 
 
 
-  METHOD render.
+  METHOD replace_placeholders.
     DATA lt_params TYPE SORTED TABLE OF zif_fi_das_email=>ts_param
                    WITH UNIQUE KEY name.
     LOOP AT it_params INTO DATA(ls_param).

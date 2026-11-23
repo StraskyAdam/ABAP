@@ -28,7 +28,7 @@ CLASS zcl_fi_das_email_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         costcenterdesc TYPE zfi_das_exclude-costcenterdesc,
       END OF ts_report_row,
       tt_report_rows TYPE STANDARD TABLE OF ts_report_row WITH EMPTY KEY,
-      tt_csv_lines TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+      tt_csv_lines TYPE zcl_fi_das_csv=>tt_strings.
 
     METHODS append_over_rows
       IMPORTING
@@ -53,11 +53,6 @@ CLASS zcl_fi_das_email_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         is_row TYPE ts_report_row
       RETURNING
         VALUE(r_csv_row) TYPE string.
-    METHODS csv_cell
-      IMPORTING
-        i_value TYPE string
-      RETURNING
-        VALUE(r_cell) TYPE string.
     METHODS format_date
       IMPORTING
         i_date TYPE d
@@ -68,14 +63,6 @@ CLASS zcl_fi_das_email_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         i_timestamp TYPE timestampl
       RETURNING
         VALUE(r_timestamp) TYPE string.
-    METHODS encode_csv
-      IMPORTING
-        i_csv TYPE string
-      RETURNING
-        VALUE(r_content) TYPE xstring
-      RAISING
-        cx_sy_codepage_converter_init
-        cx_sy_conversion_codepage.
     METHODS get_month_and_year
       EXPORTING
         e_month TYPE string
@@ -206,9 +193,7 @@ CLASS zcl_fi_das_email_report IMPLEMENTATION.
         APPEND get_csv_row( <fs_row> ) TO lt_csv_lines.
       ENDLOOP.
 
-      DATA(l_csv) = concat_lines_of(
-        table = lt_csv_lines
-        sep = cl_abap_char_utilities=>cr_lf ) && cl_abap_char_utilities=>cr_lf.
+      DATA(l_csv) = zcl_fi_das_csv=>join_lines( lt_csv_lines ).
       DATA(l_filename) = |Digital_PO_Accruals_Dashboard_{ l_timestamp }_{ l_suffix }.csv|.
       IF strlen( l_filename ) > 50.
         l_filename = |DAS_{ l_timestamp }_{ l_suffix }.csv|.
@@ -227,7 +212,7 @@ CLASS zcl_fi_das_email_report IMPLEMENTATION.
         it_attachments = VALUE #(
           ( name = l_filename
             document_type = mc_document_type_csv
-            content = encode_csv( l_csv ) ) ) ).
+            content = zcl_fi_das_csv=>encode_utf8( i_text = l_csv i_bom = abap_true ) ) ) ).
 
       l_start = l_end + 1.
       l_suffix = l_suffix + 1.
@@ -289,60 +274,54 @@ CLASS zcl_fi_das_email_report IMPLEMENTATION.
     REPLACE ALL OCCURRENCES OF '–' IN l_description WITH '-'.
     REPLACE ALL OCCURRENCES OF '–' IN l_supplier_name WITH '-'.
 
-    APPEND csv_cell( is_row-dashboard_section ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-companycode ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-ponumber ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-itemno ) ) TO lt_cells.
-    APPEND csv_cell( l_description ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-supplierid ) ) TO lt_cells.
-    APPEND csv_cell( l_supplier_name ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-pocurrency ) ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-povalue NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-povalue_usd NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-status ) ) TO lt_cells.
-    APPEND csv_cell( format_date( is_row-wrkstrtdate ) ) TO lt_cells.
-    APPEND csv_cell( format_date( is_row-wrkenddate ) ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-totwrkcompamt NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-totwrkcompamt_usd NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-totwrkcompper NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-grvalue NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-grvalue_usd NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-invvalue NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-invvalue_usd NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-amountaccrued NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( |{ is_row-amountaccrued_usd NUMBER = RAW }| ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-straightlinemthd ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-accrualmethod ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-poowner_email ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-po_preparer ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-reviwed_by ) ) TO lt_cells.
-    APPEND csv_cell( format_timestamp( is_row-changed_on ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-glaccount ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-costcenter ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-manageunit ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-internalorder ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-profitcenter ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-assetid ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-region ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-epnumber ) ) TO lt_cells.
-    APPEND csv_cell( format_date( is_row-pocreatedat ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-ruletype ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-ruletypetext ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-pstype ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-exchangerate ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-po_closure ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-zactivitynbr ) ) TO lt_cells.
-    APPEND csv_cell( CONV string( is_row-distpercentage ) ) TO lt_cells.
-    r_csv_row = concat_lines_of( table = lt_cells sep = ',' ) && ','.
-  ENDMETHOD.
-
-  METHOD csv_cell.
-    DATA(l_value) = i_value.
-    IF l_value IS INITIAL.
-      l_value = ` `.
-    ENDIF.
-    REPLACE ALL OCCURRENCES OF '"' IN l_value WITH '""'.
-    r_cell = |"{ l_value }"|.
+    APPEND is_row-dashboard_section TO lt_cells.
+    APPEND CONV string( is_row-companycode ) TO lt_cells.
+    APPEND CONV string( is_row-ponumber ) TO lt_cells.
+    APPEND CONV string( is_row-itemno ) TO lt_cells.
+    APPEND l_description TO lt_cells.
+    APPEND CONV string( is_row-supplierid ) TO lt_cells.
+    APPEND l_supplier_name TO lt_cells.
+    APPEND CONV string( is_row-pocurrency ) TO lt_cells.
+    APPEND |{ is_row-povalue NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-povalue_usd NUMBER = RAW }| TO lt_cells.
+    APPEND CONV string( is_row-status ) TO lt_cells.
+    APPEND format_date( is_row-wrkstrtdate ) TO lt_cells.
+    APPEND format_date( is_row-wrkenddate ) TO lt_cells.
+    APPEND |{ is_row-totwrkcompamt NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-totwrkcompamt_usd NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-totwrkcompper NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-grvalue NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-grvalue_usd NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-invvalue NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-invvalue_usd NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-amountaccrued NUMBER = RAW }| TO lt_cells.
+    APPEND |{ is_row-amountaccrued_usd NUMBER = RAW }| TO lt_cells.
+    APPEND CONV string( is_row-straightlinemthd ) TO lt_cells.
+    APPEND CONV string( is_row-accrualmethod ) TO lt_cells.
+    APPEND CONV string( is_row-poowner_email ) TO lt_cells.
+    APPEND CONV string( is_row-po_preparer ) TO lt_cells.
+    APPEND CONV string( is_row-reviwed_by ) TO lt_cells.
+    APPEND format_timestamp( is_row-changed_on ) TO lt_cells.
+    APPEND CONV string( is_row-glaccount ) TO lt_cells.
+    APPEND CONV string( is_row-costcenter ) TO lt_cells.
+    APPEND CONV string( is_row-manageunit ) TO lt_cells.
+    APPEND CONV string( is_row-internalorder ) TO lt_cells.
+    APPEND CONV string( is_row-profitcenter ) TO lt_cells.
+    APPEND CONV string( is_row-assetid ) TO lt_cells.
+    APPEND CONV string( is_row-region ) TO lt_cells.
+    APPEND CONV string( is_row-epnumber ) TO lt_cells.
+    APPEND format_date( is_row-pocreatedat ) TO lt_cells.
+    APPEND CONV string( is_row-ruletype ) TO lt_cells.
+    APPEND CONV string( is_row-ruletypetext ) TO lt_cells.
+    APPEND CONV string( is_row-pstype ) TO lt_cells.
+    APPEND CONV string( is_row-exchangerate ) TO lt_cells.
+    APPEND CONV string( is_row-po_closure ) TO lt_cells.
+    APPEND CONV string( is_row-zactivitynbr ) TO lt_cells.
+    APPEND CONV string( is_row-distpercentage ) TO lt_cells.
+    r_csv_row = zcl_fi_das_csv=>format_row(
+      it_values = lt_cells
+      i_empty_value = ` `
+      i_trailing_separator = abap_true ).
   ENDMETHOD.
 
   METHOD format_date.
@@ -378,13 +357,6 @@ CLASS zcl_fi_das_email_report IMPLEMENTATION.
       l_hour_12 = 12.
     ENDIF.
     r_timestamp = |{ l_hour_12 }:{ l_time+2(2) }:{ l_time+4(2) } { l_meridiem }|.
-  ENDMETHOD.
-
-  METHOD encode_csv.
-    DATA(lo_converter) = cl_abap_conv_out_ce=>create( encoding = 'UTF-8' ).
-    lo_converter->write( data = i_csv ).
-    DATA(l_utf8) = lo_converter->get_buffer( ).
-    CONCATENATE x'EFBBBF' l_utf8 INTO r_content IN BYTE MODE.
   ENDMETHOD.
 
   METHOD get_month_and_year.

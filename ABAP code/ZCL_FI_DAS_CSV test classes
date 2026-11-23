@@ -1,0 +1,79 @@
+CLASS ltc_fi_das_csv DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS csv_quotes_and_newlines FOR TESTING.
+    METHODS csv_separators FOR TESTING.
+    METHODS csv_empty_values FOR TESTING.
+    METHODS csv_join_lines FOR TESTING.
+    METHODS csv_utf8_and_bom FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_fi_das_csv IMPLEMENTATION.
+  METHOD csv_quotes_and_newlines.
+    DATA(l_newline) = cl_abap_char_utilities=>newline.
+    DATA(l_row) = zcl_fi_das_csv=>format_row(
+      VALUE #( ( `A,"B` ) ( |one{ l_newline }two| ) ( `Ž` ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = l_row
+      exp = |"A,""B","one{ l_newline }two","Ž"| ).
+  ENDMETHOD.
+
+  METHOD csv_separators.
+    DATA(lt_values) = VALUE zcl_fi_das_csv=>tt_strings( ( `A|B` ) ( `C~D` ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>format_row( it_values = lt_values i_separator = '|' )
+      exp = `"A|B"|"C~D"` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>format_row(
+        it_values = lt_values i_separator = '~' i_trailing_separator = abap_true )
+      exp = `"A|B"~"C~D"~` ).
+  ENDMETHOD.
+
+  METHOD csv_empty_values.
+    DATA(lt_values) = VALUE zcl_fi_das_csv=>tt_strings( ( `` ) ( `0` ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>format_row( lt_values )
+      exp = `"","0"` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>format_row(
+        it_values = lt_values i_empty_value = ` ` i_trailing_separator = abap_true )
+      exp = `" ","0",` ).
+    cl_abap_unit_assert=>assert_initial(
+      act = zcl_fi_das_csv=>format_row(
+        it_values = VALUE #( ) i_trailing_separator = abap_true ) ).
+  ENDMETHOD.
+
+  METHOD csv_join_lines.
+    DATA(lt_lines) = VALUE zcl_fi_das_csv=>tt_strings( ( `header,` ) ( `"1",` ) ).
+    DATA(l_crlf) = cl_abap_char_utilities=>cr_lf.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>join_lines( lt_lines )
+      exp = |header,{ l_crlf }"1",{ l_crlf }| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>join_lines(
+        it_lines = lt_lines i_line_separator = CONV string( cl_abap_char_utilities=>newline )
+        i_final_line_separator = abap_false )
+      exp = |header,{ cl_abap_char_utilities=>newline }"1",| ).
+    cl_abap_unit_assert=>assert_initial(
+      act = zcl_fi_das_csv=>join_lines( VALUE #( ) ) ).
+  ENDMETHOD.
+
+  METHOD csv_utf8_and_bom.
+    CONSTANTS lc_utf8 TYPE x LENGTH 2 VALUE 'C5BD'.
+    CONSTANTS lc_utf8_with_bom TYPE x LENGTH 5 VALUE 'EFBBBFC5BD'.
+    CONSTANTS lc_utf8_bom TYPE x LENGTH 3 VALUE 'EFBBBF'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>encode_utf8( `Ž` )
+      exp = CONV xstring( lc_utf8 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>encode_utf8( i_text = `Ž` i_bom = abap_true )
+      exp = CONV xstring( lc_utf8_with_bom ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_csv=>encode_utf8( i_text = `` i_bom = abap_true )
+      exp = CONV xstring( lc_utf8_bom ) ).
+  ENDMETHOD.
+ENDCLASS.

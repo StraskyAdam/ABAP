@@ -127,7 +127,7 @@ lo_email->send(
 - `get_language` returns `ZFI_DAS_EMAIL-LANGUAGE` and reads `ZFI_DAS_USR_LANG`
   by exact `EMAIL_ID`, preserving XSA's
   key matching. Only a missing record yields `EN`. An existing empty, oversized,
-  whitespace/control-containing language is an error. Callers may instead pass
+  whitespace-containing language is an error. Callers may instead pass
   their own explicit language; no locale remapping is performed. Convert the
   fixed-length return to `string` when passing it to `send`, as in the example.
 - Parameter names are case-sensitive bare names (`USER`, not `&USER&`).
@@ -137,10 +137,9 @@ lo_email->send(
   names) remain unchanged. Empty values are allowed. Unicode, trailing text
   spaces and existing line breaks are not reformatted.
 - Bodies are plain text, matching the XSA mail templates. Parameter replacement
-  is literal; the service rejects control characters in the rendered subject
-  and headers.
+  is literal. Header validation is delegated to BCS, matching the XSA behavior.
 - Addresses must be individual bare SMTP addresses (no display names or lists),
-  maximum 241 characters, with one `@` and no spaces/control characters.
+  maximum 241 characters, with one `@` and no spaces.
   BCS still performs its own address validation; this is not a complete RFC
   mailbox validator or proof that a mailbox exists.
 - Attachments contain raw XSTRING bytes, unchanged, plus an explicit three-character
@@ -222,7 +221,7 @@ availability. No dependency download or SAP connection occurs.
 Run ABAP Unit class `LTC_EMAIL` after activation in SAP. Its renderer tests
 and subclass doubles cover language fallback, empty language,
 exact-language template failure, active policy, manager TO/CC/BCC, binary
-attachment forwarding, long Unicode content, invalid headers/configuration,
+attachment forwarding, long Unicode content, invalid parameters/configuration,
 false BCS results and propagated errors. These tests are supplied but cannot
 execute without an ABAP runtime; the doubled dispatch does not test real BCS.
 Existing dashboard tests are not modified and need SAP/HANA to run.

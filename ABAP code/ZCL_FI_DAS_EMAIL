@@ -40,25 +40,13 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       RAISING zcx_fi_das_error.
 
   PRIVATE SECTION.
-    CLASS-METHODS check_header
-      IMPORTING i_value TYPE string
-      RAISING zcx_fi_das_error.
     CLASS-METHODS check_address
       IMPORTING i_email TYPE string
       RAISING zcx_fi_das_error.
 ENDCLASS.
 
 CLASS zcl_fi_das_email IMPLEMENTATION.
-  METHOD check_header.
-    FIND REGEX '[[:cntrl:]]' IN i_value.
-    IF sy-subrc = 0.
-      RAISE EXCEPTION TYPE zcx_fi_das_error
-        EXPORTING i_text = 'Email header contains control characters'.
-    ENDIF.
-  ENDMETHOD.
-
   METHOD check_address.
-    check_header( i_email ).
     IF i_email IS INITIAL OR strlen( i_email ) > 241
         OR i_email CA space OR i_email CS ',' OR i_email CS ';'
         OR i_email CS '<' OR i_email CS '>'.
@@ -81,7 +69,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_fi_das_error
           EXPORTING i_text = 'Parameter name must be nonempty without spaces or ampersands'.
       ENDIF.
-      check_header( ls_param-name ).
       INSERT ls_param INTO TABLE lt_params.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_fi_das_error
@@ -130,7 +117,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'User language is empty or invalid; no implicit fallback'.
     ENDIF.
-    check_header( l_language ).
     IF l_language CA space.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'User language contains spaces'.
@@ -148,8 +134,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'Explicit template (1..100) and language (1..5) are required'.
     ENDIF.
-    check_header( i_template ).
-    check_header( i_language ).
     IF i_require_active <> abap_true AND i_require_active <> abap_false.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'Invalid require_active flag'.
@@ -168,8 +152,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
     LOOP AT it_attachments INTO DATA(ls_attachment).
-      check_header( ls_attachment-name ).
-      check_header( CONV string( ls_attachment-document_type ) ).
       IF ls_attachment-name IS INITIAL
           OR strlen( ls_attachment-name ) > l_attachment_subject_length
           OR strlen( ls_attachment-name ) > 242
@@ -197,7 +179,6 @@ CLASS zcl_fi_das_email IMPLEMENTATION.
     ENDIF.
     DATA(l_subject) = render( i_text = ls_template-subject it_params = it_params ).
     DATA(l_body) = render( i_text = ls_template-body it_params = it_params ).
-    check_header( l_subject ).
     IF l_subject IS INITIAL.
       RAISE EXCEPTION TYPE zcx_fi_das_error
         EXPORTING i_text = 'Email subject is empty'.

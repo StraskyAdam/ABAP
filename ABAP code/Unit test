@@ -11933,6 +11933,8 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS description_normalizes_en_dash FOR TESTING.
     METHODS numeric_values_use_raw_decimal FOR TESTING.
     METHODS date_uses_xsa_format FOR TESTING.
+    METHODS report_formats_match_xsa FOR TESTING.
+    METHODS report_timestamp_is_local FOR TESTING.
     METHODS report_mapping FOR TESTING RAISING cx_static_check.
     METHODS csv_batch_boundaries FOR TESTING.
 ENDCLASS.
@@ -11977,6 +11979,53 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_dashboard=>format_date( '20240305' )
       exp = '05 Mar 2024' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_date( '20260901' )
+      exp = '01 Sept 2026' ).
+  ENDMETHOD.
+
+  METHOD report_formats_match_xsa.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_report_amount( '1250.00' ) exp = '1250' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_report_amount( '1804.20' ) exp = '1804.2' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_report_amount( '0.00' ) exp = '0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_report_amount( '-0.10' ) exp = '-0.1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_report_amount( '36.14' ) exp = '36.14' ).
+    DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_report_row(
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      amountaccrued = '1250.00' amountaccrued_usd = '1250.00'
+      exchangerate = '1,000000' exchangerate_dec = '1.000000' ).
+    DATA(l_csv) = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+    DATA lt_cells TYPE zcl_fi_das_dashboard=>tt_csv_lines.
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 21 ] exp = '"1250"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 22 ] exp = '"1250"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 30 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 31 ] exp = '" "' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 32 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 34 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 40 ] exp = '"Service"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 41 ] exp = '"1.000000"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 43 ] exp = '""' ).
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_csv CS '"Material","1.000000"' ) ).
+  ENDMETHOD.
+
+  METHOD report_timestamp_is_local.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260904150209.9876543' ) )
+      exp = '04 Sept 2026, 3:02:09 pm' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260101000000' ) )
+      exp = '01 Jan 2026, 12:00:00 am' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260101120000' ) )
+      exp = '01 Jan 2026, 12:00:00 pm' ).
   ENDMETHOD.
 
   METHOD report_mapping.

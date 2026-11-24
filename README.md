@@ -103,6 +103,24 @@ The dashboard interface's `send_export_via_email` method owns report selection, 
 
 Paging reselects the ordered keys for each page, so changes to the underlying data during an export can cause rows to be missed or repeated; it is not a database snapshot. CSV text, attachment conversion and BCS requests still consume memory. The caller must commit successful requests, or roll back on failure; delivery must be checked separately in SAPconnect.
 
+CSV values use `Service`/`Material`, six decimal places with a dot for exchange rates (independent of user settings), and unpadded fractional amounts for the two accrued-amount columns, matching the XSA samples. Other monetary columns retain two decimal places. Empty cost centers, internal orders, asset IDs and activity numbers remain empty strings; nullable display fields retain the single-space placeholder. The ABAP service types do not retain SQL NULL indicators, so exact NULL-versus-empty parity cannot be guaranteed for every text field. English dates use `Sept`, and the last-update column includes both date and time without converting the already-local dashboard timestamp a second time.
+
 The action intentionally preserves the XSA contract and trusts the caller-supplied `EMAIL` and `POOWNER`; Gateway/service authorization must be verified before exposing it.
 
 The metadata snapshot and DPC extension are repository artifacts; SEGW activation, service registration, and runtime validation still need to be completed in SAP before the endpoint is considered deployable.
+
+### Comparing XSA and ABAP CSV exports
+
+Python 3 is sufficient; no extra packages are needed:
+
+```shell
+python Validation/compare_csv.py --xsa "xsa/*.csv" --abap "abap/*.csv"
+```
+
+Use the original email attachments, without opening and saving them in Excel. The script combines all selected parts on each side and compares headers and row multisets, ignoring row order but preserving duplicate counts, whitespace, leading zeros and numeric/date formatting. CSV quoting, delimiters, BOM and record line endings are parsed rather than compared as bytes. Embedded newlines inside values remain significant. UTF-8 is the default; override it explicitly with, for example, `--xsa-encoding cp1250` if needed. Delimiters are detected per file (including optional `sep=` directives), or can be specified with `--delimiter comma`.
+
+Exit codes: `0` means matching content, `1` means different headers or rows, and `2` means an input/output error. For row differences, a new `csv_comparison` directory contains `only_xsa.csv` and `only_abap.csv`; `OCCURRENCES` records excess duplicate counts. An existing output directory is never overwritten; choose a fresh one using `--output-dir`. Export both systems with equivalent selection parameters and stable source data.
+
+On an exact mismatch, the script also compares normalized row multisets and writes `normalized_only_xsa.csv` and `normalized_only_abap.csv`. Normalization equates only empty strings with a single space, `9`/`0` with `Service`/`Material` in `PSTYPE Text`, `Sep` with `Sept` in date columns, and exact decimal values in explicitly listed numeric columns (including semicolon-separated split percentages). Only exchange rates accept a decimal comma; grouping separators are not inferred. Identifiers, nonblank text, account-list order, dates/times and numeric differences are not discarded or rounded. Invalid numeric values are errors. A normalized match still returns `1` if the original values differ.
+
+`column_differences.csv` aligns remaining rows by dashboard section, company, PO and item and labels each changed cell as `representation` or `value`. The console summarizes counts per column. Exact row matches are removed first; ambiguous duplicate keys are reported and not arbitrarily paired. Missing rows, multiplicity differences and ambiguous variants remain visible in the multiset difference files. Normalized equivalence is a diagnostic under these explicit rules, not proof of byte-for-byte export parity.

@@ -934,6 +934,32 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_email_section,
       tt_email_sections TYPE STANDARD TABLE OF ts_email_section WITH EMPTY KEY.
 
+    METHODS get_export_page
+      IMPORTING
+        is_request    TYPE zif_fi_das_dashboard=>ts_request
+        i_mode        TYPE zif_fi_das_dashboard=>t_mode
+      EXPORTING
+        er_page       TYPE REF TO data
+        e_total_count TYPE string
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db.
+    METHODS add_page_to_csv
+      IMPORTING
+        it_page     TYPE STANDARD TABLE
+        i_mode      TYPE zif_fi_das_dashboard=>t_mode
+        i_email     TYPE zif_fi_das_dashboard=>t_email
+        i_timestamp TYPE string
+      CHANGING
+        ct_lines    TYPE tt_csv_lines
+        c_suffix    TYPE i
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db
+        cx_sy_codepage_converter_init
+        cx_sy_conversion_codepage.
     CLASS-METHODS get_report_csv_row
       IMPORTING
         is_row TYPE ts_odata_result
@@ -1010,11 +1036,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(lt_csv_lines) = VALUE tt_csv_lines( ( get_csv_header( ) ) ).
     DATA(l_timestamp) = |{ sy-datum }{ sy-uzeit }|.
     DATA(l_suffix) = 1.
-    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
-    DATA lt_under TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
-    DATA lt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
     DATA l_total_count TYPE string.
-    DATA ls_row TYPE ts_odata_result.
+    DATA lr_page TYPE REF TO data.
     FIELD-SYMBOLS <ft_page> TYPE STANDARD TABLE.
 
     LOOP AT lt_sections INTO DATA(ls_section).
@@ -1027,46 +1050,21 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         paging-top = mc_email_selection_page_size ).
 
       DO.
-        CASE ls_section-mode.
-          WHEN zif_fi_das_dashboard=>mc_over.
-            zif_fi_das_dashboard~over(
-              EXPORTING is_request = ls_request
-              IMPORTING et_result = lt_over e_total_count = l_total_count ).
-            ASSIGN lt_over TO <ft_page>.
-          WHEN zif_fi_das_dashboard=>mc_under.
-            zif_fi_das_dashboard~under(
-              EXPORTING is_request = ls_request
-              IMPORTING et_result = lt_under e_total_count = l_total_count ).
-            ASSIGN lt_under TO <ft_page>.
-          WHEN zif_fi_das_dashboard=>mc_exclude.
-            zif_fi_das_dashboard~exclude(
-              EXPORTING is_request = ls_request
-              IMPORTING et_result = lt_exclude e_total_count = l_total_count ).
-            ASSIGN lt_exclude TO <ft_page>.
-          WHEN OTHERS.
-            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
-        ENDCASE.
+        get_export_page( EXPORTING is_request = ls_request
+                                   i_mode = ls_section-mode
+                         IMPORTING er_page = lr_page
+                                   e_total_count = l_total_count ).
+        ASSIGN lr_page->* TO <ft_page>.
+        add_page_to_csv( EXPORTING it_page = <ft_page>
+                                   i_mode = ls_section-mode
+                                   i_email = i_email
+                                   i_timestamp = l_timestamp
+                         CHANGING ct_lines = lt_csv_lines
+                                  c_suffix = l_suffix ).
 
-        LOOP AT <ft_page> ASSIGNING FIELD-SYMBOL(<fs_row>).
-          CLEAR ls_row.
-          MOVE-CORRESPONDING <fs_row> TO ls_row.
-          append_csv_line(
-            EXPORTING i_line = get_report_csv_row( is_row = ls_row i_mode = ls_section-mode )
-            IMPORTING e_full = DATA(l_full)
-            CHANGING ct_lines = lt_csv_lines ).
-          IF l_full = abap_true.
-            send_report_batch( i_email = i_email
-                               i_timestamp = l_timestamp
-                               i_suffix = l_suffix
-                               it_lines = lt_csv_lines ).
-            l_suffix = l_suffix + 1.
-            FREE lt_csv_lines.
-            APPEND get_csv_header( ) TO lt_csv_lines.
-          ENDIF.
-        ENDLOOP.
-        UNASSIGN <fs_row>.
+        FREE <ft_page>.
         UNASSIGN <ft_page>.
-        FREE: lt_over, lt_under, lt_exclude.
+        FREE lr_page.
 
         ls_request-paging-skip = ls_request-paging-skip + mc_email_selection_page_size.
         IF ls_request-paging-skip >= CONV int8( l_total_count ).
@@ -1084,6 +1082,61 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ENDIF.
     r_status = COND #( WHEN l_suffix = 1 THEN 'No report rows; no email sent'
                        ELSE 'Email request accepted' ).
+  ENDMETHOD.
+
+  METHOD get_export_page.
+    FIELD-SYMBOLS:
+      <ft_over>    TYPE zif_fi_das_dashboard=>tt_zfi_das_over,
+      <ft_under>   TYPE zif_fi_das_dashboard=>tt_zfi_das_under,
+      <ft_exclude> TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+
+    CASE i_mode.
+      WHEN zif_fi_das_dashboard=>mc_over.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+        ASSIGN er_page->* TO <ft_over>.
+        zif_fi_das_dashboard~over(
+          EXPORTING is_request = is_request
+          IMPORTING et_result = <ft_over> e_total_count = e_total_count ).
+
+      WHEN zif_fi_das_dashboard=>mc_under.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
+        ASSIGN er_page->* TO <ft_under>.
+        zif_fi_das_dashboard~under(
+          EXPORTING is_request = is_request
+          IMPORTING et_result = <ft_under> e_total_count = e_total_count ).
+
+      WHEN zif_fi_das_dashboard=>mc_exclude.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+        ASSIGN er_page->* TO <ft_exclude>.
+        zif_fi_das_dashboard~exclude(
+          EXPORTING is_request = is_request
+          IMPORTING et_result = <ft_exclude> e_total_count = e_total_count ).
+
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD add_page_to_csv.
+    DATA ls_row TYPE ts_odata_result.
+
+    LOOP AT it_page ASSIGNING FIELD-SYMBOL(<fs_row>).
+      CLEAR ls_row.
+      MOVE-CORRESPONDING <fs_row> TO ls_row.
+      append_csv_line(
+        EXPORTING i_line = get_report_csv_row( is_row = ls_row i_mode = i_mode )
+        IMPORTING e_full = DATA(l_full)
+        CHANGING ct_lines = ct_lines ).
+      IF l_full = abap_true.
+        send_report_batch( i_email = i_email
+                           i_timestamp = i_timestamp
+                           i_suffix = c_suffix
+                           it_lines = ct_lines ).
+        c_suffix = c_suffix + 1.
+        FREE ct_lines.
+        APPEND get_csv_header( ) TO ct_lines.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD get_report_csv_row.

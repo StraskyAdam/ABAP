@@ -11938,6 +11938,8 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS report_timestamp_is_local FOR TESTING.
     METHODS report_mapping FOR TESTING RAISING cx_static_check.
     METHODS csv_batch_boundaries FOR TESTING.
+    METHODS csv_pages_preserve_buffer FOR TESTING RAISING cx_static_check.
+    METHODS export_page_invalid_mode FOR TESTING RAISING cx_static_check.
 ENDCLASS.
 
 CLASS ltc_fi_das_email_report IMPLEMENTATION.
@@ -12142,6 +12144,75 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( act = l_full ).
     cl_abap_unit_assert=>assert_equals( act = lines( lt_lines ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_lines[ 2 ] exp = `next row` ).
+  ENDMETHOD.
+
+  METHOD csv_pages_preserve_buffer.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    DATA(lt_lines) = VALUE zcl_fi_das_dashboard=>tt_csv_lines(
+      ( zcl_fi_das_dashboard=>get_csv_header( ) ) ).
+    DATA(l_suffix) = 1.
+    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA lt_under TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
+    DATA lt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+    DATA ls_row TYPE zcl_fi_das_dashboard=>ts_odata_result.
+
+    APPEND VALUE #( ponumber = '4500000001' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_over.
+    APPEND VALUE #( ponumber = '4500000002' pstype = zif_fi_das_dashboard=>mc_pstype_material ) TO lt_under.
+    APPEND VALUE #( ponumber = '4500000003' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_exclude.
+
+    lo_cut->add_page_to_csv( EXPORTING it_page = lt_over
+                                       i_mode = zif_fi_das_dashboard=>mc_over
+                                       i_email = ''
+                                       i_timestamp = ''
+                             CHANGING ct_lines = lt_lines c_suffix = l_suffix ).
+    lo_cut->add_page_to_csv( EXPORTING it_page = lt_under
+                                       i_mode = zif_fi_das_dashboard=>mc_under
+                                       i_email = ''
+                                       i_timestamp = ''
+                             CHANGING ct_lines = lt_lines c_suffix = l_suffix ).
+    lo_cut->add_page_to_csv( EXPORTING it_page = lt_exclude
+                                       i_mode = zif_fi_das_dashboard=>mc_exclude
+                                       i_email = ''
+                                       i_timestamp = ''
+                             CHANGING ct_lines = lt_lines c_suffix = l_suffix ).
+    CLEAR lt_over.
+    lo_cut->add_page_to_csv( EXPORTING it_page = lt_over
+                                       i_mode = zif_fi_das_dashboard=>mc_over
+                                       i_email = ''
+                                       i_timestamp = ''
+                             CHANGING ct_lines = lt_lines c_suffix = l_suffix ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lines ) exp = 4 ).
+    cl_abap_unit_assert=>assert_equals( act = l_suffix exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lines[ 1 ]
+                                       exp = zcl_fi_das_dashboard=>get_csv_header( ) ).
+    ls_row-ponumber = '4500000001'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_lines[ 2 ]
+      exp = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_row i_mode = zif_fi_das_dashboard=>mc_over ) ).
+    ls_row-ponumber = '4500000002'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_lines[ 3 ]
+      exp = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_row i_mode = zif_fi_das_dashboard=>mc_under ) ).
+    ls_row-ponumber = '4500000003'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_lines[ 4 ]
+      exp = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_row i_mode = zif_fi_das_dashboard=>mc_exclude ) ).
+  ENDMETHOD.
+
+  METHOD export_page_invalid_mode.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    TRY.
+        lo_cut->get_export_page( is_request = VALUE #( ) i_mode = '?' ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid export mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
   ENDMETHOD.
 
 ENDCLASS.

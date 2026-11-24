@@ -917,6 +917,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error.
 
     CONSTANTS mc_email_rows_per_message TYPE i VALUE 50000.
+    CONSTANTS mc_email_selection_page_size TYPE i VALUE 200.
     CONSTANTS mc_email_report_template TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO'.
     CONSTANTS mc_document_type_csv TYPE so_obj_tp VALUE 'CSV'.
 
@@ -926,24 +927,40 @@ CLASS zcl_fi_das_dashboard DEFINITION
       TYPES:
         dashboard_section TYPE string,
       END OF ts_report_row,
-      tt_report_rows TYPE STANDARD TABLE OF ts_report_row WITH EMPTY KEY,
-      tt_csv_lines TYPE zcl_fi_das_utility=>tt_string.
+      tt_csv_lines TYPE zcl_fi_das_utility=>tt_string,
+      BEGIN OF ts_email_section,
+        mode   TYPE zif_fi_das_dashboard=>t_mode,
+        pstype TYPE zif_fi_das_dashboard=>t_pstype,
+      END OF ts_email_section,
+      tt_email_sections TYPE STANDARD TABLE OF ts_email_section WITH EMPTY KEY.
 
-    CLASS-METHODS append_over_rows
+    CLASS-METHODS get_report_csv_row
       IMPORTING
-        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_over
-      CHANGING
-        ct_rows TYPE tt_report_rows.
-    CLASS-METHODS append_under_rows
+        is_row TYPE ts_odata_result
+        i_mode TYPE zif_fi_das_dashboard=>t_mode
+      RETURNING
+        VALUE(r_csv_row) TYPE string
+      RAISING
+        zcx_fi_das_error.
+    CLASS-METHODS append_csv_line
       IMPORTING
-        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_under
+        i_line     TYPE string
+      EXPORTING
+        e_full     TYPE abap_bool
       CHANGING
-        ct_rows TYPE tt_report_rows.
-    CLASS-METHODS append_exclusion_rows
+        ct_lines   TYPE tt_csv_lines.
+    METHODS send_report_batch
       IMPORTING
-        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude
-      CHANGING
-        ct_rows TYPE tt_report_rows.
+        i_email     TYPE zif_fi_das_dashboard=>t_email
+        i_timestamp TYPE string
+        i_suffix    TYPE i
+        it_lines    TYPE tt_csv_lines
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_open_sql_db
+        cx_sy_codepage_converter_init
+        cx_sy_conversion_codepage.
     CLASS-METHODS get_csv_header
       RETURNING
         VALUE(r_header) TYPE string.
@@ -974,94 +991,125 @@ ENDCLASS.
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD zif_fi_das_dashboard~send_export_via_email.
-    DATA(lt_rows) = VALUE tt_report_rows( ).
-    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      parameter-email = i_email
-      parameter-poowner = i_poowner
-      parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service ).
+    DATA(lt_sections) = VALUE tt_email_sections(
+      ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_service )
+      ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_material )
+      ( mode = zif_fi_das_dashboard=>mc_under   pstype = zif_fi_das_dashboard=>mc_pstype_service )
+      ( mode = zif_fi_das_dashboard=>mc_under   pstype = zif_fi_das_dashboard=>mc_pstype_material )
+      ( mode = zif_fi_das_dashboard=>mc_exclude pstype = zif_fi_das_dashboard=>mc_pstype_all ) ).
+    DATA(lt_csv_lines) = VALUE tt_csv_lines( ( get_csv_header( ) ) ).
+    DATA(l_timestamp) = |{ sy-datum }{ sy-uzeit }|.
+    DATA(l_suffix) = 1.
+    DATA lt_keys TYPE tt_key.
+    DATA ls_context TYPE ts_context.
 
-    zif_fi_das_dashboard~over(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_over_service) ).
-    append_over_rows(
-      EXPORTING
-        it_rows = lt_over_service
-      CHANGING
-        ct_rows = lt_rows ).
+    LOOP AT lt_sections INTO DATA(ls_section).
+      DATA(ls_request) = VALUE ts_internal_request(
+        mode = ls_section-mode
+        parameter-email = i_email
+        parameter-poowner = i_poowner
+        parameter-pstype = ls_section-pstype
+        paging-top_requested = abap_true
+        paging-top = mc_email_selection_page_size ).
+      validate_request( ls_request ).
+      ls_request = adjust_request( ls_request ).
+      DATA(l_decimal_format) = get_decimal_format( ls_request ).
 
-    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
-    zif_fi_das_dashboard~over(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_over_material) ).
-    append_over_rows(
-      EXPORTING
-        it_rows = lt_over_material
-      CHANGING
-        ct_rows = lt_rows ).
+      DO.
+        FREE lt_keys.
+        get_required_keys(
+          EXPORTING is_request = ls_request
+          IMPORTING et_keys = lt_keys ).
+        IF lt_keys IS INITIAL.
+          EXIT.
+        ENDIF.
 
-    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-    zif_fi_das_dashboard~under(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_under_service) ).
-    append_under_rows(
-      EXPORTING
-        it_rows = lt_under_service
-      CHANGING
-        ct_rows = lt_rows ).
+        ls_context = get_context( it_keys = lt_keys is_request = ls_request ).
+        LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
+          DATA(ls_row) = get_row( is_key = <fs_key>
+                                  is_context = ls_context
+                                  is_request = ls_request
+                                  i_decimal_format = l_decimal_format ).
+          IF ls_row-ponumber IS INITIAL.
+            CONTINUE.
+          ENDIF.
 
-    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
-    zif_fi_das_dashboard~under(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_under_material) ).
-    append_under_rows(
-      EXPORTING
-        it_rows = lt_under_material
-      CHANGING
-        ct_rows = lt_rows ).
+          append_csv_line(
+            EXPORTING i_line = get_report_csv_row( is_row = ls_row i_mode = ls_section-mode )
+            IMPORTING e_full = DATA(l_full)
+            CHANGING ct_lines = lt_csv_lines ).
+          IF l_full = abap_true.
+            send_report_batch( i_email = i_email
+                               i_timestamp = l_timestamp
+                               i_suffix = l_suffix
+                               it_lines = lt_csv_lines ).
+            l_suffix = l_suffix + 1.
+            FREE lt_csv_lines.
+            APPEND get_csv_header( ) TO lt_csv_lines.
+          ENDIF.
+        ENDLOOP.
+        FREE ls_context.
 
-    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-    zif_fi_das_dashboard~exclude(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_exclusions_service) ).
-    append_exclusion_rows(
-      EXPORTING
-        it_rows = lt_exclusions_service
-      CHANGING
-        ct_rows = lt_rows ).
+        DATA(l_key_count) = lines( lt_keys ).
+        ls_request-paging-skip = ls_request-paging-skip + l_key_count.
+        IF l_key_count < mc_email_selection_page_size.
+          EXIT.
+        ENDIF.
+      ENDDO.
+    ENDLOOP.
 
-    ls_request-parameter-pstype = zif_fi_das_dashboard=>mc_pstype_material.
-    zif_fi_das_dashboard~exclude(
-      EXPORTING
-        is_request = ls_request
-      IMPORTING
-        et_result = DATA(lt_exclusions_material) ).
-    append_exclusion_rows(
-      EXPORTING
-        it_rows = lt_exclusions_material
-      CHANGING
-        ct_rows = lt_rows ).
-
-    IF lt_rows IS INITIAL.
-      r_status = 'No report rows; no email sent'.
-      RETURN.
+    IF lines( lt_csv_lines ) > 1.
+      send_report_batch( i_email = i_email
+                         i_timestamp = l_timestamp
+                         i_suffix = l_suffix
+                         it_lines = lt_csv_lines ).
+      l_suffix = l_suffix + 1.
     ENDIF.
+    r_status = COND #( WHEN l_suffix = 1 THEN 'No report rows; no email sent'
+                       ELSE 'Email request accepted' ).
+  ENDMETHOD.
 
+  METHOD get_report_csv_row.
+    DATA ls_report_row TYPE ts_report_row.
+    CASE i_mode.
+      WHEN zif_fi_das_dashboard=>mc_over.
+        DATA ls_over TYPE zfi_das_over.
+        MOVE-CORRESPONDING is_row TO ls_over.
+        MOVE-CORRESPONDING ls_over TO ls_report_row.
+        ls_report_row-dashboard_section =
+          COND #( WHEN is_row-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                  THEN 'Indirect Services' ELSE 'Indirect Material' ).
+      WHEN zif_fi_das_dashboard=>mc_under.
+        DATA ls_under TYPE zfi_das_under.
+        MOVE-CORRESPONDING is_row TO ls_under.
+        MOVE-CORRESPONDING ls_under TO ls_report_row.
+        ls_report_row-dashboard_section =
+          COND #( WHEN is_row-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                  THEN 'Below $50k Indirect Service' ELSE 'Below $50k Indirect Material' ).
+      WHEN zif_fi_das_dashboard=>mc_exclude.
+        DATA ls_exclude TYPE zfi_das_exclude.
+        MOVE-CORRESPONDING is_row TO ls_exclude.
+        MOVE-CORRESPONDING ls_exclude TO ls_report_row.
+        ls_report_row-dashboard_section =
+          COND #( WHEN is_row-pstype = zif_fi_das_dashboard=>mc_pstype_service
+                  THEN 'Exclusion Indirect Service' ELSE 'Exclusion Indirect Material' ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
+    ENDCASE.
+    r_csv_row = get_csv_row( ls_report_row ).
+  ENDMETHOD.
+
+  METHOD append_csv_line.
+    APPEND i_line TO ct_lines.
+    e_full = xsdbool( lines( ct_lines ) - 1 >= mc_email_rows_per_message ).
+  ENDMETHOD.
+
+  METHOD send_report_batch.
     DATA(lo_email) = NEW zcl_fi_das_email( ).
     DATA(l_email) = CONV string( i_email ).
     SHIFT l_email RIGHT DELETING TRAILING space.
     DATA(l_language) = lo_email->zif_fi_das_email~get_language( l_email ).
-    DATA(l_filter_email) = l_email.
-    l_filter_email = to_lower( l_filter_email ).
+    DATA(l_filter_email) = to_lower( l_email ).
     REPLACE ALL OCCURRENCES OF '''' IN l_filter_email WITH ''''''.
     zif_fi_das_dashboard~user_details(
       EXPORTING
@@ -1075,85 +1123,25 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     IF lt_user_details IS NOT INITIAL AND lt_user_details[ 1 ]-full_name IS NOT INITIAL.
       l_user_name = lt_user_details[ 1 ]-full_name.
     ENDIF.
-    DATA(l_timestamp) = |{ sy-datum }{ sy-uzeit }|.
-    DATA(l_suffix) = 1.
-    DATA(l_start) = 1.
-    DATA(l_total) = lines( lt_rows ).
-    get_month_and_year(
-      IMPORTING
-        e_month = DATA(l_month)
-        e_year = DATA(l_year) ).
+    get_month_and_year( IMPORTING e_month = DATA(l_month) e_year = DATA(l_year) ).
 
-    WHILE l_start <= l_total.
-      DATA(l_end) = l_start + mc_email_rows_per_message - 1.
-      IF l_end > l_total.
-        l_end = l_total.
-      ENDIF.
-      DATA(lt_csv_lines) = VALUE tt_csv_lines( ( get_csv_header( ) ) ).
-
-      LOOP AT lt_rows ASSIGNING FIELD-SYMBOL(<fs_row>) FROM l_start TO l_end.
-        APPEND get_csv_row( <fs_row> ) TO lt_csv_lines.
-      ENDLOOP.
-
-      DATA(l_csv) = zcl_fi_das_utility=>to_csv( lt_csv_lines ).
-      DATA(l_filename) = |Digital_PO_Accruals_Dashboard_{ l_timestamp }_{ l_suffix }.csv|.
-      IF strlen( l_filename ) > 50.
-        l_filename = |DAS_{ l_timestamp }_{ l_suffix }.csv|.
-      ENDIF.
-
-      lo_email->zif_fi_das_email~send(
-        i_template = mc_email_report_template
-        i_language = CONV string( l_language )
-        it_recipients = VALUE #(
-          ( email = l_email
-            kind = zif_fi_das_email=>mc_to ) )
-        it_params = VALUE #(
-          ( name = 'USER' value = l_user_name )
-          ( name = 'MONTH' value = l_month )
-          ( name = 'YEAR' value = l_year ) )
-        it_attachments = VALUE #(
-          ( name = l_filename
-            document_type = mc_document_type_csv
-            content = zcl_fi_das_utility=>encode_utf8( i_text = l_csv i_bom = abap_true ) ) ) ).
-
-      l_start = l_end + 1.
-      l_suffix = l_suffix + 1.
-    ENDWHILE.
-
-    r_status = 'Email request accepted'.
-  ENDMETHOD.
-
-  METHOD append_over_rows.
-    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
-      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
-      <fs_report_row>-dashboard_section =
-        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
-                THEN 'Indirect Services'
-                ELSE 'Indirect Material' ).
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD append_under_rows.
-    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
-      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
-      <fs_report_row>-dashboard_section =
-        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
-                THEN 'Below $50k Indirect Service'
-                ELSE 'Below $50k Indirect Material' ).
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD append_exclusion_rows.
-    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<fs_report_row>).
-      MOVE-CORRESPONDING <fs_row> TO <fs_report_row>.
-      <fs_report_row>-dashboard_section =
-        COND #( WHEN <fs_row>-pstype = zif_fi_das_dashboard=>mc_pstype_service
-                THEN 'Exclusion Indirect Service'
-                ELSE 'Exclusion Indirect Material' ).
-    ENDLOOP.
+    DATA(l_csv) = zcl_fi_das_utility=>to_csv( it_lines ).
+    DATA(l_filename) = |Digital_PO_Accruals_Dashboard_{ i_timestamp }_{ i_suffix }.csv|.
+    IF strlen( l_filename ) > 50.
+      l_filename = |DAS_{ i_timestamp }_{ i_suffix }.csv|.
+    ENDIF.
+    lo_email->zif_fi_das_email~send(
+      i_template = mc_email_report_template
+      i_language = CONV string( l_language )
+      it_recipients = VALUE #( ( email = l_email kind = zif_fi_das_email=>mc_to ) )
+      it_params = VALUE #(
+        ( name = 'USER' value = l_user_name )
+        ( name = 'MONTH' value = l_month )
+        ( name = 'YEAR' value = l_year ) )
+      it_attachments = VALUE #(
+        ( name = l_filename
+          document_type = mc_document_type_csv
+          content = zcl_fi_das_utility=>encode_utf8( i_text = l_csv i_bom = abap_true ) ) ) ).
   ENDMETHOD.
 
   METHOD get_csv_header.
@@ -3011,7 +2999,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
               ELSE :lc_empty_string
             END DESC,
             candidate.ponumber ASC,
-            candidate.itemno ASC
+            candidate.itemno ASC,
+            candidate.pstype ASC,
+            candidate.poowner_email ASC
         ) AS row_number_value
       FROM :lt_filtered AS candidate;
 

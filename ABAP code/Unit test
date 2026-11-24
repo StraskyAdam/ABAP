@@ -11933,6 +11933,8 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS description_normalizes_en_dash FOR TESTING.
     METHODS numeric_values_use_raw_decimal FOR TESTING.
     METHODS date_uses_xsa_format FOR TESTING.
+    METHODS report_mapping FOR TESTING RAISING cx_static_check.
+    METHODS csv_batch_boundaries FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_fi_das_email_report IMPLEMENTATION.
@@ -11975,6 +11977,83 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_dashboard=>format_date( '20240305' )
       exp = '05 Mar 2024' ).
+  ENDMETHOD.
+
+  METHOD report_mapping.
+    DATA(ls_source) = VALUE zcl_fi_das_dashboard=>ts_odata_result(
+      ponumber = '4500000001'
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      povalue = '1234.50'
+      amountaccrued = '25.00'
+      ruletype = 'GL' ).
+    DATA ls_report TYPE zcl_fi_das_dashboard=>ts_report_row.
+    DATA ls_over TYPE zfi_das_over.
+    DATA ls_under TYPE zfi_das_under.
+    DATA ls_exclude TYPE zfi_das_exclude.
+
+    MOVE-CORRESPONDING ls_source TO ls_over.
+    MOVE-CORRESPONDING ls_over TO ls_report.
+    ls_report-dashboard_section = 'Indirect Services'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_over )
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
+    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    cl_abap_unit_assert=>assert_true( act = xsdbool(
+      zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_over ) CS '"Indirect Material",' ) ).
+
+    MOVE-CORRESPONDING ls_source TO ls_under.
+    CLEAR ls_report.
+    MOVE-CORRESPONDING ls_under TO ls_report.
+    ls_report-dashboard_section = 'Below $50k Indirect Material'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_under )
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
+
+    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    cl_abap_unit_assert=>assert_true( act = xsdbool(
+      zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_under ) CS '"Below $50k Indirect Service",' ) ).
+    MOVE-CORRESPONDING ls_source TO ls_exclude.
+    CLEAR ls_report.
+    MOVE-CORRESPONDING ls_exclude TO ls_report.
+    ls_report-dashboard_section = 'Exclusion Indirect Service'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude )
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
+    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    cl_abap_unit_assert=>assert_true( act = xsdbool(
+      zcl_fi_das_dashboard=>get_report_csv_row(
+        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude ) CS '"Exclusion Indirect Material",' ) ).
+  ENDMETHOD.
+
+  METHOD csv_batch_boundaries.
+    DATA(lt_lines) = VALUE zcl_fi_das_dashboard=>tt_csv_lines( ( `header` ) ).
+    DATA l_full TYPE abap_bool.
+    DO 50000 TIMES.
+      zcl_fi_das_dashboard=>append_csv_line(
+        EXPORTING i_line = `row`
+        IMPORTING e_full = l_full
+        CHANGING ct_lines = lt_lines ).
+      IF sy-index = 49999.
+        cl_abap_unit_assert=>assert_false( act = l_full ).
+      ENDIF.
+    ENDDO.
+    cl_abap_unit_assert=>assert_true( act = l_full ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lines ) exp = 50001 ).
+
+    FREE lt_lines.
+    APPEND `header` TO lt_lines.
+    zcl_fi_das_dashboard=>append_csv_line(
+      EXPORTING i_line = `next row`
+      IMPORTING e_full = l_full
+      CHANGING ct_lines = lt_lines ).
+    cl_abap_unit_assert=>assert_false( act = l_full ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lines ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lines[ 2 ] exp = `next row` ).
   ENDMETHOD.
 
 ENDCLASS.

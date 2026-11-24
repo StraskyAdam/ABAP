@@ -7,7 +7,8 @@ import tempfile
 import unittest
 
 from compare_csv import (
-    expand_paths, main, normalize_cell, normalize_list_order, normalize_rows, read_export,
+    content_differences, expand_paths, main, normalize_cell, normalize_list_order,
+    normalize_rows, read_export,
 )
 
 
@@ -82,7 +83,7 @@ class CompareCsvTests(unittest.TestCase):
             expand_paths([str(a), str(a)])
         self.assertEqual(self.run_comparison([a], [a]), 2)
 
-    def test_representation_differences_are_reported_separately(self):
+    def test_representation_differences_match(self):
         header = [
             "PO Dashboard Section", "Company Code", "PO Number", "Line Item",
             "Amount to be Accrued", "PSTYPE Text", "Exchange Rate", "Internal Order",
@@ -90,21 +91,13 @@ class CompareCsvTests(unittest.TestCase):
         key = ["Below $50k Indirect Service", "3390", "8002156800", "00001"]
         xsa = self.make_csv("xsa.csv", [header, [*key, "1250", "Service", "1.000000", ""]])
         abap = self.make_csv("abap.csv", [header, [*key, "1250.00", "9", "1,000000", " "]])
-        self.assertEqual(self.run_comparison([xsa], [abap]), 1)
-        with (self.root / "differences" / "normalized_only_xsa.csv").open(
-            encoding="utf-8-sig", newline=""
-        ) as source:
-            self.assertEqual(len(list(csv.reader(source))), 1)
-        with (self.root / "differences" / "column_differences.csv").open(
-            encoding="utf-8-sig", newline=""
-        ) as source:
-            rows = list(csv.DictReader(source))
-        self.assertEqual(len(rows), 4)
-        self.assertEqual({row["KIND"] for row in rows}, {"representation"})
+        self.assertEqual(self.run_comparison([xsa], [abap]), 0)
+        self.assertFalse((self.root / "differences").exists())
 
     def test_normalization_preserves_values_identifiers_and_duplicates(self):
         self.assertNotEqual(normalize_cell("PO Number", "001"), normalize_cell("PO Number", "1"))
         self.assertNotEqual(normalize_cell("Supplier Name", " A"), normalize_cell("Supplier Name", "A"))
+        self.assertNotEqual(normalize_cell("Supplier Name", "  "), normalize_cell("Supplier Name", ""))
         self.assertNotEqual(normalize_cell("PO Value", "1.01"), normalize_cell("PO Value", "1.00"))
         self.assertEqual(normalize_cell("Split Accounting %", "14.0;13.00"), "14;13")
         self.assertEqual(normalize_cell("PO Creation Date", "01 Sep 2026"), "01 Sept 2026")
@@ -143,14 +136,14 @@ class CompareCsvTests(unittest.TestCase):
         xsa = self.make_csv("xsa.csv", [header, ["1", "Service"], ["1", "Service"]])
         abap = self.make_csv("abap.csv", [header, ["1.00", "9"]])
         self.assertEqual(self.run_comparison([xsa], [abap]), 1)
-        with (self.root / "differences" / "normalized_only_xsa.csv").open(
+        with (self.root / "differences" / "only_xsa.csv").open(
             encoding="utf-8-sig", newline=""
         ) as source:
             self.assertEqual(list(csv.reader(source)), [
                 ["OCCURRENCES", *header], ["1", "1", "Service"],
             ])
 
-    def test_account_lists_report_order_only_separately(self):
+    def test_account_lists_ignore_order(self):
         header = [
             "PO Dashboard Section", "Company Code", "PO Number", "Line Item",
             "Cost Center", "Split Accounting %",
@@ -158,16 +151,7 @@ class CompareCsvTests(unittest.TestCase):
         key = ["Indirect Services", "3390", "001", "00001"]
         xsa = self.make_csv("xsa.csv", [header, [*key, "100;200", "10;90"]])
         abap = self.make_csv("abap.csv", [header, [*key, "200;100", "90.0;10.00"]])
-        self.assertEqual(self.run_comparison([xsa], [abap]), 1)
-        with (self.root / "differences" / "list_order_only_xsa.csv").open(
-            encoding="utf-8-sig", newline=""
-        ) as source:
-            self.assertEqual(len(list(csv.reader(source))), 1)
-        with (self.root / "differences" / "column_differences.csv").open(
-            encoding="utf-8-sig", newline=""
-        ) as source:
-            rows = list(csv.DictReader(source))
-        self.assertEqual({row["KIND"] for row in rows}, {"list-order"})
+        self.assertEqual(self.run_comparison([xsa], [abap]), 0)
         self.assertEqual(
             normalize_list_order(header[-2:], Counter({("100;200", "10;90"): 1})),
             normalize_list_order(header[-2:], Counter({("200;100", "90;10"): 1})),
@@ -181,6 +165,38 @@ class CompareCsvTests(unittest.TestCase):
         self.assertEqual(normalize_list_order(header, xsa), normalize_list_order(header, abap))
         repeated = Counter({("CC;CC;IV", "Cost Center;Cost Center;Internal Order"): 1})
         self.assertNotEqual(normalize_list_order(header, xsa), normalize_list_order(header, repeated))
+
+    def test_actual_differences_keep_original_rows_and_only_real_columns(self):
+        header = ["PO Dashboard Section", "Company Code", "PO Number", "Line Item",
+                  "Cost Center", "PO Value", "Management Unit"]
+        key = ["Indirect Services", "3390", "001", "00001"]
+        xsa = self.make_csv("xsa.csv", [header, [*key, "100;200", "1.00", ""]])
+        abap = self.make_csv("abap.csv", [header, [*key, "200;100", "2.00", " "]])
+        self.assertEqual(self.run_comparison([xsa], [abap]), 1)
+        with (self.root / "differences" / "only_abap.csv").open(
+            encoding="utf-8-sig", newline=""
+        ) as source:
+            self.assertEqual(list(csv.reader(source))[1], ["1", *key, "200;100", "2.00", " "])
+        with (self.root / "differences" / "column_differences.csv").open(
+            encoding="utf-8-sig", newline=""
+        ) as source:
+            self.assertEqual([row["COLUMN"] for row in csv.DictReader(source)], ["PO Value"])
+
+    def test_normalized_variants_keep_excess_multiplicity(self):
+        header = ["Cost Center", "PO Value"]
+        xsa = Counter({("a;b", "1"): 2, ("b;a", "1.00"): 1})
+        abap = Counter({("b;a", "1"): 2})
+        only_xsa, only_abap = content_differences(header, xsa, abap)
+        self.assertEqual(sum(only_xsa.values()), 1)
+        self.assertFalse(only_abap)
+        self.assertTrue(all(row in xsa for row in only_xsa))
+
+    def test_aggregate_values_and_duplicate_items_remain_significant(self):
+        header = ["Cost Center"]
+        self.assertNotEqual(
+            normalize_list_order(header, Counter({("a;b;b",): 1})),
+            normalize_list_order(header, Counter({("a;a;b",): 1})),
+        )
 
 
 if __name__ == "__main__":

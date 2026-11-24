@@ -58,22 +58,51 @@ def normalize_rows(header, rows):
     return result
 
 
+def normalize_content_cell(column, value):
+    cell = normalize_cell(column, value)
+    if column in AGGREGATE_LIST_COLUMNS and cell:
+        return ";".join(sorted(cell.split(";")))
+    return cell
+
+
 def normalize_list_order(header, rows):
-    """Diagnostic only: canonicalize each XSA STRING_AGG field independently."""
     result = Counter()
     for row, count in rows.items():
-        normalized = []
-        for column, value in zip(header, row):
-            cell = normalize_cell(column, value)
-            if column in AGGREGATE_LIST_COLUMNS and cell:
-                cell = ";".join(sorted(cell.split(";")))
-            normalized.append(cell)
-        result[tuple(normalized)] += count
+        result[tuple(normalize_content_cell(column, value)
+                     for column, value in zip(header, row))] += count
     return result
 
 
+def content_differences(header, xsa, abap):
+    """Keep original values for rows left unmatched by content normalization."""
+    only_xsa = xsa - abap
+    only_abap = abap - xsa
+
+    def grouped(rows):
+        groups = {}
+        for row, count in sorted(rows.items()):
+            key = tuple(normalize_content_cell(column, value)
+                        for column, value in zip(header, row))
+            groups.setdefault(key, Counter())[row] = count
+        return groups
+
+    left = grouped(only_xsa)
+    right = grouped(only_abap)
+    for key in left.keys() & right.keys():
+        remaining = min(sum(left[key].values()), sum(right[key].values()))
+        for group, excess in ((left[key], only_xsa), (right[key], only_abap)):
+            matched = remaining
+            for row, count in group.items():
+                consumed = min(count, matched)
+                excess[row] -= consumed
+                matched -= consumed
+                if not matched:
+                    break
+    return +only_xsa, +only_abap
+
+
 def write_column_differences(path, header, xsa, abap):
-    """Pair only unambiguous keys after removing exact matches."""
+    """Pair only unambiguous keys after removing content matches."""
     if not all(column in header for column in KEY_COLUMNS):
         print("Column diagnostics skipped: dashboard key columns are missing.")
         return
@@ -101,21 +130,11 @@ def write_column_differences(path, header, xsa, abap):
             row_a, row_b = next(iter(a)), next(iter(b))
             count = min(a[row_a], b[row_b])
             for column, value_a, value_b in zip(header, row_a, row_b):
-                if value_a != value_b:
-                    normalized_a = normalize_cell(column, value_a)
-                    normalized_b = normalize_cell(column, value_b)
-                    if normalized_a == normalized_b:
-                        kind = "representation"
-                    elif (column in AGGREGATE_LIST_COLUMNS and normalized_a and normalized_b
-                          and ";".join(sorted(normalized_a.split(";"))) ==
-                          ";".join(sorted(normalized_b.split(";")))):
-                        kind = "list-order"
-                    else:
-                        kind = "value"
-                    writer.writerow([*key, count, column, value_a, value_b, kind])
-                    totals[column, kind] += count
-    for (column, kind), count in totals.most_common():
-        print(f"  {column}: {count} ({kind})")
+                if normalize_content_cell(column, value_a) != normalize_content_cell(column, value_b):
+                    writer.writerow([*key, count, column, value_a, value_b, "value"])
+                    totals[column] += count
+    for column, count in totals.most_common():
+        print(f"  {column}: {count}")
     if ambiguous:
         print(f"Skipped {ambiguous} ambiguous duplicate key(s); inspect only_*.csv.")
 
@@ -213,40 +232,17 @@ def main(argv=None):
             print(f"ABAP: {abap_header!r}")
             return 1
 
-        only_xsa = xsa - abap
-        only_abap = abap - xsa
+        only_xsa, only_abap = content_differences(xsa_header, xsa, abap)
         if not only_xsa and not only_abap:
-            print("MATCH: identical headers, values and duplicate counts; row order ignored.")
+            print("MATCH: content and duplicate counts match after normalization; "
+                  "row and aggregated-list order ignored.")
             return 0
 
         print(f"DIFFERENT: {sum(only_xsa.values())} excess row(s) on XSA side; "
               f"{sum(only_abap.values())} on ABAP side.")
-        normalized_xsa = normalize_rows(xsa_header, xsa)
-        normalized_abap = normalize_rows(abap_header, abap)
-        semantic_xsa = normalized_xsa - normalized_abap
-        semantic_abap = normalized_abap - normalized_xsa
-        if not semantic_xsa and not semantic_abap:
-            print("NORMALIZED MATCH: differences are representation-only under the documented rules.")
-        else:
-            print(f"NORMALIZED DIFFERENT: {sum(semantic_xsa.values())} excess XSA row(s); "
-                  f"{sum(semantic_abap.values())} excess ABAP row(s).")
-        list_xsa = normalize_list_order(xsa_header, xsa)
-        list_abap = normalize_list_order(abap_header, abap)
-        list_only_xsa = list_xsa - list_abap
-        list_only_abap = list_abap - list_xsa
-        if not list_only_xsa and not list_only_abap:
-            print("LIST-ORDER MATCH: remaining differences can be explained by independent "
-                  "ordering of aggregated lists and representation normalization.")
-        else:
-            print(f"LIST-ORDER NORMALIZED DIFFERENT: {sum(list_only_xsa.values())} excess XSA row(s); "
-                  f"{sum(list_only_abap.values())} excess ABAP row(s).")
         args.output_dir.mkdir(parents=True, exist_ok=False)
         write_difference(args.output_dir / "only_xsa.csv", xsa_header, only_xsa)
         write_difference(args.output_dir / "only_abap.csv", abap_header, only_abap)
-        write_difference(args.output_dir / "normalized_only_xsa.csv", xsa_header, semantic_xsa)
-        write_difference(args.output_dir / "normalized_only_abap.csv", abap_header, semantic_abap)
-        write_difference(args.output_dir / "list_order_only_xsa.csv", xsa_header, list_only_xsa)
-        write_difference(args.output_dir / "list_order_only_abap.csv", xsa_header, list_only_abap)
         write_column_differences(
             args.output_dir / "column_differences.csv", xsa_header, only_xsa, only_abap
         )

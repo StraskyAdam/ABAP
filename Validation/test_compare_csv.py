@@ -6,7 +6,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from compare_csv import expand_paths, main, normalize_cell, normalize_rows, read_export
+from compare_csv import (
+    expand_paths, main, normalize_cell, normalize_list_order, normalize_rows, read_export,
+)
 
 
 class CompareCsvTests(unittest.TestCase):
@@ -147,6 +149,29 @@ class CompareCsvTests(unittest.TestCase):
             self.assertEqual(list(csv.reader(source)), [
                 ["OCCURRENCES", *header], ["1", "1", "Service"],
             ])
+
+    def test_account_lists_report_order_only_separately(self):
+        header = [
+            "PO Dashboard Section", "Company Code", "PO Number", "Line Item",
+            "Cost Center", "Split Accounting %",
+        ]
+        key = ["Indirect Services", "3390", "001", "00001"]
+        xsa = self.make_csv("xsa.csv", [header, [*key, "100;200", "10;90"]])
+        abap = self.make_csv("abap.csv", [header, [*key, "200;100", "90.0;10.00"]])
+        self.assertEqual(self.run_comparison([xsa], [abap]), 1)
+        with (self.root / "differences" / "list_order_only_xsa.csv").open(
+            encoding="utf-8-sig", newline=""
+        ) as source:
+            self.assertEqual(len(list(csv.reader(source))), 1)
+        with (self.root / "differences" / "column_differences.csv").open(
+            encoding="utf-8-sig", newline=""
+        ) as source:
+            rows = list(csv.DictReader(source))
+        self.assertEqual({row["KIND"] for row in rows}, {"list-order"})
+        self.assertEqual(
+            normalize_list_order(header[-2:], Counter({("100;200", "10;90"): 1})),
+            normalize_list_order(header[-2:], Counter({("200;100", "90;10"): 1})),
+        )
 
 
 if __name__ == "__main__":

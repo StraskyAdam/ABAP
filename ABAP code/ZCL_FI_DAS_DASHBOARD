@@ -1203,7 +1203,10 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     APPEND |{ is_row-invvalue_usd NUMBER = RAW }| TO lt_cells.
     APPEND format_report_amount( CONV #( is_row-amountaccrued ) ) TO lt_cells.
     APPEND format_report_amount( CONV #( is_row-amountaccrued_usd ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-straightlinemthd ) ) TO lt_cells.
+    APPEND COND string(
+      WHEN is_row-straightlinemthd = abap_true OR is_row-straightlinemthd = 'true'
+        THEN 'true'
+      ELSE 'false' ) TO lt_cells.
     APPEND format_report_text( CONV string( is_row-accrualmethod ) ) TO lt_cells.
     APPEND format_report_text( CONV string( is_row-poowner_email ) ) TO lt_cells.
     APPEND format_report_text( CONV string( is_row-po_preparer ) ) TO lt_cells.

@@ -19,6 +19,10 @@ NUMERIC_COLUMNS = {
     "Amount to be Accrued", "Amount to be Accrued(USD)", "Exchange Rate",
     "Split Accounting %",
 }
+AGGREGATE_LIST_COLUMNS = {
+    "GL Account", "Cost Center", "Management Unit", "Internal Order",
+    "Profit Center", "Asset Id", "Split Accounting %",
+}
 KEY_COLUMNS = ("PO Dashboard Section", "Company Code", "PO Number", "Line Item")
 DECIMAL_PATTERN = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
 
@@ -54,6 +58,20 @@ def normalize_rows(header, rows):
     return result
 
 
+def normalize_list_order(header, rows):
+    """Diagnostic only: canonicalize each XSA STRING_AGG field independently."""
+    result = Counter()
+    for row, count in rows.items():
+        normalized = []
+        for column, value in zip(header, row):
+            cell = normalize_cell(column, value)
+            if column in AGGREGATE_LIST_COLUMNS and cell:
+                cell = ";".join(sorted(cell.split(";")))
+            normalized.append(cell)
+        result[tuple(normalized)] += count
+    return result
+
+
 def write_column_differences(path, header, xsa, abap):
     """Pair only unambiguous keys after removing exact matches."""
     if not all(column in header for column in KEY_COLUMNS):
@@ -84,8 +102,16 @@ def write_column_differences(path, header, xsa, abap):
             count = min(a[row_a], b[row_b])
             for column, value_a, value_b in zip(header, row_a, row_b):
                 if value_a != value_b:
-                    kind = ("representation" if normalize_cell(column, value_a) ==
-                            normalize_cell(column, value_b) else "value")
+                    normalized_a = normalize_cell(column, value_a)
+                    normalized_b = normalize_cell(column, value_b)
+                    if normalized_a == normalized_b:
+                        kind = "representation"
+                    elif (column in AGGREGATE_LIST_COLUMNS and normalized_a and normalized_b
+                          and ";".join(sorted(normalized_a.split(";"))) ==
+                          ";".join(sorted(normalized_b.split(";")))):
+                        kind = "list-order"
+                    else:
+                        kind = "value"
                     writer.writerow([*key, count, column, value_a, value_b, kind])
                     totals[column, kind] += count
     for (column, kind), count in totals.most_common():
@@ -204,11 +230,23 @@ def main(argv=None):
         else:
             print(f"NORMALIZED DIFFERENT: {sum(semantic_xsa.values())} excess XSA row(s); "
                   f"{sum(semantic_abap.values())} excess ABAP row(s).")
+        list_xsa = normalize_list_order(xsa_header, xsa)
+        list_abap = normalize_list_order(abap_header, abap)
+        list_only_xsa = list_xsa - list_abap
+        list_only_abap = list_abap - list_xsa
+        if not list_only_xsa and not list_only_abap:
+            print("LIST-ORDER MATCH: remaining differences can be explained by independent "
+                  "ordering of aggregated account lists.")
+        else:
+            print(f"LIST-ORDER NORMALIZED DIFFERENT: {sum(list_only_xsa.values())} excess XSA row(s); "
+                  f"{sum(list_only_abap.values())} excess ABAP row(s).")
         args.output_dir.mkdir(parents=True, exist_ok=False)
         write_difference(args.output_dir / "only_xsa.csv", xsa_header, only_xsa)
         write_difference(args.output_dir / "only_abap.csv", abap_header, only_abap)
         write_difference(args.output_dir / "normalized_only_xsa.csv", xsa_header, semantic_xsa)
         write_difference(args.output_dir / "normalized_only_abap.csv", abap_header, semantic_abap)
+        write_difference(args.output_dir / "list_order_only_xsa.csv", xsa_header, list_only_xsa)
+        write_difference(args.output_dir / "list_order_only_abap.csv", xsa_header, list_only_abap)
         write_column_differences(
             args.output_dir / "column_differences.csv", xsa_header, only_xsa, only_abap
         )

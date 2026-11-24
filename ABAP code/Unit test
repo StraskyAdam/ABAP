@@ -12004,6 +12004,7 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     SPLIT l_csv AT ',' INTO TABLE lt_cells.
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 21 ] exp = '"1250"' ).
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 22 ] exp = '"1250"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"false"' ).
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 30 ] exp = '""' ).
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 31 ] exp = '" "' ).
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 32 ] exp = '""' ).
@@ -12012,7 +12013,9 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 41 ] exp = '"1.000000"' ).
     cl_abap_unit_assert=>assert_equals( act = lt_cells[ 43 ] exp = '""' ).
     ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    ls_row-straightlinemthd = abap_true.
     l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_csv CS '"true","Straight Line"' ) ).
     cl_abap_unit_assert=>assert_true( act = xsdbool( l_csv CS '"Material","1.000000"' ) ).
   ENDMETHOD.
 

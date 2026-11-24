@@ -11857,7 +11857,7 @@ ENDCLASS.
 CLASS ltc_fi_das_csv IMPLEMENTATION.
   METHOD csv_quotes_and_newlines.
     DATA(l_newline) = cl_abap_char_utilities=>newline.
-    DATA(l_row) = zcl_fi_das_utility=>format_csv_row(
+    DATA(l_row) = zcl_fi_das_utility=>to_csv_row(
       VALUE #( ( `A,"B` ) ( |one{ l_newline }two| ) ( `Ž` ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -11869,10 +11869,10 @@ CLASS ltc_fi_das_csv IMPLEMENTATION.
     DATA(lt_values) = VALUE zcl_fi_das_utility=>tt_string( ( `A|B` ) ( `C~D` ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>format_csv_row( it_values = lt_values i_separator = '|' )
+      act = zcl_fi_das_utility=>to_csv_row( it_values = lt_values i_separator = '|' )
       exp = `"A|B"|"C~D"` ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>format_csv_row(
+      act = zcl_fi_das_utility=>to_csv_row(
         it_values = lt_values i_separator = '~' i_trailing_separator = abap_true )
       exp = `"A|B"~"C~D"~` ).
   ENDMETHOD.
@@ -11881,14 +11881,14 @@ CLASS ltc_fi_das_csv IMPLEMENTATION.
     DATA(lt_values) = VALUE zcl_fi_das_utility=>tt_string( ( `` ) ( `0` ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>format_csv_row( lt_values )
+      act = zcl_fi_das_utility=>to_csv_row( lt_values )
       exp = `"","0"` ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>format_csv_row(
+      act = zcl_fi_das_utility=>to_csv_row(
         it_values = lt_values i_empty_value = ` ` i_trailing_separator = abap_true )
       exp = `" ","0",` ).
     cl_abap_unit_assert=>assert_initial(
-      act = zcl_fi_das_utility=>format_csv_row(
+      act = zcl_fi_das_utility=>to_csv_row(
         it_values = VALUE #( ) i_trailing_separator = abap_true ) ).
   ENDMETHOD.
 
@@ -11897,15 +11897,15 @@ CLASS ltc_fi_das_csv IMPLEMENTATION.
     DATA(l_crlf) = cl_abap_char_utilities=>cr_lf.
 
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>join_csv_lines( lt_lines )
+      act = zcl_fi_das_utility=>to_csv( lt_lines )
       exp = |header,{ l_crlf }"1",{ l_crlf }| ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_utility=>join_csv_lines(
+      act = zcl_fi_das_utility=>to_csv(
         it_lines = lt_lines i_line_separator = CONV string( cl_abap_char_utilities=>newline )
         i_final_line_separator = abap_false )
       exp = |header,{ cl_abap_char_utilities=>newline }"1",| ).
     cl_abap_unit_assert=>assert_initial(
-      act = zcl_fi_das_utility=>join_csv_lines( VALUE #( ) ) ).
+      act = zcl_fi_das_utility=>to_csv( VALUE #( ) ) ).
   ENDMETHOD.
 
   METHOD csv_utf8_and_bom.

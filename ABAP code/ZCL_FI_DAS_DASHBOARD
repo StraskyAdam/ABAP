@@ -1095,7 +1095,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         APPEND get_csv_row( <fs_row> ) TO lt_csv_lines.
       ENDLOOP.
 
-      DATA(l_csv) = zcl_fi_das_utility=>join_csv_lines( lt_csv_lines ).
+      DATA(l_csv) = zcl_fi_das_utility=>to_csv( lt_csv_lines ).
       DATA(l_filename) = |Digital_PO_Accruals_Dashboard_{ l_timestamp }_{ l_suffix }.csv|.
       IF strlen( l_filename ) > 50.
         l_filename = |DAS_{ l_timestamp }_{ l_suffix }.csv|.
@@ -1220,7 +1220,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     APPEND CONV string( is_row-po_closure ) TO lt_cells.
     APPEND CONV string( is_row-zactivitynbr ) TO lt_cells.
     APPEND CONV string( is_row-distpercentage ) TO lt_cells.
-    r_csv_row = zcl_fi_das_utility=>format_csv_row(
+    r_csv_row = zcl_fi_das_utility=>to_csv_row(
       it_values = lt_cells
       i_empty_value = ` `
       i_trailing_separator = abap_true ).

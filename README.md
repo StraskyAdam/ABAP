@@ -81,7 +81,7 @@ For all validation and comparison activities, the XSA implementation remains the
 
 ## Dashboard Email Excel Report
 
-`ZCL_FI_DAS_UTILITY` contains reusable CSV helpers independent of email. `format_csv_row` quotes and escapes caller-formatted string values and supports comma, pipe or other one-character separators, configurable empty values, and an optional trailing separator. `join_csv_lines` joins already prepared lines with a configurable line ending, and `encode_utf8` converts text to bytes with an optional UTF-8 BOM. Callers prepare report-specific headers, Excel `sep=` lines, formatting, batching and destinations themselves. For other encodings, use the joined text and a suitable converter; XSA's declared attachment encoding must be verified against actual output.
+`ZCL_FI_DAS_UTILITY` contains reusable CSV helpers independent of email. `to_csv_row` quotes and escapes caller-formatted string values and supports comma, pipe or other one-character separators, configurable empty values, and an optional trailing separator. `to_csv` joins already prepared lines with a configurable line ending, and `encode_utf8` converts text to bytes with an optional UTF-8 BOM. Callers prepare report-specific headers, Excel `sep=` lines, formatting, batching and destinations themselves. For other encodings, use the joined text and a suitable converter; XSA's declared attachment encoding must be verified against actual output.
 
 For example, to prepare a pipe-delimited attachment:
 
@@ -89,11 +89,11 @@ For example, to prepare a pipe-delimited attachment:
 DATA(lt_lines) = VALUE zcl_fi_das_utility=>tt_string(
   ( `"sep=|"` )
   ( `PO Number|Line Item|` )
-  ( zcl_fi_das_utility=>format_csv_row(
+  ( zcl_fi_das_utility=>to_csv_row(
       it_values = VALUE #( ( `8000001234` ) ( `00010` ) )
       i_separator = '|'
       i_trailing_separator = abap_true ) ) ).
-DATA(l_csv) = zcl_fi_das_utility=>join_csv_lines(
+DATA(l_csv) = zcl_fi_das_utility=>to_csv(
   it_lines = lt_lines
   i_line_separator = CONV string( cl_abap_char_utilities=>newline ) ).
 DATA(l_content) = zcl_fi_das_utility=>encode_utf8( i_text = l_csv i_bom = abap_true ).

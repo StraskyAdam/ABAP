@@ -917,7 +917,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         zcx_fi_das_error.
 
     CONSTANTS mc_email_rows_per_message TYPE i VALUE 50000.
-    CONSTANTS mc_email_selection_page_size TYPE i VALUE 200.
+    CONSTANTS mc_email_selection_page_size TYPE i VALUE 10000.
     CONSTANTS mc_email_report_template TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO'.
     CONSTANTS mc_document_type_csv TYPE so_obj_tp VALUE 'CSV'.
 
@@ -1000,40 +1000,46 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(lt_csv_lines) = VALUE tt_csv_lines( ( get_csv_header( ) ) ).
     DATA(l_timestamp) = |{ sy-datum }{ sy-uzeit }|.
     DATA(l_suffix) = 1.
-    DATA lt_keys TYPE tt_key.
-    DATA ls_context TYPE ts_context.
+    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA lt_under TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
+    DATA lt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+    DATA l_total_count TYPE string.
+    DATA ls_row TYPE ts_odata_result.
+    FIELD-SYMBOLS <ft_page> TYPE STANDARD TABLE.
 
     LOOP AT lt_sections INTO DATA(ls_section).
-      DATA(ls_request) = VALUE ts_internal_request(
-        mode = ls_section-mode
+      DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
         parameter-email = i_email
         parameter-poowner = i_poowner
         parameter-pstype = ls_section-pstype
         paging-top_requested = abap_true
+        paging-count_requested = abap_true
         paging-top = mc_email_selection_page_size ).
-      validate_request( ls_request ).
-      ls_request = adjust_request( ls_request ).
-      DATA(l_decimal_format) = get_decimal_format( ls_request ).
 
       DO.
-        FREE lt_keys.
-        get_required_keys(
-          EXPORTING is_request = ls_request
-          IMPORTING et_keys = lt_keys ).
-        IF lt_keys IS INITIAL.
-          EXIT.
-        ENDIF.
+        CASE ls_section-mode.
+          WHEN zif_fi_das_dashboard=>mc_over.
+            zif_fi_das_dashboard~over(
+              EXPORTING is_request = ls_request
+              IMPORTING et_result = lt_over e_total_count = l_total_count ).
+            ASSIGN lt_over TO <ft_page>.
+          WHEN zif_fi_das_dashboard=>mc_under.
+            zif_fi_das_dashboard~under(
+              EXPORTING is_request = ls_request
+              IMPORTING et_result = lt_under e_total_count = l_total_count ).
+            ASSIGN lt_under TO <ft_page>.
+          WHEN zif_fi_das_dashboard=>mc_exclude.
+            zif_fi_das_dashboard~exclude(
+              EXPORTING is_request = ls_request
+              IMPORTING et_result = lt_exclude e_total_count = l_total_count ).
+            ASSIGN lt_exclude TO <ft_page>.
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
+        ENDCASE.
 
-        ls_context = get_context( it_keys = lt_keys is_request = ls_request ).
-        LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<fs_key>).
-          DATA(ls_row) = get_row( is_key = <fs_key>
-                                  is_context = ls_context
-                                  is_request = ls_request
-                                  i_decimal_format = l_decimal_format ).
-          IF ls_row-ponumber IS INITIAL.
-            CONTINUE.
-          ENDIF.
-
+        LOOP AT <ft_page> ASSIGNING FIELD-SYMBOL(<fs_row>).
+          CLEAR ls_row.
+          MOVE-CORRESPONDING <fs_row> TO ls_row.
           append_csv_line(
             EXPORTING i_line = get_report_csv_row( is_row = ls_row i_mode = ls_section-mode )
             IMPORTING e_full = DATA(l_full)
@@ -1048,11 +1054,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
             APPEND get_csv_header( ) TO lt_csv_lines.
           ENDIF.
         ENDLOOP.
-        FREE ls_context.
+        UNASSIGN <fs_row>.
+        UNASSIGN <ft_page>.
+        FREE: lt_over, lt_under, lt_exclude.
 
-        DATA(l_key_count) = lines( lt_keys ).
-        ls_request-paging-skip = ls_request-paging-skip + l_key_count.
-        IF l_key_count < mc_email_selection_page_size.
+        ls_request-paging-skip = ls_request-paging-skip + mc_email_selection_page_size.
+        IF ls_request-paging-skip >= CONV int8( l_total_count ).
           EXIT.
         ENDIF.
       ENDDO.
@@ -1131,7 +1138,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       l_filename = |DAS_{ i_timestamp }_{ i_suffix }.csv|.
     ENDIF.
     lo_email->zif_fi_das_email~send(
-      i_template = mc_email_report_template
+      i_template = CONV string( mc_email_report_template )
       i_language = CONV string( l_language )
       it_recipients = VALUE #( ( email = l_email kind = zif_fi_das_email=>mc_to ) )
       it_params = VALUE #(

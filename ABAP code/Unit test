@@ -11934,6 +11934,7 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS numeric_values_use_raw_decimal FOR TESTING.
     METHODS date_uses_xsa_format FOR TESTING.
     METHODS report_formats_match_xsa FOR TESTING.
+    METHODS report_straight_line_by_mode FOR TESTING RAISING cx_static_check.
     METHODS report_timestamp_is_local FOR TESTING.
     METHODS report_mapping FOR TESTING RAISING cx_static_check.
     METHODS csv_batch_boundaries FOR TESTING.
@@ -11982,6 +11983,41 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_dashboard=>format_date( '20260901' )
       exp = '01 Sept 2026' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_date( '02060401' )
+      exp = '01 Apr 206' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>format_date( '00010401' )
+      exp = '01 Apr 1' ).
+  ENDMETHOD.
+
+  METHOD report_straight_line_by_mode.
+    DATA ls_source TYPE zcl_fi_das_dashboard=>ts_odata_result.
+    DATA lt_cells TYPE zcl_fi_das_dashboard=>tt_csv_lines.
+    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+
+    DATA(l_csv) = zcl_fi_das_dashboard=>get_report_csv_row(
+      is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '""' ).
+
+    ls_source-straightlinemthd = abap_true.
+    l_csv = zcl_fi_das_dashboard=>get_report_csv_row(
+      is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"X"' ).
+
+    ls_source-straightlinemthd = 'true'.
+    l_csv = zcl_fi_das_dashboard=>get_report_csv_row(
+      is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_over ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"true"' ).
+
+    ls_source-straightlinemthd = 'false'.
+    l_csv = zcl_fi_das_dashboard=>get_report_csv_row(
+      is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_under ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"false"' ).
   ENDMETHOD.
 
   METHOD report_formats_match_xsa.

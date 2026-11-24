@@ -21,7 +21,7 @@ NUMERIC_COLUMNS = {
 }
 AGGREGATE_LIST_COLUMNS = {
     "GL Account", "Cost Center", "Management Unit", "Internal Order",
-    "Profit Center", "Asset Id", "Split Accounting %",
+    "Profit Center", "Asset Id", "Split Accounting %", "Rule Type", "Rule Type Text",
 }
 KEY_COLUMNS = ("PO Dashboard Section", "Company Code", "PO Number", "Line Item")
 DECIMAL_PATTERN = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
@@ -236,7 +236,7 @@ def main(argv=None):
         list_only_abap = list_abap - list_xsa
         if not list_only_xsa and not list_only_abap:
             print("LIST-ORDER MATCH: remaining differences can be explained by independent "
-                  "ordering of aggregated account lists.")
+                  "ordering of aggregated lists and representation normalization.")
         else:
             print(f"LIST-ORDER NORMALIZED DIFFERENT: {sum(list_only_xsa.values())} excess XSA row(s); "
                   f"{sum(list_only_abap.values())} excess ABAP row(s).")

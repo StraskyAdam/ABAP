@@ -173,6 +173,15 @@ class CompareCsvTests(unittest.TestCase):
             normalize_list_order(header[-2:], Counter({("200;100", "90;10"): 1})),
         )
 
+    def test_rule_lists_order_is_separate_and_duplicates_remain(self):
+        header = ["Rule Type Text", "Rule Type"]
+        xsa = Counter({("IV;CC", "Internal Order;Cost Center"): 1})
+        abap = Counter({("CC;IV", "Cost Center;Internal Order"): 1})
+        self.assertNotEqual(normalize_rows(header, xsa), normalize_rows(header, abap))
+        self.assertEqual(normalize_list_order(header, xsa), normalize_list_order(header, abap))
+        repeated = Counter({("CC;CC;IV", "Cost Center;Cost Center;Internal Order"): 1})
+        self.assertNotEqual(normalize_list_order(header, xsa), normalize_list_order(header, repeated))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1204,6 +1204,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     APPEND format_report_amount( CONV #( is_row-amountaccrued ) ) TO lt_cells.
     APPEND format_report_amount( CONV #( is_row-amountaccrued_usd ) ) TO lt_cells.
     APPEND COND string(
+      WHEN is_row-dashboard_section = 'Exclusion Indirect Service' OR
+           is_row-dashboard_section = 'Exclusion Indirect Material'
+        THEN CONV string( is_row-straightlinemthd )
       WHEN is_row-straightlinemthd = abap_true OR is_row-straightlinemthd = 'true'
         THEN 'true'
       ELSE 'false' ) TO lt_cells.
@@ -1263,7 +1266,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       r_date = ` `.
       RETURN.
     ENDIF.
-    r_date = |{ i_date+6(2) } { lt_months[ l_month_index ] } { i_date(4) }|.
+    DATA(l_year) = CONV i( i_date(4) ).
+    r_date = |{ i_date+6(2) } { lt_months[ l_month_index ] } { l_year NUMBER = RAW }|.
   ENDMETHOD.
 
   METHOD format_timestamp.

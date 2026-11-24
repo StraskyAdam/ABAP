@@ -128,7 +128,7 @@ INTERFACE zif_fi_das_dashboard
          tt_zfi_das_role          TYPE STANDARD TABLE OF zfi_das_role,
          tt_zfi_das_rnd_threshold TYPE STANDARD TABLE OF zfi_das_rnd_threshold.
 
-  METHODS send_open_po_report
+  METHODS send_export_via_email
     IMPORTING
       i_email   TYPE t_email
       i_poowner TYPE t_poowner

@@ -99,7 +99,7 @@ DATA(l_csv) = zcl_fi_das_utility=>to_csv(
 DATA(l_content) = zcl_fi_das_utility=>encode_utf8( i_text = l_csv i_bom = abap_true ).
 ```
 
-The dashboard interface's `send_open_po_report` method owns report selection, mapping and email orchestration in `ZCL_FI_DAS_DASHBOARD`. The OData handler calls that interface; no separate CSV or email-report class is needed. The ABAP artifacts expose the `EmailExcelReport` POST function import in `ZFI_DAS_SRV`. It accepts `EMAIL` and `POOWNER`, gathers the open, below-threshold, and exclusion rows, and sends CSV attachments through the shared email framework in batches of 50,000 rows. No email is sent when the combined result is empty.
+The dashboard interface's `send_export_via_email` method owns report selection, mapping and email orchestration in `ZCL_FI_DAS_DASHBOARD`. The OData handler calls that interface; no separate CSV or email-report class is needed. The ABAP artifacts expose the `EmailExcelReport` POST function import in `ZFI_DAS_SRV`. It accepts `EMAIL` and `POOWNER`, gathers the open, below-threshold, and exclusion rows, and sends CSV attachments through the shared email framework in batches of 50,000 rows. No email is sent when the combined result is empty.
 
 The action intentionally preserves the XSA contract and trusts the caller-supplied `EMAIL` and `POOWNER`; Gateway/service authorization must be verified before exposing it.
 

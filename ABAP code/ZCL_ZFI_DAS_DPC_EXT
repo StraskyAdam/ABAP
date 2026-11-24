@@ -125,7 +125,7 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
               i_text = 'Email parameter is required'.
         ENDIF.
 
-        DATA(l_status) = get_dashboard( )->send_open_po_report(
+        DATA(l_status) = get_dashboard( )->send_export_via_email(
           i_email = CONV #( l_email )
           i_poowner = CONV #( l_poowner ) ).
 

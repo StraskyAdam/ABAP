@@ -973,7 +973,7 @@ ENDCLASS.
 
 CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
-  METHOD zif_fi_das_dashboard~send_open_po_report.
+  METHOD zif_fi_das_dashboard~send_export_via_email.
     DATA(lt_rows) = VALUE tt_report_rows( ).
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
       parameter-email = i_email

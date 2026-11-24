@@ -186,6 +186,33 @@ CLASS zcl_fi_das_utility DEFINITION
       RAISING
         zcx_fi_das_error.
 
+    CLASS-METHODS format_csv_row
+      IMPORTING
+        it_values             TYPE tt_string
+        i_separator           TYPE char1 DEFAULT mc_comma
+        i_empty_value         TYPE string OPTIONAL
+        i_trailing_separator  TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(r_row)          TYPE string.
+
+    CLASS-METHODS join_csv_lines
+      IMPORTING
+        it_lines               TYPE tt_string
+        i_line_separator       TYPE string DEFAULT cl_abap_char_utilities=>cr_lf
+        i_final_line_separator TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(r_text)          TYPE string.
+
+    CLASS-METHODS encode_utf8
+      IMPORTING
+        i_text           TYPE string
+        i_bom            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(r_content) TYPE xstring
+      RAISING
+        cx_sy_codepage_converter_init
+        cx_sy_conversion_codepage.
+
   PRIVATE SECTION.
 
     TYPES:
@@ -219,6 +246,41 @@ CLASS zcl_fi_das_utility DEFINITION
 ENDCLASS.
 
 CLASS zcl_fi_das_utility IMPLEMENTATION.
+
+  METHOD format_csv_row.
+    DATA lt_cells TYPE tt_string.
+
+    LOOP AT it_values INTO DATA(l_value).
+      IF l_value IS INITIAL.
+        l_value = i_empty_value.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '"' IN l_value WITH '""'.
+      APPEND |"{ l_value }"| TO lt_cells.
+    ENDLOOP.
+
+    r_row = concat_lines_of( table = lt_cells sep = i_separator ).
+    IF i_trailing_separator = abap_true AND it_values IS NOT INITIAL.
+      r_row = r_row && i_separator.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD join_csv_lines.
+    r_text = concat_lines_of( table = it_lines sep = i_line_separator ).
+    IF i_final_line_separator = abap_true AND it_lines IS NOT INITIAL.
+      r_text = r_text && i_line_separator.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD encode_utf8.
+    CONSTANTS lc_utf8_bom TYPE x LENGTH 3 VALUE 'EFBBBF'.
+    DATA(lo_converter) = cl_abap_conv_out_ce=>create( encoding = 'UTF-8' ).
+    lo_converter->write( data = i_text ).
+    r_content = lo_converter->get_buffer( ).
+    IF i_bom = abap_true.
+      DATA(l_utf8) = r_content.
+      CONCATENATE lc_utf8_bom l_utf8 INTO r_content IN BYTE MODE.
+    ENDIF.
+  ENDMETHOD.
 
   METHOD alpha_output.
 

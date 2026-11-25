@@ -397,23 +397,23 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_month_name.
-    r_month = SWITCH #( i_date+4(2)
-      WHEN '01' THEN mc_january   WHEN '02' THEN mc_february
-      WHEN '03' THEN mc_march     WHEN '04' THEN mc_april
-      WHEN '05' THEN mc_may       WHEN '06' THEN mc_june
-      WHEN '07' THEN mc_july      WHEN '08' THEN mc_august
-      WHEN '09' THEN mc_september WHEN '10' THEN mc_october
-      WHEN '11' THEN mc_november  WHEN '12' THEN mc_december ).
+    r_month = SWITCH #( CONV i( i_date+4(2) )
+      WHEN 1  THEN mc_january   WHEN 2  THEN mc_february
+      WHEN 3  THEN mc_march     WHEN 4  THEN mc_april
+      WHEN 5  THEN mc_may       WHEN 6  THEN mc_june
+      WHEN 7  THEN mc_july      WHEN 8  THEN mc_august
+      WHEN 9  THEN mc_september WHEN 10 THEN mc_october
+      WHEN 11 THEN mc_november  WHEN 12 THEN mc_december ).
   ENDMETHOD.
 
   METHOD get_short_month_name.
-    r_month = SWITCH #( i_date+4(2)
-      WHEN '01' THEN mc_jan       WHEN '02' THEN mc_feb
-      WHEN '03' THEN mc_mar       WHEN '04' THEN mc_apr
-      WHEN '05' THEN mc_may_short WHEN '06' THEN mc_jun
-      WHEN '07' THEN mc_jul       WHEN '08' THEN mc_aug
-      WHEN '09' THEN mc_sept      WHEN '10' THEN mc_oct
-      WHEN '11' THEN mc_nov       WHEN '12' THEN mc_dec ).
+    r_month = SWITCH #( CONV i( i_date+4(2) )
+      WHEN 1  THEN mc_jan       WHEN 2  THEN mc_feb
+      WHEN 3  THEN mc_mar       WHEN 4  THEN mc_apr
+      WHEN 5  THEN mc_may_short WHEN 6  THEN mc_jun
+      WHEN 7  THEN mc_jul       WHEN 8  THEN mc_aug
+      WHEN 9  THEN mc_sept      WHEN 10 THEN mc_oct
+      WHEN 11 THEN mc_nov       WHEN 12 THEN mc_dec ).
   ENDMETHOD.
 
   METHOD alpha_output.

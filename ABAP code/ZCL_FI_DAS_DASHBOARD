@@ -960,18 +960,21 @@ CLASS zcl_fi_das_dashboard DEFINITION
         dashboard_section TYPE string,
       END OF ts_report_row,
       tt_csv_lines TYPE zcl_fi_das_utility=>tt_string,
-      BEGIN OF ts_email_page,
+      BEGIN OF ts_email_section,
         mode   TYPE zif_fi_das_dashboard=>t_mode,
         pstype TYPE zif_fi_das_dashboard=>t_pstype,
-        skip   TYPE i,
-      END OF ts_email_page,
-      tt_email_pages TYPE STANDARD TABLE OF ts_email_page WITH EMPTY KEY,
+      END OF ts_email_section,
+      tt_email_sections TYPE STANDARD TABLE OF ts_email_section WITH EMPTY KEY,
       BEGIN OF ts_email_export,
         email     TYPE zif_fi_das_dashboard=>t_email,
         poowner   TYPE zif_fi_das_dashboard=>t_poowner,
         timestamp TYPE string,
         suffix    TYPE i,
         lines     TYPE tt_csv_lines,
+        section   TYPE i,
+        mode      TYPE zif_fi_das_dashboard=>t_mode,
+        skip      TYPE i,
+        count     TYPE int8,
       END OF ts_email_export.
 
     DATA ms_export TYPE ts_email_export.
@@ -980,14 +983,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       IMPORTING
         i_email         TYPE zif_fi_das_dashboard=>t_email
         i_poowner       TYPE zif_fi_das_dashboard=>t_poowner
+      EXPORTING
+        er_page         TYPE REF TO data
       RETURNING
-        VALUE(rt_pages) TYPE tt_email_pages
+        VALUE(r_found)  TYPE abap_bool
       RAISING
         zcx_fi_das_error
+        cx_sy_conversion_error
         cx_sy_open_sql_db.
     METHODS export_to_csv
       IMPORTING
-        is_page TYPE ts_email_page
+        ir_page TYPE REF TO data
       RAISING
         zcx_fi_das_error
         cx_sy_conversion_error
@@ -3898,10 +3904,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_fi_das_dashboard~send_export_via_email.
-    LOOP AT get_page( i_email   = i_email
-                      i_poowner = i_poowner ) ASSIGNING FIELD-SYMBOL(<fs_page>).
-      export_to_csv( <fs_page> ).
-    ENDLOOP.
+    DATA lr_page TYPE REF TO data.
+
+    WHILE get_page( EXPORTING i_email   = i_email
+                              i_poowner = i_poowner
+                    IMPORTING er_page   = lr_page ) = abap_true.
+      export_to_csv( lr_page ).
+    ENDWHILE.
 
     IF lines( ms_export-lines ) > mc_csv_header_rows.
       send_export( ).
@@ -3912,72 +3921,89 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_page.
-    DATA l_skip TYPE i.
+    DATA l_total_count TYPE string.
+    FIELD-SYMBOLS:
+      <ft_over>    TYPE zif_fi_das_dashboard=>tt_zfi_das_over,
+      <ft_under>   TYPE zif_fi_das_dashboard=>tt_zfi_das_under,
+      <ft_exclude> TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
 
-    ms_export = VALUE #(
-      email     = i_email
-      poowner   = i_poowner
-      timestamp = |{ sy-datum }{ sy-uzeit }|
-      suffix    = mc_first_batch
-      lines     = VALUE #( ( get_csv_header( ) ) ) ).
-
-    DATA(lt_sections) = VALUE tt_email_pages(
+    DATA(lt_sections) = VALUE tt_email_sections(
       ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_service )
       ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_material )
       ( mode = zif_fi_das_dashboard=>mc_under   pstype = zif_fi_das_dashboard=>mc_pstype_service )
       ( mode = zif_fi_das_dashboard=>mc_under   pstype = zif_fi_das_dashboard=>mc_pstype_material )
       ( mode = zif_fi_das_dashboard=>mc_exclude pstype = zif_fi_das_dashboard=>mc_pstype_all ) ).
 
-    LOOP AT lt_sections ASSIGNING FIELD-SYMBOL(<fs_section>).
-      DATA(l_count) = lines( zif_fi_das_dashboard~get_po_keys(
-                               i_mode       = <fs_section>-mode
-                               is_parameter = VALUE #( email   = i_email
-                                                       poowner = i_poowner
-                                                       pstype  = <fs_section>-pstype ) ) ).
-      CLEAR l_skip.
-      WHILE l_skip < l_count.
-        APPEND VALUE #( BASE <fs_section> skip = l_skip ) TO rt_pages.
-        l_skip = l_skip + mc_email_selection_page_size.
-      ENDWHILE.
-    ENDLOOP.
-  ENDMETHOD.
+    FREE er_page.
 
-  METHOD export_to_csv.
-    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
-    DATA lt_under TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
-    DATA lt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
-    FIELD-SYMBOLS <ft_rows> TYPE STANDARD TABLE.
+    IF ms_export-section = 0 OR ms_export-section > lines( lt_sections ).
+      ms_export = VALUE #(
+        email     = i_email
+        poowner   = i_poowner
+        timestamp = |{ sy-datum }{ sy-uzeit }|
+        suffix    = mc_first_batch
+        lines     = VALUE #( ( get_csv_header( ) ) )
+        section   = mc_first_batch ).
+    ENDIF.
+
+    " Move to the next section once all pages of the current one were read.
+    WHILE ms_export-skip > 0 AND ms_export-skip >= ms_export-count.
+      ms_export-section = ms_export-section + 1.
+      CLEAR: ms_export-skip, ms_export-count.
+    ENDWHILE.
+
+    READ TABLE lt_sections INDEX ms_export-section ASSIGNING FIELD-SYMBOL(<fs_section>).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
-      parameter-email      = ms_export-email
-      parameter-poowner    = ms_export-poowner
-      parameter-pstype     = is_page-pstype
-      paging-top_requested = abap_true
-      paging-skip          = is_page-skip
-      paging-top           = mc_email_selection_page_size ).
+      parameter-email        = ms_export-email
+      parameter-poowner      = ms_export-poowner
+      parameter-pstype       = <fs_section>-pstype
+      paging-top_requested   = abap_true
+      paging-count_requested = abap_true
+      paging-skip            = ms_export-skip
+      paging-top             = mc_email_selection_page_size ).
 
-    CASE is_page-mode.
+    CASE <fs_section>-mode.
       WHEN zif_fi_das_dashboard=>mc_over.
-        zif_fi_das_dashboard~over( EXPORTING is_request = ls_request
-                                   IMPORTING et_result  = lt_over ).
-        ASSIGN lt_over TO <ft_rows>.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+        ASSIGN er_page->* TO <ft_over>.
+        zif_fi_das_dashboard~over( EXPORTING is_request    = ls_request
+                                   IMPORTING et_result     = <ft_over>
+                                             e_total_count = l_total_count ).
 
       WHEN zif_fi_das_dashboard=>mc_under.
-        zif_fi_das_dashboard~under( EXPORTING is_request = ls_request
-                                    IMPORTING et_result  = lt_under ).
-        ASSIGN lt_under TO <ft_rows>.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
+        ASSIGN er_page->* TO <ft_under>.
+        zif_fi_das_dashboard~under( EXPORTING is_request    = ls_request
+                                    IMPORTING et_result     = <ft_under>
+                                              e_total_count = l_total_count ).
 
       WHEN zif_fi_das_dashboard=>mc_exclude.
-        zif_fi_das_dashboard~exclude( EXPORTING is_request = ls_request
-                                      IMPORTING et_result  = lt_exclude ).
-        ASSIGN lt_exclude TO <ft_rows>.
+        CREATE DATA er_page TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+        ASSIGN er_page->* TO <ft_exclude>.
+        zif_fi_das_dashboard~exclude( EXPORTING is_request    = ls_request
+                                      IMPORTING et_result     = <ft_exclude>
+                                                e_total_count = l_total_count ).
 
       WHEN OTHERS.
         RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
     ENDCASE.
 
+    ms_export-mode  = <fs_section>-mode.
+    ms_export-count = l_total_count.
+    ms_export-skip  = ms_export-skip + mc_email_selection_page_size.
+    r_found = abap_true.
+  ENDMETHOD.
+
+  METHOD export_to_csv.
+    FIELD-SYMBOLS <ft_rows> TYPE STANDARD TABLE.
+
+    ASSIGN ir_page->* TO <ft_rows>.
     LOOP AT <ft_rows> ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND get_report_csv_row( is_row = <fs_row> i_mode = is_page-mode ) TO ms_export-lines.
+      APPEND get_report_csv_row( is_row = <fs_row> i_mode = ms_export-mode ) TO ms_export-lines.
       IF lines( ms_export-lines ) - mc_csv_header_rows >= mc_email_rows_per_message.
         send_export( ).
       ENDIF.

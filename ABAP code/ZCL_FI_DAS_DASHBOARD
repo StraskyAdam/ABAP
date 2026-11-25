@@ -1009,14 +1009,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         cx_sy_conversion_error
         cx_sy_open_sql_db
         cx_sy_codepage_converter_init.
-    CLASS-METHODS get_report_csv_row
-      IMPORTING
-        is_row TYPE any
-        i_mode TYPE zif_fi_das_dashboard=>t_mode
-      RETURNING
-        VALUE(r_csv_row) TYPE string
-      RAISING
-        zcx_fi_das_error.
     CLASS-METHODS get_dashboard_section
       IMPORTING
         i_mode           TYPE zif_fi_das_dashboard=>t_mode
@@ -4006,24 +3998,20 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD export_to_csv.
+    DATA ls_report_row TYPE ts_report_row.
     FIELD-SYMBOLS <ft_rows> TYPE STANDARD TABLE.
 
     ASSIGN ir_page->* TO <ft_rows>.
     LOOP AT <ft_rows> ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND get_report_csv_row( is_row = <fs_row> i_mode = i_mode ) TO ms_export-lines.
+      CLEAR ls_report_row.
+      MOVE-CORRESPONDING <fs_row> TO ls_report_row.
+      ls_report_row-dashboard_section = get_dashboard_section( i_mode   = i_mode
+                                                               i_pstype = ls_report_row-pstype ).
+      APPEND get_csv_row( ls_report_row ) TO ms_export-lines.
       IF lines( ms_export-lines ) - mc_csv_header_rows >= mc_email_rows_per_message.
         send_export( ).
       ENDIF.
     ENDLOOP.
-  ENDMETHOD.
-
-  METHOD get_report_csv_row.
-    DATA ls_report_row TYPE ts_report_row.
-
-    MOVE-CORRESPONDING is_row TO ls_report_row.
-    ls_report_row-dashboard_section = get_dashboard_section( i_mode   = i_mode
-                                                             i_pstype = ls_report_row-pstype ).
-    r_csv_row = get_csv_row( ls_report_row ).
   ENDMETHOD.
 
   METHOD get_dashboard_section.

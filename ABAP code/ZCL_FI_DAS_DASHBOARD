@@ -3971,6 +3971,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   METHOD export_section.
 
     DATA lr_page TYPE REF TO data.
+    DATA l_total_count TYPE int8.
 
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( parameter-email        = ms_export-email
                                                                parameter-poowner      = ms_export-poowner
@@ -3981,10 +3982,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                                                paging-top             = mc_email_page_size ).
 
     DO.
-      get_page( EXPORTING is_request    = ls_request
-                          i_mode        = is_section-mode
-                IMPORTING er_page       = lr_page
-                          e_total_count = DATA(l_total_count) ).
+      TEST-SEAM email_page_selection.
+        get_page( EXPORTING is_request    = ls_request
+                            i_mode        = is_section-mode
+                  IMPORTING er_page       = lr_page
+                            e_total_count = l_total_count ).
+      END-TEST-SEAM.
 
       export_to_csv( ir_page = lr_page
                      i_mode  = is_section-mode ).
@@ -4090,21 +4093,23 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD send_export.
 
-    DATA(lo_email) = NEW zcl_fi_das_email( ).
+    TEST-SEAM email_submit.
+      DATA(lo_email) = NEW zcl_fi_das_email( ).
 
-    DATA(l_email) = CONV string( ms_export-email ).
+      DATA(l_email) = CONV string( ms_export-email ).
 
-    lo_email->zif_fi_das_email~send(
-      i_template     = CONV string( mc_notify_user_template )
-      i_language     = CONV string( lo_email->zif_fi_das_email~get_language( l_email ) )
-      it_recipients  = VALUE #( ( email = l_email kind = zif_fi_das_email=>mc_to ) )
-      it_params      = VALUE #( ( name = mc_param_user  value = get_user_name( l_email ) )
-                                ( name = mc_param_month value = ms_export-month )
-                                ( name = mc_param_year  value = ms_export-year ) )
-      it_attachments = VALUE #( ( name          = get_filename( )
-                                  document_type = zif_fi_das_email=>mc_csv
-                                  content       = zcl_fi_das_utility=>encode_utf8( i_text = zcl_fi_das_utility=>to_csv( ms_export-lines )
-                                                                                   i_bom  = abap_true ) ) ) ).
+      lo_email->zif_fi_das_email~send(
+        i_template     = CONV string( mc_notify_user_template )
+        i_language     = CONV string( lo_email->zif_fi_das_email~get_language( l_email ) )
+        it_recipients  = VALUE #( ( email = l_email kind = zif_fi_das_email=>mc_to ) )
+        it_params      = VALUE #( ( name = mc_param_user  value = get_user_name( l_email ) )
+                                  ( name = mc_param_month value = ms_export-month )
+                                  ( name = mc_param_year  value = ms_export-year ) )
+        it_attachments = VALUE #( ( name          = get_filename( )
+                                    document_type = zif_fi_das_email=>mc_csv
+                                    content       = zcl_fi_das_utility=>encode_utf8( i_text = zcl_fi_das_utility=>to_csv( ms_export-lines )
+                                                                                     i_bom  = abap_true ) ) ) ).
+    END-TEST-SEAM.
 
     ms_export-suffix = ms_export-suffix + 1.
     ms_export-lines = VALUE #( ( get_csv_header( ) ) ).

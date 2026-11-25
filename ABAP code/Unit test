@@ -11981,17 +11981,37 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
 
   METHOD date_uses_xsa_format.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_date( '20240305' )
+      act = zcl_fi_das_utility=>format_date( '20240305' )
       exp = '05 Mar 2024' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_date( '20260901' )
+      act = zcl_fi_das_utility=>format_date( '20260901' )
       exp = '01 Sept 2026' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_date( '02060401' )
+      act = zcl_fi_das_utility=>format_date( '02060401' )
       exp = '01 Apr 206' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_date( '00010401' )
+      act = zcl_fi_das_utility=>format_date( '00010401' )
       exp = '01 Apr 1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '20261301' )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '00000000' )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>get_month_name( '20260901' )
+      exp = `September` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>get_month_name( '20260501' )
+      exp = `May` ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>get_month_name( '20261301' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_text( `` )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_text( CONV ebelp( '00010' ) )
+      exp = `00010` ).
   ENDMETHOD.
 
   METHOD report_straight_line_by_mode.
@@ -12025,15 +12045,15 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
 
   METHOD report_formats_match_xsa.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_report_amount( '1250.00' ) exp = '1250' ).
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '1250.00' ) ) exp = '1250' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_report_amount( '1804.20' ) exp = '1804.2' ).
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '1804.20' ) ) exp = '1804.2' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_report_amount( '0.00' ) exp = '0' ).
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '0.00' ) ) exp = '0' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_report_amount( '-0.10' ) exp = '-0.1' ).
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '-0.10' ) ) exp = '-0.1' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_report_amount( '36.14' ) exp = '36.14' ).
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '36.14' ) ) exp = '36.14' ).
     DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_report_row(
       pstype = zif_fi_das_dashboard=>mc_pstype_service
       amountaccrued = '1250.00' amountaccrued_usd = '1250.00'
@@ -12060,13 +12080,13 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
 
   METHOD report_timestamp_is_local.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260904150209.9876543' ) )
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260904150209.9876543' ) )
       exp = '04 Sept 2026, 3:02:09 pm' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260101000000' ) )
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260101000000' ) )
       exp = '01 Jan 2026, 12:00:00 am' ).
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>format_timestamp( CONV #( '20260101120000' ) )
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260101120000' ) )
       exp = '01 Jan 2026, 12:00:00 pm' ).
   ENDMETHOD.
 

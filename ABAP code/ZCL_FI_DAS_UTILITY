@@ -213,7 +213,75 @@ CLASS zcl_fi_das_utility DEFINITION
         cx_sy_codepage_converter_init
         cx_sy_conversion_codepage.
 
+    CLASS-METHODS format_amount
+      IMPORTING
+        i_amount        TYPE p
+      RETURNING
+        VALUE(r_amount) TYPE string.
+
+    CLASS-METHODS format_text
+      IMPORTING
+        i_text        TYPE clike
+      RETURNING
+        VALUE(r_text) TYPE string.
+
+    CLASS-METHODS format_date
+      IMPORTING
+        i_date        TYPE d
+      RETURNING
+        VALUE(r_date) TYPE string.
+
+    CLASS-METHODS format_timestamp
+      IMPORTING
+        i_timestamp        TYPE timestampl
+      RETURNING
+        VALUE(r_timestamp) TYPE string.
+
+    CLASS-METHODS get_month_name
+      IMPORTING
+        i_date         TYPE d
+      RETURNING
+        VALUE(r_month) TYPE string.
+
+    CLASS-METHODS get_short_month_name
+      IMPORTING
+        i_date         TYPE d
+      RETURNING
+        VALUE(r_month) TYPE string.
+
   PRIVATE SECTION.
+
+    CONSTANTS:
+      mc_space        TYPE string VALUE ` `,
+      mc_half_day     TYPE i VALUE 12,
+      mc_am           TYPE string VALUE `am`,
+      mc_pm           TYPE string VALUE `pm`,
+
+      mc_january      TYPE string VALUE `January`,
+      mc_february     TYPE string VALUE `February`,
+      mc_march        TYPE string VALUE `March`,
+      mc_april        TYPE string VALUE `April`,
+      mc_may          TYPE string VALUE `May`,
+      mc_june         TYPE string VALUE `June`,
+      mc_july         TYPE string VALUE `July`,
+      mc_august       TYPE string VALUE `August`,
+      mc_september    TYPE string VALUE `September`,
+      mc_october      TYPE string VALUE `October`,
+      mc_november     TYPE string VALUE `November`,
+      mc_december     TYPE string VALUE `December`,
+
+      mc_jan          TYPE string VALUE `Jan`,
+      mc_feb          TYPE string VALUE `Feb`,
+      mc_mar          TYPE string VALUE `Mar`,
+      mc_apr          TYPE string VALUE `Apr`,
+      mc_may_short    TYPE string VALUE `May`,
+      mc_jun          TYPE string VALUE `Jun`,
+      mc_jul          TYPE string VALUE `Jul`,
+      mc_aug          TYPE string VALUE `Aug`,
+      mc_sept         TYPE string VALUE `Sept`,
+      mc_oct          TYPE string VALUE `Oct`,
+      mc_nov          TYPE string VALUE `Nov`,
+      mc_dec          TYPE string VALUE `Dec`.
 
     TYPES:
       BEGIN OF ts_number_parts,
@@ -280,6 +348,72 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
       DATA(l_utf8) = r_content.
       CONCATENATE lc_utf8_bom l_utf8 INTO r_content IN BYTE MODE.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD format_amount.
+    r_amount = |{ i_amount NUMBER = RAW }|.
+    IF r_amount CS mc_dot.
+      SHIFT r_amount RIGHT DELETING TRAILING mc_zero_character.
+      SHIFT r_amount RIGHT DELETING TRAILING mc_dot.
+      CONDENSE r_amount NO-GAPS.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD format_text.
+    r_text = i_text.
+    IF r_text IS INITIAL.
+      r_text = mc_space.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD format_date.
+    DATA(l_month) = get_short_month_name( i_date ).
+    IF i_date IS INITIAL OR l_month IS INITIAL.
+      r_date = mc_space.
+      RETURN.
+    ENDIF.
+
+    r_date = |{ i_date+6(2) } { l_month } { CONV i( i_date(4) ) NUMBER = RAW }|.
+  ENDMETHOD.
+
+  METHOD format_timestamp.
+    IF i_timestamp IS INITIAL.
+      r_timestamp = mc_space.
+      RETURN.
+    ENDIF.
+
+    DATA(l_timestamp) = |{ CONV timestamp( trunc( i_timestamp ) ) NUMBER = RAW }|.
+    DATA(l_date) = CONV d( l_timestamp(8) ).
+    DATA(l_time) = CONV t( l_timestamp+8(6) ).
+    DATA(l_hour) = CONV i( l_time(2) ).
+    DATA(l_hour_12) = l_hour MOD mc_half_day.
+    IF l_hour_12 = 0.
+      l_hour_12 = mc_half_day.
+    ENDIF.
+
+    r_timestamp = |{ format_date( l_date ) }, |
+               && |{ l_hour_12 }:{ l_time+2(2) }:{ l_time+4(2) } |
+               && COND string( WHEN l_hour < mc_half_day THEN mc_am ELSE mc_pm ).
+  ENDMETHOD.
+
+  METHOD get_month_name.
+    r_month = SWITCH #( i_date+4(2)
+      WHEN '01' THEN mc_january   WHEN '02' THEN mc_february
+      WHEN '03' THEN mc_march     WHEN '04' THEN mc_april
+      WHEN '05' THEN mc_may       WHEN '06' THEN mc_june
+      WHEN '07' THEN mc_july      WHEN '08' THEN mc_august
+      WHEN '09' THEN mc_september WHEN '10' THEN mc_october
+      WHEN '11' THEN mc_november  WHEN '12' THEN mc_december ).
+  ENDMETHOD.
+
+  METHOD get_short_month_name.
+    r_month = SWITCH #( i_date+4(2)
+      WHEN '01' THEN mc_jan       WHEN '02' THEN mc_feb
+      WHEN '03' THEN mc_mar       WHEN '04' THEN mc_apr
+      WHEN '05' THEN mc_may_short WHEN '06' THEN mc_jun
+      WHEN '07' THEN mc_jul       WHEN '08' THEN mc_aug
+      WHEN '09' THEN mc_sept      WHEN '10' THEN mc_oct
+      WHEN '11' THEN mc_nov       WHEN '12' THEN mc_dec ).
   ENDMETHOD.
 
   METHOD alpha_output.

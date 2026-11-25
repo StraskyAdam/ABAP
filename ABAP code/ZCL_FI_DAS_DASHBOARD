@@ -918,6 +918,12 @@ CLASS zcl_fi_das_dashboard DEFINITION
 
     CONSTANTS mc_email_rows_per_message TYPE i VALUE 50000.
     CONSTANTS mc_email_selection_page_size TYPE i VALUE 10000.
+    CONSTANTS:
+      mc_report_month_cutoff TYPE n LENGTH 2 VALUE '07',
+      mc_previous_month      TYPE t5a4a-dlymo VALUE '01',
+      mc_no_days             TYPE t5a4a-dlydy VALUE '00',
+      mc_no_years            TYPE t5a4a-dlyyr VALUE '00',
+      mc_subtract            TYPE t5a4a-split VALUE '-'.
     CONSTANTS mc_email_report_template TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO'.
     CONSTANTS mc_document_type_csv TYPE so_obj_tp VALUE 'CSV'.
 
@@ -1009,26 +1015,6 @@ CLASS zcl_fi_das_dashboard DEFINITION
         is_row TYPE ts_report_row
       RETURNING
         VALUE(r_csv_row) TYPE string.
-    CLASS-METHODS format_date
-      IMPORTING
-        i_date TYPE d
-      RETURNING
-        VALUE(r_date) TYPE string.
-    CLASS-METHODS format_report_amount
-      IMPORTING
-        i_amount TYPE t_amount
-      RETURNING
-        VALUE(r_amount) TYPE string.
-    CLASS-METHODS format_report_text
-      IMPORTING
-        i_text TYPE string
-      RETURNING
-        VALUE(r_text) TYPE string.
-    CLASS-METHODS format_timestamp
-      IMPORTING
-        i_timestamp TYPE timestampl
-      RETURNING
-        VALUE(r_timestamp) TYPE string.
     CLASS-METHODS get_month_and_year
       EXPORTING
         e_month TYPE string
@@ -1248,19 +1234,19 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     REPLACE ALL OCCURRENCES OF '–' IN l_description WITH '-'.
     REPLACE ALL OCCURRENCES OF '–' IN l_supplier_name WITH '-'.
 
-    APPEND format_report_text( is_row-dashboard_section ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-companycode ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-ponumber ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-itemno ) ) TO lt_cells.
-    APPEND format_report_text( l_description ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-supplierid ) ) TO lt_cells.
-    APPEND format_report_text( l_supplier_name ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-pocurrency ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-dashboard_section ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-companycode ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-ponumber ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-itemno ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( l_description ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-supplierid ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( l_supplier_name ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-pocurrency ) TO lt_cells.
     APPEND |{ is_row-povalue NUMBER = RAW }| TO lt_cells.
     APPEND |{ is_row-povalue_usd NUMBER = RAW }| TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-status ) ) TO lt_cells.
-    APPEND format_date( is_row-wrkstrtdate ) TO lt_cells.
-    APPEND format_date( is_row-wrkenddate ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-status ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_date( is_row-wrkstrtdate ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_date( is_row-wrkenddate ) TO lt_cells.
     APPEND |{ is_row-totwrkcompamt NUMBER = RAW }| TO lt_cells.
     APPEND |{ is_row-totwrkcompamt_usd NUMBER = RAW }| TO lt_cells.
     APPEND |{ is_row-totwrkcompper NUMBER = RAW }| TO lt_cells.
@@ -1268,8 +1254,8 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     APPEND |{ is_row-grvalue_usd NUMBER = RAW }| TO lt_cells.
     APPEND |{ is_row-invvalue NUMBER = RAW }| TO lt_cells.
     APPEND |{ is_row-invvalue_usd NUMBER = RAW }| TO lt_cells.
-    APPEND format_report_amount( CONV #( is_row-amountaccrued ) ) TO lt_cells.
-    APPEND format_report_amount( CONV #( is_row-amountaccrued_usd ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_amount( is_row-amountaccrued ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_amount( is_row-amountaccrued_usd ) TO lt_cells.
     APPEND COND string(
       WHEN is_row-dashboard_section = 'Exclusion Indirect Service' OR
            is_row-dashboard_section = 'Exclusion Indirect Material'
@@ -1277,105 +1263,51 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
       WHEN is_row-straightlinemthd = abap_true OR is_row-straightlinemthd = 'true'
         THEN 'true'
       ELSE 'false' ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-accrualmethod ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-poowner_email ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-po_preparer ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-reviwed_by ) ) TO lt_cells.
-    APPEND format_timestamp( is_row-changed_on ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-glaccount ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-accrualmethod ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-poowner_email ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-po_preparer ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-reviwed_by ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_timestamp( is_row-changed_on ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-glaccount ) TO lt_cells.
     APPEND CONV string( is_row-costcenter ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-manageunit ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-manageunit ) TO lt_cells.
     APPEND CONV string( is_row-internalorder ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-profitcenter ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-profitcenter ) TO lt_cells.
     APPEND CONV string( is_row-assetid ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-region ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-epnumber ) ) TO lt_cells.
-    APPEND format_date( is_row-pocreatedat ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-ruletype ) ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-ruletypetext ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-region ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-epnumber ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_date( is_row-pocreatedat ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-ruletype ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-ruletypetext ) TO lt_cells.
     APPEND SWITCH string( is_row-pstype
       WHEN zif_fi_das_dashboard=>mc_pstype_service THEN mc_pstype_service_text
       WHEN zif_fi_das_dashboard=>mc_pstype_material THEN mc_pstype_material_text
       ELSE ` ` ) TO lt_cells.
     APPEND |{ is_row-exchangerate_dec NUMBER = RAW DECIMALS = 6 }| TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-po_closure ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-po_closure ) TO lt_cells.
     APPEND CONV string( is_row-zactivitynbr ) TO lt_cells.
-    APPEND format_report_text( CONV string( is_row-distpercentage ) ) TO lt_cells.
+    APPEND zcl_fi_das_utility=>format_text( is_row-distpercentage ) TO lt_cells.
     r_csv_row = zcl_fi_das_utility=>to_csv_row(
       it_values = lt_cells
       i_trailing_separator = abap_true ).
   ENDMETHOD.
 
-  METHOD format_report_amount.
-    r_amount = |{ i_amount NUMBER = RAW }|.
-    IF r_amount CS '.'.
-      SHIFT r_amount RIGHT DELETING TRAILING '0'.
-      SHIFT r_amount RIGHT DELETING TRAILING '.'.
-      CONDENSE r_amount NO-GAPS.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD format_report_text.
-    r_text = COND #( WHEN i_text IS INITIAL THEN ` ` ELSE i_text ).
-  ENDMETHOD.
-
-  METHOD format_date.
-    IF i_date IS INITIAL.
-      r_date = ` `.
-      RETURN.
-    ENDIF.
-
-    DATA(l_month_index) = CONV i( i_date+4(2) ).
-    DATA(lt_months) = VALUE tt_csv_lines(
-      ( `Jan` ) ( `Feb` ) ( `Mar` ) ( `Apr` ) ( `May` ) ( `Jun` )
-      ( `Jul` ) ( `Aug` ) ( `Sept` ) ( `Oct` ) ( `Nov` ) ( `Dec` ) ).
-    IF l_month_index < 1 OR l_month_index > lines( lt_months ).
-      r_date = ` `.
-      RETURN.
-    ENDIF.
-    DATA(l_year) = CONV i( i_date(4) ).
-    r_date = |{ i_date+6(2) } { lt_months[ l_month_index ] } { l_year NUMBER = RAW }|.
-  ENDMETHOD.
-
-  METHOD format_timestamp.
-    IF i_timestamp IS INITIAL.
-      r_timestamp = ` `.
-      RETURN.
-    ENDIF.
-
-    " apply_status already converted CHANGED_ON to Berlin wall time.
-    DATA(l_timestamp) = |{ CONV timestamp( trunc( i_timestamp ) ) NUMBER = RAW }|.
-    DATA(l_date) = CONV d( l_timestamp(8) ).
-    DATA(l_time) = CONV t( l_timestamp+8(6) ).
-
-    DATA(l_hour) = CONV i( l_time(2) ).
-    DATA(l_meridiem) = COND string( WHEN l_hour < 12 THEN 'am' ELSE 'pm' ).
-    DATA(l_hour_12) = l_hour MOD 12.
-    IF l_hour_12 = 0.
-      l_hour_12 = 12.
-    ENDIF.
-    r_timestamp = |{ format_date( l_date ) }, { l_hour_12 }:{ l_time+2(2) }:{ l_time+4(2) } { l_meridiem }|.
-  ENDMETHOD.
-
   METHOD get_month_and_year.
     DATA(l_date) = sy-datlo.
-    IF l_date+6(2) < '07'.
-      DATA(l_month_number) = CONV i( l_date+4(2) ).
-      IF l_month_number = 1.
-        DATA(l_year_number) = CONV i( l_date(4) ) - 1.
-        l_date(4) = |{ l_year_number WIDTH = 4 PAD = '0' }|.
-        l_date+4(2) = '12'.
-      ELSE.
-        l_month_number = l_month_number - 1.
-        l_date+4(2) = |{ l_month_number WIDTH = 2 PAD = '0' }|.
-      ENDIF.
+
+    IF l_date+6(2) < mc_report_month_cutoff.
+      CALL FUNCTION 'RP_CALC_DATE_IN_INTERVAL'
+        EXPORTING
+          date      = l_date
+          days      = mc_no_days
+          months    = mc_previous_month
+          signum    = mc_subtract
+          years     = mc_no_years
+        IMPORTING
+          calc_date = l_date.
     ENDIF.
 
-    DATA(l_month_index) = CONV i( l_date+4(2) ).
-    DATA(lt_months) = VALUE tt_csv_lines(
-      ( `January` ) ( `February` ) ( `March` ) ( `April` ) ( `May` ) ( `June` )
-      ( `July` ) ( `August` ) ( `September` ) ( `October` ) ( `November` ) ( `December` ) ).
-    e_month = lt_months[ l_month_index ].
+    e_month = zcl_fi_das_utility=>get_month_name( l_date ).
     e_year = l_date(4).
   ENDMETHOD.
 

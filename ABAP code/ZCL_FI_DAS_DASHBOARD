@@ -122,6 +122,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_email_rows_per_message    TYPE i VALUE 50000,
       mc_email_page_size           TYPE i VALUE 10000,
       mc_first_batch               TYPE i VALUE 1,
+      mc_sort_companycode          TYPE string VALUE `COMPANYCODE`,
 
       mc_notify_user_template      TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO',
       mc_param_user                TYPE string VALUE `USER`,
@@ -372,6 +373,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
         timestamp TYPE string,
         suffix    TYPE i,
         lines     TYPE tt_csv_lines,
+        month     TYPE string,
+        year      TYPE string,
       END OF ts_email_export,
       
       tt_string_range TYPE RANGE OF string,
@@ -3952,6 +3955,9 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                          suffix    = mc_first_batch
                          lines     = VALUE #( ( get_csv_header( ) ) ) ).
 
+    get_month_and_year( IMPORTING e_month = ms_export-month
+                                  e_year  = ms_export-year ).
+
     rt_sections = VALUE #(
       ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_service )
       ( mode = zif_fi_das_dashboard=>mc_over    pstype = zif_fi_das_dashboard=>mc_pstype_material )
@@ -3968,6 +3974,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request( parameter-email        = ms_export-email
                                                                parameter-poowner      = ms_export-poowner
                                                                parameter-pstype       = is_section-pstype
+                                                               orderby                = VALUE #( ( property = mc_sort_companycode ) )
                                                                paging-top_requested   = abap_true
                                                                paging-count_requested = abap_true
                                                                paging-top             = mc_email_page_size ).
@@ -4086,16 +4093,13 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
     DATA(l_email) = CONV string( ms_export-email ).
 
-    get_month_and_year( IMPORTING e_month = DATA(l_month)
-                                  e_year  = DATA(l_year) ).
-
     lo_email->zif_fi_das_email~send(
       i_template     = CONV string( mc_notify_user_template )
       i_language     = CONV string( lo_email->zif_fi_das_email~get_language( l_email ) )
       it_recipients  = VALUE #( ( email = l_email kind = zif_fi_das_email=>mc_to ) )
       it_params      = VALUE #( ( name = mc_param_user  value = get_user_name( l_email ) )
-                                ( name = mc_param_month value = l_month )
-                                ( name = mc_param_year  value = l_year ) )
+                                ( name = mc_param_month value = ms_export-month )
+                                ( name = mc_param_year  value = ms_export-year ) )
       it_attachments = VALUE #( ( name          = get_filename( )
                                   document_type = zif_fi_das_email=>mc_csv
                                   content       = zcl_fi_das_utility=>encode_utf8( i_text = zcl_fi_das_utility=>to_csv( ms_export-lines )

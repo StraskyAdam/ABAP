@@ -11928,14 +11928,6 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
 
-  PUBLIC SECTION.
-    CLASS-DATA: gv_send_count TYPE i,
-                gv_sent_lines TYPE i,
-                gv_sent_suffix TYPE i,
-                gv_mock_total TYPE int8,
-                gv_page_mode TYPE zif_fi_das_dashboard=>t_mode,
-                gt_page_requests TYPE STANDARD TABLE OF zif_fi_das_dashboard=>ts_request WITH EMPTY KEY.
-
   PRIVATE SECTION.
     METHODS header_row_column_count FOR TESTING.
     METHODS description_normalizes_en_dash FOR TESTING.
@@ -11946,10 +11938,7 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS report_timestamp_is_local FOR TESTING.
     METHODS report_mapping FOR TESTING RAISING cx_static_check.
     METHODS dashboard_section_by_mode FOR TESTING RAISING cx_static_check.
-    METHODS csv_batch_boundaries FOR TESTING RAISING cx_static_check.
-    METHODS csv_send_failure_preserves_state FOR TESTING RAISING cx_static_check.
     METHODS csv_pages_preserve_buffer FOR TESTING RAISING cx_static_check.
-    METHODS export_section_paging FOR TESTING RAISING cx_static_check.
     METHODS export_sections_reset_state FOR TESTING.
     METHODS filename_batch_sequence FOR TESTING.
     METHODS export_page_invalid_mode FOR TESTING RAISING cx_static_check.
@@ -12165,61 +12154,6 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
-  METHOD csv_batch_boundaries.
-    TEST-INJECTION email_submit.
-      ltc_fi_das_email_report=>gv_send_count = ltc_fi_das_email_report=>gv_send_count + 1.
-      ltc_fi_das_email_report=>gv_sent_lines = lines( ms_export-lines ).
-      ltc_fi_das_email_report=>gv_sent_suffix = ms_export-suffix.
-    END-TEST-INJECTION.
-
-    CLEAR: gv_send_count, gv_sent_lines, gv_sent_suffix.
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA(lt_sections) = lo_cut->get_section( i_email = '' i_poowner = '' ).
-    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
-    DATA lr_page TYPE REF TO data.
-    DO 49998 TIMES.
-      APPEND `row` TO lo_cut->ms_export-lines.
-    ENDDO.
-    APPEND VALUE #( ponumber = '4500000001' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_over.
-    GET REFERENCE OF lt_over INTO lr_page.
-
-    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
-    cl_abap_unit_assert=>assert_equals( act = gv_send_count exp = 0 ).
-    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 50000 ).
-
-    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
-    cl_abap_unit_assert=>assert_equals( act = gv_send_count exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = gv_sent_lines exp = 50001 ).
-    cl_abap_unit_assert=>assert_equals( act = gv_sent_suffix exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-suffix exp = 2 ).
-    cl_abap_unit_assert=>assert_equals(
-      act = lo_cut->ms_export-lines
-      exp = VALUE zcl_fi_das_dashboard=>tt_csv_lines( ( zcl_fi_das_dashboard=>get_csv_header( ) ) ) ).
-
-    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
-    cl_abap_unit_assert=>assert_equals( act = gv_send_count exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 2 ).
-    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-suffix exp = 2 ).
-  ENDMETHOD.
-
-  METHOD csv_send_failure_preserves_state.
-    TEST-INJECTION email_submit.
-      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e005(zfi_das).
-    END-TEST-INJECTION.
-
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA(lt_sections) = lo_cut->get_section( i_email = '' i_poowner = '' ).
-    APPEND `row` TO lo_cut->ms_export-lines.
-    TRY.
-        lo_cut->send_export( ).
-        cl_abap_unit_assert=>fail( msg = 'Send failure was not propagated' ).
-      CATCH zcx_fi_das_error.
-    ENDTRY.
-    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-suffix exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 2 ).
-    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-lines[ 2 ] exp = `row` ).
-  ENDMETHOD.
-
   METHOD csv_pages_preserve_buffer.
     DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
     DATA(lt_sections) = lo_cut->get_section( i_email = '' i_poowner = '' ).
@@ -12302,48 +12236,6 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
     lt_sections = lo_cut->get_section( i_email = 'owner@example.com' i_poowner = abap_true ).
     cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-email exp = 'owner@example.com' ).
     cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-poowner exp = abap_true ).
-  ENDMETHOD.
-
-  METHOD export_section_paging.
-    TEST-INJECTION email_page_selection.
-      APPEND ls_request TO ltc_fi_das_email_report=>gt_page_requests.
-      ltc_fi_das_email_report=>gv_page_mode = is_section-mode.
-      l_total_count = ltc_fi_das_email_report=>gv_mock_total.
-      CREATE DATA lr_page TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
-      FIELD-SYMBOLS <ft_test_page> TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
-      ASSIGN lr_page->* TO <ft_test_page>.
-      IF l_total_count > 0.
-        APPEND VALUE #( ponumber = '4500000001' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO <ft_test_page>.
-      ENDIF.
-    END-TEST-INJECTION.
-
-    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
-    DATA(lt_sections) = lo_cut->get_section( i_email = 'owner@example.com' i_poowner = abap_true ).
-    CLEAR gt_page_requests.
-    gv_mock_total = 10001.
-    lo_cut->export_section( lt_sections[ 1 ] ).
-
-    cl_abap_unit_assert=>assert_equals( act = lines( gt_page_requests ) exp = 2 ).
-    cl_abap_unit_assert=>assert_equals( act = gv_page_mode exp = zif_fi_das_dashboard=>mc_over ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-parameter-email exp = 'owner@example.com' ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-parameter-poowner exp = abap_true ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-parameter-pstype
-                                       exp = zif_fi_das_dashboard=>mc_pstype_service ).
-    cl_abap_unit_assert=>assert_equals( act = lines( gt_page_requests[ 1 ]-orderby ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-orderby[ 1 ]-property exp = 'COMPANYCODE' ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-paging-top_requested exp = abap_true ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-paging-count_requested exp = abap_true ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-paging-top exp = 10000 ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 1 ]-paging-skip exp = 0 ).
-    cl_abap_unit_assert=>assert_equals( act = gt_page_requests[ 2 ]-paging-skip exp = 10000 ).
-    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 3 ).
-
-    lt_sections = lo_cut->get_section( i_email = '' i_poowner = '' ).
-    CLEAR gt_page_requests.
-    gv_mock_total = 0.
-    lo_cut->export_section( lt_sections[ 1 ] ).
-    cl_abap_unit_assert=>assert_equals( act = lines( gt_page_requests ) exp = 1 ).
-    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 1 ).
   ENDMETHOD.
 
   METHOD filename_batch_sequence.

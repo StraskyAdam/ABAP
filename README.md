@@ -103,7 +103,7 @@ The dashboard interface's `send_export_via_email` method owns report selection, 
 
 `get_section` initializes per-call export state, determines the report month and year once, and returns the ordered sections. `export_section` owns paging, `get_page` loads one typed result page through `over`, `under` or `exclude` and returns the total count as `int8`, and `export_to_csv` maps each section row to a report row, appends the formatted CSV to the shared buffer and sends full batches. `get_dashboard_section` derives the section text from mode and type. `send_export` sends one attachment, advances its sequence number and resets the buffer only after successful submission. The interface sends any remaining rows after the section loop, without a last-section flag.
 
-Dashboard email ABAP Unit tests use test seams for page selection and email submission; they do not call the real selection or send a real email in those injected scenarios. SAP runtime tests are still needed for the real services, delivery and large exports.
+Dashboard email ABAP Unit tests cover formatting, section mapping and in-memory CSV buffering without sending email. SAP runtime tests are still needed for page selection, batch submission, delivery and large exports.
 
 Paging reselects the ordered keys for each page, so changes to the underlying data during an export can cause rows to be missed or repeated; it is not a database snapshot. CSV text, attachment conversion and BCS requests still consume memory. The caller must commit successful requests, or roll back on failure; delivery must be checked separately in SAPconnect.
 

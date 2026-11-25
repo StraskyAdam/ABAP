@@ -4067,7 +4067,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(l_language) = lo_email->zif_fi_das_email~get_language( l_email ).
 
     DATA(l_filter_email) = to_lower( l_email ).
-    REPLACE ALL OCCURRENCES OF  IN l_filter_email WITH ''.
+    REPLACE ALL OCCURRENCES OF '''' IN l_filter_email WITH ''''''.
     zif_fi_das_dashboard~user_details(
       EXPORTING
         is_request = VALUE #( filter-filter_string = |EMAILADDR = '{ l_filter_email }'|

@@ -1023,6 +1023,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
         cx_sy_conversion_error
         cx_sy_open_sql_db
         cx_sy_codepage_converter_init.
+    METHODS get_user_name
+      IMPORTING
+        i_email TYPE string
+      RETURNING
+        VALUE(r_user_name) TYPE string
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+    METHODS get_filename
+      RETURNING
+        VALUE(r_filename) TYPE string.
     CLASS-METHODS get_csv_header
       RETURNING
         VALUE(r_header) TYPE string.
@@ -4037,28 +4048,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     DATA(l_email) = CONV string( ms_export-email ).
     DATA(l_language) = lo_email->zif_fi_das_email~get_language( l_email ).
 
-    DATA(l_filter_email) = to_lower( l_email ).
-    REPLACE ALL OCCURRENCES OF '''' IN l_filter_email WITH ''''''.
-    zif_fi_das_dashboard~user_details(
-      EXPORTING
-        is_request = VALUE #( filter-filter_string = |EMAILADDR = '{ l_filter_email }'|
-                              paging-top_requested = abap_true
-                              paging-top           = 1 )
-      IMPORTING
-        et_result  = DATA(lt_user_details) ).
-
-    DATA(l_user_name) = l_email.
-    IF lt_user_details IS NOT INITIAL AND lt_user_details[ 1 ]-full_name IS NOT INITIAL.
-      l_user_name = lt_user_details[ 1 ]-full_name.
-    ENDIF.
+    DATA(l_user_name) = get_user_name( l_email ).
 
     get_month_and_year( IMPORTING e_month = DATA(l_month)
                                   e_year  = DATA(l_year) ).
 
-    DATA(l_filename) = |{ mc_filename_prefix }_{ ms_export-timestamp }_{ ms_export-suffix }{ mc_filename_extension }|.
-    IF strlen( l_filename ) > mc_filename_max_length.
-      l_filename = |{ mc_filename_short_prefix }_{ ms_export-timestamp }_{ ms_export-suffix }{ mc_filename_extension }|.
-    ENDIF.
+    DATA(l_filename) = get_filename( ).
 
     lo_email->zif_fi_das_email~send(
       i_template     = CONV string( mc_email_report_template )
@@ -4077,17 +4072,94 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
     ms_export-lines = VALUE #( ( get_csv_header( ) ) ).
   ENDMETHOD.
 
+  METHOD get_user_name.
+    DATA(l_filter_email) = to_lower( i_email ).
+    REPLACE ALL OCCURRENCES OF '''' IN l_filter_email WITH ''''''.
+    zif_fi_das_dashboard~user_details(
+      EXPORTING
+        is_request = VALUE #( filter-filter_string = |EMAILADDR = '{ l_filter_email }'|
+                              paging-top_requested = abap_true
+                              paging-top           = 1 )
+      IMPORTING
+        et_result  = DATA(lt_user_details) ).
+
+    r_user_name = i_email.
+    IF lt_user_details IS NOT INITIAL AND lt_user_details[ 1 ]-full_name IS NOT INITIAL.
+      r_user_name = lt_user_details[ 1 ]-full_name.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_filename.
+    r_filename = |{ mc_filename_prefix }_{ ms_export-timestamp }_{ ms_export-suffix }{ mc_filename_extension }|.
+    IF strlen( r_filename ) > mc_filename_max_length.
+      r_filename = |{ mc_filename_short_prefix }_{ ms_export-timestamp }_{ ms_export-suffix }{ mc_filename_extension }|.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD get_csv_header.
+    CONSTANTS:
+      lc_section              TYPE string VALUE `PO Dashboard Section`,
+      lc_company_code         TYPE string VALUE `Company Code`,
+      lc_po_number            TYPE string VALUE `PO Number`,
+      lc_line_item            TYPE string VALUE `Line Item`,
+      lc_line_description     TYPE string VALUE `PO line Description`,
+      lc_supplier_code        TYPE string VALUE `Supplier Code`,
+      lc_supplier_name        TYPE string VALUE `Supplier Name`,
+      lc_currency             TYPE string VALUE `Document Currency`,
+      lc_po_value             TYPE string VALUE `PO Value`,
+      lc_po_value_usd         TYPE string VALUE `PO Value(USD)`,
+      lc_status               TYPE string VALUE `Status`,
+      lc_service_start_date   TYPE string VALUE `Service Start Date`,
+      lc_service_end_date     TYPE string VALUE `Service End Date`,
+      lc_completed_amount     TYPE string VALUE `Services Completed Amount`,
+      lc_completed_amount_usd TYPE string VALUE `Services Completed Amount(USD)`,
+      lc_completed_percent    TYPE string VALUE `% of Services Completed`,
+      lc_goods_receipt        TYPE string VALUE `Goods Reciept to date`,
+      lc_goods_receipt_usd    TYPE string VALUE `Goods Reciept to date(USD)`,
+      lc_invoice_amount       TYPE string VALUE `Invoice Amount to Date`,
+      lc_invoice_amount_usd   TYPE string VALUE `Invoice Amount to Date(USD)`,
+      lc_accrued_amount       TYPE string VALUE `Amount to be Accrued`,
+      lc_accrued_amount_usd   TYPE string VALUE `Amount to be Accrued(USD)`,
+      lc_straight_line        TYPE string VALUE `Straight Line Method`,
+      lc_accrual_method       TYPE string VALUE `Accrual Method`,
+      lc_po_owner             TYPE string VALUE `PO Owner`,
+      lc_po_preparer          TYPE string VALUE `PO Preparer`,
+      lc_reviewed_by          TYPE string VALUE `Reviewed By`,
+      lc_last_update          TYPE string VALUE `Last Update On`,
+      lc_gl_account           TYPE string VALUE `GL Account`,
+      lc_cost_center          TYPE string VALUE `Cost Center`,
+      lc_management_unit      TYPE string VALUE `Management Unit`,
+      lc_internal_order       TYPE string VALUE `Internal Order`,
+      lc_profit_center        TYPE string VALUE `Profit Center`,
+      lc_asset_id             TYPE string VALUE `Asset Id`,
+      lc_region               TYPE string VALUE `Region`,
+      lc_pr_number            TYPE string VALUE `PR Number`,
+      lc_po_creation_date     TYPE string VALUE `PO Creation Date`,
+      lc_rule_type_text       TYPE string VALUE `Rule Type Text`,
+      lc_rule_type            TYPE string VALUE `Rule Type`,
+      lc_pstype_text          TYPE string VALUE `PSTYPE Text`,
+      lc_exchange_rate        TYPE string VALUE `Exchange Rate`,
+      lc_eligible_for_closure TYPE string VALUE `Eligible for Closure`,
+      lc_activity_number      TYPE string VALUE `Activity Number`,
+      lc_split_accounting     TYPE string VALUE `Split Accounting %`.
+
+    DATA(lt_headers) = VALUE tt_csv_lines(
+      ( lc_section ) ( lc_company_code ) ( lc_po_number ) ( lc_line_item )
+      ( lc_line_description ) ( lc_supplier_code ) ( lc_supplier_name ) ( lc_currency )
+      ( lc_po_value ) ( lc_po_value_usd ) ( lc_status ) ( lc_service_start_date )
+      ( lc_service_end_date ) ( lc_completed_amount ) ( lc_completed_amount_usd )
+      ( lc_completed_percent ) ( lc_goods_receipt ) ( lc_goods_receipt_usd )
+      ( lc_invoice_amount ) ( lc_invoice_amount_usd ) ( lc_accrued_amount )
+      ( lc_accrued_amount_usd ) ( lc_straight_line ) ( lc_accrual_method )
+      ( lc_po_owner ) ( lc_po_preparer ) ( lc_reviewed_by ) ( lc_last_update )
+      ( lc_gl_account ) ( lc_cost_center ) ( lc_management_unit ) ( lc_internal_order )
+      ( lc_profit_center ) ( lc_asset_id ) ( lc_region ) ( lc_pr_number )
+      ( lc_po_creation_date ) ( lc_rule_type_text ) ( lc_rule_type ) ( lc_pstype_text )
+      ( lc_exchange_rate ) ( lc_eligible_for_closure ) ( lc_activity_number ) ( lc_split_accounting ) ).
+
     " Preserve XSA's empty trailing column in the CSV.
-    r_header = 'PO Dashboard Section,Company Code,PO Number,Line Item,PO line Description,'
-      && 'Supplier Code,Supplier Name,Document Currency,PO Value,PO Value(USD),Status,'
-      && 'Service Start Date,Service End Date,Services Completed Amount,'
-      && 'Services Completed Amount(USD),% of Services Completed,Goods Reciept to date,'
-      && 'Goods Reciept to date(USD),Invoice Amount to Date,Invoice Amount to Date(USD),'
-      && 'Amount to be Accrued,Amount to be Accrued(USD),Straight Line Method,Accrual Method,'
-      && 'PO Owner,PO Preparer,Reviewed By,Last Update On,GL Account,Cost Center,Management Unit,'
-      && 'Internal Order,Profit Center,Asset Id,Region,PR Number,PO Creation Date,Rule Type Text,'
-      && 'Rule Type,PSTYPE Text,Exchange Rate,Eligible for Closure,Activity Number,Split Accounting %,'.
+    r_header = concat_lines_of( table = lt_headers sep = zcl_fi_das_utility=>mc_comma )
+      && zcl_fi_das_utility=>mc_comma.
   ENDMETHOD.
 
   METHOD get_csv_row.

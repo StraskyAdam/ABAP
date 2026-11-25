@@ -118,10 +118,11 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_zero                     TYPE string VALUE '0',
 
       mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
-      
+
       mc_email_rows_per_message    TYPE i VALUE 50000,
       mc_email_page_size           TYPE i VALUE 10000,
       mc_first_batch               TYPE i VALUE 1,
+      
       mc_sort_companycode          TYPE string VALUE `COMPANYCODE`,
 
       mc_notify_user_template      TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO',
@@ -153,8 +154,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_previous_month            TYPE t5a4a-dlymo VALUE '01',
       mc_no_days                   TYPE t5a4a-dlydy VALUE '00',
       mc_no_years                  TYPE t5a4a-dlyyr VALUE '00',
-      mc_subtract                  TYPE t5a4a-split VALUE '-'.      
-      
+      mc_subtract                  TYPE t5a4a-split VALUE '-'.
+
     TYPES:
       ts_key TYPE zif_fi_das_dashboard=>ts_key,
       tt_key TYPE zif_fi_das_dashboard=>tt_key,
@@ -351,13 +352,13 @@ CLASS zcl_fi_das_dashboard DEFINITION
         review_day         TYPE i,
         services_completed TYPE tt_services_completed,
       END OF ts_context,
-      
+
       BEGIN OF ts_csv_row.
         INCLUDE TYPE ts_odata_result.
       TYPES:
         dashboard_section TYPE string,
       END OF ts_csv_row,
-      
+
       tt_csv_lines TYPE zcl_fi_das_utility=>tt_string,
 
       BEGIN OF ts_section,
@@ -366,17 +367,17 @@ CLASS zcl_fi_das_dashboard DEFINITION
       END OF ts_section,
 
       tt_sections TYPE STANDARD TABLE OF ts_section WITH EMPTY KEY,
-      
+
       BEGIN OF ts_email_export,
         email     TYPE zif_fi_das_dashboard=>t_email,
         poowner   TYPE zif_fi_das_dashboard=>t_poowner,
         timestamp TYPE string,
+        month     TYPE string,
+        year      TYPE string, 
         suffix    TYPE i,
         lines     TYPE tt_csv_lines,
-        month     TYPE string,
-        year      TYPE string,
       END OF ts_email_export,
-      
+
       tt_string_range TYPE RANGE OF string,
 
       ts_string_range TYPE LINE OF tt_string_range.
@@ -976,7 +977,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         VALUE(r_id) TYPE sysuuid_c32
       RAISING
         zcx_fi_das_error.
-        
+
     METHODS get_section
       IMPORTING
         i_email            TYPE zif_fi_das_dashboard=>t_email
@@ -1057,7 +1058,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
     CLASS-METHODS get_month_and_year
       EXPORTING
         e_month TYPE string
-        e_year  TYPE string.        
+        e_year  TYPE string.
 
     DATA: mt_exchrt TYPE HASHED TABLE OF zfi_das_exchrt WITH UNIQUE KEY source_curr target_curr,
           ms_export TYPE ts_email_export.

@@ -11937,6 +11937,7 @@ CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
     METHODS report_straight_line_by_mode FOR TESTING RAISING cx_static_check.
     METHODS report_timestamp_is_local FOR TESTING.
     METHODS report_mapping FOR TESTING RAISING cx_static_check.
+    METHODS dashboard_section_by_mode FOR TESTING RAISING cx_static_check.
     METHODS csv_batch_boundaries FOR TESTING.
     METHODS csv_pages_preserve_buffer FOR TESTING RAISING cx_static_check.
     METHODS export_sections_reset_state FOR TESTING.
@@ -12091,54 +12092,74 @@ CLASS ltc_fi_das_email_report IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD report_mapping.
-    DATA(ls_source) = VALUE zcl_fi_das_dashboard=>ts_odata_result(
-      ponumber = '4500000001'
-      pstype = zif_fi_das_dashboard=>mc_pstype_service
-      povalue = '1234.50'
-      amountaccrued = '25.00'
-      ruletype = 'GL' ).
     DATA ls_report TYPE zcl_fi_das_dashboard=>ts_report_row.
-    DATA ls_over TYPE zfi_das_over.
-    DATA ls_under TYPE zfi_das_under.
-    DATA ls_exclude TYPE zfi_das_exclude.
+    DATA(ls_over) = VALUE zfi_das_over(
+      ponumber      = '4500000001'
+      pstype        = zif_fi_das_dashboard=>mc_pstype_service
+      povalue       = '1234.50'
+      amountaccrued = '25.00' ).
 
-    MOVE-CORRESPONDING ls_source TO ls_over.
     MOVE-CORRESPONDING ls_over TO ls_report.
     ls_report-dashboard_section = 'Indirect Services'.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_over )
+      act = zcl_fi_das_dashboard=>get_report_csv_row( is_row = ls_over
+                                                      i_mode = zif_fi_das_dashboard=>mc_over )
       exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
-    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_material.
-    cl_abap_unit_assert=>assert_true( act = xsdbool(
-      zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_over ) CS '"Indirect Material",' ) ).
 
-    MOVE-CORRESPONDING ls_source TO ls_under.
+    DATA(ls_under) = CORRESPONDING zfi_das_under( ls_over ).
+    ls_under-pstype = zif_fi_das_dashboard=>mc_pstype_material.
     CLEAR ls_report.
     MOVE-CORRESPONDING ls_under TO ls_report.
     ls_report-dashboard_section = 'Below $50k Indirect Material'.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_under )
+      act = zcl_fi_das_dashboard=>get_report_csv_row( is_row = ls_under
+                                                      i_mode = zif_fi_das_dashboard=>mc_under )
       exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
 
-    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_service.
-    cl_abap_unit_assert=>assert_true( act = xsdbool(
-      zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_under ) CS '"Below $50k Indirect Service",' ) ).
-    MOVE-CORRESPONDING ls_source TO ls_exclude.
+    DATA(ls_exclude) = CORRESPONDING zfi_das_exclude( ls_over ).
     CLEAR ls_report.
     MOVE-CORRESPONDING ls_exclude TO ls_report.
     ls_report-dashboard_section = 'Exclusion Indirect Service'.
     cl_abap_unit_assert=>assert_equals(
-      act = zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude )
+      act = zcl_fi_das_dashboard=>get_report_csv_row( is_row = ls_exclude
+                                                      i_mode = zif_fi_das_dashboard=>mc_exclude )
       exp = zcl_fi_das_dashboard=>get_csv_row( ls_report ) ).
-    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_material.
-    cl_abap_unit_assert=>assert_true( act = xsdbool(
-      zcl_fi_das_dashboard=>get_report_csv_row(
-        is_row = ls_source i_mode = zif_fi_das_dashboard=>mc_exclude ) CS '"Exclusion Indirect Material",' ) ).
+
+    TRY.
+        zcl_fi_das_dashboard=>get_report_csv_row( is_row = ls_over i_mode = '?' ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid report mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD dashboard_section_by_mode.
+    DATA(l_service) = zif_fi_das_dashboard=>mc_pstype_service.
+    DATA(l_material) = zif_fi_das_dashboard=>mc_pstype_material.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_over i_pstype = l_service )
+      exp = `Indirect Services` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_over i_pstype = l_material )
+      exp = `Indirect Material` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_under i_pstype = l_service )
+      exp = `Below $50k Indirect Service` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_under i_pstype = l_material )
+      exp = `Below $50k Indirect Material` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_exclude i_pstype = l_service )
+      exp = `Exclusion Indirect Service` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_exclude i_pstype = l_material )
+      exp = `Exclusion Indirect Material` ).
+
+    TRY.
+        zcl_fi_das_dashboard=>get_dashboard_section( i_mode = '?' i_pstype = l_service ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid dashboard mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD csv_batch_boundaries.

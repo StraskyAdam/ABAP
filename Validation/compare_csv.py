@@ -3,52 +3,21 @@
 import argparse
 from collections import Counter
 import csv
-from decimal import Decimal
 import glob
 from pathlib import Path
-import re
 import sys
 
 
 DELIMITERS = {"comma": ",", "semicolon": ";", "pipe": "|", "tab": "\t"}
-NUMERIC_COLUMNS = {
-    "PO Value", "PO Value(USD)", "Services Completed Amount",
-    "Services Completed Amount(USD)", "% of Services Completed",
-    "Goods Reciept to date", "Goods Reciept to date(USD)",
-    "Invoice Amount to Date", "Invoice Amount to Date(USD)",
-    "Amount to be Accrued", "Amount to be Accrued(USD)", "Exchange Rate",
-    "Split Accounting %",
-}
 AGGREGATE_LIST_COLUMNS = {
     "GL Account", "Cost Center", "Management Unit", "Internal Order",
     "Profit Center", "Asset Id", "Split Accounting %", "Rule Type", "Rule Type Text",
 }
 KEY_COLUMNS = ("PO Dashboard Section", "Company Code", "PO Number", "Line Item")
-DECIMAL_PATTERN = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
 
 
 def normalize_cell(column, value):
-    # Never strip identifiers or nonblank text, and never round numbers.
-    if value in ("", " "):
-        return ""
-    if column == "PSTYPE Text":
-        return {"9": "Service", "0": "Material"}.get(value, value)
-    if column in NUMERIC_COLUMNS:
-        parts = value.split(";") if column == "Split Accounting %" else [value]
-        normalized = []
-        for part in parts:
-            number = part.replace(",", ".") if column == "Exchange Rate" else part
-            if not DECIMAL_PATTERN.fullmatch(number):
-                raise ValueError(f"{column}: invalid numeric value {value!r}")
-            decimal = Decimal(number)
-            text = format(decimal, "f")
-            if "." in text:
-                text = text.rstrip("0").rstrip(".")
-            normalized.append("0" if decimal == 0 else text)
-        return ";".join(normalized)
-    if column in ("Service Start Date", "Service End Date", "PO Creation Date", "Last Update On"):
-        return re.sub(r"\bSep\b", "Sept", value)
-    return value
+    return "" if value in ("", " ") else value
 
 
 def normalize_rows(header, rows):
@@ -234,8 +203,8 @@ def main(argv=None):
 
         only_xsa, only_abap = content_differences(xsa_header, xsa, abap)
         if not only_xsa and not only_abap:
-            print("MATCH: content and duplicate counts match after normalization; "
-                  "row and aggregated-list order ignored.")
+            print("MATCH: row contents and duplicate counts match; row order, "
+                  "blank/space, and aggregated-list order are ignored.")
             return 0
 
         print(f"DIFFERENT: {sum(only_xsa.values())} excess row(s) on XSA side; "

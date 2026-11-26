@@ -2,8 +2,7 @@ INTERFACE zif_fi_das_email PUBLIC.
 
   CONSTANTS: mc_to  TYPE string VALUE 'TO',
              mc_cc  TYPE string VALUE 'CC',
-             mc_bcc TYPE string VALUE 'BCC',
-             mc_csv TYPE so_obj_tp VALUE 'CSV'.
+             mc_bcc TYPE string VALUE 'BCC'.
 
   TYPES: BEGIN OF ts_recipient,
            email TYPE string,

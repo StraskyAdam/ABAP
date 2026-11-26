@@ -54,15 +54,16 @@ CLASS zcl_fi_das_utility DEFINITION
       mc_plus_sign          TYPE c LENGTH 1 VALUE '+',
       mc_minus_sign         TYPE c LENGTH 1 VALUE '-',
 
+      mc_iso_date_pattern   TYPE string VALUE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
+
       mc_line_separator     TYPE string VALUE cl_abap_char_utilities=>cr_lf,
 
       mc_encoding_utf8      TYPE abap_encoding VALUE 'UTF-8',
       mc_utf8_bom           TYPE x LENGTH 3 VALUE 'EFBBBF',
 
+      mc_csv                TYPE so_obj_tp VALUE 'CSV',
       mc_csv_quote          TYPE string VALUE '"',
       mc_csv_escaped_quote  TYPE string VALUE '""',
-
-      mc_iso_date_pattern   TYPE string VALUE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
 
       mc_space              TYPE string VALUE ` `,
       mc_half_day           TYPE i VALUE 12,
@@ -86,7 +87,6 @@ CLASS zcl_fi_das_utility DEFINITION
       mc_feb                TYPE string VALUE `Feb`,
       mc_mar                TYPE string VALUE `Mar`,
       mc_apr                TYPE string VALUE `Apr`,
-      mc_may_short          TYPE string VALUE `May`,
       mc_jun                TYPE string VALUE `Jun`,
       mc_jul                TYPE string VALUE `Jul`,
       mc_aug                TYPE string VALUE `Aug`,
@@ -926,7 +926,7 @@ CLASS zcl_fi_das_utility IMPLEMENTATION.
     r_month = SWITCH #( CONV i( i_date+4(2) )
       WHEN 1  THEN mc_jan       WHEN 2  THEN mc_feb
       WHEN 3  THEN mc_mar       WHEN 4  THEN mc_apr
-      WHEN 5  THEN mc_may_short WHEN 6  THEN mc_jun
+      WHEN 5  THEN mc_may       WHEN 6  THEN mc_jun
       WHEN 7  THEN mc_jul       WHEN 8  THEN mc_aug
       WHEN 9  THEN mc_sept      WHEN 10 THEN mc_oct
       WHEN 11 THEN mc_nov       WHEN 12 THEN mc_dec ).

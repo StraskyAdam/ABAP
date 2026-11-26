@@ -10,6 +10,7 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                mc_config_email_from          TYPE zfi_das_conf_val-config_name VALUE 'EMAIL_FROM',
                mc_attachment_header_prefix   TYPE string VALUE '&SO_FILENAME=',
                mc_default_language           TYPE c LENGTH 2 VALUE 'EN',
+               mc_sender_name                TYPE string VALUE 'Accrual application',
                mc_document_type_raw          TYPE so_obj_tp VALUE 'RAW',
                mc_document_subject           TYPE so_obj_des VALUE 'DAS'.
 
@@ -165,7 +166,10 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
         lo_request->set_message_subject( i_subject ).
 
-        lo_request->set_sender( cl_cam_address_bcs=>create_internet_address( CONV adr6-smtp_addr( i_sender ) ) ).
+        lo_request->set_sender(
+          cl_cam_address_bcs=>create_internet_address(
+            i_address = CONV adr6-smtp_addr( i_sender )
+            i_name    = mc_sender_name ) ).
 
         add_recipients( io_request = lo_request
                         it_recipients = it_recipients ).

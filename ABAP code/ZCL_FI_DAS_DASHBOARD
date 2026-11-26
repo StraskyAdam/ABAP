@@ -120,9 +120,9 @@ CLASS zcl_fi_das_dashboard DEFINITION
       mc_config_cutoff_time       TYPE zfi_das_conf_val-config_name VALUE 'CUTOFF_TIME',
 
       mc_email_rows_per_message    TYPE i VALUE 50000,
-      mc_email_page_size           TYPE i VALUE 10000,
+      mc_email_page_size           TYPE i VALUE 20000,
       mc_first_batch               TYPE i VALUE 1,
-      
+
       mc_sort_companycode          TYPE string VALUE `COMPANYCODE`,
 
       mc_notify_user_template      TYPE zfi_das_email-template_name VALUE 'NOTIFY_USER_ALLPO',
@@ -373,7 +373,7 @@ CLASS zcl_fi_das_dashboard DEFINITION
         poowner   TYPE zif_fi_das_dashboard=>t_poowner,
         timestamp TYPE string,
         month     TYPE string,
-        year      TYPE string, 
+        year      TYPE string,
         suffix    TYPE i,
         lines     TYPE tt_csv_lines,
       END OF ts_email_export,
@@ -4102,7 +4102,7 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
                                 ( name = mc_param_month value = ms_export-month )
                                 ( name = mc_param_year  value = ms_export-year ) )
       it_attachments = VALUE #( ( name          = get_filename( )
-                                  document_type = zif_fi_das_email=>mc_csv
+                                  document_type = zcl_fi_das_utility=>mc_csv
                                   content       = zcl_fi_das_utility=>encode_utf8( i_text = zcl_fi_das_utility=>to_csv( ms_export-lines )
                                                                                    i_bom  = abap_true ) ) ) ).
 

@@ -1,4 +1,3 @@
-" Paste into the Test Classes include of ZCL_FI_DAS_EMAIL.
 CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
   PUBLIC SECTION.
     DATA subject TYPE string VALUE '&USER& / &MONTH&'.

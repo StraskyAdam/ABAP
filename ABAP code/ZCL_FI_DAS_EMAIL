@@ -12,7 +12,6 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                mc_default_language           TYPE c LENGTH 2 VALUE 'EN',
                mc_sender_name                TYPE string VALUE 'Accrual application',
                mc_body_line_length           TYPE i VALUE 255,
-               mc_body_word_too_long         TYPE string VALUE 'Email body contains a word longer than 255 characters',
                mc_document_type_raw          TYPE so_obj_tp VALUE 'RAW',
                mc_document_subject           TYPE so_obj_des VALUE 'DAS'.
 
@@ -41,9 +40,7 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       IMPORTING
         i_body          TYPE string
       RETURNING
-        VALUE(rt_lines) TYPE soli_tab
-      RAISING
-        zcx_fi_das_error.
+        VALUE(rt_lines) TYPE soli_tab.
 
     METHODS send_email
       IMPORTING
@@ -209,20 +206,8 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
     LOOP AT lt_lines INTO DATA(l_line).
       WHILE strlen( l_line ) > mc_body_line_length.
-        DATA(l_prefix) = substring( val = l_line len = mc_body_line_length + 1 ).
-        FIND ALL OCCURRENCES OF REGEX '[ \t]'
-          IN l_prefix RESULTS DATA(lt_spaces).
-
-        IF lt_spaces IS INITIAL.
-          RAISE EXCEPTION TYPE zcx_fi_das_error
-            EXPORTING
-              i_text = mc_body_word_too_long.
-        ENDIF.
-
-        DATA(l_offset) = lt_spaces[ lines( lt_spaces ) ]-offset.
-        APPEND VALUE #( line = l_line(l_offset) ) TO rt_lines.
-        l_offset = l_offset + 1.
-        l_line = substring( val = l_line off = l_offset ).
+        APPEND VALUE #( line = substring( val = l_line len = mc_body_line_length ) ) TO rt_lines.
+        l_line = substring( val = l_line off = mc_body_line_length ).
       ENDWHILE.
 
       APPEND VALUE #( line = l_line ) TO rt_lines.

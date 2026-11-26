@@ -15,6 +15,13 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
     DATA sent_sender TYPE string.
     DATA recipients TYPE zif_fi_das_email=>tt_recipients.
     DATA attachments TYPE zif_fi_das_email=>tt_attachments.
+    METHODS body_lines
+      IMPORTING
+        i_body          TYPE string
+      RETURNING
+        VALUE(rt_lines) TYPE soli_tab
+      RAISING
+        zcx_fi_das_error.
   PROTECTED SECTION.
     METHODS get_template REDEFINITION.
     METHODS get_sender REDEFINITION.
@@ -22,6 +29,10 @@ CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
 ENDCLASS.
 
 CLASS lcl_email_fake IMPLEMENTATION.
+  METHOD body_lines.
+    rt_lines = get_body_lines( i_body ).
+  ENDMETHOD.
+
   METHOD get_template.
     requested_template = i_template.
     requested_language = i_language.
@@ -70,9 +81,68 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS recipient_kind FOR TESTING.
     METHODS filename_length FOR TESTING.
     METHODS send_error_propagation FOR TESTING.
+    METHODS body_preserves_lines FOR TESTING RAISING cx_static_check.
+    METHODS body_wraps_at_spaces FOR TESTING RAISING cx_static_check.
+    METHODS body_line_boundary FOR TESTING RAISING cx_static_check.
+    METHODS body_rejects_long_word FOR TESTING.
 ENDCLASS.
 
 CLASS ltc_email IMPLEMENTATION.
+  METHOD body_preserves_lines.
+    DATA(l_first) = repeat( val = 'A' occ = 200 ).
+    DATA(l_second) = repeat( val = 'B' occ = 200 ).
+    DATA(l_body) = l_first && cl_abap_char_utilities=>cr_lf
+                && cl_abap_char_utilities=>cr_lf
+                && l_second && cl_abap_char_utilities=>newline
+                && '3. Purchase Orders which are exempt'.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_body )
+      exp = VALUE soli_tab(
+        ( line = l_first ) ( line = '' ) ( line = l_second )
+        ( line = '3. Purchase Orders which are exempt' ) ) ).
+  ENDMETHOD.
+
+  METHOD body_wraps_at_spaces.
+    DATA(l_body) = repeat( val = `Purchase Orders ` occ = 50 ) && 'end'.
+    DATA(lt_lines) = mo_email->body_lines( l_body ).
+    DATA lt_text TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+    LOOP AT lt_lines ASSIGNING FIELD-SYMBOL(<fs_line>).
+      cl_abap_unit_assert=>assert_true( xsdbool( strlen( <fs_line>-line ) <= 255 ) ).
+      APPEND CONV string( <fs_line>-line ) TO lt_text.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_true( xsdbool( lines( lt_lines ) > 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = concat_lines_of( table = lt_text sep = ` ` )
+      exp = l_body ).
+  ENDMETHOD.
+
+  METHOD body_line_boundary.
+    DATA(l_word) = repeat( val = 'Z' occ = 255 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_word )
+      exp = VALUE soli_tab( ( line = l_word ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_word && ` next` )
+      exp = VALUE soli_tab( ( line = l_word ) ( line = 'next' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( '' )
+      exp = VALUE soli_tab( ( line = '' ) ) ).
+  ENDMETHOD.
+
+  METHOD body_rejects_long_word.
+    TRY.
+        mo_email->body_lines( repeat( val = 'Z' occ = 256 ) ).
+        cl_abap_unit_assert=>fail( 'Word exceeding SOLI capacity accepted' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( )
+          exp = 'Email body contains a word longer than 255 characters' ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD setup.
     reset_fixture( ).
   ENDMETHOD.

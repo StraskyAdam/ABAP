@@ -11,6 +11,8 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                mc_attachment_header_prefix   TYPE string VALUE '&SO_FILENAME=',
                mc_default_language           TYPE c LENGTH 2 VALUE 'EN',
                mc_sender_name                TYPE string VALUE 'Accrual application',
+               mc_body_line_length           TYPE i VALUE 255,
+               mc_body_word_too_long         TYPE string VALUE 'Email body contains a word longer than 255 characters',
                mc_document_type_raw          TYPE so_obj_tp VALUE 'RAW',
                mc_document_subject           TYPE so_obj_des VALUE 'DAS'.
 
@@ -32,6 +34,14 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
     METHODS get_sender
       RETURNING
         VALUE(r_sender) TYPE string
+      RAISING
+        zcx_fi_das_error.
+
+    METHODS get_body_lines
+      IMPORTING
+        i_body          TYPE string
+      RETURNING
+        VALUE(rt_lines) TYPE soli_tab
       RAISING
         zcx_fi_das_error.
 
@@ -153,12 +163,14 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
   METHOD send_email.
 
+    DATA(lt_body) = get_body_lines( i_body ).
+
     TRY.
         DATA(lo_request) = cl_bcs=>create_persistent( ).
 
         DATA(lo_document) = cl_document_bcs=>create_document( i_subject = mc_document_subject
                                                               i_type = mc_document_type_raw
-                                                              i_text = cl_bcs_convert=>string_to_soli( i_body ) ).
+                                                              i_text = lt_body ).
 
         add_attachments( io_document = lo_document it_attachments = it_attachments ).
 
@@ -183,6 +195,38 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
           EXPORTING
             previous = lx_bcs.
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD get_body_lines.
+
+    DATA lt_lines TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    DATA(l_body) = i_body.
+
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN l_body
+      WITH cl_abap_char_utilities=>newline.
+    SPLIT l_body AT cl_abap_char_utilities=>newline INTO TABLE lt_lines.
+
+    LOOP AT lt_lines INTO DATA(l_line).
+      WHILE strlen( l_line ) > mc_body_line_length.
+        DATA(l_prefix) = substring( val = l_line len = mc_body_line_length + 1 ).
+        FIND ALL OCCURRENCES OF REGEX '[ \t]'
+          IN l_prefix RESULTS DATA(lt_spaces).
+
+        IF lt_spaces IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_fi_das_error
+            EXPORTING
+              i_text = mc_body_word_too_long.
+        ENDIF.
+
+        DATA(l_offset) = lt_spaces[ lines( lt_spaces ) ]-offset.
+        APPEND VALUE #( line = l_line(l_offset) ) TO rt_lines.
+        l_offset = l_offset + 1.
+        l_line = substring( val = l_line off = l_offset ).
+      ENDWHILE.
+
+      APPEND VALUE #( line = l_line ) TO rt_lines.
+    ENDLOOP.
 
   ENDMETHOD.
 

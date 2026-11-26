@@ -168,8 +168,8 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
         lo_request->set_sender(
           cl_cam_address_bcs=>create_internet_address(
-            i_address = CONV adr6-smtp_addr( i_sender )
-            i_name    = mc_sender_name ) ).
+            i_address_string = CONV adr6-smtp_addr( i_sender )
+            i_address_name   = mc_sender_name ) ).
 
         add_recipients( io_request = lo_request
                         it_recipients = it_recipients ).

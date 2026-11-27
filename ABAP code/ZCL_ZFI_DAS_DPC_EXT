@@ -167,12 +167,6 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
     ENDIF.
 
     io_data_provider->read_entry_data( IMPORTING es_data = ls_request ).
-    IF ls_request-user IS INITIAL OR strlen( ls_request-user ) > 225 OR
-       ls_request-items IS INITIAL.
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
-        EXPORTING message = 'USER (max. 225 characters) and Items are required.'.
-    ENDIF.
-
     TRY.
         ls_request-message = get_dashboard( )->notify_po_owners(
           i_user = CONV #( ls_request-user ) it_items = ls_request-items ).

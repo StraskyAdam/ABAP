@@ -1,33 +1,37 @@
-class ZCL_ZFI_DAS_DPC_EXT definition
-  public
-  inheriting from ZCL_ZFI_DAS_DPC
-  create public .
+CLASS zcl_zfi_das_dpc_ext DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_zfi_das_dpc
+  CREATE PUBLIC .
 
-public section.
-protected section.
+  PUBLIC SECTION.
 
-  methods AUDIT_GET_ENTITYSET
-    redefinition .
-  methods CUTOFF_GET_ENTITYSET
-    redefinition .
-  methods EXCLUSIONPOSET_GET_ENTITYSET
-    redefinition .
-  methods METHOD_GET_ENTITYSET
-    redefinition .
-  methods OPENPOTYPESET_GET_ENTITYSET
-    redefinition .
-  methods ROLETYPESET_GET_ENTITYSET
-    redefinition .
-  methods THRESHOLDSET_GET_ENTITYSET
-    redefinition .
-  methods USERLANGUAGE_CREATE_ENTITY
-    redefinition .
-  methods USERROLE_GET_ENTITYSET
-    redefinition .
-  methods USERTYPESET_GET_ENTITYSET
-    redefinition .
-  methods ROUNDINGTHRESHOL_GET_ENTITYSET
-    redefinition .
+    METHODS /iwbep/if_mgw_appl_srv_runtime~execute_action
+        REDEFINITION .
+
+  PROTECTED SECTION.
+
+    METHODS audit_get_entityset
+        REDEFINITION .
+    METHODS cutoff_get_entityset
+        REDEFINITION .
+    METHODS exclusionposet_get_entityset
+        REDEFINITION .
+    METHODS method_get_entityset
+        REDEFINITION .
+    METHODS openpotypeset_get_entityset
+        REDEFINITION .
+    METHODS roletypeset_get_entityset
+        REDEFINITION .
+    METHODS roundingthreshol_get_entityset
+        REDEFINITION .
+    METHODS thresholdset_get_entityset
+        REDEFINITION .
+    METHODS userlanguage_create_entity
+        REDEFINITION .
+    METHODS userrole_get_entityset
+        REDEFINITION .
+    METHODS usertypeset_get_entityset
+        REDEFINITION .
   PRIVATE SECTION.
 
     CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
@@ -46,6 +50,9 @@ protected section.
     CONSTANTS mc_parameter_ponum TYPE string VALUE 'IP_PONUM' ##NO_TEXT.
     CONSTANTS mc_parameter_lineitem TYPE string VALUE 'IP_LINEITEM' ##NO_TEXT.
     CONSTANTS mc_order_descending TYPE string VALUE 'DESC' ##NO_TEXT.
+    CONSTANTS mc_export_parameter_email TYPE string VALUE 'EMAIL' ##NO_TEXT.
+    CONSTANTS mc_export_parameter_poowner TYPE string VALUE 'POOWNER' ##NO_TEXT.
+    CONSTANTS mc_action_get_all_open_pos TYPE string VALUE 'getAllOpenPOs' ##NO_TEXT.
 
     METHODS get_dashboard
       RETURNING
@@ -94,12 +101,40 @@ protected section.
         !it_key_tab         TYPE /iwbep/t_mgw_name_value_pair
       RETURNING
         VALUE(rs_parameter) TYPE zif_fi_das_dashboard=>ts_audit_parameter.
+    METHODS get_all_open_pos
+      IMPORTING
+        !it_parameter TYPE /iwbep/t_mgw_name_value_pair
+      EXPORTING
+        !er_data      TYPE REF TO data
+      RAISING
+        /iwbep/cx_mgw_tech_exception.
+
 ENDCLASS.
 
+CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
+  METHOD /iwbep/if_mgw_appl_srv_runtime~execute_action.
 
-CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
+    CASE iv_action_name.
 
+      WHEN mc_action_get_all_open_pos.
+
+        get_all_open_pos( EXPORTING it_parameter = it_parameter
+                          IMPORTING er_data = er_data ).
+
+      WHEN OTHERS.
+
+        super->/iwbep/if_mgw_appl_srv_runtime~execute_action(
+          EXPORTING
+            iv_action_name = iv_action_name
+            it_parameter = it_parameter
+            io_tech_request_context = io_tech_request_context
+          IMPORTING
+            er_data = er_data ).
+
+    ENDCASE.
+
+  ENDMETHOD.
 
   METHOD audit_get_entityset.
 
@@ -131,7 +166,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD build_request.
 
     IF io_tech_request_context IS NOT BOUND.
@@ -144,7 +178,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
                           orderby = get_orderby( io_tech_request_context ) ).
 
   ENDMETHOD.
-
 
   METHOD cutoff_get_entityset.
 
@@ -163,7 +196,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
-
 
   METHOD exclusionposet_get_entityset.
 
@@ -188,7 +220,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD get_audit_parameter.
 
     rs_parameter-ip_ponum = it_key_tab[ name = mc_parameter_ponum ]-value.
@@ -203,7 +234,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
     ro_dashboard = NEW zcl_fi_das_dashboard( ).
 
   ENDMETHOD.
-
 
   METHOD get_filter.
 
@@ -241,7 +271,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD get_method_parameter.
 
     TRY.
@@ -276,7 +305,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD get_orderby.
 
     LOOP AT io_tech_request_context->get_orderby( ) ASSIGNING FIELD-SYMBOL(<fs_orderby>) WHERE property IS NOT INITIAL.
@@ -303,7 +331,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD get_parameter.
 
     rs_parameter-email = VALUE #( it_key_tab[ name = mc_parameter_email ]-value OPTIONAL ).
@@ -313,7 +340,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
     rs_parameter-poowner = VALUE #( it_key_tab[ name = mc_parameter_poowner ]-value OPTIONAL ).
 
   ENDMETHOD.
-
 
   METHOD method_get_entityset.
 
@@ -342,7 +368,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD openpotypeset_get_entityset.
 
     TRY.
@@ -366,7 +391,6 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD roletypeset_get_entityset.
 
     TRY.
@@ -386,36 +410,34 @@ CLASS ZCL_ZFI_DAS_DPC_EXT IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+  METHOD roundingthreshol_get_entityset.
 
-METHOD roundingthreshol_get_entityset.
+    IF io_tech_request_context IS NOT BOUND.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
+    ENDIF.
 
-  IF io_tech_request_context IS NOT BOUND.
-    RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception.
-  ENDIF.
+    TRY.
 
-  TRY.
+        get_dashboard( )->rounding_threshold(
+          EXPORTING
+            is_request = VALUE #(
+              filter  = get_filter( io_tech_request_context )
+              orderby = get_orderby( io_tech_request_context )
+              paging  = get_paging( io_tech_request_context ) )
+          IMPORTING
+            et_result = DATA(lt_result) ).
 
-      get_dashboard( )->rounding_threshold(
-        EXPORTING
-          is_request = VALUE #(
-            filter  = get_filter( io_tech_request_context )
-            orderby = get_orderby( io_tech_request_context )
-            paging  = get_paging( io_tech_request_context ) )
-        IMPORTING
-          et_result = DATA(lt_result) ).
+        et_entityset = CORRESPONDING #( lt_result ).
 
-      et_entityset = CORRESPONDING #( lt_result ).
+      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
 
-    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
 
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-        EXPORTING
-          previous = lx_error.
+    ENDTRY.
 
-  ENDTRY.
-
-ENDMETHOD.
-
+  ENDMETHOD.
 
   METHOD thresholdset_get_entityset.
 
@@ -440,29 +462,27 @@ ENDMETHOD.
 
   ENDMETHOD.
 
+  METHOD userlanguage_create_entity.
 
-METHOD userlanguage_create_entity.
+    DATA ls_user_language  TYPE zif_fi_das_dashboard=>ts_user_language.
 
-  DATA ls_user_language  TYPE zif_fi_das_dashboard=>ts_user_language.
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_user_language ).
 
-  io_data_provider->read_entry_data( IMPORTING es_data = ls_user_language ).
+    TRY.
 
-  TRY.
+        get_dashboard( )->update_user_language( ls_user_language ).
 
-      get_dashboard( )->update_user_language( ls_user_language ).
+      CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
 
-    CATCH cx_sy_open_sql_db zcx_fi_das_error INTO DATA(lx_error).
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
 
-      RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
-        EXPORTING
-          previous = lx_error.
+    ENDTRY.
 
-  ENDTRY.
+    er_entity = CORRESPONDING #( ls_user_language ).
 
-  er_entity = CORRESPONDING #( ls_user_language ).
-
-ENDMETHOD.
-
+  ENDMETHOD.
 
   METHOD userrole_get_entityset.
 
@@ -491,7 +511,6 @@ ENDMETHOD.
 
   ENDMETHOD.
 
-
   METHOD usertypeset_get_entityset.
 
     IF io_tech_request_context IS NOT BOUND.
@@ -518,4 +537,40 @@ ENDMETHOD.
     ENDTRY.
 
   ENDMETHOD.
+
+  METHOD get_all_open_pos.
+
+    DATA ls_mail_status TYPE zcl_zfi_das_mpc=>mailstatustype.
+
+    DATA(l_email)   = VALUE string( it_parameter[ name = mc_export_parameter_email ]-value OPTIONAL ).
+    DATA(l_poowner) = VALUE string( it_parameter[ name = mc_export_parameter_poowner ]-value OPTIONAL ).
+
+    TRY.
+
+        IF l_email IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e006(zfi_das).
+        ENDIF.
+
+        ls_mail_status-status = get_dashboard( )->send_export_via_email( i_email   = CONV #( l_email )
+                                                                         i_poowner = CONV #( l_poowner ) ).
+
+        copy_data_to_ref(
+          EXPORTING
+            is_data = ls_mail_status
+          CHANGING
+            cr_data = er_data ).
+
+      CATCH cx_sy_conversion_error
+            cx_sy_open_sql_db
+            cx_sy_codepage_converter_init
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
 ENDCLASS.

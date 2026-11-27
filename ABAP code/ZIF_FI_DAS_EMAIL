@@ -1,0 +1,48 @@
+INTERFACE zif_fi_das_email PUBLIC.
+
+  CONSTANTS: mc_to  TYPE string VALUE 'TO',
+             mc_cc  TYPE string VALUE 'CC',
+             mc_bcc TYPE string VALUE 'BCC'.
+
+  TYPES: BEGIN OF ts_recipient,
+           email TYPE string,
+           kind  TYPE string,
+         END OF ts_recipient,
+
+         tt_recipients TYPE STANDARD TABLE OF ts_recipient WITH EMPTY KEY,
+
+         BEGIN OF ts_param,
+           name  TYPE string,
+           value TYPE string,
+         END OF ts_param,
+
+         tt_params TYPE STANDARD TABLE OF ts_param WITH EMPTY KEY,
+
+         BEGIN OF ts_attachment,
+           name          TYPE string,
+           document_type TYPE so_obj_tp,
+           content       TYPE xstring,
+         END OF ts_attachment,
+
+         tt_attachments TYPE STANDARD TABLE OF ts_attachment WITH EMPTY KEY.
+
+  METHODS send
+    IMPORTING
+      i_template       TYPE string
+      i_language       TYPE string
+      i_require_active TYPE abap_bool DEFAULT abap_true
+      it_recipients    TYPE tt_recipients
+      it_params        TYPE tt_params OPTIONAL
+      it_attachments   TYPE tt_attachments OPTIONAL
+    RAISING
+      zcx_fi_das_error.
+
+  METHODS get_language
+    IMPORTING
+      i_email           TYPE string
+    RETURNING
+      VALUE(r_language) TYPE zfi_das_email-language
+    RAISING
+      zcx_fi_das_error.
+
+ENDINTERFACE.

@@ -1,0 +1,296 @@
+CLASS lcl_email_fake DEFINITION INHERITING FROM zcl_fi_das_email.
+  PUBLIC SECTION.
+    DATA subject TYPE string VALUE '&USER& / &MONTH&'.
+    DATA body TYPE string VALUE 'Dear &USER& &OTHER&'.
+    DATA status TYPE string VALUE 'X'.
+    DATA sender TYPE string VALUE 'sender@example.org'.
+    DATA template_missing TYPE abap_bool.
+    DATA bcs_error TYPE abap_bool.
+    DATA use_real_bcs TYPE abap_bool.
+    DATA calls TYPE i.
+    DATA requested_template TYPE string.
+    DATA requested_language TYPE string.
+    DATA sent_subject TYPE string.
+    DATA sent_body TYPE string.
+    DATA sent_sender TYPE string.
+    DATA recipients TYPE zif_fi_das_email=>tt_recipients.
+    DATA attachments TYPE zif_fi_das_email=>tt_attachments.
+    METHODS body_lines
+      IMPORTING
+        i_body          TYPE string
+      RETURNING
+        VALUE(rt_lines) TYPE soli_tab.
+  PROTECTED SECTION.
+    METHODS get_template REDEFINITION.
+    METHODS get_sender REDEFINITION.
+    METHODS send_email REDEFINITION.
+ENDCLASS.
+
+CLASS lcl_email_fake IMPLEMENTATION.
+  METHOD body_lines.
+    rt_lines = get_body_lines( i_body ).
+  ENDMETHOD.
+
+  METHOD get_template.
+    requested_template = i_template.
+    requested_language = i_language.
+    IF template_missing = abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error EXPORTING i_text = 'Missing template'.
+    ENDIF.
+    rs_template = VALUE #( subject = subject body = body status = status ).
+  ENDMETHOD.
+  METHOD get_sender.
+    r_sender = sender.
+  ENDMETHOD.
+  METHOD send_email.
+    calls = calls + 1.
+    IF use_real_bcs = abap_true.
+      super->send_email(
+        i_sender = i_sender
+        i_subject = i_subject
+        i_body = i_body
+        it_recipients = it_recipients
+        it_attachments = it_attachments ).
+      RETURN.
+    ENDIF.
+    IF bcs_error = abap_true.
+      RAISE EXCEPTION TYPE zcx_fi_das_error EXPORTING i_text = 'BCS test error'.
+    ENDIF.
+    sent_subject = i_subject.
+    sent_body = i_body.
+    sent_sender = i_sender.
+    recipients = it_recipients.
+    attachments = it_attachments.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_email DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    DATA mo_email TYPE REF TO lcl_email_fake.
+    DATA mt_recipients TYPE zif_fi_das_email=>tt_recipients.
+    METHODS setup.
+    METHODS reset_fixture.
+    METHODS replace_in_parameter_order FOR TESTING RAISING cx_static_check.
+    METHODS replace_empty_unknown FOR TESTING RAISING cx_static_check.
+    METHODS manager_message FOR TESTING RAISING cx_static_check.
+    METHODS active_contract FOR TESTING RAISING cx_static_check.
+    METHODS missing_template FOR TESTING.
+    METHODS recipient_kind FOR TESTING.
+    METHODS filename_length FOR TESTING.
+    METHODS send_error_propagation FOR TESTING.
+    METHODS body_preserves_lines FOR TESTING RAISING cx_static_check.
+    METHODS body_wraps_long_line FOR TESTING.
+    METHODS body_line_boundary FOR TESTING RAISING cx_static_check.
+    METHODS body_wraps_long_word FOR TESTING.
+ENDCLASS.
+
+CLASS ltc_email IMPLEMENTATION.
+  METHOD body_preserves_lines.
+    DATA(l_first) = repeat( val = 'A' occ = 200 ).
+    DATA(l_second) = repeat( val = 'B' occ = 200 ).
+    DATA(l_body) = l_first && cl_abap_char_utilities=>cr_lf
+                && cl_abap_char_utilities=>cr_lf
+                && l_second && cl_abap_char_utilities=>newline
+                && `3.` && cl_abap_char_utilities=>horizontal_tab
+                && `Purchase Orders which are exempt`.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_body )
+      exp = VALUE soli_tab(
+        ( line = l_first ) ( line = '' ) ( line = l_second )
+        ( line = `3.` && cl_abap_char_utilities=>horizontal_tab
+               && `Purchase Orders which are exempt` ) ) ).
+  ENDMETHOD.
+
+  METHOD body_wraps_long_line.
+    DATA(l_body) = repeat( val = `A` occ = 254 ) && ` B` && repeat( val = `C` occ = 255 ).
+    DATA(lt_lines) = mo_email->body_lines( l_body ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_lines
+      exp = VALUE soli_tab(
+        ( line = repeat( val = `A` occ = 254 ) && ` ` )
+        ( line = `B` && repeat( val = `C` occ = 254 ) )
+        ( line = `C` ) ) ).
+  ENDMETHOD.
+
+  METHOD body_line_boundary.
+    DATA(l_word) = repeat( val = 'Z' occ = 255 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_word )
+      exp = VALUE soli_tab( ( line = l_word ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_word && ` next` )
+      exp = VALUE soli_tab( ( line = l_word ) ( line = ` next` ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( '' )
+      exp = VALUE soli_tab( ) ).
+  ENDMETHOD.
+
+  METHOD body_wraps_long_word.
+    DATA(l_word) = repeat( val = `Z` occ = 600 ).
+    DATA(l_full_line) = repeat( val = `Z` occ = 255 ).
+    DATA(l_last_line) = repeat( val = `Z` occ = 90 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_word ) exp = 600 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_full_line ) exp = 255 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_last_line ) exp = 90 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->body_lines( l_word )
+      exp = VALUE soli_tab(
+        ( line = l_full_line )
+        ( line = l_full_line )
+        ( line = l_last_line ) ) ).
+  ENDMETHOD.
+
+  METHOD setup.
+    reset_fixture( ).
+  ENDMETHOD.
+
+  METHOD reset_fixture.
+    mo_email = NEW #( ).
+    mt_recipients = VALUE #( ( email = 'manager@example.org' kind = 'TO' ) ).
+  ENDMETHOD.
+
+  METHOD replace_in_parameter_order.
+    DATA(l_text) = |Žluťoučký &USER& / &MONTH& &USER&{ cl_abap_char_utilities=>cr_lf }fin|.
+    mo_email->body = l_text.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients
+      it_params = VALUE #( ( name = 'USER' value = '&MONTH&' )
+                           ( name = 'MONTH' value = 'november' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_body
+      exp = |Žluťoučký november / november november{ cl_abap_char_utilities=>cr_lf }fin| ).
+  ENDMETHOD.
+
+  METHOD replace_empty_unknown.
+    mo_email->body = '&MES& &USER&&USER& & lonely &'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients
+      it_params = VALUE #( ( name = 'USER' value = '' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_body exp = '&MES&  & lonely &' ).
+    mo_email->body = '&nbsp;&USER& AT&T &amp; &USER& &user&'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients
+      it_params = VALUE #( ( name = 'USER' value = '$1\Ž' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_body
+      exp = '&nbsp;$1\Ž AT&T &amp; $1\Ž &user&' ).
+    mo_email->body = ''.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->sent_body exp = '' ).
+  ENDMETHOD.
+
+  METHOD manager_message.
+    mt_recipients = VALUE #( BASE mt_recipients
+      ( email = 'other.manager@example.org' kind = 'TO' )
+      ( email = 'owner1@example.org' kind = 'CC' )
+      ( email = 'owner2@example.org' kind = 'CC' )
+      ( email = 'audit@example.org' kind = 'BCC' ) ).
+    DATA(lt_attachments) = VALUE zif_fi_das_email=>tt_attachments(
+      ( name = 'Prehľad november.csv' document_type = 'CSV' content = 'EFBBBF00FF0D0A' )
+      ( name = 'binary.xlsx' document_type = 'BIN' content = '504B0000FF' )
+      ( name = repeat( val = 'Ž' occ = 46 ) && '.csv'
+        document_type = 'CSV' content = '' ) ).
+    mo_email->body = repeat( val = 'Ž' occ = 600 ) && cl_abap_char_utilities=>cr_lf && '&USER&'.
+    mo_email->subject = repeat( val = 'S' occ = 300 ) && '&USER&'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'MANAGER_REMINDER' i_language = 'ES' i_require_active = abap_true
+      it_recipients = mt_recipients it_attachments = lt_attachments
+      it_params = VALUE #( ( name = 'USER' value = 'Manažér' ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->recipients exp = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->attachments exp = lt_attachments ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->sent_sender exp = mo_email->sender ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_subject exp = repeat( val = 'S' occ = 300 ) && 'Manažér' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_body
+      exp = repeat( val = 'Ž' occ = 600 ) && cl_abap_char_utilities=>cr_lf && 'Manažér' ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->requested_language exp = 'ES' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->requested_template exp = 'MANAGER_REMINDER' ).
+  ENDMETHOD.
+
+  METHOD active_contract.
+    mo_email->status = ''.
+    TRY.
+        mo_email->zif_fi_das_email~send(
+          i_template = 'T' i_language = 'EN'
+          it_recipients = mt_recipients ).
+        cl_abap_unit_assert=>fail( 'Inactive template accepted by default' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'Email template is not active' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    mo_email->status = 'X'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' it_recipients = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+    mo_email->status = ''.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'T' i_language = 'EN' i_require_active = abap_false
+      it_recipients = mt_recipients ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 2 ).
+  ENDMETHOD.
+
+  METHOD missing_template.
+    mo_email->template_missing = abap_true.
+    TRY.
+        mo_email->zif_fi_das_email~send(
+          i_template = 'T' i_language = 'ES' i_require_active = abap_false
+          it_recipients = mt_recipients ).
+        cl_abap_unit_assert=>fail( 'Missing template accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = mo_email->requested_language exp = 'ES' ).
+  ENDMETHOD.
+
+  METHOD recipient_kind.
+    mo_email->use_real_bcs = abap_true.
+    mt_recipients[ 1 ]-kind = 'INVALID'.
+    TRY.
+        mo_email->zif_fi_das_email~send(
+          i_template = 'T' i_language = 'EN' it_recipients = mt_recipients ).
+        cl_abap_unit_assert=>fail( 'Invalid recipient kind accepted' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'Recipient type is not supported' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+  ENDMETHOD.
+
+  METHOD filename_length.
+    mo_email->use_real_bcs = abap_true.
+    DATA(lt_attachments) = VALUE zif_fi_das_email=>tt_attachments(
+      ( name = repeat( val = 'a' occ = 51 ) document_type = 'CSV' ) ).
+    TRY.
+        mo_email->zif_fi_das_email~send(
+          i_template = 'T' i_language = 'EN'
+          it_recipients = mt_recipients it_attachments = lt_attachments ).
+        cl_abap_unit_assert=>fail( 'Filename beyond SO_OBJ_DES length accepted' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'Attachment filename exceeds maximum allowed length' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+  ENDMETHOD.
+
+  METHOD send_error_propagation.
+    mo_email->bcs_error = abap_true.
+    TRY.
+        mo_email->zif_fi_das_email~send(
+          i_template = 'T' i_language = 'EN' i_require_active = abap_true
+          it_recipients = mt_recipients ).
+        cl_abap_unit_assert=>fail( 'BCS exception ignored' ).
+      CATCH zcx_fi_das_error INTO DATA(lx_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lx_error->get_text( ) exp = 'BCS test error' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = mo_email->calls exp = 1 ).
+  ENDMETHOD.
+ENDCLASS.

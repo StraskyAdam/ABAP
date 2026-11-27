@@ -28,6 +28,7 @@ CLASS ltc_user_request DEFINITION DEFERRED.
 CLASS ltc_user_role DEFINITION DEFERRED.
 CLASS ltc_user_language DEFINITION DEFERRED.
 CLASS ltc_rounding_threshold DEFINITION DEFERRED.
+CLASS ltc_fi_das_email_report DEFINITION DEFERRED.
 
 
 
@@ -43,7 +44,8 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltc_user_request
                 ltc_user_role
                 ltc_user_language
-                ltc_rounding_threshold.
+                ltc_rounding_threshold
+                ltc_fi_das_email_report.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -11838,6 +11840,423 @@ CLASS ltc_rounding_threshold IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial( act = lt_result ).
 
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ltc_fi_das_csv DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS csv_quotes_and_newlines FOR TESTING.
+    METHODS csv_separators FOR TESTING.
+    METHODS csv_empty_values FOR TESTING.
+    METHODS csv_join_lines FOR TESTING.
+    METHODS csv_utf8_and_bom FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_fi_das_csv IMPLEMENTATION.
+  METHOD csv_quotes_and_newlines.
+    DATA(l_newline) = cl_abap_char_utilities=>newline.
+    DATA(l_row) = zcl_fi_das_utility=>to_csv_row(
+      VALUE #( ( `A,"B` ) ( |one{ l_newline }two| ) ( `Ž` ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = l_row
+      exp = |"A,""B","one{ l_newline }two","Ž"| ).
+  ENDMETHOD.
+
+  METHOD csv_separators.
+    DATA(lt_values) = VALUE zcl_fi_das_utility=>tt_string( ( `A|B` ) ( `C~D` ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv_row( it_values = lt_values i_separator = '|' )
+      exp = `"A|B"|"C~D"` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv_row(
+        it_values = lt_values i_separator = '~' i_trailing_separator = abap_true )
+      exp = `"A|B"~"C~D"~` ).
+  ENDMETHOD.
+
+  METHOD csv_empty_values.
+    DATA(lt_values) = VALUE zcl_fi_das_utility=>tt_string( ( `` ) ( `0` ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv_row( lt_values )
+      exp = `"","0"` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv_row(
+        it_values = lt_values i_empty_value = ` ` i_trailing_separator = abap_true )
+      exp = `" ","0",` ).
+    cl_abap_unit_assert=>assert_initial(
+      act = zcl_fi_das_utility=>to_csv_row(
+        it_values = VALUE #( ) i_trailing_separator = abap_true ) ).
+  ENDMETHOD.
+
+  METHOD csv_join_lines.
+    DATA(lt_lines) = VALUE zcl_fi_das_utility=>tt_string( ( `header,` ) ( `"1",` ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv( lt_lines )
+      exp = |header,{ cl_abap_char_utilities=>newline }"1",{ cl_abap_char_utilities=>newline }| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>to_csv(
+        it_lines = lt_lines i_line_separator = CONV string( cl_abap_char_utilities=>newline )
+        i_final_line_separator = abap_false )
+      exp = |header,{ cl_abap_char_utilities=>newline }"1",| ).
+    cl_abap_unit_assert=>assert_initial(
+      act = zcl_fi_das_utility=>to_csv( VALUE #( ) ) ).
+  ENDMETHOD.
+
+  METHOD csv_utf8_and_bom.
+    CONSTANTS lc_utf8 TYPE x LENGTH 2 VALUE 'C5BD'.
+    CONSTANTS lc_utf8_with_bom TYPE x LENGTH 5 VALUE 'EFBBBFC5BD'.
+    CONSTANTS lc_utf8_bom TYPE x LENGTH 3 VALUE 'EFBBBF'.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>encode_utf8( `Ž` )
+      exp = CONV xstring( lc_utf8 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>encode_utf8( i_text = `Ž` i_bom = abap_true )
+      exp = CONV xstring( lc_utf8_with_bom ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>encode_utf8( i_text = `` i_bom = abap_true )
+      exp = CONV xstring( lc_utf8_bom ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS ltc_fi_das_email_report DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS header_row_column_count FOR TESTING.
+    METHODS description_normalizes_en_dash FOR TESTING.
+    METHODS numeric_values_use_raw_decimal FOR TESTING.
+    METHODS date_uses_xsa_format FOR TESTING.
+    METHODS report_formats_match_xsa FOR TESTING.
+    METHODS report_straight_line_by_mode FOR TESTING RAISING cx_static_check.
+    METHODS report_timestamp_is_local FOR TESTING.
+    METHODS report_mapping FOR TESTING RAISING cx_static_check.
+    METHODS dashboard_section_by_mode FOR TESTING RAISING cx_static_check.
+    METHODS csv_pages_preserve_buffer FOR TESTING RAISING cx_static_check.
+    METHODS export_sections_reset_state FOR TESTING.
+    METHODS filename_batch_sequence FOR TESTING.
+    METHODS export_page_invalid_mode FOR TESTING RAISING cx_static_check.
+ENDCLASS.
+
+CLASS ltc_fi_das_email_report IMPLEMENTATION.
+  METHOD header_row_column_count.
+    DATA(l_header) = zcl_fi_das_dashboard=>get_csv_header( ).
+    DATA lt_headers TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    SPLIT l_header AT ',' INTO TABLE lt_headers.
+    DELETE lt_headers WHERE table_line IS INITIAL.
+
+    DATA(l_row) = zcl_fi_das_dashboard=>get_csv_row( VALUE #( ) ).
+    DATA lt_cells TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    SPLIT l_row AT ',' INTO TABLE lt_cells.
+    DELETE lt_cells WHERE table_line IS INITIAL.
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_headers ) exp = 44 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_cells ) exp = lines( lt_headers ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_header CP '*,' ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_row CP '*,' ) ).
+  ENDMETHOD.
+
+  METHOD description_normalizes_en_dash.
+    DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_csv_row(
+      polinedesc = |A, "B" – C| ).
+    DATA(l_row) = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( l_row CS |"A, ""B"" - C"| ) ).
+  ENDMETHOD.
+
+  METHOD numeric_values_use_raw_decimal.
+    DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_csv_row(
+      povalue = '1234.50' ).
+    DATA(l_row) = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( l_row CS ',"1234.50",' ) ).
+  ENDMETHOD.
+
+  METHOD date_uses_xsa_format.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '20240305' )
+      exp = '05 Mar 2024' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '20260901' )
+      exp = '01 Sept 2026' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '02060401' )
+      exp = '01 Apr 206' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '00010401' )
+      exp = '01 Apr 1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '20261301' )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_date( '00000000' )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>get_month_name( '20260901' )
+      exp = `September` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>get_month_name( '20260501' )
+      exp = `May` ).
+    cl_abap_unit_assert=>assert_initial(
+      zcl_fi_das_utility=>get_month_name( '20261301' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_text( `` )
+      exp = ` ` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_text( CONV ebelp( '00010' ) )
+      exp = `00010` ).
+  ENDMETHOD.
+
+  METHOD report_straight_line_by_mode.
+    DATA ls_source TYPE zcl_fi_das_dashboard=>ts_csv_row.
+    DATA lt_cells TYPE zcl_fi_das_dashboard=>tt_csv_lines.
+    ls_source-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    ls_source-dashboard_section = 'Exclusion Indirect Service'.
+
+    DATA(l_csv) = zcl_fi_das_dashboard=>get_csv_row( ls_source ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '""' ).
+
+    ls_source-straightlinemthd = abap_true.
+    l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_source ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"X"' ).
+
+    ls_source-straightlinemthd = 'true'.
+    ls_source-dashboard_section = 'Indirect Services'.
+    l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_source ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"true"' ).
+
+    ls_source-straightlinemthd = 'false'.
+    ls_source-dashboard_section = 'Below $50k Indirect Service'.
+    l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_source ).
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"false"' ).
+  ENDMETHOD.
+
+  METHOD report_formats_match_xsa.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '1250.00' ) ) exp = '1250' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '1804.20' ) ) exp = '1804.2' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '0.00' ) ) exp = '0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '-0.10' ) ) exp = '-0.1' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_amount( CONV zcl_fi_das_dashboard=>t_amount( '36.14' ) ) exp = '36.14' ).
+    DATA(ls_row) = VALUE zcl_fi_das_dashboard=>ts_csv_row(
+      pstype = zif_fi_das_dashboard=>mc_pstype_service
+      amountaccrued = '1250.00' amountaccrued_usd = '1250.00'
+      exchangerate = '1,000000' exchangerate_dec = '1.000000' ).
+    DATA(l_csv) = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+    DATA lt_cells TYPE zcl_fi_das_dashboard=>tt_csv_lines.
+    SPLIT l_csv AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 21 ] exp = '"1250"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 22 ] exp = '"1250"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 23 ] exp = '"false"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 30 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 31 ] exp = '" "' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 32 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 34 ] exp = '""' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 40 ] exp = '"Service"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 41 ] exp = '"1.000000"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 43 ] exp = '""' ).
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    ls_row-straightlinemthd = abap_true.
+    ls_row-accrualmethod = 'Straight Line'.
+    l_csv = zcl_fi_das_dashboard=>get_csv_row( ls_row ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_csv CS '"true","Straight Line"' ) ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( l_csv CS '"Material","1.000000"' ) ).
+  ENDMETHOD.
+
+  METHOD report_timestamp_is_local.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260904150209.9876543' ) )
+      exp = '04 Sept 2026, 3:02:09 pm' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260101000000' ) )
+      exp = '01 Jan 2026, 12:00:00 am' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_utility=>format_timestamp( CONV #( '20260101120000' ) )
+      exp = '01 Jan 2026, 12:00:00 pm' ).
+  ENDMETHOD.
+
+  METHOD report_mapping.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    DATA(lt_sections) = lo_cut->get_section( i_email = '' i_poowner = '' ).
+    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA lr_page TYPE REF TO data.
+    DATA lt_cells TYPE zcl_fi_das_dashboard=>tt_csv_lines.
+
+    lt_over = VALUE #(
+      ( ponumber = '4500000001' pstype = zif_fi_das_dashboard=>mc_pstype_service
+        polinedesc = 'first row' amountaccrued = '25.00' )
+      ( ponumber = '4500000002' pstype = zif_fi_das_dashboard=>mc_pstype_material ) ).
+    GET REFERENCE OF lt_over INTO lr_page.
+    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
+
+    SPLIT lo_cut->ms_export-lines[ 2 ] AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 1 ] exp = '"Indirect Services"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 3 ] exp = '"4500000001"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 5 ] exp = '"first row"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 21 ] exp = '"25"' ).
+    SPLIT lo_cut->ms_export-lines[ 3 ] AT ',' INTO TABLE lt_cells.
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 1 ] exp = '"Indirect Material"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 3 ] exp = '"4500000002"' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 5 ] exp = '" "' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_cells[ 21 ] exp = '"0"' ).
+
+    TRY.
+        lo_cut->export_to_csv( ir_page = lr_page i_mode = '?' ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid report mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 3 ).
+  ENDMETHOD.
+
+  METHOD dashboard_section_by_mode.
+    DATA(l_service) = zif_fi_das_dashboard=>mc_pstype_service.
+    DATA(l_material) = zif_fi_das_dashboard=>mc_pstype_material.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_over i_pstype = l_service )
+      exp = `Indirect Services` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_over i_pstype = l_material )
+      exp = `Indirect Material` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_under i_pstype = l_service )
+      exp = `Below $50k Indirect Service` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_under i_pstype = l_material )
+      exp = `Below $50k Indirect Material` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_exclude i_pstype = l_service )
+      exp = `Exclusion Indirect Service` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_dashboard_section( i_mode = zif_fi_das_dashboard=>mc_exclude i_pstype = l_material )
+      exp = `Exclusion Indirect Material` ).
+
+    TRY.
+        zcl_fi_das_dashboard=>get_dashboard_section( i_mode = '?' i_pstype = l_service ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid dashboard mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD csv_pages_preserve_buffer.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    DATA(lt_sections) = lo_cut->get_section( i_email = '' i_poowner = '' ).
+    DATA lt_over TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA lt_under TYPE zif_fi_das_dashboard=>tt_zfi_das_under.
+    DATA lt_exclude TYPE zif_fi_das_dashboard=>tt_zfi_das_exclude.
+    DATA lr_page TYPE REF TO data.
+    DATA ls_row TYPE zcl_fi_das_dashboard=>ts_csv_row.
+
+    APPEND VALUE #( ponumber = '4500000001' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_over.
+    APPEND VALUE #( ponumber = '4500000002' pstype = zif_fi_das_dashboard=>mc_pstype_material ) TO lt_under.
+    APPEND VALUE #( ponumber = '4500000003' pstype = zif_fi_das_dashboard=>mc_pstype_service ) TO lt_exclude.
+
+    GET REFERENCE OF lt_over INTO lr_page.
+    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
+    GET REFERENCE OF lt_under INTO lr_page.
+    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_under ).
+    GET REFERENCE OF lt_exclude INTO lr_page.
+    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_exclude ).
+    CLEAR lt_over.
+    GET REFERENCE OF lt_over INTO lr_page.
+    lo_cut->export_to_csv( ir_page = lr_page i_mode = zif_fi_das_dashboard=>mc_over ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lo_cut->ms_export-lines ) exp = 4 ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-suffix exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-lines[ 1 ]
+                                       exp = zcl_fi_das_dashboard=>get_csv_header( ) ).
+    ls_row-ponumber = '4500000001'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    ls_row-dashboard_section = 'Indirect Services'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->ms_export-lines[ 2 ]
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_row ) ).
+    ls_row-ponumber = '4500000002'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_material.
+    ls_row-dashboard_section = 'Below $50k Indirect Material'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->ms_export-lines[ 3 ]
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_row ) ).
+    ls_row-ponumber = '4500000003'.
+    ls_row-pstype = zif_fi_das_dashboard=>mc_pstype_service.
+    ls_row-dashboard_section = 'Exclusion Indirect Service'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->ms_export-lines[ 4 ]
+      exp = zcl_fi_das_dashboard=>get_csv_row( ls_row ) ).
+  ENDMETHOD.
+
+  METHOD export_sections_reset_state.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    lo_cut->ms_export = VALUE #(
+      email = 'previous@example.com'
+      poowner = abap_true
+      timestamp = 'previous'
+      month = 'previous'
+      year = 'previous'
+      suffix = 4
+      lines = VALUE #( ( `old header` ) ( `old row` ) ) ).
+
+    DATA(lt_sections) = lo_cut->get_section( i_email = 'current@example.com' i_poowner = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sections
+      exp = VALUE zcl_fi_das_dashboard=>tt_sections(
+        ( mode = zif_fi_das_dashboard=>mc_over pstype = zif_fi_das_dashboard=>mc_pstype_service )
+        ( mode = zif_fi_das_dashboard=>mc_over pstype = zif_fi_das_dashboard=>mc_pstype_material )
+        ( mode = zif_fi_das_dashboard=>mc_under pstype = zif_fi_das_dashboard=>mc_pstype_service )
+        ( mode = zif_fi_das_dashboard=>mc_under pstype = zif_fi_das_dashboard=>mc_pstype_material )
+        ( mode = zif_fi_das_dashboard=>mc_exclude pstype = zif_fi_das_dashboard=>mc_pstype_all ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-email exp = 'current@example.com' ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-poowner exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-suffix exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( lo_cut->ms_export-timestamp ) exp = 14 ).
+    cl_abap_unit_assert=>assert_not_initial( act = lo_cut->ms_export-month ).
+    cl_abap_unit_assert=>assert_true( act = xsdbool( lo_cut->ms_export-month <> 'previous' ) ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( lo_cut->ms_export-year ) exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->ms_export-lines
+      exp = VALUE zcl_fi_das_dashboard=>tt_csv_lines( ( zcl_fi_das_dashboard=>get_csv_header( ) ) ) ).
+
+    lt_sections = lo_cut->get_section( i_email = 'owner@example.com' i_poowner = abap_true ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-email exp = 'owner@example.com' ).
+    cl_abap_unit_assert=>assert_equals( act = lo_cut->ms_export-poowner exp = abap_true ).
+  ENDMETHOD.
+
+  METHOD filename_batch_sequence.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    lo_cut->ms_export-timestamp = '20261125093741'.
+    lo_cut->ms_export-suffix = 1.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_filename( )
+      exp = `Digital_PO_Accruals_Dashboard_20261125093741_1.csv` ).
+    lo_cut->ms_export-suffix = 10.
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->get_filename( )
+      exp = `DAS_20261125093741_10.csv` ).
+  ENDMETHOD.
+
+  METHOD export_page_invalid_mode.
+    DATA(lo_cut) = NEW zcl_fi_das_dashboard( ).
+    TRY.
+        lo_cut->get_page( is_request = VALUE #( ) i_mode = '?' ).
+        cl_abap_unit_assert=>fail( msg = 'Invalid export mode was accepted' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
   ENDMETHOD.
 
 ENDCLASS.

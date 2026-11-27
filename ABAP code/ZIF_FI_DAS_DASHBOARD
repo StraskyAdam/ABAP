@@ -244,4 +244,16 @@ INTERFACE zif_fi_das_dashboard
       zcx_fi_das_error
       cx_sy_open_sql_db.
 
+  METHODS send_export_via_email
+    IMPORTING
+      i_email   TYPE t_email
+      i_poowner TYPE t_poowner
+    RETURNING
+      VALUE(r_status) TYPE string
+    RAISING
+      zcx_fi_das_error
+      cx_sy_conversion_error
+      cx_sy_open_sql_db
+      cx_sy_codepage_converter_init.
+
 ENDINTERFACE.

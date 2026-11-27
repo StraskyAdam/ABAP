@@ -9,9 +9,9 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
                mc_placeholder_marker         TYPE c LENGTH 1 VALUE '&',
                mc_config_email_from          TYPE zfi_das_conf_val-config_name VALUE 'EMAIL_FROM',
                mc_attachment_header_prefix   TYPE string VALUE '&SO_FILENAME=',
-               mc_default_language           TYPE c LENGTH 2 VALUE 'EN',
                mc_sender_name                TYPE string VALUE 'Accrual application',
                mc_body_line_length           TYPE i VALUE 255,
+               mc_default_language           TYPE c LENGTH 2 VALUE 'EN',
                mc_document_type_raw          TYPE so_obj_tp VALUE 'RAW',
                mc_document_subject           TYPE so_obj_des VALUE 'DAS'.
 
@@ -160,14 +160,12 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
   METHOD send_email.
 
-    DATA(lt_body) = get_body_lines( i_body ).
-
     TRY.
         DATA(lo_request) = cl_bcs=>create_persistent( ).
 
         DATA(lo_document) = cl_document_bcs=>create_document( i_subject = mc_document_subject
                                                               i_type = mc_document_type_raw
-                                                              i_text = lt_body ).
+                                                              i_text = get_body_lines( i_body ) ).
 
         add_attachments( io_document = lo_document it_attachments = it_attachments ).
 
@@ -175,10 +173,8 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
         lo_request->set_message_subject( i_subject ).
 
-        lo_request->set_sender(
-          cl_cam_address_bcs=>create_internet_address(
-            i_address_string = CONV adr6-smtp_addr( i_sender )
-            i_address_name   = mc_sender_name ) ).
+        lo_request->set_sender( cl_cam_address_bcs=>create_internet_address( i_address_string = CONV adr6-smtp_addr( i_sender )
+                                                                             i_address_name   = CONV #( mc_sender_name ) ) ).
 
         add_recipients( io_request = lo_request
                         it_recipients = it_recipients ).
@@ -198,10 +194,11 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
   METHOD get_body_lines.
 
     DATA lt_lines TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
     DATA(l_body) = i_body.
 
-    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN l_body
-      WITH cl_abap_char_utilities=>newline.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN l_body WITH cl_abap_char_utilities=>newline.
+
     SPLIT l_body AT cl_abap_char_utilities=>newline INTO TABLE lt_lines.
 
     LOOP AT lt_lines INTO DATA(l_line).

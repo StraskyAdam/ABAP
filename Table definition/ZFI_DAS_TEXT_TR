@@ -1,5 +1,5 @@
 SE11 transparent table: ZFI_DAS_TEXT_TR
-Description: DAS XSA notification text translations
+Description: Notification text translations
 Delivery class: C
 Client dependent: Yes
 Data maintenance: Display/Maintenance Allowed
@@ -7,9 +7,9 @@ Buffering: Not allowed
 
 Key  Field               Built-in type  Length
 X    MANDT               CLNT           3
-X    TEXT_ID             CHAR           50
+X    TEXT_ID             SSTRING        255
 X    LANGUAGE            CHAR           5
-     TEXT_TRANSLATIONS   STRING
+     TEXT_TRANSLATIONS   SSTRING        1000
 
 Migrate the exact TEXT_ID, LANGUAGE, TEXT_TRANSLATIONS values from
 ACCRUAL.Tables::ZT_TEXT_TRANSLATIONS (resolve the deployed XSA synonym first).
@@ -20,4 +20,3 @@ Required TEXT_ID values:
 
 Do not translate, truncate, trim or replace missing translations with English.
 No language foreign key to T002: LANGUAGE stores XSA values such as EN.
-STRING permits preserving the complete source text without a guessed CHAR limit.

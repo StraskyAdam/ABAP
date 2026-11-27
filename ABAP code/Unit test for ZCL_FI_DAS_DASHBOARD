@@ -73,17 +73,16 @@ CLASS ltc_fi_das_notify IMPLEMENTATION.
       exp = zcl_fi_das_dashboard=>convert_range_to_where(
         i_column = 'PONUMBER'
         ir_range = VALUE #( ( sign = 'I' option = 'EQ' low = '8000000001' )
-                            ( sign = 'I' option = 'EQ' low = '8000000002' )
-                            ( sign = 'I' option = 'EQ' low = '8000000001' ) ) ) ).
+                            ( sign = 'I' option = 'EQ' low = '8000000002' ) ) ) ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_request-filter-filter_select_options
       exp = VALUE zif_fi_das_dashboard=>tt_filter_select_options(
         ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' )
-        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000002' )
-        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000001' ) ) ).
+        ( property = 'PONUMBER' sign = 'I' option = 'EQ' low = '8000000002' ) ) ).
     cl_abap_unit_assert=>assert_equals( act = ls_request-parameter-email exp = '*' ).
     cl_abap_unit_assert=>assert_equals( act = ls_request-parameter-pstype exp = '*' ).
     cl_abap_unit_assert=>assert_initial( ls_request-paging ).
+    cl_abap_unit_assert=>assert_true( ls_request-options-without_formatting ).
   ENDMETHOD.
 
   METHOD empty_selection.

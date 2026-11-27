@@ -3950,9 +3950,12 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   METHOD get_section.
 
+   DATA l_timestamp TYPE timestamp.
+   GET TIME STAMP FIELD l_timestamp.
+
     ms_export = VALUE #( email     = i_email
                          poowner   = i_poowner
-                         timestamp = |{ sy-datum }{ sy-uzeit }|
+                         timestamp = |{ l_timestamp NUMBER = RAW }|
                          suffix    = mc_first_batch
                          lines     = VALUE #( ( get_csv_header( ) ) ) ).
 

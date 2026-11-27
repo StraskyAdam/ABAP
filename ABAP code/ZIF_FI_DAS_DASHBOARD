@@ -23,6 +23,23 @@ INTERFACE zif_fi_das_dashboard
 
          tt_key TYPE STANDARD TABLE OF ts_key WITH EMPTY KEY,
 
+         BEGIN OF ts_notify_item,
+           ponumber TYPE ebeln,
+           itemno   TYPE ebelp,
+         END OF ts_notify_item,
+
+         tt_notify_item TYPE STANDARD TABLE OF ts_notify_item WITH EMPTY KEY,
+
+         BEGIN OF ts_notify_row,
+           ponumber      TYPE ebeln,
+           itemno        TYPE ebelp,
+           companycode   TYPE bukrs,
+           poowner_email TYPE string,
+           po_preparer   TYPE string,
+         END OF ts_notify_row,
+
+         tt_notify_row TYPE STANDARD TABLE OF ts_notify_row WITH EMPTY KEY,
+
          BEGIN OF ts_orderby,
            property   TYPE string,
            descending TYPE abap_bool,
@@ -243,6 +260,24 @@ INTERFACE zif_fi_das_dashboard
     RAISING
       zcx_fi_das_error
       cx_sy_open_sql_db.
+
+  METHODS get_notify_items
+    IMPORTING
+      it_items       TYPE tt_notify_item
+    RETURNING
+      VALUE(rt_rows) TYPE tt_notify_row
+    RAISING
+      zcx_fi_das_error
+      cx_sy_open_sql_db.
+
+  METHODS notify_po_owners
+    IMPORTING
+      i_user           TYPE t_email
+      it_items         TYPE tt_notify_item
+    RETURNING
+      VALUE(r_message) TYPE string
+    RAISING
+      zcx_fi_das_error.
 
   METHODS send_export_via_email
     IMPORTING

@@ -3933,6 +3933,95 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_fi_das_dashboard~get_notify_items.
+
+    IF it_items IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_request) = VALUE ts_internal_request(
+      mode            = zif_fi_das_dashboard=>mc_over
+      parameter-email = mc_percent
+      parameter-pstype = zif_fi_das_dashboard=>mc_pstype_all
+      use_replication = get_use_replication( ) ).
+
+    LOOP AT it_items ASSIGNING FIELD-SYMBOL(<fs_item>).
+      IF <fs_item>-ponumber IS INITIAL OR <fs_item>-itemno IS INITIAL OR
+         <fs_item>-ponumber CN mc_digit_chars OR <fs_item>-itemno CN mc_digit_chars.
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING i_text = 'Notify requires numeric PO/item keys.'.
+      ENDIF.
+      IF ls_request-filter_for_amdp-ponumber IS NOT INITIAL.
+        ls_request-filter_for_amdp-ponumber =
+          ls_request-filter_for_amdp-ponumber && ` OR `.
+        ls_request-filter_for_amdp-item =
+          ls_request-filter_for_amdp-item && ` OR `.
+      ENDIF.
+      ls_request-filter_for_amdp-ponumber =
+        ls_request-filter_for_amdp-ponumber &&
+        |PONUMBER = '{ <fs_item>-ponumber }'|.
+      " Item selection must follow the PO-level threshold aggregation.
+      ls_request-filter_for_amdp-item =
+        ls_request-filter_for_amdp-item &&
+        |(PONUMBER = '{ <fs_item>-ponumber }' AND ITEMNO = '{ <fs_item>-itemno }')|.
+    ENDLOOP.
+
+    TRY.
+        get_required_keys(
+          EXPORTING is_request = ls_request
+          IMPORTING et_keys = DATA(lt_keys)
+                    e_total_count = DATA(l_count) ).
+
+        DATA(lt_details) = get_details( it_keys = get_unique_keys( lt_keys ) is_request = ls_request ).
+        LOOP AT lt_details ASSIGNING FIELD-SYMBOL(<fs_detail>).
+          APPEND VALUE #(
+            ponumber      = <fs_detail>-ponumber
+            itemno        = <fs_detail>-itemno
+            companycode   = <fs_detail>-companycode
+            poowner_email = to_lower( <fs_detail>-poowner_email )
+            po_preparer   = to_lower( <fs_detail>-popreparer ) ) TO rt_rows.
+        ENDLOOP.
+        SORT rt_rows BY ponumber itemno companycode poowner_email po_preparer.
+        DELETE ADJACENT DUPLICATES FROM rt_rows COMPARING ALL FIELDS.
+      CATCH cx_amdp_error INTO DATA(lx_amdp).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_amdp i_text = lx_amdp->get_text( ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD zif_fi_das_dashboard~notify_po_owners.
+
+    DATA: l_items TYPE string,
+          l_error TYPE string.
+
+    TRY.
+        CALL TRANSFORMATION id SOURCE items = it_items RESULT XML l_items.
+      CATCH cx_transformation_error INTO DATA(lx_transformation).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_transformation i_text = lx_transformation->get_text( ).
+    ENDTRY.
+
+    CALL FUNCTION 'Z_FI_DAS_NOTIFY_PO_OWNERS' DESTINATION 'NONE'
+      EXPORTING
+        i_user = CONV string( i_user )
+        i_items = l_items
+      IMPORTING
+        e_message = r_message
+        e_error = l_error
+      EXCEPTIONS
+        system_failure = 1 MESSAGE l_error
+        communication_failure = 2 MESSAGE l_error
+        OTHERS = 3.
+
+    IF sy-subrc <> 0 OR l_error IS NOT INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        EXPORTING i_text = COND #( WHEN l_error IS NOT INITIAL THEN l_error
+                                  ELSE `Notify RFC failed.` ).
+    ENDIF.
+
+  ENDMETHOD.
+
   METHOD zif_fi_das_dashboard~send_export_via_email.
 
     LOOP AT get_section( i_email   = i_email

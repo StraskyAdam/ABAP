@@ -72,6 +72,7 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
     METHODS setup.
     METHODS reset_fixture.
     METHODS replace_in_parameter_order FOR TESTING RAISING cx_static_check.
+    METHODS xsa_first_and_subject FOR TESTING RAISING cx_static_check.
     METHODS replace_empty_unknown FOR TESTING RAISING cx_static_check.
     METHODS manager_message FOR TESTING RAISING cx_static_check.
     METHODS active_contract FOR TESTING RAISING cx_static_check.
@@ -86,6 +87,21 @@ CLASS ltc_email DEFINITION FINAL FOR TESTING
 ENDCLASS.
 
 CLASS ltc_email IMPLEMENTATION.
+  METHOD xsa_first_and_subject.
+    mo_email->subject = '&MONTH& &MONTH& &USER&'.
+    mo_email->body = '&USER& &USER& &YEAR&'.
+    mo_email->zif_fi_das_email~send(
+      i_template = 'REVIEW_PO' i_language = 'EN'
+      i_replace_all = abap_false
+      it_recipients = mt_recipients
+      it_params = VALUE #( ( name = 'USER' value = 'Adam' ) )
+      it_subject_params = VALUE #( ( name = 'MONTH' value = 'November' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_subject exp = 'November &MONTH& &USER&' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_email->sent_body exp = 'Adam &USER& &YEAR&' ).
+  ENDMETHOD.
+
   METHOD body_preserves_lines.
     DATA(l_first) = repeat( val = 'A' occ = 200 ).
     DATA(l_second) = repeat( val = 'B' occ = 200 ).

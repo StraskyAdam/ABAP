@@ -29,6 +29,7 @@ CLASS ltc_user_role DEFINITION DEFERRED.
 CLASS ltc_user_language DEFINITION DEFERRED.
 CLASS ltc_rounding_threshold DEFINITION DEFERRED.
 CLASS ltc_fi_das_email_report DEFINITION DEFERRED.
+CLASS ltc_fi_das_notify DEFINITION DEFERRED.
 
 
 
@@ -45,7 +46,64 @@ CLASS zcl_fi_das_dashboard DEFINITION
                 ltc_user_role
                 ltc_user_language
                 ltc_rounding_threshold
-                ltc_fi_das_email_report.
+                ltc_fi_das_email_report
+                ltc_fi_das_notify.
+
+CLASS ltc_fi_das_notify DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+    METHODS selected_pairs FOR TESTING.
+    METHODS recipient_csv FOR TESTING.
+    METHODS rolling_day FOR TESTING RAISING zcx_fi_das_error.
+ENDCLASS.
+
+CLASS ltc_fi_das_notify IMPLEMENTATION.
+  METHOD selected_pairs.
+    DATA lt_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    DATA lt_items TYPE zif_fi_das_dashboard=>tt_notify_item.
+    lt_items = VALUE #( ( ponumber = '8000000001' itemno = '00001' )
+                        ( ponumber = '8000000002' itemno = '00002' ) ).
+    lt_rows = VALUE #( ( ponumber = '8000000001' itemno = '00001' )
+                       ( ponumber = '8000000001' itemno = '00001' )
+                       ( ponumber = '8000000001' itemno = '00002' )
+                       ( ponumber = '8000000002' itemno = '00001' )
+                       ( ponumber = '8000000002' itemno = '00002' ) ).
+    zcl_fi_das_dashboard=>filter_notify_rows( EXPORTING it_items = lt_items
+                                               CHANGING ct_rows = lt_rows ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_rows ) exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      xsdbool( line_exists( lt_rows[ ponumber = '8000000001' itemno = '00001' ] ) ) ).
+    cl_abap_unit_assert=>assert_true(
+      xsdbool( line_exists( lt_rows[ ponumber = '8000000002' itemno = '00002' ] ) ) ).
+  ENDMETHOD.
+
+  METHOD recipient_csv.
+    DATA lt_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_over.
+    lt_rows = VALUE #(
+      ( ponumber = '8000130083' itemno = '00001' companycode = '3317'
+        poowner_email = 'owner@example.com' po_preparer = 'preparer@example.com' )
+      ( ponumber = '8000130083' itemno = '00002' companycode = '3317'
+        poowner_email = 'other@example.com' po_preparer = 'other@example.com' ) ).
+    DATA(l_csv) = zcl_fi_das_dashboard=>get_notify_csv(
+      it_rows = lt_rows i_email = 'preparer@example.com' i_date = '20261130' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = l_csv
+      exp = |"sep=\|"\nPurchase Order Number\|Item Number\|Posting Date\|Company Code\|\n| &&
+            |"8000130083"\|"00001"\|"30 Nov 2026"\|"3317"\|\n| ).
+  ENDMETHOD.
+
+  METHOD rolling_day.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_notify_since( CONV timestampl( '20260301000000.1234567' ) )
+      exp = CONV timestampl( '20260228000000.1234567' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_notify_since( CONV timestampl( '20240301000000.0000000' ) )
+      exp = CONV timestampl( '20240229000000.0000000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_fi_das_dashboard=>get_notify_since( CONV timestampl( '20260101000000.0000000' ) )
+      exp = CONV timestampl( '20251231000000.0000000' ) ).
+  ENDMETHOD.
+ENDCLASS.
 
 CLASS ltc_utility_unit DEFINITION FINAL FOR TESTING
   DURATION SHORT

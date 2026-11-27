@@ -178,7 +178,10 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
           i_user = CONV #( ls_request-user ) it_items = ls_request-items ).
         copy_data_to_ref( EXPORTING is_data = ls_request
                          CHANGING cr_data = er_deep_entity ).
-      CATCH zcx_fi_das_error INTO DATA(lx_error).
+      CATCH zcx_fi_das_error
+            cx_sy_open_sql_db
+            cx_sy_conversion_error
+            cx_sy_codepage_converter_init INTO DATA(lx_error).
         RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
           EXPORTING previous = lx_error.
     ENDTRY.

@@ -33,8 +33,6 @@ INTERFACE zif_fi_das_email PUBLIC.
       i_require_active TYPE abap_bool DEFAULT abap_true
       it_recipients    TYPE tt_recipients
       it_params        TYPE tt_params OPTIONAL
-      it_subject_params TYPE tt_params OPTIONAL
-      i_replace_all    TYPE abap_bool DEFAULT abap_true
       it_attachments   TYPE tt_attachments OPTIONAL
     RAISING
       zcx_fi_das_error.

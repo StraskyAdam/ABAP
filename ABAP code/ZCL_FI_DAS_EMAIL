@@ -74,7 +74,6 @@ CLASS zcl_fi_das_email DEFINITION PUBLIC CREATE PUBLIC.
       IMPORTING
         i_text        TYPE string
         it_params     TYPE zif_fi_das_email=>tt_params
-        i_replace_all TYPE abap_bool DEFAULT abap_true
       RETURNING
         VALUE(r_text) TYPE string.
 
@@ -151,13 +150,9 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
 
     LOOP AT it_params ASSIGNING FIELD-SYMBOL(<fs_param>).
 
-      IF i_replace_all = abap_true.
-        REPLACE ALL OCCURRENCES OF |{ mc_placeholder_marker }{ <fs_param>-name }{ mc_placeholder_marker }|
-          IN r_text WITH <fs_param>-value.
-      ELSE.
-        REPLACE FIRST OCCURRENCE OF |{ mc_placeholder_marker }{ <fs_param>-name }{ mc_placeholder_marker }|
-          IN r_text WITH <fs_param>-value.
-      ENDIF.
+      REPLACE ALL OCCURRENCES OF |{ mc_placeholder_marker }{ <fs_param>-name }{ mc_placeholder_marker }|
+        IN r_text
+      WITH <fs_param>-value.
 
     ENDLOOP.
 
@@ -239,16 +234,9 @@ CLASS ZCL_FI_DAS_EMAIL IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e043(zfi_das).
     ENDIF.
 
-    DATA(lt_subject_params) = it_params.
-    IF it_subject_params IS SUPPLIED.
-      lt_subject_params = it_subject_params.
-    ENDIF.
-
     send_email( i_sender = get_sender( )
-                i_subject = replace_placeholders( i_text = ls_template-subject it_params = lt_subject_params
-                                                   i_replace_all = i_replace_all )
-                i_body = replace_placeholders( i_text = ls_template-body it_params = it_params
-                                                i_replace_all = i_replace_all )
+                i_subject = replace_placeholders( i_text = ls_template-subject it_params = it_params )
+                i_body = replace_placeholders( i_text = ls_template-body it_params = it_params )
                 it_recipients = it_recipients
                 it_attachments = it_attachments ).
 

@@ -67,13 +67,6 @@ When analysing or comparing SAP DAS functionality:
 - Distinguish between implementation differences and data-scope differences caused by source-system filtering.
 - Document assumptions and unresolved findings.
 
-## Notify PO Owners backend
-
-The backend implementation is described in
-[`Technical documentation/Notify PO Owners.md`](Technical%20documentation/Notify%20PO%20Owners.md).
-It includes the SEGW deep-create contract, isolated RFC transaction wrapper,
-audit-before-mail processing and ABAP Unit source. No UI source is changed.
-
 ## Objective
 
 The objective of this repository is to support:

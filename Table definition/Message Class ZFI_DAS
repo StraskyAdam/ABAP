@@ -49,4 +49,9 @@
 |EN      |ZFI_DAS|044	 |Email sender configuration is missing                                    |
 |EN      |ZFI_DAS|045	 |Email request was not accepted                                           |
 |EN      |ZFI_DAS|046	 |Email processing failed                                                  |
+|EN      |ZFI_DAS|047  |Notification translations are missing for language &1                    |
+|EN      |ZFI_DAS|048  |Notification UTC timestamp could not be converted                        |
+|EN      |ZFI_DAS|049  |Invalid notification CSV record &1: &2                                   |
+|EN      |ZFI_DAS|050  |Notification CSV does not contain any records                            |
+|EN      |ZFI_DAS|051  |Unable to read UTF-8 notification CSV file &1                            |
 --------------------------------------------------------------------------------------------------

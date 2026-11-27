@@ -394,7 +394,29 @@ This XML file does not appear to have any style information associated with it. 
 <End Type="ZFI_DAS_SRV.methodParametersType" Multiplicity="1" Role="FromRole_methodParameters_to_methodType"/>
 <End Type="ZFI_DAS_SRV.methodType" Multiplicity="*" Role="ToRole_methodParameters_to_methodType"/>
 </Association>
+<EntityType Name="notifyRequestType">
+<Key><PropertyRef Name="ID"/></Key>
+<Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32"/>
+<Property Name="user" Type="Edm.String" Nullable="false" MaxLength="225"/>
+<Property Name="Message" Type="Edm.String"/>
+<NavigationProperty Name="statuspo" Relationship="ZFI_DAS_SRV.notifyRequest_to_items" FromRole="Request" ToRole="Items"/>
+</EntityType>
+<EntityType Name="notifyItemType">
+<Key><PropertyRef Name="PONUMBER"/><PropertyRef Name="ITEMNO"/></Key>
+<Property Name="PONUMBER" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="ITEMNO" Type="Edm.String" Nullable="false" MaxLength="5"/>
+</EntityType>
+<Association Name="notifyRequest_to_items">
+<End Type="ZFI_DAS_SRV.notifyRequestType" Multiplicity="1" Role="Request"/>
+<End Type="ZFI_DAS_SRV.notifyItemType" Multiplicity="*" Role="Items"/>
+</Association>
 <EntityContainer Name="ZFI_DAS_SRV_Entities" m:IsDefaultEntityContainer="true" sap:supported-formats="atom json xlsx">
+<EntitySet Name="reviewPOLine" EntityType="ZFI_DAS_SRV.notifyRequestType" sap:creatable="true" sap:updatable="false" sap:deletable="false"/>
+<EntitySet Name="NotifyPOOwnerItems" EntityType="ZFI_DAS_SRV.notifyItemType" sap:creatable="false" sap:updatable="false" sap:deletable="false"/>
+<AssociationSet Name="notifyRequest_to_items" Association="ZFI_DAS_SRV.notifyRequest_to_items">
+<End EntitySet="reviewPOLine" Role="Request"/>
+<End EntitySet="NotifyPOOwnerItems" Role="Items"/>
+</AssociationSet>
 <EntitySet Name="method" EntityType="ZFI_DAS_SRV.methodType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>
 <EntitySet Name="methodParameters" EntityType="ZFI_DAS_SRV.methodParametersType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:addressable="false" sap:content-version="1"/>
 <EntitySet Name="audit" EntityType="ZFI_DAS_SRV.auditType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1"/>

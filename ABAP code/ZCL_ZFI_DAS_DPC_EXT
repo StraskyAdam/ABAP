@@ -5,6 +5,13 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
 
   PUBLIC SECTION.
 
+    METHODS /iwbep/if_mgw_appl_srv_runtime~create_deep_entity
+        REDEFINITION .
+    METHODS /iwbep/if_mgw_appl_srv_runtime~changeset_begin
+        REDEFINITION .
+    METHODS /iwbep/if_mgw_appl_srv_runtime~changeset_end
+        REDEFINITION .
+
     METHODS /iwbep/if_mgw_appl_srv_runtime~execute_action
         REDEFINITION .
 
@@ -33,6 +40,16 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
     METHODS usertypeset_get_entityset
         REDEFINITION .
   PRIVATE SECTION.
+
+    TYPES: BEGIN OF ts_notify_request,
+             id       TYPE string,
+             user     TYPE string,
+             message  TYPE string,
+             statuspo TYPE zif_fi_das_dashboard=>tt_notify_item,
+           END OF ts_notify_request.
+
+    CONSTANTS mc_notify_entity_set TYPE string VALUE 'reviewPOLine' ##NO_TEXT.
+    DATA m_in_changeset TYPE abap_bool.
 
     CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
     CONSTANTS mc_parameter_pstype TYPE string VALUE 'IP_PSTYPE' ##NO_TEXT.
@@ -109,9 +126,92 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
       RAISING
         /iwbep/cx_mgw_tech_exception.
 
+    METHODS notify_po_owners
+      IMPORTING
+        !io_data_provider TYPE REF TO /iwbep/if_mgw_entry_provider
+      EXPORTING
+        !er_data          TYPE REF TO data
+      RAISING
+        /iwbep/cx_mgw_busi_exception
+        /iwbep/cx_mgw_tech_exception.
+
 ENDCLASS.
 
 CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
+
+  METHOD /iwbep/if_mgw_appl_srv_runtime~changeset_begin.
+    super->/iwbep/if_mgw_appl_srv_runtime~changeset_begin(
+      EXPORTING it_operation_info = it_operation_info
+      CHANGING cv_defer_mode = cv_defer_mode ).
+    m_in_changeset = abap_true.
+  ENDMETHOD.
+
+  METHOD /iwbep/if_mgw_appl_srv_runtime~changeset_end.
+    CLEAR m_in_changeset.
+    super->/iwbep/if_mgw_appl_srv_runtime~changeset_end( ).
+  ENDMETHOD.
+
+  METHOD /iwbep/if_mgw_appl_srv_runtime~create_deep_entity.
+
+    CASE iv_entity_set_name.
+
+      WHEN mc_notify_entity_set.
+
+        notify_po_owners( EXPORTING io_data_provider = io_data_provider
+                         IMPORTING er_data = er_deep_entity ).
+
+      WHEN OTHERS.
+
+        super->/iwbep/if_mgw_appl_srv_runtime~create_deep_entity(
+          EXPORTING
+            iv_entity_name = iv_entity_name
+            iv_entity_set_name = iv_entity_set_name
+            iv_source_name = iv_source_name
+            io_data_provider = io_data_provider
+            it_key_tab = it_key_tab
+            it_navigation_path = it_navigation_path
+            io_expand = io_expand
+            io_tech_request_context = io_tech_request_context
+          IMPORTING er_deep_entity = er_deep_entity ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD notify_po_owners.
+
+    DATA ls_request TYPE ts_notify_request.
+
+    IF m_in_changeset = abap_true.
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
+        EXPORTING message = 'reviewPOLine requires a standalone POST, not a batch changeset.'.
+    ENDIF.
+
+    io_data_provider->read_entry_data( IMPORTING es_data = ls_request ).
+
+    TRY.
+
+        ls_request-message = get_dashboard( )->notify_po_owners(
+          i_user   = CONV #( ls_request-user )
+          it_items = ls_request-statuspo ).
+
+        copy_data_to_ref(
+          EXPORTING
+            is_data = ls_request
+          CHANGING
+            cr_data = er_data ).
+
+      CATCH cx_sy_conversion_error
+            cx_sy_open_sql_db
+            cx_sy_codepage_converter_init
+            zcx_fi_das_error INTO DATA(lx_error).
+
+        RAISE EXCEPTION TYPE /iwbep/cx_mgw_tech_exception
+          EXPORTING
+            previous = lx_error.
+    ENDTRY.
+
+  ENDMETHOD.
 
   METHOD /iwbep/if_mgw_appl_srv_runtime~execute_action.
 

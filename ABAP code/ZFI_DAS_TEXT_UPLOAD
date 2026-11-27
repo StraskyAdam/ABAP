@@ -1,0 +1,457 @@
+REPORT zfi_das_text_upload.
+
+CLASS lcl_text_upload DEFINITION FINAL.
+
+  PUBLIC SECTION.
+
+    TYPES tt_texts TYPE STANDARD TABLE OF zfi_das_text_tr WITH EMPTY KEY.
+
+    CONSTANTS:
+      mc_table        TYPE tabname VALUE 'ZFI_DAS_TEXT_TR',
+      mc_no_email     TYPE zfi_das_text_tr-text_id VALUE 'NOTIFY_NO_EMAIL',
+      mc_sent         TYPE zfi_das_text_tr-text_id VALUE 'NOTIFY_SENT',
+      mc_notified_24  TYPE zfi_das_text_tr-text_id VALUE 'NOTIFIED_24',
+      mc_quote        TYPE char1 VALUE '"',
+      mc_escape       TYPE char1 VALUE '\',
+      mc_comma        TYPE char1 VALUE ',',
+      mc_cr           TYPE char1 VALUE cl_abap_char_utilities=>cr_lf,
+      mc_lf           TYPE char1 VALUE cl_abap_char_utilities=>newline,
+      mc_tab          TYPE char1 VALUE cl_abap_char_utilities=>horizontal_tab,
+      mc_utf8         TYPE abap_encoding VALUE 'UTF-8',
+      mc_file_binary  TYPE char10 VALUE 'BIN',
+      mc_id_length    TYPE i VALUE 255,
+      mc_lang_length  TYPE i VALUE 5,
+      mc_text_length  TYPE i VALUE 1000.
+
+    METHODS run
+      IMPORTING
+        i_filename  TYPE string
+        i_test_mode TYPE abap_bool
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_codepage_converter_init.
+
+    CLASS-METHODS parse_csv
+      IMPORTING
+        i_csv           TYPE string
+      RETURNING
+        VALUE(rt_texts) TYPE tt_texts
+      RAISING
+        zcx_fi_das_error.
+
+  PRIVATE SECTION.
+
+    CLASS-METHODS read_file
+      IMPORTING
+        i_filename   TYPE string
+      RETURNING
+        VALUE(r_csv) TYPE string
+      RAISING
+        zcx_fi_das_error
+        cx_sy_conversion_error
+        cx_sy_codepage_converter_init.
+
+    CLASS-METHODS read_cell
+      IMPORTING
+        i_csv         TYPE string
+        i_row         TYPE i
+      EXPORTING
+        e_cell        TYPE string
+      CHANGING
+        c_offset      TYPE i
+      RAISING
+        zcx_fi_das_error.
+
+    CLASS-METHODS save_texts
+      IMPORTING
+        it_texts TYPE tt_texts
+      RAISING
+        zcx_fi_das_error.
+
+ENDCLASS.
+
+PARAMETERS: p_file TYPE rlgrap-filename OBLIGATORY,
+            p_test AS CHECKBOX DEFAULT abap_true.
+
+START-OF-SELECTION.
+
+  TRY.
+
+      NEW lcl_text_upload( )->run( i_filename  = CONV string( p_file )
+                                   i_test_mode = p_test ).
+
+    CATCH zcx_fi_das_error
+          cx_sy_conversion_error
+          cx_sy_codepage_converter_init INTO DATA(lx_error).
+
+      IF sy-batch = abap_true.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_abort.
+      ELSE.
+        MESSAGE lx_error->get_text( ) TYPE zcl_fi_das_utility=>mc_message_success
+          DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
+      ENDIF.
+
+  ENDTRY.
+
+CLASS lcl_text_upload IMPLEMENTATION.
+
+  METHOD run.
+
+    DATA(lt_texts) = parse_csv( read_file( i_filename ) ).
+
+    IF i_test_mode = abap_false.
+      save_texts( lt_texts ).
+    ENDIF.
+
+    WRITE: / 'Target table:', mc_table,
+           / 'Client:', sy-mandt,
+           / 'Test run:', i_test_mode,
+           / 'Validated rows:', lines( lt_texts ).
+
+    IF i_test_mode = abap_true.
+      WRITE: / 'No database changes were made.'.
+    ELSE.
+      WRITE: / 'All rows inserted or updated and committed.'.
+    ENDIF.
+
+    TRY.
+        cl_salv_table=>factory( IMPORTING r_salv_table = DATA(lo_alv)
+                                CHANGING t_table      = lt_texts ).
+        lo_alv->get_columns( )->set_optimize( abap_true ).
+        lo_alv->get_functions( )->set_all( abap_true ).
+        lo_alv->display( ).
+
+      CATCH cx_salv_msg INTO DATA(lx_display).
+        MESSAGE lx_display->get_text( ) TYPE zcl_fi_das_utility=>mc_message_success
+          DISPLAY LIKE zcl_fi_das_utility=>mc_message_error.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD read_file.
+
+    DATA: lt_binary TYPE solix_tab,
+          l_length  TYPE i,
+          l_content TYPE xstring.
+
+    cl_gui_frontend_services=>gui_upload(
+      EXPORTING
+        filename   = i_filename
+        filetype   = mc_file_binary
+      IMPORTING
+        filelength = l_length
+      CHANGING
+        data_tab   = lt_binary
+      EXCEPTIONS
+        OTHERS     = 1 ).
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e051(zfi_das) WITH i_filename.
+    ENDIF.
+
+    CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+      EXPORTING
+        input_length = l_length
+      IMPORTING
+        buffer       = l_content
+      TABLES
+        binary_tab   = lt_binary
+      EXCEPTIONS
+        failed       = 1
+        OTHERS       = 2.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e051(zfi_das) WITH i_filename.
+    ENDIF.
+
+    IF xstrlen( l_content ) >= 3.
+      IF l_content(3) = zcl_fi_das_utility=>mc_utf8_bom.
+        l_content = l_content+3.
+      ENDIF.
+    ENDIF.
+
+    DATA(lo_converter) = cl_abap_conv_in_ce=>create( encoding    = mc_utf8
+                                                    input       = l_content
+                                                    ignore_cerr = abap_false ).
+    lo_converter->read( IMPORTING data = r_csv ).
+
+  ENDMETHOD.
+
+  METHOD read_cell.
+
+    DATA(l_length) = strlen( i_csv ).
+    CLEAR e_cell.
+
+    IF c_offset >= l_length.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e049(zfi_das) WITH i_row 'Missing quoted field'.
+    ENDIF.
+
+    IF i_csv+c_offset(1) <> mc_quote.
+      RAISE EXCEPTION TYPE zcx_fi_das_error
+        MESSAGE e049(zfi_das) WITH i_row 'Expected opening quote'.
+    ENDIF.
+    c_offset = c_offset + 1.
+
+    WHILE c_offset < l_length.
+
+      DATA(l_char) = i_csv+c_offset(1).
+      c_offset = c_offset + 1.
+
+      CASE l_char.
+
+        WHEN mc_quote.
+          IF c_offset < l_length.
+            IF i_csv+c_offset(1) = mc_quote.
+              e_cell = e_cell && mc_quote.
+              c_offset = c_offset + 1.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          RETURN.
+
+        WHEN mc_escape.
+          IF c_offset >= l_length.
+            RAISE EXCEPTION TYPE zcx_fi_das_error
+              MESSAGE e049(zfi_das) WITH i_row 'Incomplete escape sequence'.
+          ENDIF.
+
+          l_char = i_csv+c_offset(1).
+          c_offset = c_offset + 1.
+
+          CASE l_char.
+            WHEN 'n'.
+              e_cell = e_cell && mc_lf.
+            WHEN 'r'.
+              e_cell = e_cell && mc_cr.
+            WHEN 't'.
+              e_cell = e_cell && mc_tab.
+            WHEN mc_escape OR mc_quote OR mc_comma.
+              e_cell = e_cell && l_char.
+            WHEN OTHERS.
+              RAISE EXCEPTION TYPE zcx_fi_das_error
+                MESSAGE e049(zfi_das) WITH i_row 'Unsupported escape sequence'.
+          ENDCASE.
+
+        WHEN OTHERS.
+          e_cell = e_cell && l_char.
+
+      ENDCASE.
+
+    ENDWHILE.
+
+    RAISE EXCEPTION TYPE zcx_fi_das_error
+      MESSAGE e049(zfi_das) WITH i_row 'Unclosed quoted field'.
+
+  ENDMETHOD.
+
+  METHOD parse_csv.
+
+    DATA: l_offset    TYPE i,
+          l_row       TYPE i,
+          l_id        TYPE string,
+          l_language  TYPE string,
+          l_text      TYPE string,
+          lt_keys     TYPE HASHED TABLE OF zfi_das_text_tr WITH UNIQUE KEY text_id language,
+          lt_languages TYPE SORTED TABLE OF zfi_das_text_tr-language WITH UNIQUE KEY table_line.
+
+    DATA(l_length) = strlen( i_csv ).
+
+    WHILE l_offset < l_length.
+
+      IF i_csv+l_offset(1) = mc_cr OR i_csv+l_offset(1) = mc_lf.
+        l_offset = l_offset + 1.
+        CONTINUE.
+      ENDIF.
+
+      l_row = l_row + 1.
+
+      read_cell( EXPORTING i_csv = i_csv i_row = l_row
+                 IMPORTING e_cell = l_id
+                 CHANGING c_offset = l_offset ).
+
+      IF l_offset >= l_length.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Missing language'.
+      ENDIF.
+      IF i_csv+l_offset(1) <> mc_comma.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Expected comma'.
+      ENDIF.
+      l_offset = l_offset + 1.
+
+      read_cell( EXPORTING i_csv = i_csv i_row = l_row
+                 IMPORTING e_cell = l_language
+                 CHANGING c_offset = l_offset ).
+
+      IF l_offset >= l_length.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Missing translation'.
+      ENDIF.
+      IF i_csv+l_offset(1) <> mc_comma.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Expected comma'.
+      ENDIF.
+      l_offset = l_offset + 1.
+
+      read_cell( EXPORTING i_csv = i_csv i_row = l_row
+                 IMPORTING e_cell = l_text
+                 CHANGING c_offset = l_offset ).
+
+      IF l_offset < l_length.
+        IF i_csv+l_offset(1) <> mc_cr AND i_csv+l_offset(1) <> mc_lf.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Unexpected extra data'.
+        ENDIF.
+      ENDIF.
+
+      IF l_id <> mc_no_email AND l_id <> mc_sent AND l_id <> mc_notified_24.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Unsupported TEXT_ID'.
+      ENDIF.
+
+      IF l_language IS INITIAL OR l_text IS INITIAL OR
+         strlen( l_id ) > mc_id_length OR strlen( l_language ) > mc_lang_length OR
+         strlen( l_text ) > mc_text_length.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Empty or oversized value'.
+      ENDIF.
+
+      DATA(ls_text) = VALUE zfi_das_text_tr( mandt             = sy-mandt
+                                            text_id           = l_id
+                                            language          = l_language
+                                            text_translations = l_text ).
+
+      INSERT ls_text INTO TABLE lt_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e049(zfi_das) WITH l_row 'Duplicate TEXT_ID/language'.
+      ENDIF.
+
+      INSERT ls_text-language INTO TABLE lt_languages.
+      APPEND ls_text TO rt_texts.
+
+    ENDWHILE.
+
+    IF rt_texts IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e050(zfi_das).
+    ENDIF.
+
+    LOOP AT lt_languages INTO DATA(l_lang).
+      IF NOT line_exists( lt_keys[ text_id = mc_no_email language = l_lang ] ) OR
+         NOT line_exists( lt_keys[ text_id = mc_sent language = l_lang ] ) OR
+         NOT line_exists( lt_keys[ text_id = mc_notified_24 language = l_lang ] ).
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e047(zfi_das) WITH l_lang.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD save_texts.
+
+    AUTHORITY-CHECK OBJECT zcl_fi_das_utility=>mc_table_auth
+      ID zcl_fi_das_utility=>mc_table_field    FIELD mc_table
+      ID zcl_fi_das_utility=>mc_activity_field FIELD '02'.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e020(zfi_das) WITH mc_table '02'.
+    ENDIF.
+
+    TRY.
+        MODIFY zfi_das_text_tr FROM TABLE @it_texts.
+        IF sy-subrc <> 0.
+          ROLLBACK WORK.
+          RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e004(zfi_das).
+        ENDIF.
+
+      CATCH cx_sy_open_sql_db INTO DATA(lx_sql).
+        ROLLBACK WORK.
+        RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e004(zfi_das)
+          EXPORTING previous = lx_sql.
+    ENDTRY.
+
+    COMMIT WORK AND WAIT.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_fi_das_error MESSAGE e031(zfi_das) WITH mc_table.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ltc_text_upload DEFINITION FINAL FOR TESTING
+  DURATION SHORT RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS escaped_text FOR TESTING RAISING zcx_fi_das_error.
+    METHODS multiline_text FOR TESTING RAISING zcx_fi_das_error.
+    METHODS invalid_csv FOR TESTING.
+
+    METHODS assert_rejected
+      IMPORTING
+        i_csv TYPE string.
+
+ENDCLASS.
+
+CLASS ltc_text_upload IMPLEMENTATION.
+
+  METHOD escaped_text.
+
+    DATA(l_csv) = `"NOTIFY_NO_EMAIL","EN","Mail not sent\, No Email ID"` &&
+      cl_abap_char_utilities=>newline &&
+      `"NOTIFY_SENT","EN","  Mail\nSent\\ \"quoted\"  "` &&
+      cl_abap_char_utilities=>newline &&
+      `"NOTIFIED_24","EN","Already notified"`.
+
+    DATA(lt_texts) = lcl_text_upload=>parse_csv( l_csv ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_texts ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_texts[ text_id = lcl_text_upload=>mc_no_email ]-text_translations
+      exp = `Mail not sent, No Email ID` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_texts[ text_id = lcl_text_upload=>mc_sent ]-text_translations
+      exp = `  Mail` && cl_abap_char_utilities=>newline && `Sent\ "quoted"  ` ).
+    cl_abap_unit_assert=>assert_equals( act = lt_texts[ 1 ]-mandt exp = sy-mandt ).
+
+  ENDMETHOD.
+
+  METHOD multiline_text.
+
+    DATA(l_csv) = `"NOTIFY_NO_EMAIL","ZH_TW","first` &&
+      cl_abap_char_utilities=>cr_lf &&
+      `second"` && cl_abap_char_utilities=>cr_lf &&
+      `"NOTIFY_SENT","ZH_TW","Mail ""Sent"""` && cl_abap_char_utilities=>cr_lf &&
+      `"NOTIFIED_24","ZH_TW","Already notified"` && cl_abap_char_utilities=>cr_lf.
+
+    DATA(lt_texts) = lcl_text_upload=>parse_csv( l_csv ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_texts ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_texts[ text_id = lcl_text_upload=>mc_no_email ]-text_translations
+      exp = `first` && cl_abap_char_utilities=>cr_lf && `second` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_texts[ text_id = lcl_text_upload=>mc_sent ]-text_translations
+      exp = `Mail "Sent"` ).
+    cl_abap_unit_assert=>assert_equals( act = lt_texts[ 1 ]-language exp = 'ZH_TW' ).
+
+  ENDMETHOD.
+
+  METHOD invalid_csv.
+
+    assert_rejected( `` ).
+    assert_rejected( `"NOTIFY_SENT","EN","Mail Sent"` ).
+    assert_rejected( `"NOTIFY_SENT","EN","Mail Sent"` &&
+      cl_abap_char_utilities=>newline && `"NOTIFY_SENT","EN","Other"` ).
+    assert_rejected( `"NOTIFY_SENT","EN","Mail Sent` ).
+    assert_rejected( `"NOTIFY_SENT","EN","Mail\qSent"` ).
+    assert_rejected( `"NOTIFY_SENT","EN","Mail Sent","extra"` ).
+    assert_rejected( `"NOTIFY_SENT","TOOLONG","Mail Sent"` ).
+    assert_rejected( `"NOTIFY_SENT","EN",""` ).
+    assert_rejected( `"OTHER","EN","Mail Sent"` ).
+    assert_rejected( `"NOTIFY_SENT","EN","` && repeat( val = `x` occ = 1001 ) && `"` ).
+
+  ENDMETHOD.
+
+  METHOD assert_rejected.
+
+    TRY.
+        lcl_text_upload=>parse_csv( i_csv ).
+        cl_abap_unit_assert=>fail( 'Invalid CSV was accepted.' ).
+      CATCH zcx_fi_das_error.
+    ENDTRY.
+
+  ENDMETHOD.
+
+ENDCLASS.

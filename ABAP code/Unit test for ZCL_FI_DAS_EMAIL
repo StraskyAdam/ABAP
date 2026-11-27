@@ -124,17 +124,22 @@ CLASS ltc_email IMPLEMENTATION.
       exp = VALUE soli_tab( ( line = l_word ) ( line = ` next` ) ) ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_email->body_lines( '' )
-      exp = VALUE soli_tab( ( line = '' ) ) ).
+      exp = VALUE soli_tab( ) ).
   ENDMETHOD.
 
   METHOD body_wraps_long_word.
-    DATA(l_word) = repeat( val = 'Z' occ = 600 ).
+    DATA(l_word) = repeat( val = `Z` occ = 600 ).
+    DATA(l_full_line) = repeat( val = `Z` occ = 255 ).
+    DATA(l_last_line) = repeat( val = `Z` occ = 90 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_word ) exp = 600 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_full_line ) exp = 255 ).
+    cl_abap_unit_assert=>assert_equals( act = strlen( l_last_line ) exp = 90 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_email->body_lines( l_word )
       exp = VALUE soli_tab(
-        ( line = repeat( val = 'Z' occ = 255 ) )
-        ( line = repeat( val = 'Z' occ = 255 ) )
-        ( line = repeat( val = 'Z' occ = 90 ) ) ) ).
+        ( line = l_full_line )
+        ( line = l_full_line )
+        ( line = l_last_line ) ) ).
   ENDMETHOD.
 
   METHOD setup.

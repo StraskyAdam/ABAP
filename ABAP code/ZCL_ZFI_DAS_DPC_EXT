@@ -126,6 +126,15 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
       RAISING
         /iwbep/cx_mgw_tech_exception.
 
+    METHODS notify_po_owners
+      IMPORTING
+        io_data_provider TYPE REF TO /iwbep/if_mgw_entry_provider
+      EXPORTING
+        er_data TYPE REF TO data
+      RAISING
+        /iwbep/cx_mgw_busi_exception
+        /iwbep/cx_mgw_tech_exception.
+
 ENDCLASS.
 
 CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
@@ -144,23 +153,34 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
   METHOD /iwbep/if_mgw_appl_srv_runtime~create_deep_entity.
 
+    CASE iv_entity_set_name.
+
+      WHEN mc_notify_entity_set.
+
+        notify_po_owners( EXPORTING io_data_provider = io_data_provider
+                         IMPORTING er_data = er_deep_entity ).
+
+      WHEN OTHERS.
+
+        super->/iwbep/if_mgw_appl_srv_runtime~create_deep_entity(
+          EXPORTING
+            iv_entity_name = iv_entity_name
+            iv_entity_set_name = iv_entity_set_name
+            iv_source_name = iv_source_name
+            io_data_provider = io_data_provider
+            it_key_tab = it_key_tab
+            it_navigation_path = it_navigation_path
+            io_expand = io_expand
+            io_tech_request_context = io_tech_request_context
+          IMPORTING er_deep_entity = er_deep_entity ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD notify_po_owners.
+
     DATA ls_request TYPE ts_notify_request.
-
-    IF iv_entity_set_name <> mc_notify_entity_set.
-      super->/iwbep/if_mgw_appl_srv_runtime~create_deep_entity(
-        EXPORTING
-          iv_entity_name = iv_entity_name
-          iv_entity_set_name = iv_entity_set_name
-          iv_source_name = iv_source_name
-          io_data_provider = io_data_provider
-          it_key_tab = it_key_tab
-          it_navigation_path = it_navigation_path
-          io_expand = io_expand
-          io_tech_request_context = io_tech_request_context
-        IMPORTING er_deep_entity = er_deep_entity ).
-      RETURN.
-    ENDIF.
-
     IF m_in_changeset = abap_true.
       RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
         EXPORTING message = 'NotifyPOOwners requires a standalone POST, not a batch changeset.'.
@@ -171,7 +191,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
         ls_request-message = get_dashboard( )->notify_po_owners(
           i_user = CONV #( ls_request-user ) it_items = ls_request-items ).
         copy_data_to_ref( EXPORTING is_data = ls_request
-                         CHANGING cr_data = er_deep_entity ).
+                         CHANGING cr_data = er_data ).
       CATCH zcx_fi_das_error
             cx_sy_open_sql_db
             cx_sy_conversion_error

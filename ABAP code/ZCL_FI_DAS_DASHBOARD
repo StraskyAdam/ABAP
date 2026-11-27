@@ -1049,12 +1049,22 @@ CLASS zcl_fi_das_dashboard DEFINITION
       RETURNING
         VALUE(r_header) TYPE string.
 
-    TYPES: tt_notify_recipients TYPE STANDARD TABLE OF string WITH EMPTY KEY,
+    TYPES: tt_notify_selection TYPE HASHED TABLE OF zif_fi_das_dashboard=>ts_notify_item
+             WITH UNIQUE KEY ponumber itemno,
+           tt_notify_recipients TYPE STANDARD TABLE OF string WITH EMPTY KEY,
            BEGIN OF ts_notify_texts,
              no_email TYPE string,
              notified_24 TYPE string,
              sent TYPE string,
            END OF ts_notify_texts.
+
+    CLASS-METHODS get_notify_request
+      IMPORTING
+        it_items TYPE zif_fi_das_dashboard=>tt_notify_item
+      RETURNING
+        VALUE(rs_request) TYPE zif_fi_das_dashboard=>ts_request
+      RAISING
+        zcx_fi_das_error.
 
     METHODS get_notify_rows
       IMPORTING
@@ -1073,6 +1083,15 @@ CLASS zcl_fi_das_dashboard DEFINITION
       EXPORTING
         et_ready TYPE zif_fi_das_dashboard=>tt_zfi_das_over
         et_blocked TYPE zif_fi_das_dashboard=>tt_zfi_das_over
+      RAISING
+        zcx_fi_das_error
+        cx_sy_open_sql_db.
+
+    METHODS insert_notify_audit
+      IMPORTING
+        it_rows TYPE zif_fi_das_dashboard=>tt_zfi_das_over
+        i_user TYPE zif_fi_das_dashboard=>t_email
+        i_now TYPE timestampl
       RAISING
         zcx_fi_das_error
         cx_sy_open_sql_db.
@@ -4039,45 +4058,51 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD get_notify_rows.
+  METHOD get_notify_request.
 
-    IF it_items IS INITIAL.
-      RETURN.
-    ENDIF.
+    DATA lr_ponumber TYPE tt_string_range.
 
-    DATA(ls_request) = VALUE zif_fi_das_dashboard=>ts_request(
+    rs_request = VALUE #(
       parameter-email = mc_asterisk
       parameter-pstype = zif_fi_das_dashboard=>mc_pstype_all ).
 
     LOOP AT it_items ASSIGNING FIELD-SYMBOL(<fs_item>).
       APPEND VALUE #( property = mc_ponumber sign = 'I' option = 'EQ'
-                      low = <fs_item>-ponumber ) TO ls_request-filter-filter_select_options.
-      IF ls_request-filter-filter_string IS NOT INITIAL.
-        ls_request-filter-filter_string = ls_request-filter-filter_string && ` OR `.
-      ENDIF.
-      DATA(l_ponumber) = CONV string( <fs_item>-ponumber ).
-      REPLACE ALL OCCURRENCES OF mc_filter_quote IN l_ponumber WITH mc_filter_escaped_quote.
-      ls_request-filter-filter_string = ls_request-filter-filter_string &&
-        |PONUMBER = '{ l_ponumber }'|.
+                      low = <fs_item>-ponumber ) TO rs_request-filter-filter_select_options.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = <fs_item>-ponumber ) TO lr_ponumber.
     ENDLOOP.
 
-    TEST-SEAM notify_over.
-      zif_fi_das_dashboard~over(
-        EXPORTING is_request = ls_request
-        IMPORTING et_result = rt_rows ).
-    END-TEST-SEAM.
+    TRY.
+        rs_request-filter-filter_string = convert_range_to_where(
+          i_column = mc_ponumber ir_range = lr_ponumber ).
+      CATCH cx_shdb_exception INTO DATA(lx_filter).
+        RAISE EXCEPTION TYPE zcx_fi_das_error
+          EXPORTING previous = lx_filter.
+    ENDTRY.
 
-    LOOP AT rt_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
-      IF NOT line_exists( it_items[ ponumber = <fs_row>-ponumber itemno = <fs_row>-itemno ] ).
-        DELETE rt_rows.
-      ENDIF.
+  ENDMETHOD.
+
+  METHOD get_notify_rows.
+
+    DATA lt_selection TYPE tt_notify_selection.
+    IF it_items IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_items ASSIGNING FIELD-SYMBOL(<fs_item>).
+      INSERT <fs_item> INTO TABLE lt_selection.
     ENDLOOP.
+
+    zif_fi_das_dashboard~over(
+      EXPORTING is_request = get_notify_request( it_items )
+      IMPORTING et_result = rt_rows ).
+
+    rt_rows = FILTER #( rt_rows IN lt_selection WHERE ponumber = ponumber AND itemno = itemno ).
 
   ENDMETHOD.
 
   METHOD audit_notify_rows.
 
-    DATA lt_new_audit TYPE STANDARD TABLE OF zfi_das_po_audit WITH EMPTY KEY.
     CLEAR: et_ready, et_blocked.
     IF it_rows IS INITIAL.
       RETURN.
@@ -4096,6 +4121,17 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
         CONTINUE.
       ENDIF.
       APPEND <fs_over> TO et_ready.
+    ENDLOOP.
+
+    insert_notify_audit( it_rows = et_ready i_user = i_user i_now = i_now ).
+
+  ENDMETHOD.
+
+  METHOD insert_notify_audit.
+
+    DATA lt_new_audit TYPE STANDARD TABLE OF zfi_das_po_audit WITH EMPTY KEY.
+
+    LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_over>).
       IF <fs_over>-poowner_email IS NOT INITIAL OR <fs_over>-po_preparer IS NOT INITIAL.
         APPEND VALUE #(
           mandt = sy-mandt ponumber = <fs_over>-ponumber lineitem = <fs_over>-itemno
@@ -4231,17 +4267,22 @@ CLASS zcl_fi_das_dashboard IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_notify_csv.
-    DATA(l_lf) = cl_abap_char_utilities=>newline.
-    r_csv = `"sep=|"` && l_lf &&
-      `Purchase Order Number|Item Number|Posting Date|Company Code|` && l_lf.
+    DATA(lt_lines) = VALUE zcl_fi_das_utility=>tt_string(
+      ( `"sep=|"` )
+      ( `Purchase Order Number|Item Number|Posting Date|Company Code|` ) ).
     LOOP AT it_rows ASSIGNING FIELD-SYMBOL(<fs_row>)
       WHERE poowner_email = i_email OR po_preparer = i_email.
-      DATA(l_company) = COND string( WHEN <fs_row>-companycode IS INITIAL
-                                     THEN ` ` ELSE <fs_row>-companycode ).
-      r_csv = r_csv &&
-        |"{ <fs_row>-ponumber }"\|"{ <fs_row>-itemno }"\|"{ zcl_fi_das_utility=>format_date( i_date ) }"\|"{ l_company }"\|| &&
-        l_lf.
+      APPEND zcl_fi_das_utility=>to_csv_row(
+        it_values = VALUE #( ( CONV string( <fs_row>-ponumber ) )
+                             ( CONV string( <fs_row>-itemno ) )
+                             ( zcl_fi_das_utility=>format_date( i_date ) )
+                             ( CONV string( <fs_row>-companycode ) ) )
+        i_separator = '|'
+        i_empty_value = ` `
+        i_trailing_separator = abap_true ) TO lt_lines.
     ENDLOOP.
+    r_csv = zcl_fi_das_utility=>to_csv(
+      it_lines = lt_lines i_line_separator = cl_abap_char_utilities=>newline ).
   ENDMETHOD.
 
   METHOD get_notify_since.

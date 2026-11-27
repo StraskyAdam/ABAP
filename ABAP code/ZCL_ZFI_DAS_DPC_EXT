@@ -42,13 +42,13 @@ CLASS zcl_zfi_das_dpc_ext DEFINITION
   PRIVATE SECTION.
 
     TYPES: BEGIN OF ts_notify_request,
-             id      TYPE string,
-             user    TYPE string,
-             message TYPE string,
-             items   TYPE zif_fi_das_dashboard=>tt_notify_item,
+             id       TYPE string,
+             user     TYPE string,
+             message  TYPE string,
+             statuspo TYPE zif_fi_das_dashboard=>tt_notify_item,
            END OF ts_notify_request.
 
-    CONSTANTS mc_notify_entity_set TYPE string VALUE 'NotifyPOOwners' ##NO_TEXT.
+    CONSTANTS mc_notify_entity_set TYPE string VALUE 'reviewPOLine' ##NO_TEXT.
     DATA m_in_changeset TYPE abap_bool.
 
     CONSTANTS mc_parameter_email TYPE string VALUE 'IP_EMAIL' ##NO_TEXT.
@@ -184,7 +184,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
     IF m_in_changeset = abap_true.
       RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
-        EXPORTING message = 'NotifyPOOwners requires a standalone POST, not a batch changeset.'.
+        EXPORTING message = 'reviewPOLine requires a standalone POST, not a batch changeset.'.
     ENDIF.
 
     io_data_provider->read_entry_data( IMPORTING es_data = ls_request ).
@@ -193,7 +193,7 @@ CLASS zcl_zfi_das_dpc_ext IMPLEMENTATION.
 
         ls_request-message = get_dashboard( )->notify_po_owners(
           i_user   = CONV #( ls_request-user )
-          it_items = ls_request-items ).
+          it_items = ls_request-statuspo ).
 
         copy_data_to_ref(
           EXPORTING

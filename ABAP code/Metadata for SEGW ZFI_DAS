@@ -397,9 +397,9 @@ This XML file does not appear to have any style information associated with it. 
 <EntityType Name="notifyRequestType">
 <Key><PropertyRef Name="ID"/></Key>
 <Property Name="ID" Type="Edm.String" Nullable="false" MaxLength="32"/>
-<Property Name="USER" Type="Edm.String" Nullable="false" MaxLength="225"/>
+<Property Name="user" Type="Edm.String" Nullable="false" MaxLength="225"/>
 <Property Name="Message" Type="Edm.String"/>
-<NavigationProperty Name="Items" Relationship="ZFI_DAS_SRV.notifyRequest_to_items" FromRole="Request" ToRole="Items"/>
+<NavigationProperty Name="statuspo" Relationship="ZFI_DAS_SRV.notifyRequest_to_items" FromRole="Request" ToRole="Items"/>
 </EntityType>
 <EntityType Name="notifyItemType">
 <Key><PropertyRef Name="PONUMBER"/><PropertyRef Name="ITEMNO"/></Key>
@@ -411,10 +411,10 @@ This XML file does not appear to have any style information associated with it. 
 <End Type="ZFI_DAS_SRV.notifyItemType" Multiplicity="*" Role="Items"/>
 </Association>
 <EntityContainer Name="ZFI_DAS_SRV_Entities" m:IsDefaultEntityContainer="true" sap:supported-formats="atom json xlsx">
-<EntitySet Name="NotifyPOOwners" EntityType="ZFI_DAS_SRV.notifyRequestType" sap:creatable="true" sap:updatable="false" sap:deletable="false"/>
+<EntitySet Name="reviewPOLine" EntityType="ZFI_DAS_SRV.notifyRequestType" sap:creatable="true" sap:updatable="false" sap:deletable="false"/>
 <EntitySet Name="NotifyPOOwnerItems" EntityType="ZFI_DAS_SRV.notifyItemType" sap:creatable="false" sap:updatable="false" sap:deletable="false"/>
 <AssociationSet Name="notifyRequest_to_items" Association="ZFI_DAS_SRV.notifyRequest_to_items">
-<End EntitySet="NotifyPOOwners" Role="Request"/>
+<End EntitySet="reviewPOLine" Role="Request"/>
 <End EntitySet="NotifyPOOwnerItems" Role="Items"/>
 </AssociationSet>
 <EntitySet Name="method" EntityType="ZFI_DAS_SRV.methodType" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:pageable="false" sap:content-version="1"/>

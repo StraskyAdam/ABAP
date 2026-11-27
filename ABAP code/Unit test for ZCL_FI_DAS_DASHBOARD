@@ -11894,11 +11894,10 @@ CLASS ltc_fi_das_csv IMPLEMENTATION.
 
   METHOD csv_join_lines.
     DATA(lt_lines) = VALUE zcl_fi_das_utility=>tt_string( ( `header,` ) ( `"1",` ) ).
-    DATA(l_crlf) = cl_abap_char_utilities=>cr_lf.
 
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>to_csv( lt_lines )
-      exp = |header,{ l_crlf }"1",{ l_crlf }| ).
+      exp = |header,{ cl_abap_char_utilities=>newline }"1",{ cl_abap_char_utilities=>newline }| ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_fi_das_utility=>to_csv(
         it_lines = lt_lines i_line_separator = CONV string( cl_abap_char_utilities=>newline )
